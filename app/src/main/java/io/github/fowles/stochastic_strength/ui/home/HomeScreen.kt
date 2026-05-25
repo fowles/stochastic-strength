@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 
 @Composable
 fun HomeScreen(
@@ -58,7 +59,7 @@ fun HomeScreen(
             when (state) {
                 HomeState.Loading -> CircularProgressIndicator()
                 HomeState.ProfileSetup -> ProfileSetupContent(
-                    onConfirm = { sex, level -> viewModel.submitProfile(sex, level) },
+                    onConfirm = { sex, level, unit -> viewModel.submitProfile(sex, level, unit) },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(24.dp),
@@ -105,11 +106,12 @@ private fun ReadyContent(onStart: () -> Unit, modifier: Modifier = Modifier) {
 
 @Composable
 private fun ProfileSetupContent(
-    onConfirm: (Sex, StrengthLevel) -> Unit,
+    onConfirm: (Sex, StrengthLevel, WeightUnit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedSex by remember { mutableStateOf<Sex?>(null) }
     var selectedLevel by remember { mutableStateOf<StrengthLevel?>(null) }
+    var selectedUnit by remember { mutableStateOf<WeightUnit?>(null) }
 
     Column(
         modifier = modifier,
@@ -166,12 +168,31 @@ private fun ProfileSetupContent(
             )
         }
 
+        Spacer(Modifier.height(24.dp))
+        Text("Preferred units", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            SelectableButton(
+                label = "kg",
+                selected = selectedUnit == WeightUnit.KG,
+                onClick = { selectedUnit = WeightUnit.KG },
+                modifier = Modifier.weight(1f),
+            )
+            SelectableButton(
+                label = "lbs",
+                selected = selectedUnit == WeightUnit.LBS,
+                onClick = { selectedUnit = WeightUnit.LBS },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
         Spacer(Modifier.height(40.dp))
         val sex = selectedSex
         val level = selectedLevel
+        val unit = selectedUnit
         Button(
-            onClick = { if (sex != null && level != null) onConfirm(sex, level) },
-            enabled = sex != null && level != null,
+            onClick = { if (sex != null && level != null && unit != null) onConfirm(sex, level, unit) },
+            enabled = sex != null && level != null && unit != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Get Started")

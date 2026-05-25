@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.summary
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,10 +18,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 
 @Composable
 fun SummaryScreen(
@@ -55,7 +58,19 @@ fun SummaryScreen(
                 Spacer(Modifier.height(24.dp))
 
                 s.exercises.forEach { ex ->
-                    Text(ex.name, style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(ex.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        if (ex.weight > 0f) {
+                            Text(
+                                WeightFormatter.format(ex.weight, s.weightUnit),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                     ex.feedback.forEachIndexed { i, fb ->
                         Text(
                             "  Set ${i + 1}: ${fb.label()}",

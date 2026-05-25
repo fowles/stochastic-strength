@@ -40,15 +40,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 
 @Composable
 fun WorkoutScreen(
@@ -56,6 +58,7 @@ fun WorkoutScreen(
     viewModel: WorkoutViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val weightUnit by viewModel.weightUnit.collectAsState()
 
     LaunchedEffect(state) {
         val s = state
@@ -72,11 +75,13 @@ fun WorkoutScreen(
                 WorkoutState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 is WorkoutState.PlanPreview -> PlanPreviewContent(
                     state = s,
+                    weightUnit = weightUnit,
                     onStart = viewModel::startFirstExercise,
                     onReplace = viewModel::replaceExercise,
                 )
                 is WorkoutState.ActiveSet -> ActiveSetContent(
                     state = s,
+                    weightUnit = weightUnit,
                     onFeedback = viewModel::recordFeedback,
                     onDislike = viewModel::dislikeCurrentExercise,
                     onNoEquipment = viewModel::markNoEquipmentHere,
@@ -95,6 +100,7 @@ fun WorkoutScreen(
 @Composable
 private fun PlanPreviewContent(
     state: WorkoutState.PlanPreview,
+    weightUnit: WeightUnit,
     onStart: () -> Unit,
     onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
 ) {
@@ -120,6 +126,7 @@ private fun PlanPreviewContent(
             items(plan.exercises, key = { it.exercise.id }) { planned ->
                 ExercisePreviewRow(
                     planned = planned,
+                    weightUnit = weightUnit,
                     onReplace = { reason -> onReplace(plan.exercises.indexOf(planned), reason) },
                     modifier = Modifier.animateItem(),
                 )
@@ -136,6 +143,7 @@ private fun PlanPreviewContent(
 @Composable
 private fun ExercisePreviewRow(
     planned: io.github.fowles.stochastic_strength.domain.model.PlannedExercise,
+    weightUnit: WeightUnit,
     onReplace: (ExerciseRemovalReason) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -189,7 +197,7 @@ private fun ExercisePreviewRow(
                 Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
                 val st = planned.state
                 val weightLabel = when {
-                    st.currentWeight > 0f -> "%.1f kg".format(st.currentWeight)
+                    st.currentWeight > 0f -> WeightFormatter.format(st.currentWeight, weightUnit)
                     planned.exercise.equipment == Equipment.BODYWEIGHT -> "Bodyweight"
                     else -> null
                 }
@@ -253,6 +261,7 @@ private fun ExerciseActionRow(
 @Composable
 private fun ActiveSetContent(
     state: WorkoutState.ActiveSet,
+    weightUnit: WeightUnit,
     onFeedback: (SetFeedback) -> Unit,
     onDislike: () -> Unit,
     onNoEquipment: () -> Unit,
@@ -300,7 +309,7 @@ private fun ActiveSetContent(
 
         when {
             exerciseState.currentWeight > 0f -> Text(
-                "%.1f kg".format(exerciseState.currentWeight),
+                WeightFormatter.format(exerciseState.currentWeight, weightUnit),
                 style = MaterialTheme.typography.displaySmall,
             )
             exercise.equipment == Equipment.BODYWEIGHT -> Text(

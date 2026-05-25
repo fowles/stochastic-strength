@@ -8,6 +8,7 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationEquipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
@@ -30,12 +31,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _state = MutableStateFlow<WorkoutState>(WorkoutState.Loading)
     val state: StateFlow<WorkoutState> = _state.asStateFlow()
 
+    private val _weightUnit = MutableStateFlow(WeightUnit.KG)
+    val weightUnit: StateFlow<WeightUnit> = _weightUnit.asStateFlow()
+
     private var restTimerJob: Job? = null
     private var sessionStartTime = 0L
 
-    // Tracks the locationId for this session; may be set lazily on first equipment removal.
     private var sessionLocationId: Long? = null
-    // GPS coords stored when we're at an unknown location, for lazy location creation.
     private var pendingLocationCoords: Pair<Double, Double>? = null
 
     init {
@@ -44,6 +46,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private fun startWorkout() {
         viewModelScope.launch {
+            _weightUnit.value = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
             when (val loc = locationService.resolveLocation(app.database)) {
                 is LocationResult.Known -> {
                     sessionLocationId = loc.locationId

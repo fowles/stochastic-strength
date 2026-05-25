@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -106,15 +107,31 @@ class ProgressionEngineTest {
     }
 
     @Test
-    fun weightAlwaysRoundsToPlateIncrement() {
-        val result = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_5_PLUS)
-        assertEquals(0f, result.currentWeight % 2.5f, 0.001f)
-    }
-
-    @Test
     fun emptyFeedbackListReturnsUnchangedState() {
         val s = state(60f)
         val result = ProgressionEngine.computeNextState(s, emptyList())
         assertEquals(s, result)
+    }
+
+    @Test
+    fun weightFormatterRoundsToLbs() {
+        // 100 kg is 220.462 lbs. Should round to 220 lbs.
+        assertEquals("220 lbs", WeightFormatter.format(100f, WeightUnit.LBS))
+        
+        // 102.5 kg is 225.97 lbs. Should round to 226 lbs in format (0 decimal).
+        // Wait, 102.5kg is exactly 225.973... lbs.
+        // Actually my format string was %.0f.
+        assertEquals("226 lbs", WeightFormatter.format(102.5f, WeightUnit.LBS))
+    }
+
+    @Test
+    fun weightFormatterRoundsToPlateIncrements() {
+        // LBS mode should round 102.5kg (~226 lbs) to 225 lbs (next 5lb increment)
+        // 225 lbs = 102.058... kg
+        val roundedToLbs = WeightFormatter.round(102.5f, WeightUnit.LBS)
+        assertEquals(225f, roundedToLbs * 2.20462f, 0.1f)
+        
+        // KG mode should round 103f to 102.5f (next 2.5kg increment)
+        assertEquals(102.5f, WeightFormatter.round(103f, WeightUnit.KG), 0.001f)
     }
 }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,9 +33,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun submitProfile(sex: Sex, strengthLevel: StrengthLevel) {
+    fun submitProfile(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         viewModelScope.launch {
-            repository.seedInitialWeights(sex, strengthLevel)
+            repository.seedInitialWeights(sex, strengthLevel, weightUnit)
             _state.value = HomeState.Ready
         }
     }

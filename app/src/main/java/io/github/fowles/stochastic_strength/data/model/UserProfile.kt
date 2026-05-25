@@ -8,4 +8,5 @@ data class UserProfile(
     @PrimaryKey val id: Long = 1,
     val sex: Sex,
     val strengthLevel: StrengthLevel,
+    val weightUnit: WeightUnit,
 )

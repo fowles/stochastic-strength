@@ -6,9 +6,9 @@ import kotlin.math.roundToInt
 
 object ProgressionEngine {
     const val CONSECUTIVE_RIR5_FOR_SET_INCREASE = 2
-    private const val PLATE_INCREMENT = 2.5f
     private const val MIN_SETS = 2
     private const val MAX_SETS = 4
+    private const val INTERNAL_INCREMENT = 0.5f // Use 0.5kg as internal resolution
 
     fun computeNextState(state: ExerciseState, sessionFeedbacks: List<SetFeedback>): ExerciseState {
         if (sessionFeedbacks.isEmpty()) return state
@@ -47,7 +47,6 @@ object ProgressionEngine {
         }
     }
 
-    // Priority: HURT > TOO_HARD > last RIR feedback (most fatigued set is most informative)
     private fun aggregateFeedback(feedbacks: List<SetFeedback>): SetFeedback {
         if (SetFeedback.HURT in feedbacks) return SetFeedback.HURT
         if (SetFeedback.TOO_HARD in feedbacks) return SetFeedback.TOO_HARD
@@ -55,15 +54,15 @@ object ProgressionEngine {
     }
 
     private fun weightIncreased(current: Float, factor: Float): Float {
-        val scaled = roundToPlate(current * factor)
-        return if (scaled > current) scaled else current + PLATE_INCREMENT
+        val scaled = roundInternal(current * factor)
+        return if (scaled > current) scaled else roundInternal(current + INTERNAL_INCREMENT)
     }
 
     private fun weightDecreased(current: Float, factor: Float): Float {
-        val scaled = roundToPlate(current * factor)
-        return if (scaled < current) maxOf(PLATE_INCREMENT, scaled) else maxOf(PLATE_INCREMENT, current - PLATE_INCREMENT)
+        val scaled = roundInternal(current * factor)
+        return if (scaled < current) maxOf(INTERNAL_INCREMENT, scaled) else maxOf(INTERNAL_INCREMENT, roundInternal(current - INTERNAL_INCREMENT))
     }
 
-    private fun roundToPlate(weight: Float): Float =
-        (weight / PLATE_INCREMENT).roundToInt() * PLATE_INCREMENT
+    private fun roundInternal(weight: Float): Float =
+        (weight / INTERNAL_INCREMENT).roundToInt() * INTERNAL_INCREMENT
 }
