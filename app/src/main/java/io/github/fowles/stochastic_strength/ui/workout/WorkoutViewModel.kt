@@ -137,13 +137,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val endTime = System.currentTimeMillis()
         viewModelScope.launch {
             app.database.workoutSessionDao().updateEndTime(current.sessionId, endTime)
+            repository.applySessionProgression(current.sessionId)
+            _state.value = WorkoutState.Done(
+                sessionId = current.sessionId,
+                plan = current.plan,
+                startTime = sessionStartTime,
+                endTime = endTime,
+            )
         }
-        _state.value = WorkoutState.Done(
-            sessionId = current.sessionId,
-            plan = current.plan,
-            startTime = sessionStartTime,
-            endTime = endTime,
-        )
     }
 
     private fun currentPlanAndIndex(): Pair<WorkoutPlan, Int>? = when (val s = _state.value) {
