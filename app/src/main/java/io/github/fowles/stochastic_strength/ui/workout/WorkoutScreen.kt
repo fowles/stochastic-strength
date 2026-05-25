@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -19,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 
 @Composable
@@ -54,6 +58,10 @@ fun WorkoutScreen(
         ) {
             when (val s = state) {
                 WorkoutState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                is WorkoutState.NewLocationSetup -> NewLocationSetupContent(
+                    onSave = viewModel::saveNewLocation,
+                    onSkip = viewModel::skipLocationSetup,
+                )
                 is WorkoutState.ActiveSet -> ActiveSetContent(
                     state = s,
                     onFeedback = viewModel::recordFeedback,
@@ -176,6 +184,71 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
                 modifier = Modifier.weight(1f),
             ) { Text("5+ left") }
         }
+    }
+}
+
+@Composable
+private fun NewLocationSetupContent(
+    onSave: (name: String, equipment: Set<Equipment>) -> Unit,
+    onSkip: () -> Unit,
+) {
+    val equipmentChoices = remember { Equipment.entries.filter { it != Equipment.BODYWEIGHT } }
+    var locationName by remember { mutableStateOf("") }
+    var selectedEquipment by remember { mutableStateOf(emptySet<Equipment>()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("New Location", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Name this location and select the equipment available here.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(24.dp))
+        OutlinedTextField(
+            value = locationName,
+            onValueChange = { locationName = it },
+            label = { Text("Location name") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("Available equipment:", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(8.dp))
+        equipmentChoices.forEach { equipment ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = equipment in selectedEquipment,
+                    onCheckedChange = { checked ->
+                        selectedEquipment = if (checked) selectedEquipment + equipment
+                        else selectedEquipment - equipment
+                    },
+                )
+                Text(
+                    equipment.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Button(
+            onClick = { onSave(locationName.trim(), selectedEquipment) },
+            enabled = locationName.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Save & Start Workout") }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onSkip,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Skip") }
     }
 }
 

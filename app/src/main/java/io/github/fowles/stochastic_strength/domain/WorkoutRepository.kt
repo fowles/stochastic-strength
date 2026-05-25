@@ -5,17 +5,11 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
-import io.github.fowles.stochastic_strength.location.LocationService
 
-class WorkoutRepository(
-    private val db: AppDatabase,
-    private val locationService: LocationService,
-) {
-    suspend fun generateWorkout(): WorkoutPlan {
-        val locationId = locationService.findMatchingLocation(db)
-
+class WorkoutRepository(private val db: AppDatabase) {
+    suspend fun generateWorkoutForLocation(locationId: Long?): WorkoutPlan {
         val availableEquipment = if (locationId != null) {
-            db.locationEquipmentDao().getEquipmentForLocation(locationId).toSet()
+            db.locationEquipmentDao().getEquipmentForLocation(locationId).toSet() + Equipment.BODYWEIGHT
         } else {
             Equipment.entries.toSet()
         }
@@ -31,6 +25,7 @@ class WorkoutRepository(
 
         return WorkoutPlan(exercises = planned, locationId = locationId)
     }
+
 
     suspend fun applySessionProgression(sessionId: Long) {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)

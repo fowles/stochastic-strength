@@ -4,11 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
+import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.KnownLocation
+import io.github.fowles.stochastic_strength.data.model.LocationEquipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
-import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
+import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -19,7 +22,8 @@ import kotlinx.coroutines.launch
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
-    private val repository = WorkoutRepository(app.database, LocationService(app))
+    private val repository = WorkoutRepository(app.database)
+    private val locationService = LocationService(app)
 
     private val _state = MutableStateFlow<WorkoutState>(WorkoutState.Loading)
     val state: StateFlow<WorkoutState> = _state.asStateFlow()
@@ -33,18 +37,43 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private fun startWorkout() {
         viewModelScope.launch {
-            val plan = repository.generateWorkout()
-            sessionStartTime = System.currentTimeMillis()
-            val sessionId = app.database.workoutSessionDao().insert(
-                WorkoutSession(startTime = sessionStartTime, locationId = plan.locationId)
-            )
-            _state.value = WorkoutState.ActiveSet(
-                plan = plan,
-                exerciseIndex = 0,
-                setIndex = 0,
-                sessionId = sessionId,
-            )
+            when (val loc = locationService.resolveLocation(app.database)) {
+                is LocationResult.Known -> continueWorkoutGeneration(loc.locationId)
+                is LocationResult.Unknown -> _state.value = WorkoutState.NewLocationSetup(loc.latitude, loc.longitude)
+                LocationResult.Unavailable -> continueWorkoutGeneration(null)
+            }
         }
+    }
+
+    fun saveNewLocation(name: String, equipment: Set<Equipment>) {
+        val current = _state.value as? WorkoutState.NewLocationSetup ?: return
+        viewModelScope.launch {
+            val locationId = app.database.knownLocationDao().insert(
+                KnownLocation(name = name, latitude = current.latitude, longitude = current.longitude)
+            )
+            app.database.locationEquipmentDao().insertAll(
+                equipment.map { LocationEquipment(locationId = locationId, equipment = it) }
+            )
+            continueWorkoutGeneration(locationId)
+        }
+    }
+
+    fun skipLocationSetup() {
+        viewModelScope.launch { continueWorkoutGeneration(null) }
+    }
+
+    private suspend fun continueWorkoutGeneration(locationId: Long?) {
+        val plan = repository.generateWorkoutForLocation(locationId)
+        sessionStartTime = System.currentTimeMillis()
+        val sessionId = app.database.workoutSessionDao().insert(
+            WorkoutSession(startTime = sessionStartTime, locationId = locationId)
+        )
+        _state.value = WorkoutState.ActiveSet(
+            plan = plan,
+            exerciseIndex = 0,
+            setIndex = 0,
+            sessionId = sessionId,
+        )
     }
 
     fun recordFeedback(feedback: SetFeedback) {
@@ -147,7 +176,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun currentPlanAndIndex(): Pair<WorkoutPlan, Int>? = when (val s = _state.value) {
+    private fun currentPlanAndIndex() = when (val s = _state.value) {
         is WorkoutState.ActiveSet -> s.plan to s.exerciseIndex
         is WorkoutState.Resting -> s.plan to s.exerciseIndex
         else -> null

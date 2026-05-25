@@ -17,11 +17,12 @@ class LocationService(context: Context) {
             .addOnFailureListener { cont.resume(null) }
     }
 
-    suspend fun findMatchingLocation(db: AppDatabase): Long? {
-        val (lat, lon) = getCurrentCoords() ?: return null
-        return db.knownLocationDao().getAll()
+    suspend fun resolveLocation(db: AppDatabase): LocationResult {
+        val coords = getCurrentCoords() ?: return LocationResult.Unavailable
+        val (lat, lon) = coords
+        val match = db.knownLocationDao().getAll()
             .firstOrNull { haversineMeters(lat, lon, it.latitude, it.longitude) <= 100.0 }
-            ?.id
+        return if (match != null) LocationResult.Known(match.id) else LocationResult.Unknown(lat, lon)
     }
 
     private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

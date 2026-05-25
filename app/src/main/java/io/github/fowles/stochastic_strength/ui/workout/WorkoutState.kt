@@ -24,6 +24,11 @@ sealed interface WorkoutState {
         val secondsRemaining: Int,
     ) : WorkoutState
 
+    data class NewLocationSetup(
+        val latitude: Double,
+        val longitude: Double,
+    ) : WorkoutState
+
     data class Done(
         val sessionId: Long,
         val plan: WorkoutPlan,
