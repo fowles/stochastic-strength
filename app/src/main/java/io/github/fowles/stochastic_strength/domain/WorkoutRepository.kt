@@ -4,6 +4,8 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseState
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
@@ -22,28 +24,17 @@ class WorkoutRepository(private val db: AppDatabase) {
 
         val allExercises = db.exerciseDao().getActive()
         val exercises = allExercises.filter { it.equipment in availableEquipment }
-        var statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
-
-        // If no weights are seeded but a profile exists, seed them now.
-        if (statesMap.values.none { it.currentWeight > 0f }) {
-            val profile = db.userProfileDao().getProfile()
-            if (profile != null) {
-                seedWeightsFromProfile(profile.sex, profile.strengthLevel, allExercises, profile.weightUnit)
-                statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
-            }
-        }
+        val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
+        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
 
         val sessionReps = ProgressionEngine.REP_OPTIONS.random()
         val planned = WorkoutGenerator.generate(
             WorkoutGenerator.Input(exercises = exercises, states = statesMap)
         ).map { pe ->
-            val baseWeight = if (pe.state.currentWeight > 0f) {
-                ProgressionEngine.scaleWeight(pe.state.currentWeight, pe.state.currentReps, sessionReps)
-            } else {
-                val est = WeightEstimator.estimate(pe.exercise, allExercises, statesMap)
-                ProgressionEngine.scaleWeight(est, 10, sessionReps)
-            }
-            pe.copy(state = pe.state.copy(currentWeight = baseWeight, currentReps = sessionReps))
+            pe.copy(
+                sessionWeight = deriveWeight(pe.exercise, strengths, sessionReps),
+                sessionReps = sessionReps,
+            )
         }
 
         return WorkoutPlan(exercises = planned, locationId = locationId, sessionReps = sessionReps)
@@ -59,8 +50,8 @@ class WorkoutRepository(private val db: AppDatabase) {
             Equipment.entries.toSet()
         }
 
-        val allExercises = db.exerciseDao().getActive()
-        val candidates = allExercises.filter { it.equipment in availableEquipment && it.id !in excludedIds }
+        val candidates = db.exerciseDao().getActive()
+            .filter { it.equipment in availableEquipment && it.id !in excludedIds }
         if (candidates.isEmpty()) return null
 
         val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
@@ -69,14 +60,11 @@ class WorkoutRepository(private val db: AppDatabase) {
             currentExercises = remaining,
         ) ?: return null
 
-        val sessionReps = plan.sessionReps
-        val baseWeight = if (replacement.state.currentWeight > 0f) {
-            ProgressionEngine.scaleWeight(replacement.state.currentWeight, replacement.state.currentReps, sessionReps)
-        } else {
-            val est = WeightEstimator.estimate(replacement.exercise, allExercises, statesMap)
-            ProgressionEngine.scaleWeight(est, 10, sessionReps)
-        }
-        return replacement.copy(state = replacement.state.copy(currentWeight = baseWeight, currentReps = sessionReps))
+        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        return replacement.copy(
+            sessionWeight = deriveWeight(replacement.exercise, strengths, plan.sessionReps),
+            sessionReps = plan.sessionReps,
+        )
     }
 
     suspend fun applySessionProgression(sessionId: Long) {
@@ -85,50 +73,64 @@ class WorkoutRepository(private val db: AppDatabase) {
         val profile = db.userProfileDao().getProfile()
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
 
+        val exerciseById = exerciseIds
+            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
+            .toMap()
+
+        // Per-exercise: update set counts and consecutive tracking
         for (exerciseId in exerciseIds) {
-            val exerciseSets = sets.filter { it.exerciseId == exerciseId }
-            val feedbacks = exerciseSets.mapNotNull { it.feedback }
+            val feedbacks = sets
+                .filter { it.exerciseId == exerciseId }
+                .mapNotNull { it.feedback }
             if (feedbacks.isEmpty()) continue
 
             val currentState = db.exerciseStateDao().getState(exerciseId)
                 ?: ExerciseState(exerciseId = exerciseId)
-
-            // Use the actual session weight/reps as the progression basis so stored state
-            // always reflects what was done, regardless of which rep count was selected.
-            val sessionReps = exerciseSets.first().targetReps
-            val sessionWeight = exerciseSets.first().targetWeight
-            val sessionState = currentState.copy(currentWeight = sessionWeight, currentReps = sessionReps)
-
-            val nextState = ProgressionEngine.computeNextState(sessionState, feedbacks)
-            val roundedWeight = WeightFormatter.round(nextState.currentWeight, weightUnit)
-            db.exerciseStateDao().upsert(nextState.copy(currentWeight = roundedWeight))
+            db.exerciseStateDao().upsert(
+                ProgressionEngine.computeNextSetState(currentState, feedbacks)
+            )
 
             if (SetFeedback.HURT in feedbacks) {
-                db.exerciseDao().getById(exerciseId)?.let { exercise ->
+                exerciseById[exerciseId]?.let { exercise ->
                     db.exerciseDao().update(exercise.copy(hurtFlag = true))
                 }
             }
+        }
+
+        // Per muscle group: update baseline weight using conservative aggregation
+        val exercisesByMuscle = exerciseById.values.groupBy { it.primaryMuscle }
+        for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
+            val allFeedbacks = muscleExercises.flatMap { exercise ->
+                sets.filter { it.exerciseId == exercise.id }.mapNotNull { it.feedback }
+            }
+            if (allFeedbacks.isEmpty()) continue
+
+            val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
+            val aggregated = ProgressionEngine.aggregateMuscleGroupFeedback(allFeedbacks)
+            val newBaseline = ProgressionEngine.applyBaselineFeedback(current.baselineWeight, aggregated)
+            db.muscleGroupStrengthDao().upsert(
+                current.copy(baselineWeight = WeightFormatter.round(newBaseline, weightUnit))
+            )
         }
     }
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit))
-        seedWeightsFromProfile(sex, strengthLevel, db.exerciseDao().getActive(), weightUnit)
+        val strengths = MuscleGroup.entries.mapNotNull { muscle ->
+            val baseline = StartingWeights.baseline(sex, strengthLevel, muscle)
+            if (baseline > 0f) MuscleGroupStrength(muscleGroup = muscle, baselineWeight = baseline) else null
+        }
+        db.muscleGroupStrengthDao().upsertAll(strengths)
     }
 
-    private suspend fun seedWeightsFromProfile(
-        sex: Sex,
-        strengthLevel: StrengthLevel,
-        exercises: List<Exercise>,
-        weightUnit: WeightUnit,
-    ) {
-        for (exercise in exercises) {
-            val baseline = StartingWeights.baseline(sex, strengthLevel, exercise.primaryMuscle)
-            val coeff = ExerciseCoefficients.byName[exercise.name] ?: 0f
-            if (coeff <= 0f || baseline <= 0f) continue
-            // Seeding is a form of recording data, so we round to the user's unit
-            val weight = WeightFormatter.round(baseline * coeff, weightUnit)
-            db.exerciseStateDao().upsert(ExerciseState(exerciseId = exercise.id, currentWeight = weight))
-        }
+    private fun deriveWeight(
+        exercise: Exercise,
+        strengths: Map<MuscleGroup, MuscleGroupStrength>,
+        sessionReps: Int,
+    ): Float {
+        val coeff = ExerciseCoefficients.byName[exercise.name] ?: return 0f
+        if (coeff <= 0f) return 0f
+        val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
+        return ProgressionEngine.scaleWeight(baseline * coeff, fromReps = 10, toReps = sessionReps)
     }
 }

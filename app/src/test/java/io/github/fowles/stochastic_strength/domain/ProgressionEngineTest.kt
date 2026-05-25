@@ -9,55 +9,68 @@ import org.junit.Test
 
 class ProgressionEngineTest {
 
-    private fun state(
-        weight: Float = 60f,
-        sets: Int = 3,
-        reps: Int = 10,
-        consecutive: Int = 0,
-    ) = ExerciseState(
+    private fun state(sets: Int = 3, consecutive: Int = 0) = ExerciseState(
         exerciseId = 1L,
-        currentWeight = weight,
-        currentReps = reps,
         currentSets = sets,
         consecutiveRir5PlusSessions = consecutive,
     )
 
+    // --- Baseline (weight) progression ---
+
     @Test
-    fun rir5PlusIncreasesWeight() {
-        val result = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_5_PLUS)
-        assertTrue(result.currentWeight > 60f)
+    fun baselineRir5PlusIncreasesWeight() {
+        val result = ProgressionEngine.applyBaselineFeedback(60f, SetFeedback.RIR_5_PLUS)
+        assertTrue(result > 60f)
     }
 
     @Test
-    fun rir2To4IncreasesWeightLessThanRir5Plus() {
-        val rir5 = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_5_PLUS)
-        val rir2 = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_2_4)
-        assertTrue(rir2.currentWeight in 60f..rir5.currentWeight)
+    fun baselineRir2To4IncreasesWeightLessThanRir5Plus() {
+        val rir5 = ProgressionEngine.applyBaselineFeedback(60f, SetFeedback.RIR_5_PLUS)
+        val rir2 = ProgressionEngine.applyBaselineFeedback(60f, SetFeedback.RIR_2_4)
+        assertTrue(rir2 in 60f..rir5)
     }
 
     @Test
-    fun rir0To1MaintainsWeight() {
-        val result = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_0_1)
-        assertEquals(60f, result.currentWeight, 0.001f)
+    fun baselineRir0To1MaintainsWeight() {
+        assertEquals(60f, ProgressionEngine.applyBaselineFeedback(60f, SetFeedback.RIR_0_1), 0.001f)
     }
 
     @Test
-    fun tooHardReducesWeightAndSets() {
-        val result = ProgressionEngine.applyFeedback(state(60f, sets = 3), SetFeedback.TOO_HARD)
-        assertTrue(result.currentWeight < 60f)
+    fun baselineTooHardReducesWeight() {
+        val result = ProgressionEngine.applyBaselineFeedback(60f, SetFeedback.TOO_HARD)
+        assertTrue(result < 60f)
+    }
+
+    @Test
+    fun baselineHurtReducesWeightMoreThanTooHard() {
+        val tooHard = ProgressionEngine.applyBaselineFeedback(60f, SetFeedback.TOO_HARD)
+        val hurt = ProgressionEngine.applyBaselineFeedback(60f, SetFeedback.HURT)
+        assertTrue(hurt <= tooHard)
+    }
+
+    @Test
+    fun computeNextBaselineEmptyFeedbackUnchanged() {
+        assertEquals(60f, ProgressionEngine.computeNextBaseline(60f, emptyList()), 0.001f)
+    }
+
+    @Test
+    fun computeNextBaselineHurtTakesPriority() {
+        val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.HURT, SetFeedback.RIR_2_4)
+        val result = ProgressionEngine.computeNextBaseline(60f, feedbacks)
+        assertTrue(result < 60f)
+    }
+
+    // --- Set-count progression ---
+
+    @Test
+    fun setsTooHardReducesSets() {
+        val result = ProgressionEngine.applySetFeedback(state(sets = 3), SetFeedback.TOO_HARD)
         assertEquals(2, result.currentSets)
     }
 
     @Test
-    fun hurtReducesWeightMoreThanTooHard() {
-        val tooHard = ProgressionEngine.applyFeedback(state(60f), SetFeedback.TOO_HARD)
-        val hurt = ProgressionEngine.applyFeedback(state(60f), SetFeedback.HURT)
-        assertTrue(hurt.currentWeight <= tooHard.currentWeight)
-    }
-
-    @Test
     fun setsNeverDropBelowMinimum() {
-        val result = ProgressionEngine.applyFeedback(state(60f, sets = 2), SetFeedback.TOO_HARD)
+        val result = ProgressionEngine.applySetFeedback(state(sets = 2), SetFeedback.TOO_HARD)
         assertEquals(2, result.currentSets)
     }
 
@@ -65,7 +78,7 @@ class ProgressionEngineTest {
     fun setsIncreaseAfterConsecutiveRir5Sessions() {
         var s = state(sets = 3)
         repeat(ProgressionEngine.CONSECUTIVE_RIR5_FOR_SET_INCREASE) {
-            s = ProgressionEngine.applyFeedback(s, SetFeedback.RIR_5_PLUS)
+            s = ProgressionEngine.applySetFeedback(s, SetFeedback.RIR_5_PLUS)
         }
         assertEquals(4, s.currentSets)
     }
@@ -74,7 +87,7 @@ class ProgressionEngineTest {
     fun consecutiveResetsAfterSetIncrease() {
         var s = state(sets = 3)
         repeat(ProgressionEngine.CONSECUTIVE_RIR5_FOR_SET_INCREASE) {
-            s = ProgressionEngine.applyFeedback(s, SetFeedback.RIR_5_PLUS)
+            s = ProgressionEngine.applySetFeedback(s, SetFeedback.RIR_5_PLUS)
         }
         assertEquals(0, s.consecutiveRir5PlusSessions)
     }
@@ -82,36 +95,49 @@ class ProgressionEngineTest {
     @Test
     fun setsNeverExceedMaximum() {
         var s = state(sets = 4)
-        repeat(10) { s = ProgressionEngine.applyFeedback(s, SetFeedback.RIR_5_PLUS) }
+        repeat(10) { s = ProgressionEngine.applySetFeedback(s, SetFeedback.RIR_5_PLUS) }
         assertEquals(4, s.currentSets)
     }
 
     @Test
-    fun computeNextStateHurtTakesPriority() {
+    fun computeNextSetStateEmptyFeedbackUnchanged() {
+        val s = state(sets = 3)
+        assertEquals(s, ProgressionEngine.computeNextSetState(s, emptyList()))
+    }
+
+    // --- Muscle-group feedback aggregation ---
+
+    @Test
+    fun muscleGroupHurtWinsOverEverything() {
         val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.HURT, SetFeedback.RIR_2_4)
-        val result = ProgressionEngine.computeNextState(state(60f), feedbacks)
-        assertTrue("HURT should reduce weight", result.currentWeight < 60f)
+        assertEquals(SetFeedback.HURT, ProgressionEngine.aggregateMuscleGroupFeedback(feedbacks))
     }
 
     @Test
-    fun computeNextStateTooHardTakesPriorityOverRir() {
+    fun muscleGroupTooHardWinsOverPositive() {
         val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.TOO_HARD, SetFeedback.RIR_5_PLUS)
-        val result = ProgressionEngine.computeNextState(state(60f), feedbacks)
-        assertTrue("TOO_HARD should reduce weight", result.currentWeight < 60f)
+        assertEquals(SetFeedback.TOO_HARD, ProgressionEngine.aggregateMuscleGroupFeedback(feedbacks))
     }
 
     @Test
-    fun zeroWeightExerciseWeightUnchanged() {
-        val result = ProgressionEngine.applyFeedback(state(weight = 0f), SetFeedback.RIR_5_PLUS)
-        assertEquals(0f, result.currentWeight, 0.001f)
+    fun muscleGroupConservativePositive() {
+        val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.RIR_0_1, SetFeedback.RIR_5_PLUS)
+        assertEquals(SetFeedback.RIR_0_1, ProgressionEngine.aggregateMuscleGroupFeedback(feedbacks))
     }
+
+    @Test
+    fun muscleGroupAllEasyIsEasy() {
+        val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.RIR_5_PLUS)
+        assertEquals(SetFeedback.RIR_5_PLUS, ProgressionEngine.aggregateMuscleGroupFeedback(feedbacks))
+    }
+
+    // --- Rep/weight scaling ---
 
     @Test
     fun scaleWeightPreservesOneRepMax() {
         val weight10 = 60f
         val weight5 = ProgressionEngine.scaleWeight(weight10, fromReps = 10, toReps = 5)
         val backTo10 = ProgressionEngine.scaleWeight(weight5, fromReps = 5, toReps = 10)
-        // Round-tripping through Epley should recover the original within one internal increment
         assertEquals(weight10, backTo10, 0.5f)
         assertTrue("5-rep weight should be heavier than 10-rep weight", weight5 > weight10)
     }
@@ -126,32 +152,18 @@ class ProgressionEngineTest {
         assertEquals(0f, ProgressionEngine.scaleWeight(0f, fromReps = 10, toReps = 5), 0.001f)
     }
 
-    @Test
-    fun emptyFeedbackListReturnsUnchangedState() {
-        val s = state(60f)
-        val result = ProgressionEngine.computeNextState(s, emptyList())
-        assertEquals(s, result)
-    }
+    // --- WeightFormatter ---
 
     @Test
     fun weightFormatterRoundsToLbs() {
-        // 100 kg is 220.462 lbs. Should round to 220 lbs.
         assertEquals("220 lbs", WeightFormatter.format(100f, WeightUnit.LBS))
-        
-        // 102.5 kg is 225.97 lbs. Should round to 226 lbs in format (0 decimal).
-        // Wait, 102.5kg is exactly 225.973... lbs.
-        // Actually my format string was %.0f.
         assertEquals("226 lbs", WeightFormatter.format(102.5f, WeightUnit.LBS))
     }
 
     @Test
     fun weightFormatterRoundsToPlateIncrements() {
-        // LBS mode should round 102.5kg (~226 lbs) to 225 lbs (next 5lb increment)
-        // 225 lbs = 102.058... kg
         val roundedToLbs = WeightFormatter.round(102.5f, WeightUnit.LBS)
         assertEquals(225f, roundedToLbs * 2.20462f, 0.1f)
-        
-        // KG mode should round 103f to 102.5f (next 2.5kg increment)
         assertEquals(102.5f, WeightFormatter.round(103f, WeightUnit.KG), 0.001f)
     }
 }

@@ -195,14 +195,13 @@ private fun ExercisePreviewRow(
                     .padding(vertical = 12.dp),
             ) {
                 Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
-                val st = planned.state
                 val weightLabel = when {
-                    st.currentWeight > 0f -> WeightFormatter.format(st.currentWeight, weightUnit)
+                    planned.sessionWeight > 0f -> WeightFormatter.format(planned.sessionWeight, weightUnit)
                     planned.exercise.equipment == Equipment.BODYWEIGHT -> "Bodyweight"
                     else -> null
                 }
                 val detail = buildString {
-                    append("${st.currentSets} sets × ${st.currentReps} reps")
+                    append("${planned.state.currentSets} sets × ${planned.sessionReps} reps")
                     if (weightLabel != null) append(" · $weightLabel")
                 }
                 Text(
@@ -267,7 +266,6 @@ private fun ActiveSetContent(
     onNoEquipment: () -> Unit,
 ) {
     val exercise = state.plannedExercise.exercise
-    val exerciseState = state.plannedExercise.state
     var showMenu by remember { mutableStateOf(false) }
 
     Column(
@@ -308,8 +306,8 @@ private fun ActiveSetContent(
         Spacer(Modifier.weight(1f))
 
         when {
-            exerciseState.currentWeight > 0f -> Text(
-                WeightFormatter.format(exerciseState.currentWeight, weightUnit),
+            state.plannedExercise.sessionWeight > 0f -> Text(
+                WeightFormatter.format(state.plannedExercise.sessionWeight, weightUnit),
                 style = MaterialTheme.typography.displaySmall,
             )
             exercise.equipment == Equipment.BODYWEIGHT -> Text(
@@ -318,7 +316,7 @@ private fun ActiveSetContent(
             )
         }
         Text(
-            "${exerciseState.currentReps} reps",
+            "${state.plannedExercise.sessionReps} reps",
             style = MaterialTheme.typography.displaySmall,
         )
 

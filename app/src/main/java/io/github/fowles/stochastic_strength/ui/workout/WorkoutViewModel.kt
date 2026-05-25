@@ -121,8 +121,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     sessionId = current.sessionId,
                     exerciseId = planned.exercise.id,
                     setNumber = current.setIndex + 1,
-                    targetWeight = planned.state.currentWeight,
-                    targetReps = planned.state.currentReps,
+                    targetWeight = planned.sessionWeight,
+                    targetReps = planned.sessionReps,
                     feedback = feedback,
                     completedAt = System.currentTimeMillis(),
                 )

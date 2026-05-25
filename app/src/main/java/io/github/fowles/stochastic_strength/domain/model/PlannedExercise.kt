@@ -6,4 +6,6 @@ import io.github.fowles.stochastic_strength.data.model.ExerciseState
 data class PlannedExercise(
     val exercise: Exercise,
     val state: ExerciseState,
+    val sessionWeight: Float = 0f,
+    val sessionReps: Int = 10,
 )

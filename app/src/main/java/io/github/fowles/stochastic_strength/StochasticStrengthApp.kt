@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength
 
 import android.app.Application
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,6 +19,9 @@ class StochasticStrengthApp : Application() {
                 database.workoutSetDao().getFirst()
             } catch (_: Exception) {
                 AppDatabase.reset(this@StochasticStrengthApp, applicationScope)
+            }
+            if (database.exerciseDao().count() == 0) {
+                database.exerciseDao().insertAll(ExerciseLibrary.exercises)
             }
         }
     }
