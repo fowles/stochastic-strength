@@ -31,6 +31,11 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private var restTimerJob: Job? = null
     private var sessionStartTime = 0L
 
+    // Tracks the locationId for this session; may be set lazily on first equipment removal.
+    private var sessionLocationId: Long? = null
+    // GPS coords stored when we're at an unknown location, for lazy location creation.
+    private var pendingLocationCoords: Pair<Double, Double>? = null
+
     init {
         startWorkout()
     }
@@ -38,28 +43,17 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private fun startWorkout() {
         viewModelScope.launch {
             when (val loc = locationService.resolveLocation(app.database)) {
-                is LocationResult.Known -> continueWorkoutGeneration(loc.locationId)
-                is LocationResult.Unknown -> _state.value = WorkoutState.NewLocationSetup(loc.latitude, loc.longitude)
+                is LocationResult.Known -> {
+                    sessionLocationId = loc.locationId
+                    continueWorkoutGeneration(loc.locationId)
+                }
+                is LocationResult.Unknown -> {
+                    pendingLocationCoords = loc.latitude to loc.longitude
+                    continueWorkoutGeneration(null)
+                }
                 LocationResult.Unavailable -> continueWorkoutGeneration(null)
             }
         }
-    }
-
-    fun saveNewLocation(name: String, equipment: Set<Equipment>) {
-        val current = _state.value as? WorkoutState.NewLocationSetup ?: return
-        viewModelScope.launch {
-            val locationId = app.database.knownLocationDao().insert(
-                KnownLocation(name = name, latitude = current.latitude, longitude = current.longitude)
-            )
-            app.database.locationEquipmentDao().insertAll(
-                equipment.map { LocationEquipment(locationId = locationId, equipment = it) }
-            )
-            continueWorkoutGeneration(locationId)
-        }
-    }
-
-    fun skipLocationSetup() {
-        viewModelScope.launch { continueWorkoutGeneration(null) }
     }
 
     private suspend fun continueWorkoutGeneration(locationId: Long?) {
@@ -117,11 +111,40 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun markNoEquipmentHere() {
         val (plan, idx) = currentPlanAndIndex() ?: return
-        val locationId = plan.locationId ?: return
         val equipment = plan.exercises[idx].exercise.equipment
-        viewModelScope.launch {
-            app.database.locationEquipmentDao().deleteEquipment(locationId, equipment)
+        val sessionId = currentSessionId() ?: return
+        val locationId = sessionLocationId
+
+        if (locationId != null) {
+            viewModelScope.launch {
+                app.database.locationEquipmentDao().deleteEquipment(locationId, equipment)
+            }
+        } else {
+            val coords = pendingLocationCoords ?: return
+            viewModelScope.launch {
+                val newLocationId = createLocationWithAllEquipmentExcept(coords, equipment)
+                sessionLocationId = newLocationId
+                app.database.workoutSessionDao().updateLocationId(sessionId, newLocationId)
+            }
         }
+    }
+
+    private suspend fun createLocationWithAllEquipmentExcept(
+        coords: Pair<Double, Double>,
+        excluded: Equipment,
+    ): Long {
+        val locationId = app.database.knownLocationDao().insert(
+            KnownLocation(
+                name = "%.4f, %.4f".format(coords.first, coords.second),
+                latitude = coords.first,
+                longitude = coords.second,
+            )
+        )
+        val allEquipment = Equipment.entries.filter { it != excluded }
+        app.database.locationEquipmentDao().insertAll(
+            allEquipment.map { LocationEquipment(locationId = locationId, equipment = it) }
+        )
+        return locationId
     }
 
     private fun startRestTimer() {
@@ -179,6 +202,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private fun currentPlanAndIndex() = when (val s = _state.value) {
         is WorkoutState.ActiveSet -> s.plan to s.exerciseIndex
         is WorkoutState.Resting -> s.plan to s.exerciseIndex
+        else -> null
+    }
+
+    private fun currentSessionId() = when (val s = _state.value) {
+        is WorkoutState.ActiveSet -> s.sessionId
+        is WorkoutState.Resting -> s.sessionId
         else -> null
     }
 
