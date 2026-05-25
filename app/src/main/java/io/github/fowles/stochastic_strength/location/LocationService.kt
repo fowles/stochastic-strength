@@ -1,0 +1,37 @@
+package io.github.fowles.stochastic_strength.location
+
+import android.content.Context
+import com.google.android.gms.location.LocationServices
+import io.github.fowles.stochastic_strength.data.AppDatabase
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.math.*
+
+class LocationService(context: Context) {
+    private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+
+    @Suppress("MissingPermission")
+    suspend fun getCurrentCoords(): Pair<Double, Double>? = suspendCancellableCoroutine { cont ->
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { loc -> cont.resume(loc?.let { it.latitude to it.longitude }) }
+            .addOnFailureListener { cont.resume(null) }
+    }
+
+    suspend fun findMatchingLocation(db: AppDatabase): Long? {
+        val (lat, lon) = getCurrentCoords() ?: return null
+        return db.knownLocationDao().getAll()
+            .firstOrNull { haversineMeters(lat, lon, it.latitude, it.longitude) <= 100.0 }
+            ?.id
+    }
+
+    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6_371_000.0
+        val dLat = (lat2 - lat1).toRadians()
+        val dLon = (lon2 - lon1).toRadians()
+        val a = sin(dLat / 2).pow(2) +
+                cos(lat1.toRadians()) * cos(lat2.toRadians()) * sin(dLon / 2).pow(2)
+        return r * 2 * atan2(sqrt(a), sqrt(1 - a))
+    }
+
+    private fun Double.toRadians() = this * PI / 180
+}
