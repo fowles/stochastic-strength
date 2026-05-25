@@ -16,4 +16,10 @@ interface WorkoutSessionDao {
 
     @Query("SELECT * FROM workout_sessions ORDER BY startTime DESC LIMIT 1")
     suspend fun getLastSession(): WorkoutSession?
+
+    @Query("SELECT * FROM workout_sessions WHERE id = :id")
+    suspend fun getById(id: Long): WorkoutSession?
+
+    @Query("UPDATE workout_sessions SET endTime = :endTime WHERE id = :id")
+    suspend fun updateEndTime(id: Long, endTime: Long)
 }

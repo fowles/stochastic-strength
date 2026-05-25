@@ -14,4 +14,7 @@ interface LocationEquipmentDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(equipment: List<LocationEquipment>)
+
+    @Query("DELETE FROM location_equipment WHERE locationId = :locationId AND equipment = :equipment")
+    suspend fun deleteEquipment(locationId: Long, equipment: Equipment)
 }
