@@ -4,6 +4,7 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 
 class WorkoutRepository(private val db: AppDatabase) {
@@ -26,6 +27,27 @@ class WorkoutRepository(private val db: AppDatabase) {
         return WorkoutPlan(exercises = planned, locationId = locationId)
     }
 
+
+    suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int): PlannedExercise? {
+        val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
+        val excludedIds = remaining.map { it.exercise.id }.toSet()
+
+        val availableEquipment = if (plan.locationId != null) {
+            db.locationEquipmentDao().getEquipmentForLocation(plan.locationId).toSet() + Equipment.BODYWEIGHT
+        } else {
+            Equipment.entries.toSet()
+        }
+
+        val candidates = db.exerciseDao().getActive()
+            .filter { it.equipment in availableEquipment && it.id !in excludedIds }
+        if (candidates.isEmpty()) return null
+
+        val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
+        return WorkoutGenerator.pickReplacement(
+            input = WorkoutGenerator.Input(exercises = candidates, states = statesMap),
+            currentExercises = remaining,
+        )
+    }
 
     suspend fun applySessionProgression(sessionId: Long) {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)

@@ -17,6 +17,16 @@ object WorkoutGenerator {
         val random: Random = Random.Default,
     )
 
+    fun pickReplacement(input: Input, currentExercises: List<PlannedExercise>): PlannedExercise? {
+        val muscleCounts = currentExercises.groupingBy { it.exercise.primaryMuscle }.eachCount()
+        val preferred = input.exercises.filter { (muscleCounts[it.primaryMuscle] ?: 0) < MAX_PER_MUSCLE }
+        val pick = preferred.ifEmpty { input.exercises }.randomOrNull(input.random) ?: return null
+        return PlannedExercise(
+            exercise = pick,
+            state = input.states[pick.id] ?: ExerciseState(exerciseId = pick.id),
+        )
+    }
+
     fun generate(input: Input): List<PlannedExercise> {
         val shuffled = input.exercises.shuffled(input.random)
         val muscleCount = mutableMapOf<MuscleGroup, Int>()

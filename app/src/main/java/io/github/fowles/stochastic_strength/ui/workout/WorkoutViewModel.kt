@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+enum class ExerciseRemovalReason { NO_EQUIPMENT, DISLIKE, SKIP_TODAY }
+
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
     private val repository = WorkoutRepository(app.database)
@@ -63,6 +65,38 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             WorkoutSession(startTime = sessionStartTime, locationId = locationId)
         )
         _state.value = WorkoutState.PlanPreview(plan = plan, sessionId = sessionId)
+    }
+
+    fun replaceExercise(index: Int, reason: ExerciseRemovalReason) {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val planned = preview.plan.exercises[index]
+        viewModelScope.launch {
+            when (reason) {
+                ExerciseRemovalReason.DISLIKE ->
+                    app.database.exerciseDao().update(planned.exercise.copy(isDisliked = true))
+                ExerciseRemovalReason.NO_EQUIPMENT -> {
+                    val locationId = sessionLocationId
+                    if (locationId != null) {
+                        app.database.locationEquipmentDao().deleteEquipment(locationId, planned.exercise.equipment)
+                    } else {
+                        val coords = pendingLocationCoords
+                        if (coords != null) {
+                            val newLocationId = createLocationWithAllEquipmentExcept(coords, planned.exercise.equipment)
+                            sessionLocationId = newLocationId
+                            app.database.workoutSessionDao().updateLocationId(preview.sessionId, newLocationId)
+                        }
+                    }
+                }
+                ExerciseRemovalReason.SKIP_TODAY -> Unit
+            }
+            val replacement = repository.pickReplacement(preview.plan, index)
+            val newExercises = preview.plan.exercises.toMutableList()
+            if (replacement != null) newExercises[index] = replacement else newExercises.removeAt(index)
+            _state.value = WorkoutState.PlanPreview(
+                plan = preview.plan.copy(exercises = newExercises),
+                sessionId = preview.sessionId,
+            )
+        }
     }
 
     fun startFirstExercise() {

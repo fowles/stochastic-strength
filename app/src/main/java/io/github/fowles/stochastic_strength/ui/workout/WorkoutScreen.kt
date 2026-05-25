@@ -1,5 +1,9 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,27 +13,34 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,6 +72,7 @@ fun WorkoutScreen(
                 is WorkoutState.PlanPreview -> PlanPreviewContent(
                     state = s,
                     onStart = viewModel::startFirstExercise,
+                    onReplace = viewModel::replaceExercise,
                 )
                 is WorkoutState.ActiveSet -> ActiveSetContent(
                     state = s,
@@ -83,6 +95,7 @@ fun WorkoutScreen(
 private fun PlanPreviewContent(
     state: WorkoutState.PlanPreview,
     onStart: () -> Unit,
+    onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
 ) {
     val plan = state.plan
     val totalSets = plan.exercises.sumOf { it.state.currentSets }
@@ -103,21 +116,12 @@ private fun PlanPreviewContent(
         Spacer(Modifier.height(16.dp))
         HorizontalDivider()
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(plan.exercises) { planned ->
-                val ex = planned.exercise
-                val st = planned.state
-                Column(modifier = Modifier.padding(vertical = 12.dp)) {
-                    Text(ex.name, style = MaterialTheme.typography.titleMedium)
-                    val detail = buildString {
-                        append("${st.currentSets} sets × ${st.currentReps} reps")
-                        if (st.currentWeight > 0f) append(" · %.1f kg".format(st.currentWeight))
-                    }
-                    Text(
-                        detail,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            items(plan.exercises, key = { it.exercise.id }) { planned ->
+                ExercisePreviewRow(
+                    planned = planned,
+                    onReplace = { reason -> onReplace(plan.exercises.indexOf(planned), reason) },
+                    modifier = Modifier.animateItem(),
+                )
                 HorizontalDivider()
             }
         }
@@ -125,6 +129,118 @@ private fun PlanPreviewContent(
         Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
             Text("Let's Go")
         }
+    }
+}
+
+@Composable
+private fun ExercisePreviewRow(
+    planned: io.github.fowles.stochastic_strength.domain.model.PlannedExercise,
+    onReplace: (ExerciseRemovalReason) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
+
+    val dismissState = rememberSwipeToDismissBoxState()
+    LaunchedEffect(dismissState) {
+        snapshotFlow { dismissState.currentValue }
+            .collect { if (it != SwipeToDismissBoxValue.Settled) showActions = true }
+    }
+
+    if (showActions) {
+        ExerciseActionRow(
+            name = planned.exercise.name,
+            onAction = { reason ->
+                showActions = false
+                onReplace(reason)
+            },
+            modifier = modifier,
+        )
+    } else {
+        SwipeToDismissBox(
+            state = dismissState,
+            backgroundContent = {
+                val alpha = dismissState.progress.coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = alpha)),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onError.copy(alpha = alpha),
+                        modifier = Modifier
+                            .padding(end = 24.dp)
+                            .size(36.dp),
+                    )
+                }
+            },
+            enableDismissFromStartToEnd = false,
+            modifier = modifier,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(vertical = 12.dp),
+            ) {
+                Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
+                val st = planned.state
+                val detail = buildString {
+                    append("${st.currentSets} sets × ${st.currentReps} reps")
+                    if (st.currentWeight > 0f) append(" · %.1f kg".format(st.currentWeight))
+                }
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExerciseActionRow(
+    name: String,
+    onAction: (ExerciseRemovalReason) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val autoSkipProgress = remember { Animatable(1f) }
+    LaunchedEffect(Unit) {
+        autoSkipProgress.animateTo(
+            targetValue = 0f,
+            animationSpec = tween(durationMillis = 4000, easing = LinearEasing),
+        )
+        onAction(ExerciseRemovalReason.SKIP_TODAY)
+    }
+
+    Column(modifier = modifier.padding(vertical = 12.dp)) {
+        Text(name, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            OutlinedButton(
+                onClick = { onAction(ExerciseRemovalReason.NO_EQUIPMENT) },
+                modifier = Modifier.weight(1f),
+            ) { Text("No gear", style = MaterialTheme.typography.labelSmall) }
+            OutlinedButton(
+                onClick = { onAction(ExerciseRemovalReason.DISLIKE) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Hate it", style = MaterialTheme.typography.labelSmall) }
+            OutlinedButton(
+                onClick = { onAction(ExerciseRemovalReason.SKIP_TODAY) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Not today", style = MaterialTheme.typography.labelSmall) }
+        }
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { autoSkipProgress.value },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
