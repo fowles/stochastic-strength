@@ -4,6 +4,8 @@ import androidx.room.TypeConverter
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.Sex
+import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 
 class Converters {
     @TypeConverter fun fromMuscleGroup(v: MuscleGroup): String = v.name
@@ -14,6 +16,12 @@ class Converters {
 
     @TypeConverter fun fromSetFeedback(v: SetFeedback?): String? = v?.name
     @TypeConverter fun toSetFeedback(v: String?): SetFeedback? = v?.let { SetFeedback.valueOf(it) }
+
+    @TypeConverter fun fromSex(v: Sex): String = v.name
+    @TypeConverter fun toSex(v: String): Sex = Sex.valueOf(v)
+
+    @TypeConverter fun fromStrengthLevel(v: StrengthLevel): String = v.name
+    @TypeConverter fun toStrengthLevel(v: String): StrengthLevel = StrengthLevel.valueOf(v)
 
     @TypeConverter
     fun fromMuscleGroupList(v: List<MuscleGroup>): String = v.joinToString(",") { it.name }

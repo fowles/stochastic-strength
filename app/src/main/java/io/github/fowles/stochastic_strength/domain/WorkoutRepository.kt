@@ -4,8 +4,12 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.Sex
+import io.github.fowles.stochastic_strength.data.model.StrengthLevel
+import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
+import kotlin.math.roundToInt
 
 class WorkoutRepository(private val db: AppDatabase) {
     suspend fun generateWorkoutForLocation(locationId: Long?): WorkoutPlan {
@@ -15,18 +19,22 @@ class WorkoutRepository(private val db: AppDatabase) {
             Equipment.entries.toSet()
         }
 
-        val exercises = db.exerciseDao().getActive()
-            .filter { it.equipment in availableEquipment }
-
+        val allExercises = db.exerciseDao().getActive()
+        val exercises = allExercises.filter { it.equipment in availableEquipment }
         val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
 
         val planned = WorkoutGenerator.generate(
             WorkoutGenerator.Input(exercises = exercises, states = statesMap)
-        )
+        ).map { pe ->
+            if (pe.state.currentWeight > 0f) pe
+            else {
+                val est = WeightEstimator.estimate(pe.exercise, allExercises, statesMap)
+                pe.copy(state = pe.state.copy(currentWeight = est))
+            }
+        }
 
         return WorkoutPlan(exercises = planned, locationId = locationId)
     }
-
 
     suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int): PlannedExercise? {
         val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
@@ -38,15 +46,21 @@ class WorkoutRepository(private val db: AppDatabase) {
             Equipment.entries.toSet()
         }
 
-        val candidates = db.exerciseDao().getActive()
-            .filter { it.equipment in availableEquipment && it.id !in excludedIds }
+        val allExercises = db.exerciseDao().getActive()
+        val candidates = allExercises.filter { it.equipment in availableEquipment && it.id !in excludedIds }
         if (candidates.isEmpty()) return null
 
         val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
-        return WorkoutGenerator.pickReplacement(
+        val replacement = WorkoutGenerator.pickReplacement(
             input = WorkoutGenerator.Input(exercises = candidates, states = statesMap),
             currentExercises = remaining,
-        )
+        ) ?: return null
+
+        return if (replacement.state.currentWeight > 0f) replacement
+        else {
+            val est = WeightEstimator.estimate(replacement.exercise, allExercises, statesMap)
+            replacement.copy(state = replacement.state.copy(currentWeight = est))
+        }
     }
 
     suspend fun applySessionProgression(sessionId: Long) {
@@ -73,4 +87,19 @@ class WorkoutRepository(private val db: AppDatabase) {
             }
         }
     }
+
+    suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel) {
+        db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel))
+        val allExercises = db.exerciseDao().getActive()
+        for (exercise in allExercises) {
+            val baseline = StartingWeights.baseline(sex, strengthLevel, exercise.primaryMuscle)
+            val coeff = ExerciseCoefficients.byName[exercise.name] ?: 0f
+            if (coeff <= 0f || baseline <= 0f) continue
+            val weight = roundToPlate(baseline * coeff)
+            db.exerciseStateDao().upsert(ExerciseState(exerciseId = exercise.id, currentWeight = weight))
+        }
+    }
+
+    private fun roundToPlate(weight: Float): Float =
+        (weight / 2.5f).roundToInt() * 2.5f
 }
