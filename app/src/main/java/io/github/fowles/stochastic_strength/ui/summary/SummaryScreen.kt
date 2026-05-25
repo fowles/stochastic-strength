@@ -95,8 +95,8 @@ fun SummaryScreen(
 private fun SetFeedback?.label() = when (this) {
     SetFeedback.TOO_HARD -> "Too Hard"
     SetFeedback.HURT -> "Hurt"
-    SetFeedback.RIR_1_2 -> "1-2 left"
-    SetFeedback.RIR_3_5 -> "3-5 left"
+    SetFeedback.RIR_0_1 -> "0-1 left"
+    SetFeedback.RIR_2_4 -> "2-4 left"
     SetFeedback.RIR_5_PLUS -> "5+ left"
     null -> "—"
 }

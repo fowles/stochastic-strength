@@ -5,8 +5,20 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 
 class StochasticStrengthApp : Application() {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val database by lazy { AppDatabase.getInstance(this, applicationScope) }
+    val database: AppDatabase get() = AppDatabase.getInstance(this, applicationScope)
+
+    override fun onCreate() {
+        super.onCreate()
+        runBlocking(Dispatchers.IO) {
+            try {
+                database.workoutSetDao().getFirst()
+            } catch (_: Exception) {
+                AppDatabase.reset(this@StochasticStrengthApp, applicationScope)
+            }
+        }
+    }
 }

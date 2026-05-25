@@ -9,6 +9,7 @@ object ProgressionEngine {
     private const val MIN_SETS = 2
     private const val MAX_SETS = 4
     private const val INTERNAL_INCREMENT = 0.5f // Use 0.5kg as internal resolution
+    val REP_OPTIONS = listOf(5, 8, 10)
 
     fun computeNextState(state: ExerciseState, sessionFeedbacks: List<SetFeedback>): ExerciseState {
         if (sessionFeedbacks.isEmpty()) return state
@@ -27,11 +28,11 @@ object ProgressionEngine {
                     consecutiveRir5PlusSessions = if (addSet) 0 else newConsecutive,
                 )
             }
-            SetFeedback.RIR_3_5 -> state.copy(
+            SetFeedback.RIR_2_4 -> state.copy(
                 currentWeight = if (hasWeight) weightIncreased(state.currentWeight, 1.025f) else 0f,
                 consecutiveRir5PlusSessions = 0,
             )
-            SetFeedback.RIR_1_2 -> state.copy(
+            SetFeedback.RIR_0_1 -> state.copy(
                 consecutiveRir5PlusSessions = 0,
             )
             SetFeedback.TOO_HARD -> state.copy(
@@ -50,7 +51,7 @@ object ProgressionEngine {
     private fun aggregateFeedback(feedbacks: List<SetFeedback>): SetFeedback {
         if (SetFeedback.HURT in feedbacks) return SetFeedback.HURT
         if (SetFeedback.TOO_HARD in feedbacks) return SetFeedback.TOO_HARD
-        return feedbacks.last { it == SetFeedback.RIR_1_2 || it == SetFeedback.RIR_3_5 || it == SetFeedback.RIR_5_PLUS }
+        return feedbacks.last { it == SetFeedback.RIR_0_1 || it == SetFeedback.RIR_2_4 || it == SetFeedback.RIR_5_PLUS }
     }
 
     private fun weightIncreased(current: Float, factor: Float): Float {
@@ -61,6 +62,12 @@ object ProgressionEngine {
     private fun weightDecreased(current: Float, factor: Float): Float {
         val scaled = roundInternal(current * factor)
         return if (scaled < current) maxOf(INTERNAL_INCREMENT, scaled) else maxOf(INTERNAL_INCREMENT, roundInternal(current - INTERNAL_INCREMENT))
+    }
+
+    fun scaleWeight(weight: Float, fromReps: Int, toReps: Int): Float {
+        if (weight <= 0f || fromReps == toReps) return weight
+        val oneRepMax = weight * (1f + fromReps / 30f)
+        return roundInternal(oneRepMax / (1f + toReps / 30f))
     }
 
     private fun roundInternal(weight: Float): Float =

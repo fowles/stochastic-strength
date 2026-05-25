@@ -357,13 +357,13 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
         ) {
             OutlinedButton(
-                onClick = { onFeedback(SetFeedback.RIR_1_2) },
+                onClick = { onFeedback(SetFeedback.RIR_0_1) },
                 modifier = Modifier.weight(1f),
-            ) { Text("1-2 left") }
+            ) { Text("0-1 left") }
             OutlinedButton(
-                onClick = { onFeedback(SetFeedback.RIR_3_5) },
+                onClick = { onFeedback(SetFeedback.RIR_2_4) },
                 modifier = Modifier.weight(1f),
-            ) { Text("3-5 left") }
+            ) { Text("2-4 left") }
             OutlinedButton(
                 onClick = { onFeedback(SetFeedback.RIR_5_PLUS) },
                 modifier = Modifier.weight(1f),
@@ -375,8 +375,8 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
 private fun SetFeedback.displayLabel() = when (this) {
     SetFeedback.TOO_HARD -> "Too Hard"
     SetFeedback.HURT -> "Hurt"
-    SetFeedback.RIR_1_2 -> "1–2 left"
-    SetFeedback.RIR_3_5 -> "3–5 left"
+    SetFeedback.RIR_0_1 -> "0–1 left"
+    SetFeedback.RIR_2_4 -> "2–4 left"
     SetFeedback.RIR_5_PLUS -> "5+ left"
 }
 

@@ -56,6 +56,15 @@ abstract class AppDatabase : RoomDatabase() {
                 INSTANCE ?: buildDatabase(context, scope).also { INSTANCE = it }
             }
 
+        fun reset(context: Context, scope: CoroutineScope): AppDatabase {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+            context.deleteDatabase("stochastic_strength.db")
+            return getInstance(context, scope)
+        }
+
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
                 .fallbackToDestructiveMigration(true)

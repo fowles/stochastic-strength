@@ -33,17 +33,20 @@ class WorkoutRepository(private val db: AppDatabase) {
             }
         }
 
+        val sessionReps = ProgressionEngine.REP_OPTIONS.random()
         val planned = WorkoutGenerator.generate(
             WorkoutGenerator.Input(exercises = exercises, states = statesMap)
         ).map { pe ->
-            if (pe.state.currentWeight > 0f) pe
-            else {
+            val baseWeight = if (pe.state.currentWeight > 0f) {
+                ProgressionEngine.scaleWeight(pe.state.currentWeight, pe.state.currentReps, sessionReps)
+            } else {
                 val est = WeightEstimator.estimate(pe.exercise, allExercises, statesMap)
-                pe.copy(state = pe.state.copy(currentWeight = est))
+                ProgressionEngine.scaleWeight(est, 10, sessionReps)
             }
+            pe.copy(state = pe.state.copy(currentWeight = baseWeight, currentReps = sessionReps))
         }
 
-        return WorkoutPlan(exercises = planned, locationId = locationId)
+        return WorkoutPlan(exercises = planned, locationId = locationId, sessionReps = sessionReps)
     }
 
     suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int): PlannedExercise? {
@@ -66,11 +69,14 @@ class WorkoutRepository(private val db: AppDatabase) {
             currentExercises = remaining,
         ) ?: return null
 
-        return if (replacement.state.currentWeight > 0f) replacement
-        else {
+        val sessionReps = plan.sessionReps
+        val baseWeight = if (replacement.state.currentWeight > 0f) {
+            ProgressionEngine.scaleWeight(replacement.state.currentWeight, replacement.state.currentReps, sessionReps)
+        } else {
             val est = WeightEstimator.estimate(replacement.exercise, allExercises, statesMap)
-            replacement.copy(state = replacement.state.copy(currentWeight = est))
+            ProgressionEngine.scaleWeight(est, 10, sessionReps)
         }
+        return replacement.copy(state = replacement.state.copy(currentWeight = baseWeight, currentReps = sessionReps))
     }
 
     suspend fun applySessionProgression(sessionId: Long) {
@@ -80,20 +86,21 @@ class WorkoutRepository(private val db: AppDatabase) {
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
 
         for (exerciseId in exerciseIds) {
-            val feedbacks = sets
-                .filter { it.exerciseId == exerciseId }
-                .mapNotNull { it.feedback }
+            val exerciseSets = sets.filter { it.exerciseId == exerciseId }
+            val feedbacks = exerciseSets.mapNotNull { it.feedback }
             if (feedbacks.isEmpty()) continue
 
             val currentState = db.exerciseStateDao().getState(exerciseId)
                 ?: ExerciseState(exerciseId = exerciseId)
 
-            // Compute raw progression in KG
-            val nextState = ProgressionEngine.computeNextState(currentState, feedbacks)
-            
-            // Round to user's unit increments before recording (persistence)
+            // Use the actual session weight/reps as the progression basis so stored state
+            // always reflects what was done, regardless of which rep count was selected.
+            val sessionReps = exerciseSets.first().targetReps
+            val sessionWeight = exerciseSets.first().targetWeight
+            val sessionState = currentState.copy(currentWeight = sessionWeight, currentReps = sessionReps)
+
+            val nextState = ProgressionEngine.computeNextState(sessionState, feedbacks)
             val roundedWeight = WeightFormatter.round(nextState.currentWeight, weightUnit)
-            
             db.exerciseStateDao().upsert(nextState.copy(currentWeight = roundedWeight))
 
             if (SetFeedback.HURT in feedbacks) {

@@ -29,15 +29,15 @@ class ProgressionEngineTest {
     }
 
     @Test
-    fun rir3To5IncreasesWeightLessThanRir5Plus() {
+    fun rir2To4IncreasesWeightLessThanRir5Plus() {
         val rir5 = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_5_PLUS)
-        val rir3 = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_3_5)
-        assertTrue(rir3.currentWeight in 60f..rir5.currentWeight)
+        val rir2 = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_2_4)
+        assertTrue(rir2.currentWeight in 60f..rir5.currentWeight)
     }
 
     @Test
-    fun rir1To2MaintainsWeight() {
-        val result = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_1_2)
+    fun rir0To1MaintainsWeight() {
+        val result = ProgressionEngine.applyFeedback(state(60f), SetFeedback.RIR_0_1)
         assertEquals(60f, result.currentWeight, 0.001f)
     }
 
@@ -88,7 +88,7 @@ class ProgressionEngineTest {
 
     @Test
     fun computeNextStateHurtTakesPriority() {
-        val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.HURT, SetFeedback.RIR_3_5)
+        val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.HURT, SetFeedback.RIR_2_4)
         val result = ProgressionEngine.computeNextState(state(60f), feedbacks)
         assertTrue("HURT should reduce weight", result.currentWeight < 60f)
     }
@@ -104,6 +104,26 @@ class ProgressionEngineTest {
     fun zeroWeightExerciseWeightUnchanged() {
         val result = ProgressionEngine.applyFeedback(state(weight = 0f), SetFeedback.RIR_5_PLUS)
         assertEquals(0f, result.currentWeight, 0.001f)
+    }
+
+    @Test
+    fun scaleWeightPreservesOneRepMax() {
+        val weight10 = 60f
+        val weight5 = ProgressionEngine.scaleWeight(weight10, fromReps = 10, toReps = 5)
+        val backTo10 = ProgressionEngine.scaleWeight(weight5, fromReps = 5, toReps = 10)
+        // Round-tripping through Epley should recover the original within one internal increment
+        assertEquals(weight10, backTo10, 0.5f)
+        assertTrue("5-rep weight should be heavier than 10-rep weight", weight5 > weight10)
+    }
+
+    @Test
+    fun scaleWeightNoOpWhenSameReps() {
+        assertEquals(60f, ProgressionEngine.scaleWeight(60f, fromReps = 10, toReps = 10), 0.001f)
+    }
+
+    @Test
+    fun scaleWeightZeroWeightUnchanged() {
+        assertEquals(0f, ProgressionEngine.scaleWeight(0f, fromReps = 10, toReps = 5), 0.001f)
     }
 
     @Test
