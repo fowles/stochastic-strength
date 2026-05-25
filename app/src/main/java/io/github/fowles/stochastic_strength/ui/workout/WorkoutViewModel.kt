@@ -62,11 +62,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val sessionId = app.database.workoutSessionDao().insert(
             WorkoutSession(startTime = sessionStartTime, locationId = locationId)
         )
+        _state.value = WorkoutState.PlanPreview(plan = plan, sessionId = sessionId)
+    }
+
+    fun startFirstExercise() {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
         _state.value = WorkoutState.ActiveSet(
-            plan = plan,
+            plan = preview.plan,
             exerciseIndex = 0,
             setIndex = 0,
-            sessionId = sessionId,
+            sessionId = preview.sessionId,
         )
     }
 

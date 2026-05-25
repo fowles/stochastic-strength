@@ -17,6 +17,11 @@ sealed interface WorkoutState {
         val totalSets: Int get() = plannedExercise.state.currentSets
     }
 
+    data class PlanPreview(
+        val plan: WorkoutPlan,
+        val sessionId: Long,
+    ) : WorkoutState
+
     data class Resting(
         val plan: WorkoutPlan,
         val exerciseIndex: Int,

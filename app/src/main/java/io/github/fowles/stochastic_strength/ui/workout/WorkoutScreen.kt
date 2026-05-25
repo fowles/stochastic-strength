@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.ButtonDefaults
@@ -54,6 +58,10 @@ fun WorkoutScreen(
         ) {
             when (val s = state) {
                 WorkoutState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                is WorkoutState.PlanPreview -> PlanPreviewContent(
+                    state = s,
+                    onStart = viewModel::startFirstExercise,
+                )
                 is WorkoutState.ActiveSet -> ActiveSetContent(
                     state = s,
                     onFeedback = viewModel::recordFeedback,
@@ -67,6 +75,55 @@ fun WorkoutScreen(
                 )
                 is WorkoutState.Done -> {}
             }
+        }
+    }
+}
+
+@Composable
+private fun PlanPreviewContent(
+    state: WorkoutState.PlanPreview,
+    onStart: () -> Unit,
+) {
+    val plan = state.plan
+    val totalSets = plan.exercises.sumOf { it.state.currentSets }
+    val durationMin = plan.estimatedDurationSeconds / 60
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+    ) {
+        Text("Today's Workout", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "$durationMin min · ${plan.exercises.size} exercises · $totalSets sets",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(plan.exercises) { planned ->
+                val ex = planned.exercise
+                val st = planned.state
+                Column(modifier = Modifier.padding(vertical = 12.dp)) {
+                    Text(ex.name, style = MaterialTheme.typography.titleMedium)
+                    val detail = buildString {
+                        append("${st.currentSets} sets × ${st.currentReps} reps")
+                        if (st.currentWeight > 0f) append(" · %.1f kg".format(st.currentWeight))
+                    }
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                HorizontalDivider()
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+            Text("Let's Go")
         }
     }
 }
