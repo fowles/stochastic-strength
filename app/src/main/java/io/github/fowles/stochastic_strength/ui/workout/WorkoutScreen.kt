@@ -63,6 +63,7 @@ fun WorkoutScreen(
                 is WorkoutState.Resting -> RestingContent(
                     state = s,
                     onSkipRest = viewModel::skipRest,
+                    onUndo = viewModel::undoLastSet,
                 )
                 is WorkoutState.Done -> {}
             }
@@ -179,10 +180,19 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
     }
 }
 
+private fun SetFeedback.displayLabel() = when (this) {
+    SetFeedback.TOO_HARD -> "Too Hard"
+    SetFeedback.HURT -> "Hurt"
+    SetFeedback.RIR_1_2 -> "1–2 left"
+    SetFeedback.RIR_3_5 -> "3–5 left"
+    SetFeedback.RIR_5_PLUS -> "5+ left"
+}
+
 @Composable
 private fun RestingContent(
     state: WorkoutState.Resting,
     onSkipRest: () -> Unit,
+    onUndo: () -> Unit,
 ) {
     val plan = state.plan
     val totalSets = plan.exercises[state.exerciseIndex].state.currentSets
@@ -203,6 +213,12 @@ private fun RestingContent(
         verticalArrangement = Arrangement.Center,
     ) {
         Text("Rest", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Logged: ${state.lastFeedback.displayLabel()}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
         Spacer(Modifier.height(24.dp))
         Text(
             "${state.secondsRemaining}",
@@ -216,6 +232,9 @@ private fun RestingContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(32.dp))
-        OutlinedButton(onClick = onSkipRest) { Text("Skip Rest") }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = onUndo) { Text("Undo") }
+            OutlinedButton(onClick = onSkipRest) { Text("Skip Rest") }
+        }
     }
 }

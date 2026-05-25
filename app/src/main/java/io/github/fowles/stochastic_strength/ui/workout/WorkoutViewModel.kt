@@ -91,10 +91,31 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             plan = current.plan,
             exerciseIndex = current.exerciseIndex,
             completedSetIndex = completedSetIndex,
+            recordedSetIndex = current.setIndex,
             sessionId = current.sessionId,
             secondsRemaining = REST_SECONDS,
+            lastFeedback = feedback,
         )
         startRestTimer()
+    }
+
+    fun undoLastSet() {
+        restTimerJob?.cancel()
+        val resting = _state.value as? WorkoutState.Resting ?: return
+        val exerciseId = resting.plan.exercises[resting.exerciseIndex].exercise.id
+        viewModelScope.launch {
+            app.database.workoutSetDao().deleteSet(
+                sessionId = resting.sessionId,
+                exerciseId = exerciseId,
+                setNumber = resting.recordedSetIndex + 1,
+            )
+        }
+        _state.value = WorkoutState.ActiveSet(
+            plan = resting.plan,
+            exerciseIndex = resting.exerciseIndex,
+            setIndex = resting.recordedSetIndex,
+            sessionId = resting.sessionId,
+        )
     }
 
     fun skipRest() {
