@@ -86,10 +86,11 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 )
             )
         }
+        val completedSetIndex = if (feedback == SetFeedback.HURT) current.totalSets - 1 else current.setIndex
         _state.value = WorkoutState.Resting(
             plan = current.plan,
             exerciseIndex = current.exerciseIndex,
-            completedSetIndex = current.setIndex,
+            completedSetIndex = completedSetIndex,
             sessionId = current.sessionId,
             secondsRemaining = REST_SECONDS,
         )
