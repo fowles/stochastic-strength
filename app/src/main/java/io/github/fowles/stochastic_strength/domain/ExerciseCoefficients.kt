@@ -41,12 +41,12 @@ object ExerciseCoefficients {
         // GLUTES
         "Hip Thrust"                   to 1.00f,
         "Cable Kickback"               to 0.10f,
-        // CALVES
+        // CALVES (reference: Seated Calf Raise)
         "Standing Calf Raise"          to 0.00f,
-        "Seated Calf Raise"            to 0.00f,
-        // CORE
+        "Seated Calf Raise"            to 1.00f,
+        // CORE (reference: Cable Crunch)
         "Plank"                        to 0.00f,
         "Hanging Leg Raise"            to 0.00f,
-        "Cable Crunch"                 to 0.15f,
+        "Cable Crunch"                 to 1.00f,
     )
 }

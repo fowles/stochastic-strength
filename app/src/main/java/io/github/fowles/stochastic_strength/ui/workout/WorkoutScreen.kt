@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 
 @Composable
@@ -187,9 +188,14 @@ private fun ExercisePreviewRow(
             ) {
                 Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
                 val st = planned.state
+                val weightLabel = when {
+                    st.currentWeight > 0f -> "%.1f kg".format(st.currentWeight)
+                    planned.exercise.equipment == Equipment.BODYWEIGHT -> "Bodyweight"
+                    else -> null
+                }
                 val detail = buildString {
                     append("${st.currentSets} sets × ${st.currentReps} reps")
-                    if (st.currentWeight > 0f) append(" · %.1f kg".format(st.currentWeight))
+                    if (weightLabel != null) append(" · $weightLabel")
                 }
                 Text(
                     detail,
@@ -292,9 +298,13 @@ private fun ActiveSetContent(
 
         Spacer(Modifier.weight(1f))
 
-        if (exerciseState.currentWeight > 0f) {
-            Text(
+        when {
+            exerciseState.currentWeight > 0f -> Text(
                 "%.1f kg".format(exerciseState.currentWeight),
+                style = MaterialTheme.typography.displaySmall,
+            )
+            exercise.equipment == Equipment.BODYWEIGHT -> Text(
+                "Bodyweight",
                 style = MaterialTheme.typography.displaySmall,
             )
         }

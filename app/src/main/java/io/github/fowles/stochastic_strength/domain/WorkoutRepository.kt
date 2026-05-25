@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
@@ -21,7 +22,17 @@ class WorkoutRepository(private val db: AppDatabase) {
 
         val allExercises = db.exerciseDao().getActive()
         val exercises = allExercises.filter { it.equipment in availableEquipment }
-        val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
+        var statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
+
+        // If no weights are seeded but a profile exists, seed them now.
+        // This handles the race where seedInitialWeights ran before exercises were inserted.
+        if (statesMap.values.none { it.currentWeight > 0f }) {
+            val profile = db.userProfileDao().getProfile()
+            if (profile != null) {
+                seedWeightsFromProfile(profile.sex, profile.strengthLevel, allExercises)
+                statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
+            }
+        }
 
         val planned = WorkoutGenerator.generate(
             WorkoutGenerator.Input(exercises = exercises, states = statesMap)
@@ -90,8 +101,11 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel))
-        val allExercises = db.exerciseDao().getActive()
-        for (exercise in allExercises) {
+        seedWeightsFromProfile(sex, strengthLevel, db.exerciseDao().getActive())
+    }
+
+    private suspend fun seedWeightsFromProfile(sex: Sex, strengthLevel: StrengthLevel, exercises: List<Exercise>) {
+        for (exercise in exercises) {
             val baseline = StartingWeights.baseline(sex, strengthLevel, exercise.primaryMuscle)
             val coeff = ExerciseCoefficients.byName[exercise.name] ?: 0f
             if (coeff <= 0f || baseline <= 0f) continue

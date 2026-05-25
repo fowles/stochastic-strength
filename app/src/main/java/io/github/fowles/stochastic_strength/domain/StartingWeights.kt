@@ -22,8 +22,8 @@ object StartingWeights {
         add(MuscleGroup.QUADS,       40f,  80f, 130f,  20f,  50f,  80f)
         add(MuscleGroup.HAMSTRINGS,  40f,  70f, 110f,  20f,  45f,  70f)
         add(MuscleGroup.GLUTES,      40f,  70f, 110f,  20f,  50f,  80f)
-        add(MuscleGroup.CALVES,       0f,   0f,   0f,   0f,   0f,   0f)
-        add(MuscleGroup.CORE,         0f,   0f,   0f,   0f,   0f,   0f)
+        add(MuscleGroup.CALVES,      25f,  50f,  75f,  15f,  30f,  50f)
+        add(MuscleGroup.CORE,        20f,  40f,  60f,  10f,  20f,  35f)
     }
 
     fun baseline(sex: Sex, level: StrengthLevel, muscle: MuscleGroup): Float =
