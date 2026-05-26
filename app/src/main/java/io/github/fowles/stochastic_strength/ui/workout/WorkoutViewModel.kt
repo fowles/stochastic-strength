@@ -35,7 +35,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val weightUnit: StateFlow<WeightUnit> = _weightUnit.asStateFlow()
 
     private var restTimerJob: Job? = null
+    private var addExerciseJob: Job? = null
     private var sessionStartTime = 0L
+    private var preferredExerciseCount: Int? = null
 
     private var sessionLocationId: Long? = null
     private var pendingLocationCoords: Pair<Double, Double>? = null
@@ -46,7 +48,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private fun startWorkout() {
         viewModelScope.launch {
-            _weightUnit.value = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+            val profile = app.database.userProfileDao().getProfile()
+            _weightUnit.value = profile?.weightUnit ?: WeightUnit.KG
+            preferredExerciseCount = profile?.preferredExerciseCount
             when (val loc = locationService.resolveLocation(app.database)) {
                 is LocationResult.Known -> {
                     sessionLocationId = loc.locationId
@@ -68,6 +72,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             WorkoutSession(startTime = sessionStartTime, locationId = locationId)
         )
         _state.value = WorkoutState.PlanPreview(plan = plan, sessionId = sessionId)
+        preferredExerciseCount?.let { setExerciseCount(it) }
     }
 
     fun replaceExercise(index: Int, reason: ExerciseRemovalReason) {
@@ -99,6 +104,35 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 plan = preview.plan.copy(exercises = newExercises),
                 sessionId = preview.sessionId,
             )
+        }
+    }
+
+    fun setExerciseCount(targetCount: Int) {
+        addExerciseJob?.cancel()
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val current = preview.plan.exercises
+        when {
+            targetCount < current.size -> {
+                val trimmed = current.take(targetCount.coerceAtLeast(1))
+                _state.value = preview.copy(plan = preview.plan.copy(exercises = trimmed))
+            }
+            targetCount > current.size -> {
+                val needed = targetCount - current.size
+                addExerciseJob = viewModelScope.launch {
+                    repeat(needed) {
+                        val p = _state.value as? WorkoutState.PlanPreview ?: return@launch
+                        val extra = repository.pickAdditional(p.plan) ?: return@launch
+                        _state.value = p.copy(plan = p.plan.copy(exercises = p.plan.exercises + extra))
+                    }
+                }
+            }
+        }
+        if (targetCount != preferredExerciseCount) {
+            preferredExerciseCount = targetCount
+            viewModelScope.launch {
+                val profile = app.database.userProfileDao().getProfile() ?: return@launch
+                app.database.userProfileDao().insert(profile.copy(preferredExerciseCount = targetCount))
+            }
         }
     }
 
@@ -278,6 +312,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     override fun onCleared() {
         super.onCleared()
         restTimerJob?.cancel()
+        addExerciseJob?.cancel()
     }
 
     companion object {

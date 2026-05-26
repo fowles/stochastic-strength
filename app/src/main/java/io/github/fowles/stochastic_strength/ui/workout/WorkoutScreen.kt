@@ -31,6 +31,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -39,10 +40,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import kotlin.math.roundToInt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -78,6 +81,7 @@ fun WorkoutScreen(
                     weightUnit = weightUnit,
                     onStart = viewModel::startFirstExercise,
                     onReplace = viewModel::replaceExercise,
+                    onSetExerciseCount = viewModel::setExerciseCount,
                 )
                 is WorkoutState.ActiveSet -> ActiveSetContent(
                     state = s,
@@ -103,10 +107,13 @@ private fun PlanPreviewContent(
     weightUnit: WeightUnit,
     onStart: () -> Unit,
     onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
+    onSetExerciseCount: (Int) -> Unit,
 ) {
     val plan = state.plan
     val totalSets = plan.exercises.sumOf { it.state.currentSets }
     val durationMin = plan.estimatedDurationSeconds / 60
+
+    var sliderValue by remember { mutableFloatStateOf(plan.exercises.size.toFloat()) }
 
     Column(
         modifier = Modifier
@@ -120,7 +127,33 @@ private fun PlanPreviewContent(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                "Shorter",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Slider(
+                value = sliderValue,
+                onValueChange = { sliderValue = it },
+                onValueChangeFinished = { onSetExerciseCount(sliderValue.roundToInt()) },
+                valueRange = 1f..MAX_EXERCISE_COUNT.toFloat(),
+                steps = MAX_EXERCISE_COUNT - 2,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
+            )
+            Text(
+                "Longer",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         HorizontalDivider()
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
@@ -369,6 +402,8 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
         }
     }
 }
+
+private const val MAX_EXERCISE_COUNT = 15
 
 private fun SetFeedback.displayLabel() = when (this) {
     SetFeedback.TOO_HARD -> "Too Hard"

@@ -40,6 +40,28 @@ class WorkoutRepository(private val db: AppDatabase) {
         return WorkoutPlan(exercises = planned, locationId = locationId, sessionReps = sessionReps)
     }
 
+    suspend fun pickAdditional(plan: WorkoutPlan): PlannedExercise? {
+        val excludedIds = plan.exercises.map { it.exercise.id }.toSet()
+        val availableEquipment = if (plan.locationId != null) {
+            db.locationEquipmentDao().getEquipmentForLocation(plan.locationId).toSet() + Equipment.BODYWEIGHT
+        } else {
+            Equipment.entries.toSet()
+        }
+        val candidates = db.exerciseDao().getActive()
+            .filter { it.equipment in availableEquipment && it.id !in excludedIds }
+        if (candidates.isEmpty()) return null
+        val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
+        val picked = WorkoutGenerator.pickReplacement(
+            input = WorkoutGenerator.Input(exercises = candidates, states = statesMap),
+            currentExercises = plan.exercises,
+        ) ?: return null
+        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        return picked.copy(
+            sessionWeight = deriveWeight(picked.exercise, strengths, plan.sessionReps),
+            sessionReps = plan.sessionReps,
+        )
+    }
+
     suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int): PlannedExercise? {
         val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
         val excludedIds = remaining.map { it.exercise.id }.toSet()

@@ -9,4 +9,5 @@ data class UserProfile(
     val sex: Sex,
     val strengthLevel: StrengthLevel,
     val weightUnit: WeightUnit,
+    val preferredExerciseCount: Int? = null,
 )

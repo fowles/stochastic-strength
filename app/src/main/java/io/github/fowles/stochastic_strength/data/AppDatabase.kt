@@ -21,6 +21,8 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 
 @Database(
@@ -34,7 +36,7 @@ import kotlinx.coroutines.CoroutineScope
         UserProfile::class,
         MuscleGroupStrength::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -65,8 +67,15 @@ abstract class AppDatabase : RoomDatabase() {
             return getInstance(context, scope)
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN preferredExerciseCount INTEGER")
+            }
+        }
+
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
+                .addMigrations(MIGRATION_3_4)
                 .fallbackToDestructiveMigration(true)
                 .build()
     }
