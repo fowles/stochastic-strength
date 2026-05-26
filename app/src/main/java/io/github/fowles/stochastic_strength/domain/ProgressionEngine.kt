@@ -7,8 +7,6 @@ object ProgressionEngine {
     private const val INTERNAL_INCREMENT = 0.5f
     val REP_OPTIONS = listOf(5, 8, 10)
 
-    // Baseline (muscle-group weight) progression
-
     fun computeNextBaseline(baseline: Float, feedbacks: List<SetFeedback>): Float {
         if (feedbacks.isEmpty()) return baseline
         return applyBaselineFeedback(baseline, aggregateFeedback(feedbacks))

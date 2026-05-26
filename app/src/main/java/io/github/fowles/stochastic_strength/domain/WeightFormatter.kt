@@ -13,9 +13,6 @@ object WeightFormatter {
         }
     }
 
-    /**
-     * Rounds a KG weight to the nearest increment appropriate for the user's unit.
-     */
     fun round(kg: Float, unit: WeightUnit): Float {
         return if (unit == WeightUnit.KG) {
             (kg / 2.5f).roundToInt() * 2.5f
@@ -26,7 +23,6 @@ object WeightFormatter {
         }
     }
 
-    /** Returns a human-readable plate breakdown for barbell exercises, e.g. "Bar + 20 kg + 5 kg per side". */
     fun platesPerSide(weightKg: Float, unit: WeightUnit): String? {
         return when (unit) {
             WeightUnit.KG -> {

@@ -15,12 +15,15 @@ import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 
 class WorkoutRepository(private val db: AppDatabase) {
-    suspend fun generateWorkoutForLocation(locationId: Long?, weightUnit: WeightUnit): WorkoutPlan {
-        val availableEquipment = if (locationId != null) {
+    private suspend fun availableEquipment(locationId: Long?): Set<Equipment> =
+        if (locationId != null) {
             db.locationEquipmentDao().getEquipmentForLocation(locationId).toSet() + Equipment.BODYWEIGHT
         } else {
             Equipment.entries.toSet()
         }
+
+    suspend fun generateWorkoutForLocation(locationId: Long?, weightUnit: WeightUnit): WorkoutPlan {
+        val availableEquipment = availableEquipment(locationId)
 
         val allExercises = db.exerciseDao().getActive()
         val exercises = allExercises.filter { it.equipment in availableEquipment }
@@ -43,11 +46,7 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun pickAdditional(plan: WorkoutPlan, weightUnit: WeightUnit): PlannedExercise? {
         val excludedIds = plan.exercises.map { it.exercise.id }.toSet()
-        val availableEquipment = if (plan.locationId != null) {
-            db.locationEquipmentDao().getEquipmentForLocation(plan.locationId).toSet() + Equipment.BODYWEIGHT
-        } else {
-            Equipment.entries.toSet()
-        }
+        val availableEquipment = availableEquipment(plan.locationId)
         val candidates = db.exerciseDao().getActive()
             .filter { it.equipment in availableEquipment && it.id !in excludedIds }
         if (candidates.isEmpty()) return null
@@ -67,15 +66,8 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int, weightUnit: WeightUnit): PlannedExercise? {
         val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
         val excludedIds = remaining.map { it.exercise.id }.toSet()
-
-        val availableEquipment = if (plan.locationId != null) {
-            db.locationEquipmentDao().getEquipmentForLocation(plan.locationId).toSet() + Equipment.BODYWEIGHT
-        } else {
-            Equipment.entries.toSet()
-        }
-
         val candidates = db.exerciseDao().getActive()
-            .filter { it.equipment in availableEquipment && it.id !in excludedIds }
+            .filter { it.equipment in availableEquipment(plan.locationId) && it.id !in excludedIds }
         if (candidates.isEmpty()) return null
 
         val replacement = WorkoutGenerator.pickReplacement(
@@ -102,7 +94,6 @@ class WorkoutRepository(private val db: AppDatabase) {
             .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
             .toMap()
 
-        // Per-exercise: flag hurt exercises
         for (exerciseId in exerciseIds) {
             val feedbacks = sets
                 .filter { it.exerciseId == exerciseId }
@@ -114,7 +105,6 @@ class WorkoutRepository(private val db: AppDatabase) {
             }
         }
 
-        // Per muscle group: update baseline weight using conservative aggregation
         val exercisesByMuscle = exerciseById.values.groupBy { it.primaryMuscle }
         for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
             val allFeedbacks = muscleExercises.flatMap { exercise ->

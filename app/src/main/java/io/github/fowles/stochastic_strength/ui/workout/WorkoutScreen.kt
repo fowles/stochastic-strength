@@ -488,14 +488,6 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
 
 private const val MAX_EXERCISE_COUNT = 15
 
-private fun SetFeedback.displayLabel() = when (this) {
-    SetFeedback.TOO_HARD -> "Too Hard"
-    SetFeedback.HURT -> "Hurt"
-    SetFeedback.RIR_0_1 -> "0–1 left"
-    SetFeedback.RIR_2_4 -> "2–4 left"
-    SetFeedback.RIR_5_PLUS -> "5+ left"
-}
-
 @Composable
 private fun RestingContent(
     state: WorkoutState.Resting,
@@ -535,7 +527,7 @@ private fun RestingContent(
         Text("Rest", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Logged: ${state.lastFeedback.displayLabel()}",
+            "Logged: ${state.lastFeedback.displayLabel}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
         )

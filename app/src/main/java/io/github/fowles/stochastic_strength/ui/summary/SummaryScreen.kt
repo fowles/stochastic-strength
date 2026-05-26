@@ -73,7 +73,7 @@ fun SummaryScreen(
                     }
                     ex.feedback.forEachIndexed { i, fb ->
                         Text(
-                            "  Set ${i + 1}: ${fb.label()}",
+                            "  Set ${i + 1}: ${fb?.displayLabel ?: "—"}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -92,11 +92,3 @@ fun SummaryScreen(
     }
 }
 
-private fun SetFeedback?.label() = when (this) {
-    SetFeedback.TOO_HARD -> "Too Hard"
-    SetFeedback.HURT -> "Hurt"
-    SetFeedback.RIR_0_1 -> "0-1 left"
-    SetFeedback.RIR_2_4 -> "2-4 left"
-    SetFeedback.RIR_5_PLUS -> "5+ left"
-    null -> "—"
-}

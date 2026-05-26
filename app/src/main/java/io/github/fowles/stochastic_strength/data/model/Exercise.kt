@@ -10,7 +10,6 @@ data class Exercise(
     val primaryMuscle: MuscleGroup,
     val secondaryMuscles: List<MuscleGroup> = emptyList(),
     val equipment: Equipment,
-    val defaultSets: Int = 3,
     val isDisliked: Boolean = false,
     val hurtFlag: Boolean = false,
     val isUnilateral: Boolean = false,
