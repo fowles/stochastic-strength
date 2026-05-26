@@ -156,6 +156,8 @@ class WorkoutRepository(private val db: AppDatabase) {
     // Exercise library
     fun observeAllExercises(): Flow<List<Exercise>> = db.exerciseDao().observeAll()
 
+    suspend fun getExerciseById(exerciseId: Long): Exercise? = db.exerciseDao().getById(exerciseId)
+
     suspend fun updateExercise(exercise: Exercise) = db.exerciseDao().update(exercise)
 
     suspend fun getAllSetsForExercise(exerciseId: Long): List<WorkoutSet> =
