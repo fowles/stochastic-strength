@@ -1,6 +1,5 @@
 package io.github.fowles.stochastic_strength.domain
 
-import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import org.junit.Assert.assertEquals
@@ -8,12 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProgressionEngineTest {
-
-    private fun state(sets: Int = 3, consecutive: Int = 0) = ExerciseState(
-        exerciseId = 1L,
-        currentSets = sets,
-        consecutiveRir5PlusSessions = consecutive,
-    )
 
     // --- Baseline (weight) progression ---
 
@@ -58,51 +51,6 @@ class ProgressionEngineTest {
         val feedbacks = listOf(SetFeedback.RIR_5_PLUS, SetFeedback.HURT, SetFeedback.RIR_2_4)
         val result = ProgressionEngine.computeNextBaseline(60f, feedbacks)
         assertTrue(result < 60f)
-    }
-
-    // --- Set-count progression ---
-
-    @Test
-    fun setsTooHardReducesSets() {
-        val result = ProgressionEngine.applySetFeedback(state(sets = 3), SetFeedback.TOO_HARD)
-        assertEquals(2, result.currentSets)
-    }
-
-    @Test
-    fun setsNeverDropBelowMinimum() {
-        val result = ProgressionEngine.applySetFeedback(state(sets = 2), SetFeedback.TOO_HARD)
-        assertEquals(2, result.currentSets)
-    }
-
-    @Test
-    fun setsIncreaseAfterConsecutiveRir5Sessions() {
-        var s = state(sets = 3)
-        repeat(ProgressionEngine.CONSECUTIVE_RIR5_FOR_SET_INCREASE) {
-            s = ProgressionEngine.applySetFeedback(s, SetFeedback.RIR_5_PLUS)
-        }
-        assertEquals(4, s.currentSets)
-    }
-
-    @Test
-    fun consecutiveResetsAfterSetIncrease() {
-        var s = state(sets = 3)
-        repeat(ProgressionEngine.CONSECUTIVE_RIR5_FOR_SET_INCREASE) {
-            s = ProgressionEngine.applySetFeedback(s, SetFeedback.RIR_5_PLUS)
-        }
-        assertEquals(0, s.consecutiveRir5PlusSessions)
-    }
-
-    @Test
-    fun setsNeverExceedMaximum() {
-        var s = state(sets = 4)
-        repeat(10) { s = ProgressionEngine.applySetFeedback(s, SetFeedback.RIR_5_PLUS) }
-        assertEquals(4, s.currentSets)
-    }
-
-    @Test
-    fun computeNextSetStateEmptyFeedbackUnchanged() {
-        val s = state(sets = 3)
-        assertEquals(s, ProgressionEngine.computeNextSetState(s, emptyList()))
     }
 
     // --- Muscle-group feedback aggregation ---

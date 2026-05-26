@@ -64,6 +64,7 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 
 @Composable
 fun WorkoutScreen(
@@ -131,7 +132,7 @@ private fun PlanPreviewContent(
     onSetExerciseCount: (Int) -> Unit,
 ) {
     val plan = state.plan
-    val totalSets = plan.exercises.sumOf { it.state.currentSets }
+    val totalSets = plan.exercises.size * PlannedExercise.DEFAULT_SETS
     val durationMin = plan.estimatedDurationSeconds / 60
 
     var sliderValue by remember { mutableFloatStateOf(plan.exercises.size.toFloat()) }
@@ -255,7 +256,7 @@ private fun ExercisePreviewRow(
                     else -> null
                 }
                 val detail = buildString {
-                    append("${planned.state.currentSets} sets × ${planned.sessionReps} reps")
+                    append("${PlannedExercise.DEFAULT_SETS} sets × ${planned.sessionReps} reps")
                     if (weightLabel != null) append(" · $weightLabel")
                 }
                 Text(
@@ -502,7 +503,7 @@ private fun RestingContent(
     onUndo: () -> Unit,
 ) {
     val plan = state.plan
-    val totalSets = plan.exercises[state.exerciseIndex].state.currentSets
+    val totalSets = PlannedExercise.DEFAULT_SETS
     val nextSet = state.completedSetIndex + 1
 
     val upNextLabel = when {

@@ -68,12 +68,9 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
 
 ### Progression system
 
-Two independent progressions run after every session (`WorkoutRepository.applySessionProgression`):
+After every session, `WorkoutRepository.applySessionProgression` updates the per-muscle baseline weight (`MuscleGroupStrength`) via `ProgressionEngine.applyBaselineFeedback`. Multiple exercises in the same muscle group use conservative aggregation (worst feedback wins). It also flags any exercise that caused pain (`hurtFlag = true`).
 
-1. **Per-muscle baseline weight** (`MuscleGroupStrength`): adjusted by `ProgressionEngine.applyBaselineFeedback`. Multiple exercises in the same muscle group use conservative aggregation (worst feedback wins).
-2. **Per-exercise set count** (`ExerciseState.currentSets`, range 2–4): increased after 2 consecutive RIR 5+ sessions, decreased on TOO_HARD or HURT.
-
-Session weight is derived as: `baselineWeight × ExerciseCoefficients[name]`, then scaled to the session's rep target (5, 8, or 10 reps, chosen randomly) using the Epley 1RM formula.
+Session weight is derived as: `baselineWeight × ExerciseCoefficients[name]`, then scaled to the session's rep target (5, 8, or 10 reps, chosen randomly) using the Epley 1RM formula. All exercises use a fixed `PlannedExercise.DEFAULT_SETS` (3) sets.
 
 ### Location & equipment filtering
 

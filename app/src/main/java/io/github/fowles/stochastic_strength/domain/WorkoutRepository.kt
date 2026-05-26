@@ -3,7 +3,6 @@ package io.github.fowles.stochastic_strength.domain
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -25,12 +24,11 @@ class WorkoutRepository(private val db: AppDatabase) {
 
         val allExercises = db.exerciseDao().getActive()
         val exercises = allExercises.filter { it.equipment in availableEquipment }
-        val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
 
         val sessionReps = ProgressionEngine.REP_OPTIONS.random()
         val planned = WorkoutGenerator.generate(
-            WorkoutGenerator.Input(exercises = exercises, states = statesMap)
+            WorkoutGenerator.Input(exercises = exercises)
         ).map { pe ->
             val weight = deriveWeight(pe.exercise, strengths, sessionReps, weightUnit)
             pe.copy(
@@ -53,9 +51,8 @@ class WorkoutRepository(private val db: AppDatabase) {
         val candidates = db.exerciseDao().getActive()
             .filter { it.equipment in availableEquipment && it.id !in excludedIds }
         if (candidates.isEmpty()) return null
-        val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
         val picked = WorkoutGenerator.pickReplacement(
-            input = WorkoutGenerator.Input(exercises = candidates, states = statesMap),
+            input = WorkoutGenerator.Input(exercises = candidates),
             currentExercises = plan.exercises,
         ) ?: return null
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
@@ -81,9 +78,8 @@ class WorkoutRepository(private val db: AppDatabase) {
             .filter { it.equipment in availableEquipment && it.id !in excludedIds }
         if (candidates.isEmpty()) return null
 
-        val statesMap = db.exerciseStateDao().getAll().associateBy { it.exerciseId }
         val replacement = WorkoutGenerator.pickReplacement(
-            input = WorkoutGenerator.Input(exercises = candidates, states = statesMap),
+            input = WorkoutGenerator.Input(exercises = candidates),
             currentExercises = remaining,
         ) ?: return null
 
@@ -106,19 +102,11 @@ class WorkoutRepository(private val db: AppDatabase) {
             .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
             .toMap()
 
-        // Per-exercise: update set counts and consecutive tracking
+        // Per-exercise: flag hurt exercises
         for (exerciseId in exerciseIds) {
             val feedbacks = sets
                 .filter { it.exerciseId == exerciseId }
                 .mapNotNull { it.feedback }
-            if (feedbacks.isEmpty()) continue
-
-            val currentState = db.exerciseStateDao().getState(exerciseId)
-                ?: ExerciseState(exerciseId = exerciseId)
-            db.exerciseStateDao().upsert(
-                ProgressionEngine.computeNextSetState(currentState, feedbacks)
-            )
-
             if (SetFeedback.HURT in feedbacks) {
                 exerciseById[exerciseId]?.let { exercise ->
                     db.exerciseDao().update(exercise.copy(hurtFlag = true))

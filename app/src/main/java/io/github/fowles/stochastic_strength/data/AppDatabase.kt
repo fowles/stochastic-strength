@@ -6,7 +6,6 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import io.github.fowles.stochastic_strength.data.dao.ExerciseDao
-import io.github.fowles.stochastic_strength.data.dao.ExerciseStateDao
 import io.github.fowles.stochastic_strength.data.dao.KnownLocationDao
 import io.github.fowles.stochastic_strength.data.dao.LocationEquipmentDao
 import io.github.fowles.stochastic_strength.data.dao.MuscleGroupStrengthDao
@@ -14,7 +13,6 @@ import io.github.fowles.stochastic_strength.data.dao.UserProfileDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSessionDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSetDao
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseState
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationEquipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
@@ -32,11 +30,10 @@ import kotlinx.coroutines.CoroutineScope
         LocationEquipment::class,
         WorkoutSession::class,
         WorkoutSet::class,
-        ExerciseState::class,
         UserProfile::class,
         MuscleGroupStrength::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -46,7 +43,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun locationEquipmentDao(): LocationEquipmentDao
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun workoutSetDao(): WorkoutSetDao
-    abstract fun exerciseStateDao(): ExerciseStateDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun muscleGroupStrengthDao(): MuscleGroupStrengthDao
 
@@ -79,9 +75,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS exercise_state")
+            }
+        }
+
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .fallbackToDestructiveMigration(true)
                 .build()
     }

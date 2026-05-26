@@ -13,6 +13,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
 import kotlinx.coroutines.Job
@@ -247,7 +248,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private fun advanceAfterRest() {
         val current = _state.value as? WorkoutState.Resting ?: return
         val plan = current.plan
-        val totalSets = plan.exercises[current.exerciseIndex].state.currentSets
+        val totalSets = PlannedExercise.DEFAULT_SETS
         val nextSet = current.completedSetIndex + 1
 
         when {

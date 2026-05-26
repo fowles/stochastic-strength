@@ -4,6 +4,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 
+
 sealed interface WorkoutState {
     data object Loading : WorkoutState
 
@@ -15,7 +16,7 @@ sealed interface WorkoutState {
         val warmupSetIndex: Int? = null,
     ) : WorkoutState {
         val plannedExercise: PlannedExercise get() = plan.exercises[exerciseIndex]
-        val totalSets: Int get() = plannedExercise.state.currentSets
+        val totalSets: Int get() = PlannedExercise.DEFAULT_SETS
         val currentWarmupSet get() = warmupSetIndex?.let { plannedExercise.warmupSets[it] }
     }
 
