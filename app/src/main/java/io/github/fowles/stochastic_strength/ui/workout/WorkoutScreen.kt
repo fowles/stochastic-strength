@@ -46,8 +46,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import kotlin.math.roundToInt
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
@@ -62,6 +64,11 @@ fun WorkoutScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
+    val activity = LocalContext.current as android.app.Activity
+
+    BackHandler(enabled = state !is WorkoutState.Done) {
+        activity.moveTaskToBack(true)
+    }
 
     LaunchedEffect(state) {
         val s = state
