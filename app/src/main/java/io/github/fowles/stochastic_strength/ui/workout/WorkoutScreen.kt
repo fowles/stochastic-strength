@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,7 +51,11 @@ import kotlin.math.roundToInt
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -507,6 +512,18 @@ private fun RestingContent(
         else -> "Last set — almost done!"
     }
 
+    val targetProgress = state.secondsRemaining / WorkoutViewModel.REST_SECONDS.toFloat()
+    val animatedProgress = remember { Animatable(targetProgress) }
+    LaunchedEffect(state.secondsRemaining) {
+        animatedProgress.animateTo(
+            targetValue = targetProgress,
+            animationSpec = tween(durationMillis = 1000, easing = LinearEasing),
+        )
+    }
+
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val progressColor = MaterialTheme.colorScheme.primary
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -522,11 +539,35 @@ private fun RestingContent(
             color = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.height(24.dp))
-        Text(
-            "${state.secondsRemaining}",
-            style = MaterialTheme.typography.displayLarge,
-        )
-        Text("seconds", style = MaterialTheme.typography.bodyLarge)
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(180.dp)) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 12.dp.toPx()
+                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
+                drawArc(
+                    color = trackColor,
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    topLeft = topLeft,
+                    size = arcSize,
+                )
+                drawArc(
+                    color = progressColor,
+                    startAngle = -90f + (1f - animatedProgress.value) * 360f,
+                    sweepAngle = animatedProgress.value * 360f,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    topLeft = topLeft,
+                    size = arcSize,
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${state.secondsRemaining}", style = MaterialTheme.typography.displayLarge)
+                Text("seconds", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
         Spacer(Modifier.height(32.dp))
         Text(
             upNextLabel,
