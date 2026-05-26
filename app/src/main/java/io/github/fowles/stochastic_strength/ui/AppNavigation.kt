@@ -68,9 +68,9 @@ fun AppNavigation() {
         }
         composable("workout") {
             WorkoutScreen(
-                onWorkoutDone = { sessionId ->
-                    navController.navigate("summary/$sessionId") {
-                        popUpTo("workout") { inclusive = true }
+                onWorkoutDone = {
+                    navController.navigate("home") {
+                        popUpTo("home") { inclusive = true }
                     }
                 },
             )

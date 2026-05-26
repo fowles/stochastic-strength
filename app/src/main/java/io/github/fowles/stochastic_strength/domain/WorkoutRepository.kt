@@ -135,6 +135,8 @@ class WorkoutRepository(private val db: AppDatabase) {
     // Locations
     suspend fun getLocations(): List<KnownLocation> = db.knownLocationDao().getAll()
 
+    fun observeLocations(): Flow<List<KnownLocation>> = db.knownLocationDao().observeAll()
+
     suspend fun updateLocation(location: KnownLocation) = db.knownLocationDao().update(location)
 
     suspend fun deleteLocation(locationId: Long) = db.withTransaction {
@@ -165,6 +167,11 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     // History
     suspend fun getAllSessions(): List<WorkoutSession> = db.workoutSessionDao().getAll()
+
+    suspend fun deleteSession(sessionId: Long) = db.withTransaction {
+        db.workoutSetDao().deleteAllForSession(sessionId)
+        db.workoutSessionDao().deleteById(sessionId)
+    }
 
     suspend fun getSessionExerciseNames(sessionId: Long): List<String> {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)

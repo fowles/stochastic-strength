@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.material.icons.Icons
@@ -68,20 +70,21 @@ import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 
 @Composable
 fun WorkoutScreen(
-    onWorkoutDone: (Long) -> Unit,
+    onWorkoutDone: () -> Unit,
     viewModel: WorkoutViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
+    val workoutCompleted by viewModel.workoutCompleted.collectAsState()
+    val doneSummary by viewModel.doneSummary.collectAsState()
     val activity = LocalContext.current as android.app.Activity
 
     BackHandler(enabled = state !is WorkoutState.Done) {
         activity.moveTaskToBack(true)
     }
 
-    LaunchedEffect(state) {
-        val s = state
-        if (s is WorkoutState.Done) onWorkoutDone(s.sessionId)
+    LaunchedEffect(workoutCompleted) {
+        if (workoutCompleted) onWorkoutDone()
     }
 
     Scaffold { paddingValues ->
@@ -117,7 +120,11 @@ fun WorkoutScreen(
                     onSkipRest = viewModel::skipRest,
                     onUndo = viewModel::undoLastSet,
                 )
-                is WorkoutState.Done -> {}
+                is WorkoutState.Done -> DoneContent(
+                    doneSummary = doneSummary,
+                    onUndo = viewModel::undoLastSetFromDone,
+                    onDone = viewModel::completeWorkout,
+                )
             }
         }
     }
@@ -483,6 +490,64 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
                 modifier = Modifier.weight(1f),
             ) { Text("Hurt") }
         }
+    }
+}
+
+@Composable
+private fun DoneContent(
+    doneSummary: DoneSummary?,
+    onUndo: () -> Unit,
+    onDone: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Text("Workout Complete!", style = MaterialTheme.typography.headlineLarge)
+        Spacer(Modifier.height(8.dp))
+        if (doneSummary == null) {
+            CircularProgressIndicator()
+        } else {
+            val minutes = doneSummary.durationSeconds / 60
+            val seconds = doneSummary.durationSeconds % 60
+            Text(
+                "Duration: ${minutes}m ${seconds}s",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(24.dp))
+            doneSummary.exercises.forEach { ex ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(ex.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    if (ex.weight > 0f) {
+                        Text(
+                            WeightFormatter.format(ex.weight, doneSummary.weightUnit),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+                ex.feedback.forEachIndexed { i, fb ->
+                    Text(
+                        "  Set ${i + 1}: ${fb?.displayLabel ?: "—"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        OutlinedButton(onClick = onUndo, modifier = Modifier.fillMaxWidth()) { Text("Undo") }
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
     }
 }
 

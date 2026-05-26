@@ -24,10 +24,10 @@ class LocationsViewModel(application: Application) : AndroidViewModel(applicatio
     val state: StateFlow<LocationsState> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch { reload() }
-    }
-
-    private suspend fun reload() {
-        _state.value = LocationsState.Loaded(repository.getLocations())
+        viewModelScope.launch {
+            repository.observeLocations().collect { locations ->
+                _state.value = LocationsState.Loaded(locations)
+            }
+        }
     }
 }

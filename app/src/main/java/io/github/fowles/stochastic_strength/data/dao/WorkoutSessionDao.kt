@@ -28,4 +28,7 @@ interface WorkoutSessionDao {
 
     @Query("SELECT * FROM workout_sessions ORDER BY startTime DESC")
     suspend fun getAll(): List<WorkoutSession>
+
+    @Query("DELETE FROM workout_sessions WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

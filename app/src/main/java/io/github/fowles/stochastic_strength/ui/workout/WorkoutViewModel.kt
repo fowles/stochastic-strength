@@ -13,6 +13,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
 import kotlinx.coroutines.Job
@@ -26,6 +27,9 @@ import kotlin.coroutines.resume
 
 enum class ExerciseRemovalReason { NO_EQUIPMENT, DISLIKE, SKIP_TODAY }
 
+data class DoneExercise(val name: String, val weight: Float, val feedback: List<SetFeedback?>)
+data class DoneSummary(val durationSeconds: Long, val exercises: List<DoneExercise>, val weightUnit: WeightUnit)
+
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
     private val repository = WorkoutRepository(app.database)
@@ -37,13 +41,18 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _weightUnit = MutableStateFlow(WeightUnit.KG)
     val weightUnit: StateFlow<WeightUnit> = _weightUnit.asStateFlow()
 
+    private val _workoutCompleted = MutableStateFlow(false)
+    val workoutCompleted: StateFlow<Boolean> = _workoutCompleted.asStateFlow()
+
+    private val _doneSummary = MutableStateFlow<DoneSummary?>(null)
+    val doneSummary: StateFlow<DoneSummary?> = _doneSummary.asStateFlow()
+
     private var restTimerJob: Job? = null
     private var addExerciseJob: Job? = null
     private var sessionStartTime = 0L
     private var preferredExerciseCount: Int? = null
 
     private var sessionLocationId: Long? = null
-    private var pendingLocationCoords: Pair<Double, Double>? = null
 
     init {
         startWorkout()
@@ -54,17 +63,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             val profile = app.database.userProfileDao().getProfile()
             _weightUnit.value = profile?.weightUnit ?: WeightUnit.KG
             preferredExerciseCount = profile?.preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT
-            when (val loc = locationService.resolveLocation(app.database)) {
-                is LocationResult.Known -> {
-                    sessionLocationId = loc.locationId
-                    continueWorkoutGeneration(loc.locationId)
-                }
-                is LocationResult.Unknown -> {
-                    pendingLocationCoords = loc.latitude to loc.longitude
-                    continueWorkoutGeneration(null)
-                }
-                LocationResult.Unavailable -> continueWorkoutGeneration(null)
+            val locationId = when (val loc = locationService.resolveLocation(app.database)) {
+                is LocationResult.Known -> loc.locationId
+                is LocationResult.Unknown -> createLocation(loc.latitude to loc.longitude)
+                LocationResult.Unavailable -> null
             }
+            sessionLocationId = locationId
+            continueWorkoutGeneration(locationId)
         }
     }
 
@@ -86,13 +91,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 ExerciseRemovalReason.DISLIKE ->
                     app.database.exerciseDao().update(planned.exercise.copy(isDisliked = true))
                 ExerciseRemovalReason.NO_EQUIPMENT -> {
-                    val locationId = sessionLocationId ?: run {
-                        val coords = pendingLocationCoords ?: return@launch
-                        val newId = createLocation(coords)
-                        sessionLocationId = newId
-                        app.database.workoutSessionDao().updateLocationId(preview.sessionId, newId)
-                        newId
-                    }
+                    val locationId = sessionLocationId ?: return@launch
                     repository.excludeExercise(locationId, planned.exercise.id)
                 }
                 ExerciseRemovalReason.SKIP_TODAY -> Unit
@@ -174,16 +173,22 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             )
         }
         val completedSetIndex = if (feedback == SetFeedback.HURT) current.totalSets - 1 else current.setIndex
-        _state.value = WorkoutState.Resting(
-            plan = current.plan,
-            exerciseIndex = current.exerciseIndex,
-            completedSetIndex = completedSetIndex,
-            recordedSetIndex = current.setIndex,
-            sessionId = current.sessionId,
-            secondsRemaining = REST_SECONDS,
-            lastFeedback = feedback,
-        )
-        startRestTimer()
+        val isLastSet = completedSetIndex + 1 >= current.totalSets &&
+            current.exerciseIndex + 1 >= current.plan.exercises.size
+        if (isLastSet) {
+            finishWorkout(current.plan, current.exerciseIndex, current.setIndex, current.sessionId)
+        } else {
+            _state.value = WorkoutState.Resting(
+                plan = current.plan,
+                exerciseIndex = current.exerciseIndex,
+                completedSetIndex = completedSetIndex,
+                recordedSetIndex = current.setIndex,
+                sessionId = current.sessionId,
+                secondsRemaining = REST_SECONDS,
+                lastFeedback = feedback,
+            )
+            startRestTimer()
+        }
     }
 
     fun undoLastSet() {
@@ -280,21 +285,73 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     warmupSetIndex = if (nextExercise.warmupSets.isNotEmpty()) 0 else null,
                 )
             }
-            else -> finishWorkout(current)
+            else -> finishWorkout(plan, current.exerciseIndex, current.recordedSetIndex, current.sessionId)
         }
     }
 
-    private fun finishWorkout(current: WorkoutState.Resting) {
+    private fun finishWorkout(
+        plan: WorkoutPlan,
+        lastExerciseIndex: Int,
+        lastRecordedSetIndex: Int,
+        sessionId: Long,
+    ) {
         val endTime = System.currentTimeMillis()
         viewModelScope.launch {
-            app.database.workoutSessionDao().updateEndTime(current.sessionId, endTime)
-            repository.applySessionProgression(current.sessionId)
+            app.database.workoutSessionDao().updateEndTime(sessionId, endTime)
             _state.value = WorkoutState.Done(
-                sessionId = current.sessionId,
-                plan = current.plan,
+                sessionId = sessionId,
+                plan = plan,
                 startTime = sessionStartTime,
                 endTime = endTime,
+                lastExerciseIndex = lastExerciseIndex,
+                lastRecordedSetIndex = lastRecordedSetIndex,
             )
+            _doneSummary.value = loadDoneSummary(sessionId, endTime)
+        }
+    }
+
+    private suspend fun loadDoneSummary(sessionId: Long, endTime: Long): DoneSummary {
+        val weightUnit = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+        val sets = app.database.workoutSetDao().getSetsForSession(sessionId)
+        val exerciseIds = sets.map { it.exerciseId }.distinct()
+        val exercises = exerciseIds.map { id ->
+            val exerciseSets = sets.filter { it.exerciseId == id }
+            DoneExercise(
+                name = app.database.exerciseDao().getById(id)?.name ?: "Unknown",
+                weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f,
+                feedback = exerciseSets.map { it.feedback },
+            )
+        }
+        return DoneSummary(
+            durationSeconds = (endTime - sessionStartTime) / 1000,
+            exercises = exercises,
+            weightUnit = weightUnit,
+        )
+    }
+
+    fun undoLastSetFromDone() {
+        val done = _state.value as? WorkoutState.Done ?: return
+        val exerciseId = done.plan.exercises[done.lastExerciseIndex].exercise.id
+        viewModelScope.launch {
+            app.database.workoutSetDao().deleteSet(
+                sessionId = done.sessionId,
+                exerciseId = exerciseId,
+                setNumber = done.lastRecordedSetIndex + 1,
+            )
+        }
+        _state.value = WorkoutState.ActiveSet(
+            plan = done.plan,
+            exerciseIndex = done.lastExerciseIndex,
+            setIndex = done.lastRecordedSetIndex,
+            sessionId = done.sessionId,
+        )
+    }
+
+    fun completeWorkout() {
+        val done = _state.value as? WorkoutState.Done ?: return
+        viewModelScope.launch {
+            repository.applySessionProgression(done.sessionId)
+            _workoutCompleted.value = true
         }
     }
 

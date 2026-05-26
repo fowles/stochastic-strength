@@ -40,5 +40,7 @@ sealed interface WorkoutState {
         val plan: WorkoutPlan,
         val startTime: Long,
         val endTime: Long,
+        val lastExerciseIndex: Int,
+        val lastRecordedSetIndex: Int,
     ) : WorkoutState
 }

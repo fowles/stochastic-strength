@@ -25,6 +25,7 @@ data class HistoryState(
     val sessions: List<SessionListItem> = emptyList(),
     val weightUnit: WeightUnit = WeightUnit.KG,
     val loading: Boolean = true,
+    val pendingDeleteSessionId: Long? = null,
 )
 
 class HistoryViewModel(application: Application) : AndroidViewModel(application) {
@@ -57,6 +58,25 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 sessions = sessions,
                 weightUnit = weightUnit,
                 loading = false,
+            )
+        }
+    }
+
+    fun requestDelete(sessionId: Long) {
+        _state.value = _state.value.copy(pendingDeleteSessionId = sessionId)
+    }
+
+    fun cancelDelete() {
+        _state.value = _state.value.copy(pendingDeleteSessionId = null)
+    }
+
+    fun confirmDelete() {
+        val sessionId = _state.value.pendingDeleteSessionId ?: return
+        viewModelScope.launch {
+            repository.deleteSession(sessionId)
+            _state.value = _state.value.copy(
+                sessions = _state.value.sessions.filter { it.session.id != sessionId },
+                pendingDeleteSessionId = null,
             )
         }
     }

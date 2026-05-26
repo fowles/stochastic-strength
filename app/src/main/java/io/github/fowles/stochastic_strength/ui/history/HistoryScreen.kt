@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -58,6 +61,22 @@ fun HistoryScreen(
             )
         },
     ) { padding ->
+        if (state.pendingDeleteSessionId != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelDelete() },
+                title = { Text("Delete session?") },
+                text = { Text("This will permanently remove the session and all its recorded sets.") },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.confirmDelete() }) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.cancelDelete() }) { Text("Cancel") }
+                },
+            )
+        }
+
         if (state.loading) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -99,7 +118,11 @@ fun HistoryScreen(
                 }
             } else {
                 items(state.sessions, key = { it.session.id }) { item ->
-                    SessionRow(item = item, onClick = { onSessionTap(item.session.id) })
+                    SessionRow(
+                        item = item,
+                        onClick = { onSessionTap(item.session.id) },
+                        onDelete = { viewModel.requestDelete(item.session.id) },
+                    )
                     HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                 }
             }
@@ -171,17 +194,17 @@ private fun StrengthCard(
 }
 
 @Composable
-private fun SessionRow(item: SessionListItem, onClick: () -> Unit) {
+private fun SessionRow(item: SessionListItem, onClick: () -> Unit, onDelete: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = formatDate(item.session.startTime),
+                text = formatDateTime(item.session.startTime),
                 style = MaterialTheme.typography.bodyLarge,
             )
             if (item.locationName != null) {
@@ -211,16 +234,23 @@ private fun SessionRow(item: SessionListItem, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "Delete session",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
-private val DATE_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, yyyy")
+private val DATETIME_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a")
 
-private fun formatDate(epochMs: Long): String =
+private fun formatDateTime(epochMs: Long): String =
     Instant.ofEpochMilli(epochMs)
         .atZone(ZoneId.systemDefault())
-        .format(DATE_FORMATTER)
+        .format(DATETIME_FORMATTER)
 
 private fun formatDuration(seconds: Long): String =
     "%d:%02d".format(seconds / 60, seconds % 60)
