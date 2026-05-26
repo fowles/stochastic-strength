@@ -7,14 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import io.github.fowles.stochastic_strength.data.dao.ExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.KnownLocationDao
-import io.github.fowles.stochastic_strength.data.dao.LocationEquipmentDao
+import io.github.fowles.stochastic_strength.data.dao.LocationExcludedExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.MuscleGroupStrengthDao
 import io.github.fowles.stochastic_strength.data.dao.UserProfileDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSessionDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSetDao
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
-import io.github.fowles.stochastic_strength.data.model.LocationEquipment
+import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -25,20 +25,20 @@ import kotlinx.coroutines.CoroutineScope
     entities = [
         Exercise::class,
         KnownLocation::class,
-        LocationEquipment::class,
+        LocationExcludedExercise::class,
         WorkoutSession::class,
         WorkoutSet::class,
         UserProfile::class,
         MuscleGroupStrength::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun knownLocationDao(): KnownLocationDao
-    abstract fun locationEquipmentDao(): LocationEquipmentDao
+    abstract fun locationExcludedExerciseDao(): LocationExcludedExerciseDao
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun workoutSetDao(): WorkoutSetDao
     abstract fun userProfileDao(): UserProfileDao
@@ -63,6 +63,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
+                .fallbackToDestructiveMigration(true)
                 .build()
     }
 }

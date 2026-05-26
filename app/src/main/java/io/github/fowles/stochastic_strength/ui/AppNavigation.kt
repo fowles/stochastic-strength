@@ -10,6 +10,7 @@ import io.github.fowles.stochastic_strength.ui.exercises.ExerciseDetailScreen
 import io.github.fowles.stochastic_strength.ui.exercises.ExercisesScreen
 import io.github.fowles.stochastic_strength.ui.history.HistoryScreen
 import io.github.fowles.stochastic_strength.ui.home.HomeScreen
+import io.github.fowles.stochastic_strength.ui.locations.LocationEditScreen
 import io.github.fowles.stochastic_strength.ui.locations.LocationsScreen
 import io.github.fowles.stochastic_strength.ui.summary.SummaryScreen
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutScreen
@@ -34,7 +35,20 @@ fun AppNavigation() {
             )
         }
         composable("locations") {
-            LocationsScreen(onBack = { navController.popBackStack() })
+            LocationsScreen(
+                onLocationTap = { locationId -> navController.navigate("location/$locationId") },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = "location/{locationId}",
+            arguments = listOf(navArgument("locationId") { type = NavType.LongType }),
+        ) { backStackEntry ->
+            val locationId = backStackEntry.arguments!!.getLong("locationId")
+            LocationEditScreen(
+                locationId = locationId,
+                onBack = { navController.popBackStack() },
+            )
         }
         composable("exercises") {
             ExercisesScreen(

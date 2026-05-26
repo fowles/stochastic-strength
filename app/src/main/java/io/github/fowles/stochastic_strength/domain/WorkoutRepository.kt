@@ -2,10 +2,9 @@ package io.github.fowles.stochastic_strength.domain
 
 import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
-import io.github.fowles.stochastic_strength.data.model.LocationEquipment
+import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -21,18 +20,14 @@ import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import kotlinx.coroutines.flow.Flow
 
 class WorkoutRepository(private val db: AppDatabase) {
-    private suspend fun availableEquipment(locationId: Long?): Set<Equipment> =
-        if (locationId != null) {
-            db.locationEquipmentDao().getEquipmentForLocation(locationId).toSet() + Equipment.BODYWEIGHT
-        } else {
-            Equipment.entries.toSet()
-        }
+    private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
+        if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
+        else emptySet()
 
     suspend fun generateWorkoutForLocation(locationId: Long?, weightUnit: WeightUnit): WorkoutPlan {
-        val availableEquipment = availableEquipment(locationId)
-
+        val excluded = excludedExerciseIds(locationId)
         val allExercises = db.exerciseDao().getActive()
-        val exercises = allExercises.filter { it.equipment in availableEquipment }
+        val exercises = allExercises.filter { it.id !in excluded }
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
 
         val sessionReps = ProgressionEngine.REP_OPTIONS.random()
@@ -51,10 +46,10 @@ class WorkoutRepository(private val db: AppDatabase) {
     }
 
     suspend fun pickAdditional(plan: WorkoutPlan, weightUnit: WeightUnit): PlannedExercise? {
-        val excludedIds = plan.exercises.map { it.exercise.id }.toSet()
-        val availableEquipment = availableEquipment(plan.locationId)
+        val inPlan = plan.exercises.map { it.exercise.id }.toSet()
+        val excluded = excludedExerciseIds(plan.locationId)
         val candidates = db.exerciseDao().getActive()
-            .filter { it.equipment in availableEquipment && it.id !in excludedIds }
+            .filter { it.id !in inPlan && it.id !in excluded }
         if (candidates.isEmpty()) return null
         val picked = WorkoutGenerator.pickReplacement(
             input = WorkoutGenerator.Input(exercises = candidates),
@@ -71,9 +66,10 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int, weightUnit: WeightUnit): PlannedExercise? {
         val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
-        val excludedIds = remaining.map { it.exercise.id }.toSet()
+        val inPlan = remaining.map { it.exercise.id }.toSet()
+        val excluded = excludedExerciseIds(plan.locationId)
         val candidates = db.exerciseDao().getActive()
-            .filter { it.equipment in availableEquipment(plan.locationId) && it.id !in excludedIds }
+            .filter { it.id !in inPlan && it.id !in excluded }
         if (candidates.isEmpty()) return null
 
         val replacement = WorkoutGenerator.pickReplacement(
@@ -139,19 +135,22 @@ class WorkoutRepository(private val db: AppDatabase) {
     // Locations
     suspend fun getLocations(): List<KnownLocation> = db.knownLocationDao().getAll()
 
-    suspend fun getEquipmentForLocation(locationId: Long): Set<Equipment> =
-        db.locationEquipmentDao().getEquipmentForLocation(locationId).toSet()
-
     suspend fun updateLocation(location: KnownLocation) = db.knownLocationDao().update(location)
 
     suspend fun deleteLocation(locationId: Long) = db.withTransaction {
-        db.locationEquipmentDao().deleteAllForLocation(locationId)
+        db.locationExcludedExerciseDao().deleteAllForLocation(locationId)
         db.knownLocationDao().deleteById(locationId)
     }
 
-    suspend fun setLocationEquipment(locationId: Long, equipment: Set<Equipment>) = db.withTransaction {
-        db.locationEquipmentDao().deleteAllForLocation(locationId)
-        db.locationEquipmentDao().insertAll(equipment.map { LocationEquipment(locationId, it) })
+    suspend fun getExcludedExerciseIds(locationId: Long): Set<Long> =
+        db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
+
+    suspend fun excludeExercise(locationId: Long, exerciseId: Long) =
+        db.locationExcludedExerciseDao().insert(LocationExcludedExercise(locationId, exerciseId))
+
+    suspend fun setExcludedExercises(locationId: Long, exerciseIds: Set<Long>) = db.withTransaction {
+        db.locationExcludedExerciseDao().deleteAllForLocation(locationId)
+        db.locationExcludedExerciseDao().insertAll(exerciseIds.map { LocationExcludedExercise(locationId, it) })
     }
 
     // Exercise library

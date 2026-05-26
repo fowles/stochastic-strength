@@ -1,12 +1,11 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
 import android.app.Application
+import android.location.Geocoder
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
-import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
-import io.github.fowles.stochastic_strength.data.model.LocationEquipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -22,6 +21,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 enum class ExerciseRemovalReason { NO_EQUIPMENT, DISLIKE, SKIP_TODAY }
 
@@ -85,17 +86,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 ExerciseRemovalReason.DISLIKE ->
                     app.database.exerciseDao().update(planned.exercise.copy(isDisliked = true))
                 ExerciseRemovalReason.NO_EQUIPMENT -> {
-                    val locationId = sessionLocationId
-                    if (locationId != null) {
-                        app.database.locationEquipmentDao().deleteEquipment(locationId, planned.exercise.equipment)
-                    } else {
-                        val coords = pendingLocationCoords
-                        if (coords != null) {
-                            val newLocationId = createLocationWithAllEquipmentExcept(coords, planned.exercise.equipment)
-                            sessionLocationId = newLocationId
-                            app.database.workoutSessionDao().updateLocationId(preview.sessionId, newLocationId)
-                        }
+                    val locationId = sessionLocationId ?: run {
+                        val coords = pendingLocationCoords ?: return@launch
+                        val newId = createLocation(coords)
+                        sessionLocationId = newId
+                        app.database.workoutSessionDao().updateLocationId(preview.sessionId, newId)
+                        newId
                     }
+                    repository.excludeExercise(locationId, planned.exercise.id)
                 }
                 ExerciseRemovalReason.SKIP_TODAY -> Unit
             }
@@ -212,22 +210,36 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         advanceAfterRest()
     }
 
-    private suspend fun createLocationWithAllEquipmentExcept(
-        coords: Pair<Double, Double>,
-        excluded: Equipment,
-    ): Long {
-        val locationId = app.database.knownLocationDao().insert(
+    private suspend fun createLocation(coords: Pair<Double, Double>): Long =
+        app.database.knownLocationDao().insert(
             KnownLocation(
-                name = "%.4f, %.4f".format(coords.first, coords.second),
+                name = reverseGeocode(coords.first, coords.second),
                 latitude = coords.first,
                 longitude = coords.second,
             )
         )
-        val allEquipment = Equipment.entries.filter { it != excluded }
-        app.database.locationEquipmentDao().insertAll(
-            allEquipment.map { LocationEquipment(locationId = locationId, equipment = it) }
-        )
-        return locationId
+
+    private suspend fun reverseGeocode(lat: Double, lng: Double): String {
+        val fallback = "%.4f, %.4f".format(lat, lng)
+        if (!Geocoder.isPresent()) return fallback
+        return suspendCancellableCoroutine { cont ->
+            try {
+                Geocoder(app).getFromLocation(lat, lng, 1) { addresses ->
+                    val addr = addresses.firstOrNull()
+                    val name = when {
+                        addr?.thoroughfare != null ->
+                            listOfNotNull(addr.subThoroughfare, addr.thoroughfare, addr.locality)
+                                .joinToString(" ")
+                        addr?.locality != null ->
+                            listOfNotNull(addr.locality, addr.adminArea).joinToString(", ")
+                        else -> fallback
+                    }
+                    cont.resume(name)
+                }
+            } catch (_: Exception) {
+                cont.resume(fallback)
+            }
+        }
     }
 
     private fun startRestTimer() {
