@@ -210,34 +210,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         advanceAfterRest()
     }
 
-    fun dislikeCurrentExercise() {
-        val (plan, idx) = currentPlanAndIndex() ?: return
-        val exercise = plan.exercises[idx].exercise
-        viewModelScope.launch {
-            app.database.exerciseDao().update(exercise.copy(isDisliked = true))
-        }
-    }
-
-    fun markNoEquipmentHere() {
-        val (plan, idx) = currentPlanAndIndex() ?: return
-        val equipment = plan.exercises[idx].exercise.equipment
-        val sessionId = currentSessionId() ?: return
-        val locationId = sessionLocationId
-
-        if (locationId != null) {
-            viewModelScope.launch {
-                app.database.locationEquipmentDao().deleteEquipment(locationId, equipment)
-            }
-        } else {
-            val coords = pendingLocationCoords ?: return
-            viewModelScope.launch {
-                val newLocationId = createLocationWithAllEquipmentExcept(coords, equipment)
-                sessionLocationId = newLocationId
-                app.database.workoutSessionDao().updateLocationId(sessionId, newLocationId)
-            }
-        }
-    }
-
     private suspend fun createLocationWithAllEquipmentExcept(
         coords: Pair<Double, Double>,
         excluded: Equipment,
@@ -310,18 +282,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 endTime = endTime,
             )
         }
-    }
-
-    private fun currentPlanAndIndex() = when (val s = _state.value) {
-        is WorkoutState.ActiveSet -> s.plan to s.exerciseIndex
-        is WorkoutState.Resting -> s.plan to s.exerciseIndex
-        else -> null
-    }
-
-    private fun currentSessionId() = when (val s = _state.value) {
-        is WorkoutState.ActiveSet -> s.sessionId
-        is WorkoutState.Resting -> s.sessionId
-        else -> null
     }
 
     override fun onCleared() {

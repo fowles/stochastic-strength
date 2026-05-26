@@ -32,7 +32,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         val planned = WorkoutGenerator.generate(
             WorkoutGenerator.Input(exercises = exercises, states = statesMap)
         ).map { pe ->
-            val weight = deriveWeight(pe.exercise, strengths, sessionReps)
+            val weight = deriveWeight(pe.exercise, strengths, sessionReps, weightUnit)
             pe.copy(
                 sessionWeight = weight,
                 sessionReps = sessionReps,
@@ -59,7 +59,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             currentExercises = plan.exercises,
         ) ?: return null
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
-        val weight = deriveWeight(picked.exercise, strengths, plan.sessionReps)
+        val weight = deriveWeight(picked.exercise, strengths, plan.sessionReps, weightUnit)
         return picked.copy(
             sessionWeight = weight,
             sessionReps = plan.sessionReps,
@@ -88,7 +88,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         ) ?: return null
 
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
-        val weight = deriveWeight(replacement.exercise, strengths, plan.sessionReps)
+        val weight = deriveWeight(replacement.exercise, strengths, plan.sessionReps, weightUnit)
         return replacement.copy(
             sessionWeight = weight,
             sessionReps = plan.sessionReps,
@@ -156,11 +156,15 @@ class WorkoutRepository(private val db: AppDatabase) {
         exercise: Exercise,
         strengths: Map<MuscleGroup, MuscleGroupStrength>,
         sessionReps: Int,
+        weightUnit: WeightUnit,
     ): Float {
         val coeff = ExerciseCoefficients.byName[exercise.name] ?: return 0f
         if (coeff <= 0f) return 0f
         val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
-        return ProgressionEngine.scaleWeight(baseline * coeff, fromReps = 10, toReps = sessionReps)
+        return WeightFormatter.round(
+            ProgressionEngine.scaleWeight(baseline * coeff, fromReps = 10, toReps = sessionReps),
+            weightUnit,
+        )
     }
 
     private fun computeWarmupSets(weightKg: Float, weightUnit: WeightUnit): List<WarmupSet> {

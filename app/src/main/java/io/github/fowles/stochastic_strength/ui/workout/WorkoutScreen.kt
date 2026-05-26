@@ -16,17 +16,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,7 +50,9 @@ import kotlin.math.roundToInt
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
@@ -101,8 +104,6 @@ fun WorkoutScreen(
                         state = s,
                         weightUnit = weightUnit,
                         onFeedback = viewModel::recordFeedback,
-                        onDislike = viewModel::dislikeCurrentExercise,
-                        onNoEquipment = viewModel::markNoEquipmentHere,
                     )
                 }
                 is WorkoutState.Resting -> RestingContent(
@@ -312,37 +313,20 @@ private fun WarmupSetContent(
     onDone: () -> Unit,
 ) {
     val warmupSet = state.currentWarmupSet ?: return
-    val totalWarmups = state.plannedExercise.warmupSets.size
     val exercise = state.plannedExercise.exercise
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val totalWarmups = state.plannedExercise.warmupSets.size
+    ExerciseSetLayout(
+        exerciseName = exercise.name,
+        equipment = exercise.equipment,
+        progressLabel = "Warm-up ${state.warmupSetIndex!! + 1} of $totalWarmups",
+        progressColor = MaterialTheme.colorScheme.secondary,
+        weight = warmupSet.weight,
+        reps = warmupSet.reps,
+        weightUnit = weightUnit,
     ) {
-        Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Warm-up ${state.warmupSetIndex!! + 1} of $totalWarmups",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.secondary,
-        )
-
-        Spacer(Modifier.weight(1f))
-
-        Text(
-            WeightFormatter.format(warmupSet.weight, weightUnit),
-            style = MaterialTheme.typography.displaySmall,
-        )
-        Text("${warmupSet.reps} reps", style = MaterialTheme.typography.displaySmall)
-
-        Spacer(Modifier.weight(1f))
-
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.warmupSetIndex + 1 < totalWarmups) "Next Warm-up" else "Start Working Sets")
         }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -351,70 +335,107 @@ private fun ActiveSetContent(
     state: WorkoutState.ActiveSet,
     weightUnit: WeightUnit,
     onFeedback: (SetFeedback) -> Unit,
-    onDislike: () -> Unit,
-    onNoEquipment: () -> Unit,
 ) {
     val exercise = state.plannedExercise.exercise
-    var showMenu by remember { mutableStateOf(false) }
+    ExerciseSetLayout(
+        exerciseName = exercise.name,
+        equipment = exercise.equipment,
+        progressLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
+        progressColor = MaterialTheme.colorScheme.primary,
+        weight = state.plannedExercise.sessionWeight,
+        reps = state.plannedExercise.sessionReps,
+        weightUnit = weightUnit,
+    ) {
+        Text("How did that feel?", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(12.dp))
+        FeedbackButtons(onFeedback = onFeedback)
+    }
+}
 
+@Composable
+private fun ExerciseSetLayout(
+    exerciseName: String,
+    equipment: Equipment,
+    progressLabel: String,
+    progressColor: Color,
+    weight: Float,
+    reps: Int,
+    weightUnit: WeightUnit,
+    bottomContent: @Composable () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
-            Box {
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Options")
-                }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Don't like this exercise") },
-                        onClick = { onDislike(); showMenu = false },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Don't have this equipment here") },
-                        onClick = { onNoEquipment(); showMenu = false },
-                    )
-                }
-            }
-        }
-
-        Text(
-            "Set ${state.setIndex + 1} of ${state.totalSets}",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Text(exerciseName, style = MaterialTheme.typography.headlineMedium)
+        Text(progressLabel, style = MaterialTheme.typography.titleLarge, color = progressColor)
 
         Spacer(Modifier.weight(1f))
 
+        Text("$reps reps", style = MaterialTheme.typography.displaySmall)
         when {
-            state.plannedExercise.sessionWeight > 0f -> Text(
-                WeightFormatter.format(state.plannedExercise.sessionWeight, weightUnit),
-                style = MaterialTheme.typography.displaySmall,
-            )
-            exercise.equipment == Equipment.BODYWEIGHT -> Text(
+            weight > 0f -> {
+                Text(WeightFormatter.format(weight, weightUnit), style = MaterialTheme.typography.displaySmall)
+                if (equipment == Equipment.BARBELL) {
+                    WeightFormatter.platesPerSide(weight, weightUnit)?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+            equipment == Equipment.BODYWEIGHT -> Text(
                 "Bodyweight",
                 style = MaterialTheme.typography.displaySmall,
             )
         }
-        Text(
-            "${state.plannedExercise.sessionReps} reps",
-            style = MaterialTheme.typography.displaySmall,
-        )
 
         Spacer(Modifier.weight(1f))
 
-        Text("How did that feel?", style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(12.dp))
-        FeedbackButtons(onFeedback = onFeedback)
+        bottomContent()
         Spacer(Modifier.height(16.dp))
+        YoutubeFormCard(exerciseName = exerciseName)
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun YoutubeFormCard(exerciseName: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Card(
+        onClick = {
+            val query = Uri.encode("$exerciseName proper form tutorial")
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
+            context.startActivity(intent)
+        },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFCC0000)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(32.dp),
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                "Watch form guide",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+            )
+        }
     }
 }
 
@@ -424,21 +445,6 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
         contentColor = MaterialTheme.colorScheme.error,
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            OutlinedButton(
-                onClick = { onFeedback(SetFeedback.TOO_HARD) },
-                colors = errorColor,
-                modifier = Modifier.weight(1f),
-            ) { Text("Too Hard") }
-            OutlinedButton(
-                onClick = { onFeedback(SetFeedback.HURT) },
-                colors = errorColor,
-                modifier = Modifier.weight(1f),
-            ) { Text("Hurt") }
-        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth(),
@@ -455,6 +461,21 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
                 onClick = { onFeedback(SetFeedback.RIR_5_PLUS) },
                 modifier = Modifier.weight(1f),
             ) { Text("5+ left") }
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            OutlinedButton(
+                onClick = { onFeedback(SetFeedback.TOO_HARD) },
+                colors = errorColor,
+                modifier = Modifier.weight(1f),
+            ) { Text("Too Hard") }
+            OutlinedButton(
+                onClick = { onFeedback(SetFeedback.HURT) },
+                colors = errorColor,
+                modifier = Modifier.weight(1f),
+            ) { Text("Hurt") }
         }
     }
 }
