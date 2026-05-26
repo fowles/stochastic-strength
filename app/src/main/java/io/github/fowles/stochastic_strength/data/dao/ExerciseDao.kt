@@ -12,6 +12,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE isDisliked = 0")
     fun observeActive(): Flow<List<Exercise>>
 
+    @Query("SELECT * FROM exercises")
+    fun observeAll(): Flow<List<Exercise>>
+
     @Query("SELECT * FROM exercises WHERE isDisliked = 0")
     suspend fun getActive(): List<Exercise>
 

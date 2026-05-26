@@ -20,6 +20,9 @@ interface WorkoutSetDao {
     @Query("SELECT * FROM workout_sets WHERE exerciseId = :exerciseId ORDER BY completedAt DESC LIMIT :limit")
     suspend fun getRecentSetsForExercise(exerciseId: Long, limit: Int): List<WorkoutSet>
 
+    @Query("SELECT * FROM workout_sets WHERE exerciseId = :exerciseId ORDER BY completedAt ASC")
+    suspend fun getAllForExercise(exerciseId: Long): List<WorkoutSet>
+
     @Query("DELETE FROM workout_sets WHERE sessionId = :sessionId AND exerciseId = :exerciseId AND setNumber = :setNumber")
     suspend fun deleteSet(sessionId: Long, exerciseId: Long, setNumber: Int)
 

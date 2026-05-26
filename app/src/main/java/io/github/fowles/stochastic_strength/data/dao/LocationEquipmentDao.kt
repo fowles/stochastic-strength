@@ -17,4 +17,7 @@ interface LocationEquipmentDao {
 
     @Query("DELETE FROM location_equipment WHERE locationId = :locationId AND equipment = :equipment")
     suspend fun deleteEquipment(locationId: Long, equipment: Equipment)
+
+    @Query("DELETE FROM location_equipment WHERE locationId = :locationId")
+    suspend fun deleteAllForLocation(locationId: Long)
 }

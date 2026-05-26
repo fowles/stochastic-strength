@@ -25,4 +25,7 @@ interface WorkoutSessionDao {
 
     @Query("UPDATE workout_sessions SET locationId = :locationId WHERE id = :id")
     suspend fun updateLocationId(id: Long, locationId: Long)
+
+    @Query("SELECT * FROM workout_sessions ORDER BY startTime DESC")
+    suspend fun getAll(): List<WorkoutSession>
 }

@@ -1,8 +1,11 @@
 package io.github.fowles.stochastic_strength.domain
 
+import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.KnownLocation
+import io.github.fowles.stochastic_strength.data.model.LocationEquipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -10,9 +13,12 @@ import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSession
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
+import kotlinx.coroutines.flow.Flow
 
 class WorkoutRepository(private val db: AppDatabase) {
     private suspend fun availableEquipment(locationId: Long?): Set<Equipment> =
@@ -129,6 +135,44 @@ class WorkoutRepository(private val db: AppDatabase) {
         }
         db.muscleGroupStrengthDao().upsertAll(strengths)
     }
+
+    // Locations
+    suspend fun getLocations(): List<KnownLocation> = db.knownLocationDao().getAll()
+
+    suspend fun getEquipmentForLocation(locationId: Long): Set<Equipment> =
+        db.locationEquipmentDao().getEquipmentForLocation(locationId).toSet()
+
+    suspend fun updateLocation(location: KnownLocation) = db.knownLocationDao().update(location)
+
+    suspend fun deleteLocation(locationId: Long) = db.withTransaction {
+        db.locationEquipmentDao().deleteAllForLocation(locationId)
+        db.knownLocationDao().deleteById(locationId)
+    }
+
+    suspend fun setLocationEquipment(locationId: Long, equipment: Set<Equipment>) = db.withTransaction {
+        db.locationEquipmentDao().deleteAllForLocation(locationId)
+        db.locationEquipmentDao().insertAll(equipment.map { LocationEquipment(locationId, it) })
+    }
+
+    // Exercise library
+    fun observeAllExercises(): Flow<List<Exercise>> = db.exerciseDao().observeAll()
+
+    suspend fun updateExercise(exercise: Exercise) = db.exerciseDao().update(exercise)
+
+    suspend fun getAllSetsForExercise(exerciseId: Long): List<WorkoutSet> =
+        db.workoutSetDao().getAllForExercise(exerciseId)
+
+    // History
+    suspend fun getAllSessions(): List<WorkoutSession> = db.workoutSessionDao().getAll()
+
+    suspend fun getSessionExerciseNames(sessionId: Long): List<String> {
+        val sets = db.workoutSetDao().getSetsForSession(sessionId)
+        return sets.map { it.exerciseId }.distinct()
+            .mapNotNull { db.exerciseDao().getById(it)?.name }
+    }
+
+    suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
+        db.muscleGroupStrengthDao().getAll()
 
     private fun deriveWeight(
         exercise: Exercise,
