@@ -7,30 +7,31 @@
     <!-- Random Walk Graph (Background accent) -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#D0BCFF"
+        android:strokeColor="#E2D6FF"
         android:strokeWidth="5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M10,85 L25,70 L35,77 L50,55 L65,63 L80,40 L95,47 L105,25" />
+        android:pathData="M22,82 L35,70 L45,77 L54,50 L63,58 L73,35 L80,42 L88,22" />
 
-    <!-- Barbell (Centered foreground) -->
+    <!-- Barbell (Centered and shortened to fit circular mask) -->
     <!-- Bar -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M15,52.5h78v3h-78z" />
+        android:pathData="M24,52.5h60v3h-60z" />
     <!-- Left plates -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M20,37.5h5v33h-5z" />
+        android:pathData="M31,37.5h5v33h-5z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M13,42.5h4v23h-4z" />
+        android:pathData="M25,42.5h4v23h-4z" />
     <!-- Right plates -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M83,37.5h5v33h-5z" />
+        android:pathData="M72,37.5h5v33h-5z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M91,42.5h4v23h-4z" />
+        android:pathData="M79,42.5h4v23h-4z" />
 
 </vector>
+
