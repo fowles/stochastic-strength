@@ -13,4 +13,5 @@ data class Exercise(
     val defaultSets: Int = 3,
     val isDisliked: Boolean = false,
     val hurtFlag: Boolean = false,
+    val isUnilateral: Boolean = false,
 )

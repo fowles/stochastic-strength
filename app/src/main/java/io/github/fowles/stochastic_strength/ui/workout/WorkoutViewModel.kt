@@ -11,6 +11,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
@@ -72,7 +73,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             WorkoutSession(startTime = sessionStartTime, locationId = locationId)
         )
         _state.value = WorkoutState.PlanPreview(plan = plan, sessionId = sessionId)
-        preferredExerciseCount?.let { setExerciseCount(it) }
+        setExerciseCount(preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT)
     }
 
     fun replaceExercise(index: Int, reason: ExerciseRemovalReason) {

@@ -26,8 +26,8 @@ object ExerciseLibrary {
         Exercise(name = "Lat Pulldown", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.CABLE_MACHINE),
         Exercise(name = "Seated Cable Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.CABLE_MACHINE),
         Exercise(name = "Face Pull", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.SHOULDERS), equipment = Equipment.CABLE_MACHINE),
-        Exercise(name = "Dumbbell Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.DUMBBELL),
-        Exercise(name = "Chest-Supported Dumbbell Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.DUMBBELL),
+        Exercise(name = "Dumbbell Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.DUMBBELL, isUnilateral = true),
+        Exercise(name = "Chest-Supported Dumbbell Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.DUMBBELL, isUnilateral = true),
         // SHOULDERS
         Exercise(name = "Overhead Press", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = listOf(MuscleGroup.TRICEPS), equipment = Equipment.BARBELL),
         Exercise(name = "Upright Row", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BARBELL),
@@ -36,13 +36,13 @@ object ExerciseLibrary {
         Exercise(name = "Arnold Press", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
         Exercise(name = "Rear Delt Fly", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
         Exercise(name = "Front Raise", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
-        Exercise(name = "Cable Lateral Raise", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE),
+        Exercise(name = "Cable Lateral Raise", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE, isUnilateral = true),
         // BICEPS
         Exercise(name = "Barbell Curl", primaryMuscle = MuscleGroup.BICEPS, secondaryMuscles = emptyList(), equipment = Equipment.BARBELL),
         Exercise(name = "Preacher Curl", primaryMuscle = MuscleGroup.BICEPS, secondaryMuscles = emptyList(), equipment = Equipment.BARBELL),
         Exercise(name = "Dumbbell Curl", primaryMuscle = MuscleGroup.BICEPS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
         Exercise(name = "Hammer Curl", primaryMuscle = MuscleGroup.BICEPS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
-        Exercise(name = "Concentration Curl", primaryMuscle = MuscleGroup.BICEPS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
+        Exercise(name = "Concentration Curl", primaryMuscle = MuscleGroup.BICEPS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL, isUnilateral = true),
         Exercise(name = "Cable Curl", primaryMuscle = MuscleGroup.BICEPS, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE),
         // TRICEPS
         Exercise(name = "Skull Crusher", primaryMuscle = MuscleGroup.TRICEPS, secondaryMuscles = emptyList(), equipment = Equipment.BARBELL),
@@ -50,7 +50,7 @@ object ExerciseLibrary {
         Exercise(name = "Tricep Pushdown", primaryMuscle = MuscleGroup.TRICEPS, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE),
         Exercise(name = "Dips", primaryMuscle = MuscleGroup.TRICEPS, secondaryMuscles = listOf(MuscleGroup.CHEST, MuscleGroup.SHOULDERS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Overhead Tricep Extension", primaryMuscle = MuscleGroup.TRICEPS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
-        Exercise(name = "Tricep Kickback", primaryMuscle = MuscleGroup.TRICEPS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL),
+        Exercise(name = "Tricep Kickback", primaryMuscle = MuscleGroup.TRICEPS, secondaryMuscles = emptyList(), equipment = Equipment.DUMBBELL, isUnilateral = true),
         // QUADS
         Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.BARBELL),
         Exercise(name = "Front Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.BARBELL),
@@ -59,7 +59,7 @@ object ExerciseLibrary {
         Exercise(name = "Hack Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.MACHINE),
         Exercise(name = "Lunge", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Goblet Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES), equipment = Equipment.DUMBBELL),
-        Exercise(name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.DUMBBELL),
+        Exercise(name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.DUMBBELL, isUnilateral = true),
         // HAMSTRINGS
         Exercise(name = "Romanian Deadlift", primaryMuscle = MuscleGroup.HAMSTRINGS, secondaryMuscles = listOf(MuscleGroup.GLUTES), equipment = Equipment.BARBELL),
         Exercise(name = "Sumo Deadlift", primaryMuscle = MuscleGroup.HAMSTRINGS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.BACK), equipment = Equipment.BARBELL),
@@ -68,7 +68,7 @@ object ExerciseLibrary {
         Exercise(name = "Stiff-Leg Deadlift", primaryMuscle = MuscleGroup.HAMSTRINGS, secondaryMuscles = listOf(MuscleGroup.GLUTES), equipment = Equipment.DUMBBELL),
         // GLUTES
         Exercise(name = "Hip Thrust", primaryMuscle = MuscleGroup.GLUTES, secondaryMuscles = listOf(MuscleGroup.HAMSTRINGS), equipment = Equipment.BARBELL),
-        Exercise(name = "Cable Kickback", primaryMuscle = MuscleGroup.GLUTES, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE),
+        Exercise(name = "Cable Kickback", primaryMuscle = MuscleGroup.GLUTES, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE, isUnilateral = true),
         Exercise(name = "Glute Bridge", primaryMuscle = MuscleGroup.GLUTES, secondaryMuscles = listOf(MuscleGroup.HAMSTRINGS), equipment = Equipment.BODYWEIGHT),
         // CALVES
         Exercise(name = "Standing Calf Raise", primaryMuscle = MuscleGroup.CALVES, secondaryMuscles = emptyList(), equipment = Equipment.BODYWEIGHT),

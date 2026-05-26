@@ -7,8 +7,7 @@ import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import kotlin.random.Random
 
 object WorkoutGenerator {
-    const val SECONDS_PER_SET = 135  // 90s rest + 45s work
-    const val TARGET_SECONDS = 2700  // 45 minutes
+    const val DEFAULT_EXERCISE_COUNT = 6
     const val MAX_PER_MUSCLE = 2
 
     data class Input(
@@ -31,17 +30,14 @@ object WorkoutGenerator {
         val shuffled = input.exercises.shuffled(input.random)
         val muscleCount = mutableMapOf<MuscleGroup, Int>()
         val result = mutableListOf<PlannedExercise>()
-        var timeUsed = 0
 
         for (exercise in shuffled) {
+            if (result.size >= DEFAULT_EXERCISE_COUNT) break
             if ((muscleCount[exercise.primaryMuscle] ?: 0) >= MAX_PER_MUSCLE) continue
 
             val state = input.states[exercise.id] ?: ExerciseState(exerciseId = exercise.id)
             result.add(PlannedExercise(exercise = exercise, state = state))
             muscleCount[exercise.primaryMuscle] = (muscleCount[exercise.primaryMuscle] ?: 0) + 1
-            timeUsed += state.currentSets * SECONDS_PER_SET
-
-            if (timeUsed >= TARGET_SECONDS) break
         }
 
         return result
