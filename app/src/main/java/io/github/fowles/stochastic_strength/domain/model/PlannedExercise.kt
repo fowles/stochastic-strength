@@ -10,8 +10,7 @@ data class PlannedExercise(
     val sessionReps: Int = 10,
     val warmupSets: List<WarmupSet> = emptyList(),
 ) {
-    val secondsPerSet: Int
-        get() = if (exercise.isUnilateral) SECONDS_PER_UNILATERAL_SET else SECONDS_PER_SET
+    val secondsPerSet: Int = if (exercise.isUnilateral) SECONDS_PER_UNILATERAL_SET else SECONDS_PER_SET
 
     companion object {
         const val SECONDS_PER_SET = 135

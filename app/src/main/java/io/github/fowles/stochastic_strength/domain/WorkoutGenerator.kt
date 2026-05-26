@@ -37,7 +37,7 @@ object WorkoutGenerator {
 
             val state = input.states[exercise.id] ?: ExerciseState(exerciseId = exercise.id)
             result.add(PlannedExercise(exercise = exercise, state = state))
-            muscleCount[exercise.primaryMuscle] = (muscleCount[exercise.primaryMuscle] ?: 0) + 1
+            muscleCount.merge(exercise.primaryMuscle, 1, Int::plus)
         }
 
         return result

@@ -51,7 +51,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val profile = app.database.userProfileDao().getProfile()
             _weightUnit.value = profile?.weightUnit ?: WeightUnit.KG
-            preferredExerciseCount = profile?.preferredExerciseCount
+            preferredExerciseCount = profile?.preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT
             when (val loc = locationService.resolveLocation(app.database)) {
                 is LocationResult.Known -> {
                     sessionLocationId = loc.locationId

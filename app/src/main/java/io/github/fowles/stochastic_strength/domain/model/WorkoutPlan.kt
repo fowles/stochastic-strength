@@ -6,6 +6,5 @@ data class WorkoutPlan(
     val sessionReps: Int = 10,
 ) {
     val estimatedDurationSeconds: Int
-        get() = exercises.sumOf { it.state.currentSets * it.secondsPerSet } +
-                exercises.sumOf { it.warmupSets.size } * PlannedExercise.SECONDS_PER_WARMUP_SET
+        get() = exercises.sumOf { it.state.currentSets * it.secondsPerSet + it.warmupSets.size * PlannedExercise.SECONDS_PER_WARMUP_SET }
 }

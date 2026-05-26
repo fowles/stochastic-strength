@@ -34,11 +34,9 @@ class WorkoutGeneratorTest {
     }
 
     @Test
-    fun fillsTimeBudgetWithEnoughExercises() {
+    fun fillsDefaultExerciseCount() {
         val result = WorkoutGenerator.generate(WorkoutGenerator.Input(fullPool(), emptyMap()))
-        val totalTime = result.sumOf { it.state.currentSets } * WorkoutGenerator.SECONDS_PER_SET
-        assertTrue("Expected >= ${WorkoutGenerator.TARGET_SECONDS}s, got ${totalTime}s",
-            totalTime >= WorkoutGenerator.TARGET_SECONDS)
+        assertEquals(WorkoutGenerator.DEFAULT_EXERCISE_COUNT, result.size)
     }
 
     @Test
@@ -60,13 +58,11 @@ class WorkoutGeneratorTest {
     }
 
     @Test
-    fun stopsAtTimeBudget() {
-        // 5 unique-muscle exercises × 4 sets × 135s = 2700s = exactly TARGET_SECONDS
+    fun stopsWhenPoolSmallerThanDefault() {
         val exercises = MuscleGroup.entries.take(5).mapIndexed { i, muscle ->
             exercise((i + 1).toLong(), muscle)
         }
-        val states = exercises.associate { it.id to ExerciseState(exerciseId = it.id, currentSets = 4) }
-        val result = WorkoutGenerator.generate(WorkoutGenerator.Input(exercises, states))
+        val result = WorkoutGenerator.generate(WorkoutGenerator.Input(exercises, emptyMap()))
         assertEquals(5, result.size)
     }
 }
