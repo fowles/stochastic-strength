@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -29,6 +30,7 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter
 fun SummaryScreen(
     sessionId: Long,
     onDone: () -> Unit,
+    onBack: (() -> Unit)? = null,
     viewModel: SummaryViewModel = viewModel(factory = SummaryViewModel.factory(sessionId)),
 ) {
     val summary by viewModel.summary.collectAsState()
@@ -85,6 +87,12 @@ fun SummaryScreen(
             }
 
             Spacer(Modifier.weight(1f))
+            if (onBack != null) {
+                OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                    Text("Back")
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
                 Text("Done")
             }

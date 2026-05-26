@@ -6,7 +6,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import io.github.fowles.stochastic_strength.ui.exercises.ExerciseDetailScreen
+import io.github.fowles.stochastic_strength.ui.exercises.ExercisesScreen
+import io.github.fowles.stochastic_strength.ui.history.HistoryScreen
 import io.github.fowles.stochastic_strength.ui.home.HomeScreen
+import io.github.fowles.stochastic_strength.ui.locations.LocationsScreen
 import io.github.fowles.stochastic_strength.ui.summary.SummaryScreen
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutScreen
 
@@ -16,7 +20,37 @@ fun AppNavigation() {
 
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
-            HomeScreen(onStartWorkout = { navController.navigate("workout") })
+            HomeScreen(
+                onStartWorkout = { navController.navigate("workout") },
+                onHistory = { navController.navigate("history") },
+                onExercises = { navController.navigate("exercises") },
+                onLocations = { navController.navigate("locations") },
+            )
+        }
+        composable("history") {
+            HistoryScreen(
+                onSessionTap = { sessionId -> navController.navigate("summary/$sessionId") },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable("locations") {
+            LocationsScreen(onBack = { navController.popBackStack() })
+        }
+        composable("exercises") {
+            ExercisesScreen(
+                onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = "exercise/{exerciseId}",
+            arguments = listOf(navArgument("exerciseId") { type = NavType.LongType }),
+        ) { backStackEntry ->
+            val exerciseId = backStackEntry.arguments!!.getLong("exerciseId")
+            ExerciseDetailScreen(
+                exerciseId = exerciseId,
+                onBack = { navController.popBackStack() },
+            )
         }
         composable("workout") {
             WorkoutScreen(
@@ -39,6 +73,7 @@ fun AppNavigation() {
                         popUpTo("home") { inclusive = true }
                     }
                 },
+                onBack = { navController.popBackStack() },
             )
         }
     }

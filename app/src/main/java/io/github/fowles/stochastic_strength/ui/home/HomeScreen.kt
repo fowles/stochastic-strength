@@ -39,6 +39,9 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 @Composable
 fun HomeScreen(
     onStartWorkout: () -> Unit,
+    onHistory: () -> Unit,
+    onExercises: () -> Unit,
+    onLocations: () -> Unit,
     viewModel: HomeViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -74,6 +77,9 @@ fun HomeScreen(
                             permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                         }
                     },
+                    onHistory = onHistory,
+                    onExercises = onExercises,
+                    onLocations = onLocations,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(24.dp),
@@ -84,7 +90,13 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ReadyContent(onStart: () -> Unit, modifier: Modifier = Modifier) {
+private fun ReadyContent(
+    onStart: () -> Unit,
+    onHistory: () -> Unit,
+    onExercises: () -> Unit,
+    onLocations: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -100,6 +112,18 @@ private fun ReadyContent(onStart: () -> Unit, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(48.dp))
         Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
             Text("Start Workout")
+        }
+        Spacer(Modifier.height(16.dp))
+        OutlinedButton(onClick = onHistory, modifier = Modifier.fillMaxWidth()) {
+            Text("History")
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onExercises, modifier = Modifier.fillMaxWidth()) {
+            Text("Exercises")
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onLocations, modifier = Modifier.fillMaxWidth()) {
+            Text("Locations")
         }
     }
 }
