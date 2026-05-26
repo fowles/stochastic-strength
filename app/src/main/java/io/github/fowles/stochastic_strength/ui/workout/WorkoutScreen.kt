@@ -90,13 +90,21 @@ fun WorkoutScreen(
                     onReplace = viewModel::replaceExercise,
                     onSetExerciseCount = viewModel::setExerciseCount,
                 )
-                is WorkoutState.ActiveSet -> ActiveSetContent(
-                    state = s,
-                    weightUnit = weightUnit,
-                    onFeedback = viewModel::recordFeedback,
-                    onDislike = viewModel::dislikeCurrentExercise,
-                    onNoEquipment = viewModel::markNoEquipmentHere,
-                )
+                is WorkoutState.ActiveSet -> if (s.warmupSetIndex != null) {
+                    WarmupSetContent(
+                        state = s,
+                        weightUnit = weightUnit,
+                        onDone = viewModel::completeWarmupSet,
+                    )
+                } else {
+                    ActiveSetContent(
+                        state = s,
+                        weightUnit = weightUnit,
+                        onFeedback = viewModel::recordFeedback,
+                        onDislike = viewModel::dislikeCurrentExercise,
+                        onNoEquipment = viewModel::markNoEquipmentHere,
+                    )
+                }
                 is WorkoutState.Resting -> RestingContent(
                     state = s,
                     onSkipRest = viewModel::skipRest,
@@ -294,6 +302,47 @@ private fun ExerciseActionRow(
             progress = { autoSkipProgress.value },
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+@Composable
+private fun WarmupSetContent(
+    state: WorkoutState.ActiveSet,
+    weightUnit: WeightUnit,
+    onDone: () -> Unit,
+) {
+    val warmupSet = state.currentWarmupSet ?: return
+    val totalWarmups = state.plannedExercise.warmupSets.size
+    val exercise = state.plannedExercise.exercise
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Warm-up ${state.warmupSetIndex!! + 1} of $totalWarmups",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.secondary,
+        )
+
+        Spacer(Modifier.weight(1f))
+
+        Text(
+            WeightFormatter.format(warmupSet.weight, weightUnit),
+            style = MaterialTheme.typography.displaySmall,
+        )
+        Text("${warmupSet.reps} reps", style = MaterialTheme.typography.displaySmall)
+
+        Spacer(Modifier.weight(1f))
+
+        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+            Text(if (state.warmupSetIndex + 1 < totalWarmups) "Next Warm-up" else "Start Working Sets")
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 

@@ -8,4 +8,5 @@ data class PlannedExercise(
     val state: ExerciseState,
     val sessionWeight: Float = 0f,
     val sessionReps: Int = 10,
+    val warmupSets: List<WarmupSet> = emptyList(),
 )

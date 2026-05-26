@@ -12,10 +12,11 @@ import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 
 class WorkoutRepository(private val db: AppDatabase) {
-    suspend fun generateWorkoutForLocation(locationId: Long?): WorkoutPlan {
+    suspend fun generateWorkoutForLocation(locationId: Long?, weightUnit: WeightUnit): WorkoutPlan {
         val availableEquipment = if (locationId != null) {
             db.locationEquipmentDao().getEquipmentForLocation(locationId).toSet() + Equipment.BODYWEIGHT
         } else {
@@ -31,16 +32,18 @@ class WorkoutRepository(private val db: AppDatabase) {
         val planned = WorkoutGenerator.generate(
             WorkoutGenerator.Input(exercises = exercises, states = statesMap)
         ).map { pe ->
+            val weight = deriveWeight(pe.exercise, strengths, sessionReps)
             pe.copy(
-                sessionWeight = deriveWeight(pe.exercise, strengths, sessionReps),
+                sessionWeight = weight,
                 sessionReps = sessionReps,
+                warmupSets = computeWarmupSets(weight, weightUnit),
             )
         }
 
         return WorkoutPlan(exercises = planned, locationId = locationId, sessionReps = sessionReps)
     }
 
-    suspend fun pickAdditional(plan: WorkoutPlan): PlannedExercise? {
+    suspend fun pickAdditional(plan: WorkoutPlan, weightUnit: WeightUnit): PlannedExercise? {
         val excludedIds = plan.exercises.map { it.exercise.id }.toSet()
         val availableEquipment = if (plan.locationId != null) {
             db.locationEquipmentDao().getEquipmentForLocation(plan.locationId).toSet() + Equipment.BODYWEIGHT
@@ -56,13 +59,15 @@ class WorkoutRepository(private val db: AppDatabase) {
             currentExercises = plan.exercises,
         ) ?: return null
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        val weight = deriveWeight(picked.exercise, strengths, plan.sessionReps)
         return picked.copy(
-            sessionWeight = deriveWeight(picked.exercise, strengths, plan.sessionReps),
+            sessionWeight = weight,
             sessionReps = plan.sessionReps,
+            warmupSets = computeWarmupSets(weight, weightUnit),
         )
     }
 
-    suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int): PlannedExercise? {
+    suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int, weightUnit: WeightUnit): PlannedExercise? {
         val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
         val excludedIds = remaining.map { it.exercise.id }.toSet()
 
@@ -83,9 +88,11 @@ class WorkoutRepository(private val db: AppDatabase) {
         ) ?: return null
 
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        val weight = deriveWeight(replacement.exercise, strengths, plan.sessionReps)
         return replacement.copy(
-            sessionWeight = deriveWeight(replacement.exercise, strengths, plan.sessionReps),
+            sessionWeight = weight,
             sessionReps = plan.sessionReps,
+            warmupSets = computeWarmupSets(weight, weightUnit),
         )
     }
 
@@ -154,5 +161,15 @@ class WorkoutRepository(private val db: AppDatabase) {
         if (coeff <= 0f) return 0f
         val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
         return ProgressionEngine.scaleWeight(baseline * coeff, fromReps = 10, toReps = sessionReps)
+    }
+
+    private fun computeWarmupSets(weightKg: Float, weightUnit: WeightUnit): List<WarmupSet> {
+        if (weightKg < 40f) return emptyList()
+        fun w(pct: Float) = WeightFormatter.round(weightKg * pct, weightUnit)
+        return if (weightKg < 60f) {
+            listOf(WarmupSet(w(0.5f), 8), WarmupSet(w(0.75f), 5))
+        } else {
+            listOf(WarmupSet(w(0.4f), 8), WarmupSet(w(0.6f), 5), WarmupSet(w(0.8f), 3))
+        }
     }
 }

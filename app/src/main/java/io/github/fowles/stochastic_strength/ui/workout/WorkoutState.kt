@@ -12,9 +12,11 @@ sealed interface WorkoutState {
         val exerciseIndex: Int,
         val setIndex: Int,
         val sessionId: Long,
+        val warmupSetIndex: Int? = null,
     ) : WorkoutState {
         val plannedExercise: PlannedExercise get() = plan.exercises[exerciseIndex]
         val totalSets: Int get() = plannedExercise.state.currentSets
+        val currentWarmupSet get() = warmupSetIndex?.let { plannedExercise.warmupSets[it] }
     }
 
     data class PlanPreview(
