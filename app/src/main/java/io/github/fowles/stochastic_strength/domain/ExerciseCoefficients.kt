@@ -11,7 +11,8 @@ object ExerciseCoefficients {
         "Dumbbell Fly"                 to 0.25f,
         "Push-Up"                      to 0.00f,
         "Cable Chest Fly"              to 0.25f,
-        "Pec Deck"                     to 0.30f,
+        "Pec Deck"                     to 0.40f,
+        "Machine Chest Press"          to 0.90f,
         // BACK (reference: Barbell Row)
         "Deadlift"                     to 1.50f,
         "Barbell Row"                  to 1.00f,
@@ -24,29 +25,36 @@ object ExerciseCoefficients {
         "Face Pull"                    to 0.30f,
         "Dumbbell Row"                 to 0.50f,
         "Chest-Supported Dumbbell Row" to 0.45f,
+        "Straight-Arm Pulldown"        to 0.30f,
         // SHOULDERS (reference: Overhead Press)
         "Overhead Press"               to 1.00f,
         "Upright Row"                  to 0.70f,
         "Dumbbell Lateral Raise"       to 0.15f,
-        "Dumbbell Overhead Press"      to 0.45f,
-        "Arnold Press"                 to 0.45f,
+        "Dumbbell Overhead Press"      to 0.35f,
+        "Arnold Press"                 to 0.35f,
         "Rear Delt Fly"                to 0.15f,
         "Front Raise"                  to 0.15f,
         "Cable Lateral Raise"          to 0.15f,
+        "Machine Lateral Raise"        to 0.20f,
+        "Push Press"                   to 1.20f,
+        "Kettlebell Clean and Press"   to 0.40f,
         // BICEPS (reference: Barbell Curl)
         "Barbell Curl"                 to 1.00f,
         "Preacher Curl"                to 0.85f,
-        "Dumbbell Curl"                to 0.40f,
-        "Hammer Curl"                  to 0.40f,
+        "Dumbbell Curl"                to 0.45f,
+        "Hammer Curl"                  to 0.45f,
         "Concentration Curl"           to 0.35f,
         "Cable Curl"                   to 0.60f,
+        "EZ Bar Curl"                  to 0.90f,
+        "Incline Dumbbell Curl"        to 0.35f,  // per dumbbell
         // TRICEPS (reference: Skull Crusher)
         "Skull Crusher"                to 1.00f,
         "Close-Grip Bench Press"       to 1.30f,
-        "Tricep Pushdown"              to 0.50f,
+        "Tricep Pushdown"              to 0.60f,
         "Dips"                         to 0.00f,
         "Overhead Tricep Extension"    to 0.35f,
         "Tricep Kickback"              to 0.15f,
+        "Cable Overhead Tricep Extension" to 0.40f,
         // QUADS (reference: Barbell Squat)
         "Barbell Squat"                to 1.00f,
         "Front Squat"                  to 0.80f,
@@ -56,9 +64,10 @@ object ExerciseCoefficients {
         "Lunge"                        to 0.00f,
         "Goblet Squat"                 to 0.25f,
         "Bulgarian Split Squat"        to 0.30f,  // per dumbbell
+        "Step-Up"                      to 0.20f,  // per dumbbell
         // HAMSTRINGS (reference: Romanian Deadlift)
         "Romanian Deadlift"            to 1.00f,
-        "Sumo Deadlift"                to 1.40f,
+        "Sumo Deadlift"                to 1.25f,
         "Leg Curl"                     to 0.40f,
         "Nordic Curl"                  to 0.00f,
         "Stiff-Leg Deadlift"           to 0.90f,
@@ -66,9 +75,11 @@ object ExerciseCoefficients {
         "Hip Thrust"                   to 1.00f,
         "Cable Kickback"               to 0.10f,
         "Glute Bridge"                 to 0.00f,
+        "Kettlebell Swing"             to 0.35f,
         // CALVES (reference: Seated Calf Raise)
         "Standing Calf Raise"          to 0.00f,
         "Seated Calf Raise"            to 1.00f,
+        "Leg Press Calf Raise"         to 2.00f,
         // CORE (reference: Cable Crunch)
         "Plank"                        to 0.00f,
         "Hanging Leg Raise"            to 0.00f,
@@ -77,5 +88,6 @@ object ExerciseCoefficients {
         "Dead Bug"                     to 0.00f,
         "Cable Crunch"                 to 1.00f,
         "Pallof Press"                 to 0.25f,
+        "Turkish Get-Up"               to 0.25f,
     )
 }
