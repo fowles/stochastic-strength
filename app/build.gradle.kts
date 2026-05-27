@@ -22,8 +22,19 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_FILE").get())
+            storePassword =
+providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
+            keyAlias = providers.gradleProperty("STOCHASTIC_UPLOAD_KEY_ALIAS").get()
+            keyPassword = providers.gradleProperty("STOCHASTIC_UPLOAD_KEY_PASSWORD").get()
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
