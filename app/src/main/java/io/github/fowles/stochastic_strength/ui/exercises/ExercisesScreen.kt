@@ -169,9 +169,3 @@ private fun StatusBadge(
             .padding(horizontal = 6.dp, vertical = 2.dp),
     )
 }
-
-private fun MuscleGroup.displayName(): String =
-    name.split('_').joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
-
-private fun Equipment.displayName(): String =
-    name.split('_').joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }

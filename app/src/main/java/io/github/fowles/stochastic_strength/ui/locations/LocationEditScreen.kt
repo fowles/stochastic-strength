@@ -141,8 +141,3 @@ fun LocationEditScreen(
         }
     }
 }
-
-private fun MuscleGroup.displayName(): String =
-    name.split('_').joinToString(" ") { word ->
-        word.lowercase().replaceFirstChar { it.uppercase() }
-    }

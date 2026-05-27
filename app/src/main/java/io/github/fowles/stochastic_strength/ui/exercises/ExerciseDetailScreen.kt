@@ -404,9 +404,3 @@ private fun ExerciseSetSection(
         }
     }
 }
-
-private fun MuscleGroup.displayName(): String =
-    name.split('_').joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
-
-private fun Equipment.displayName(): String =
-    name.split('_').joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }

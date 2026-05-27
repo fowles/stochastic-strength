@@ -187,8 +187,7 @@ private fun StrengthCard(
     val cardContent: @Composable ColumnScope.() -> Unit = {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Text(
-                text = strength.muscleGroup.name.split('_')
-                    .joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } },
+                text = strength.muscleGroup.displayName(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
