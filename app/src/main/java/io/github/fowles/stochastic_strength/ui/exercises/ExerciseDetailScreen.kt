@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,19 +30,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
+import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
+import com.patrykandpatrick.vico.compose.common.insets
 import com.patrykandpatrick.vico.compose.cartesian.layer.point
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.fill
 import com.patrykandpatrick.vico.core.cartesian.AutoScrollCondition
 import com.patrykandpatrick.vico.core.cartesian.Scroll
@@ -52,10 +58,15 @@ import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
+import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -158,11 +169,25 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     primaryPoints = state.primaryPoints,
                     shadowPoints = state.shadowPoints,
                     weightUnit = state.weightUnit,
+                    onDaySelected = viewModel::selectDay,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp)
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+                state.selectedDay?.let { day ->
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    SelectedDayDetail(
+                        day = day,
+                        exerciseName = exercise.name,
+                        primarySets = state.allSets.filter {
+                            it.completedAt != null && it.completedAt / 86_400_000L == day
+                        },
+                        shadowSets = state.shadowSetsByDay[day] ?: emptyList(),
+                        weightUnit = state.weightUnit,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -173,6 +198,7 @@ private fun ExerciseChart(
     primaryPoints: List<ChartPoint>,
     shadowPoints: List<ChartPoint>,
     weightUnit: WeightUnit,
+    onDaySelected: (Long?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
@@ -262,6 +288,17 @@ private fun ExerciseChart(
         autoScrollCondition = AutoScrollCondition.OnModelGrowth,
     )
 
+    val currentOnDaySelected by rememberUpdatedState(onDaySelected)
+    val markerListener = remember {
+        object : CartesianMarkerVisibilityListener {
+            override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) =
+                currentOnDaySelected(targets.firstOrNull()?.x?.toLong())
+            override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) =
+                currentOnDaySelected(targets.firstOrNull()?.x?.toLong())
+        }
+    }
+    val marker = rememberSelectionMarker()
+
     CartesianChartHost(
         chart = rememberCartesianChart(
             rememberLineCartesianLayer(
@@ -274,11 +311,98 @@ private fun ExerciseChart(
                 valueFormatter = dateFormatter,
                 labelRotationDegrees = 45f,
             ),
+            marker = marker,
+            markerVisibilityListener = markerListener,
         ),
         modelProducer = modelProducer,
         scrollState = scrollState,
         modifier = modifier,
     )
+}
+
+@Composable
+private fun rememberSelectionMarker(): DefaultCartesianMarker {
+    val labelBackground = rememberShapeComponent(
+        fill = fill(MaterialTheme.colorScheme.surface),
+        shape = CorneredShape.Pill,
+        strokeFill = fill(MaterialTheme.colorScheme.outline),
+        strokeThickness = 1.dp,
+    )
+    val label = rememberTextComponent(
+        color = MaterialTheme.colorScheme.onSurface,
+        padding = insets(8.dp, 4.dp),
+        background = labelBackground,
+    )
+    val guideline = rememberAxisGuidelineComponent()
+    val sdf = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val dateFormatter = remember(sdf) {
+        DefaultCartesianMarker.ValueFormatter { _, targets ->
+            sdf.format(Date((targets.firstOrNull()?.x?.toLong() ?: 0L) * 86_400_000L))
+        }
+    }
+    return rememberDefaultCartesianMarker(
+        label = label,
+        valueFormatter = dateFormatter,
+        guideline = guideline,
+        indicatorSize = 0.dp,
+    )
+}
+
+@Composable
+private fun SelectedDayDetail(
+    day: Long,
+    exerciseName: String,
+    primarySets: List<WorkoutSet>,
+    shadowSets: List<ExerciseSetEntry>,
+    weightUnit: WeightUnit,
+    modifier: Modifier = Modifier,
+) {
+    val sdf = remember { SimpleDateFormat("EEEE, MMM d", Locale.getDefault()) }
+    Column(modifier = modifier) {
+        Text(
+            text = sdf.format(Date(day * 86_400_000L)),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+        if (primarySets.isNotEmpty()) {
+            ExerciseSetSection(exerciseName, primarySets, weightUnit)
+        }
+        shadowSets.groupBy { it.exerciseName }.forEach { (name, entries) ->
+            ExerciseSetSection(name, entries.map { it.set }, weightUnit)
+        }
+    }
+}
+
+@Composable
+private fun ExerciseSetSection(
+    exerciseName: String,
+    sets: List<WorkoutSet>,
+    weightUnit: WeightUnit,
+) {
+    Text(
+        text = exerciseName,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+    )
+    sets.sortedBy { it.setNumber }.forEach { set ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "Set ${set.setNumber}: ${WeightFormatter.format(set.targetWeight, weightUnit)} × ${set.targetReps}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            set.feedback?.let { feedback ->
+                Text(
+                    text = feedback.displayLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 private fun MuscleGroup.displayName(): String =

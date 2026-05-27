@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,11 +21,16 @@ import kotlinx.coroutines.launch
 
 data class ChartPoint(val dateMs: Long, val weightKg: Float)
 
+data class ExerciseSetEntry(val exerciseName: String, val set: WorkoutSet)
+
 data class ExerciseDetailState(
     val exercise: Exercise? = null,
     val primaryPoints: List<ChartPoint> = emptyList(),
     val shadowPoints: List<ChartPoint> = emptyList(),
     val weightUnit: WeightUnit = WeightUnit.KG,
+    val allSets: List<WorkoutSet> = emptyList(),
+    val shadowSetsByDay: Map<Long, List<ExerciseSetEntry>> = emptyMap(),
+    val selectedDay: Long? = null,
 )
 
 class ExerciseDetailViewModel(
@@ -60,17 +66,22 @@ class ExerciseDetailViewModel(
             }
             .sortedBy { it.dateMs }
 
-        val shadowPoints = computeShadowPoints(exercise)
+        val (shadowPoints, shadowSetsByDay) = computeShadowPoints(exercise)
 
         _state.value = _state.value.copy(
             primaryPoints = primaryPoints,
             shadowPoints = shadowPoints,
+            allSets = primarySets,
+            shadowSetsByDay = shadowSetsByDay,
         )
     }
 
-    private suspend fun computeShadowPoints(exercise: Exercise): List<ChartPoint> {
-        val thisCoeff = ExerciseCoefficients.byName[exercise.name] ?: return emptyList()
-        if (thisCoeff <= 0f) return emptyList()
+    private suspend fun computeShadowPoints(
+        exercise: Exercise,
+    ): Pair<List<ChartPoint>, Map<Long, List<ExerciseSetEntry>>> {
+        val thisCoeff = ExerciseCoefficients.byName[exercise.name]
+            ?: return Pair(emptyList(), emptyMap())
+        if (thisCoeff <= 0f) return Pair(emptyList(), emptyMap())
 
         val allExercises = repository.observeAllExercises().first()
         val related = allExercises.filter {
@@ -78,6 +89,7 @@ class ExerciseDetailViewModel(
         }
 
         val dayToWeights = mutableMapOf<Long, MutableList<Float>>()
+        val dayToEntries = mutableMapOf<Long, MutableList<ExerciseSetEntry>>()
         for (rel in related) {
             val relCoeff = ExerciseCoefficients.byName[rel.name] ?: continue
             if (relCoeff <= 0f) continue
@@ -87,10 +99,11 @@ class ExerciseDetailViewModel(
                 val completedAt = set.completedAt ?: continue
                 val dayKey = completedAt / 86_400_000L
                 dayToWeights.getOrPut(dayKey) { mutableListOf() }.add(set.targetWeight * scaleFactor)
+                dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, set))
             }
         }
 
-        return dayToWeights
+        val points = dayToWeights
             .map { (day, weights) ->
                 ChartPoint(
                     dateMs = day * 86_400_000L,
@@ -98,6 +111,11 @@ class ExerciseDetailViewModel(
                 )
             }
             .sortedBy { it.dateMs }
+        return Pair(points, dayToEntries)
+    }
+
+    fun selectDay(day: Long?) {
+        _state.value = _state.value.copy(selectedDay = day)
     }
 
     fun toggleDisliked() {
