@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
@@ -44,6 +46,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HistoryScreen(
     onSessionTap: (Long) -> Unit,
+    onExerciseTap: (Long) -> Unit,
     onBack: () -> Unit,
     viewModel: HistoryViewModel = viewModel(),
 ) {
@@ -95,7 +98,9 @@ fun HistoryScreen(
             item {
                 StrengthGrid(
                     strengths = state.muscleStrengths,
+                    referenceExerciseIds = state.referenceExerciseIds,
                     weightUnit = state.weightUnit,
+                    onExerciseTap = onExerciseTap,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
@@ -145,7 +150,9 @@ private fun SectionHeader(title: String) {
 @Composable
 private fun StrengthGrid(
     strengths: List<MuscleGroupStrength>,
+    referenceExerciseIds: Map<MuscleGroup, Long>,
     weightUnit: WeightUnit,
+    onExerciseTap: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -154,7 +161,9 @@ private fun StrengthGrid(
                 pair.forEach { strength ->
                     StrengthCard(
                         strength = strength,
+                        exerciseId = referenceExerciseIds[strength.muscleGroup],
                         weightUnit = weightUnit,
+                        onTap = onExerciseTap,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -169,15 +178,13 @@ private fun StrengthGrid(
 @Composable
 private fun StrengthCard(
     strength: MuscleGroupStrength,
+    exerciseId: Long?,
     weightUnit: WeightUnit,
+    onTap: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ),
-    ) {
+    val cardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    val cardContent: @Composable ColumnScope.() -> Unit = {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Text(
                 text = strength.muscleGroup.name.split('_')
@@ -190,6 +197,11 @@ private fun StrengthCard(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
+    }
+    if (exerciseId != null) {
+        Card(onClick = { onTap(exerciseId) }, modifier = modifier, colors = cardColors, content = cardContent)
+    } else {
+        Card(modifier = modifier, colors = cardColors, content = cardContent)
     }
 }
 
