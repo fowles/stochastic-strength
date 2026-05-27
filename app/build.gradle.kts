@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.fowles.stochastic_strength"
         minSdk = 33
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -40,6 +40,11 @@ providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        create("releaseLocal") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
         }
     }
     compileOptions {
