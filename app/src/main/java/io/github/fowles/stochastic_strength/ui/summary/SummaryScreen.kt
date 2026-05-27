@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun SummaryScreen(
@@ -43,13 +46,14 @@ fun SummaryScreen(
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Text("Workout Complete!", style = MaterialTheme.typography.headlineLarge)
-            Spacer(Modifier.height(8.dp))
-
             val s = summary
             if (s == null) {
                 CircularProgressIndicator()
             } else {
+                val dateLabel = SimpleDateFormat("EEEE, MMM d · h:mm a", Locale.getDefault())
+                    .format(Date(s.startTime))
+                Text(dateLabel, style = MaterialTheme.typography.headlineMedium)
+                Spacer(Modifier.height(8.dp))
                 val minutes = s.durationSeconds / 60
                 val seconds = s.durationSeconds % 60
                 Text(

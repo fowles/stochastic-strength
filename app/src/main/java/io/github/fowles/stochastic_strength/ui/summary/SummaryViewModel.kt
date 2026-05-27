@@ -28,6 +28,7 @@ class SummaryViewModel(
     )
 
     data class SummaryData(
+        val startTime: Long,
         val durationSeconds: Long,
         val exercises: List<ExerciseSummary>,
         val weightUnit: WeightUnit,
@@ -56,7 +57,12 @@ class SummaryViewModel(
             (session.endTime - session.startTime) / 1000
         } else 0L
 
-        emit(SummaryData(durationSeconds = duration, exercises = exercises, weightUnit = weightUnit))
+        emit(SummaryData(
+            startTime = session?.startTime ?: 0L,
+            durationSeconds = duration,
+            exercises = exercises,
+            weightUnit = weightUnit,
+        ))
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     companion object {
