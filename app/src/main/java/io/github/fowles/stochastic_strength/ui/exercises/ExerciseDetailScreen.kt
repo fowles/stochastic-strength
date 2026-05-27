@@ -34,10 +34,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
+import com.patrykandpatrick.vico.compose.cartesian.layer.point
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.AutoScrollCondition
+import com.patrykandpatrick.vico.core.cartesian.Scroll
+import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.core.common.Fill
+import com.patrykandpatrick.vico.core.common.data.ExtraStore
+import com.patrykandpatrick.vico.core.common.shape.CorneredShape
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 
@@ -135,6 +157,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 ExerciseChart(
                     primaryPoints = state.primaryPoints,
                     shadowPoints = state.shadowPoints,
+                    weightUnit = state.weightUnit,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp)
@@ -149,6 +172,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
 private fun ExerciseChart(
     primaryPoints: List<ChartPoint>,
     shadowPoints: List<ChartPoint>,
+    weightUnit: WeightUnit,
     modifier: Modifier = Modifier,
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
@@ -172,9 +196,87 @@ private fun ExerciseChart(
         }
     }
 
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val transparentFill = remember { LineCartesianLayer.LineFill.single(Fill.Transparent) }
+
+    val primaryLine = LineCartesianLayer.rememberLine(
+        fill = transparentFill,
+        pointProvider = LineCartesianLayer.PointProvider.single(
+            LineCartesianLayer.point(
+                rememberShapeComponent(fill(primaryColor), CorneredShape.Pill),
+                size = 8.dp,
+            )
+        ),
+    )
+    val shadowLine = LineCartesianLayer.rememberLine(
+        fill = transparentFill,
+        pointProvider = LineCartesianLayer.PointProvider.single(
+            LineCartesianLayer.point(
+                rememberShapeComponent(
+                    fill = Fill.Transparent,
+                    shape = CorneredShape.Pill,
+                    strokeFill = fill(secondaryColor),
+                    strokeThickness = 2.dp,
+                ),
+                size = 10.dp,
+            )
+        ),
+    )
+
+    val hasPrimary = primaryPoints.isNotEmpty()
+    val hasShadow = shadowPoints.isNotEmpty()
+    val lineProvider = remember(hasPrimary, hasShadow, primaryLine, shadowLine) {
+        LineCartesianLayer.LineProvider.series(buildList {
+            if (hasPrimary) add(primaryLine)
+            if (hasShadow) add(shadowLine)
+        })
+    }
+
+    val rangeProvider = remember {
+        object : CartesianLayerRangeProvider {
+            override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
+                val padding = if (minY == maxY) maxOf(minY * 0.10, 2.5) else (maxY - minY) * 0.15
+                return minY - padding
+            }
+            override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
+                val padding = if (minY == maxY) maxOf(maxY * 0.10, 2.5) else (maxY - minY) * 0.15
+                return maxY + padding
+            }
+        }
+    }
+
+    val weightFormatter = remember(weightUnit) {
+        CartesianValueFormatter { _, value, _ -> WeightFormatter.format(value.toFloat(), weightUnit) }
+    }
+    val dateFormatter = remember {
+        val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
+        CartesianValueFormatter { _, value, _ ->
+            sdf.format(Date(value.toLong() * 86_400_000L))
+        }
+    }
+
+    val scrollState = rememberVicoScrollState(
+        initialScroll = Scroll.Absolute.End,
+        autoScroll = Scroll.Absolute.End,
+        autoScrollCondition = AutoScrollCondition.OnModelGrowth,
+    )
+
     CartesianChartHost(
-        chart = rememberCartesianChart(rememberLineCartesianLayer()),
+        chart = rememberCartesianChart(
+            rememberLineCartesianLayer(
+                lineProvider = lineProvider,
+                pointSpacing = 0.dp,
+                rangeProvider = rangeProvider,
+            ),
+            startAxis = VerticalAxis.rememberStart(valueFormatter = weightFormatter),
+            bottomAxis = HorizontalAxis.rememberBottom(
+                valueFormatter = dateFormatter,
+                labelRotationDegrees = 45f,
+            ),
+        ),
         modelProducer = modelProducer,
+        scrollState = scrollState,
         modifier = modifier,
     )
 }
