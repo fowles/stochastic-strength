@@ -63,7 +63,6 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
-                .fallbackToDestructiveMigration(true)
                 .build()
     }
 }
