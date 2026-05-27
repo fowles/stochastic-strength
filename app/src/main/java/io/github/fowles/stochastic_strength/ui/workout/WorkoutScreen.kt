@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.material.icons.Icons
@@ -67,6 +65,8 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
+import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 
 @Composable
 fun WorkoutScreen(
@@ -495,60 +495,22 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
 
 @Composable
 private fun DoneContent(
-    doneSummary: DoneSummary?,
+    doneSummary: WorkoutSummaryData?,
     onUndo: () -> Unit,
     onDone: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        Text("Workout Complete!", style = MaterialTheme.typography.headlineLarge)
-        Spacer(Modifier.height(8.dp))
-        if (doneSummary == null) {
-            CircularProgressIndicator()
-        } else {
-            val minutes = doneSummary.durationSeconds / 60
-            val seconds = doneSummary.durationSeconds % 60
-            Text(
-                "Duration: ${minutes}m ${seconds}s",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(24.dp))
-            doneSummary.exercises.forEach { ex ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(ex.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    if (ex.weight > 0f) {
-                        Text(
-                            WeightFormatter.format(ex.weight, doneSummary.weightUnit),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-                ex.feedback.forEachIndexed { i, fb ->
-                    Text(
-                        "  Set ${i + 1}: ${fb?.displayLabel ?: "—"}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-            }
-        }
-        Spacer(Modifier.weight(1f))
-        OutlinedButton(onClick = onUndo, modifier = Modifier.fillMaxWidth()) { Text("Undo") }
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
-    }
+    WorkoutSummaryContent(
+        summary = doneSummary,
+        header = {
+            Text("Workout Complete!", style = MaterialTheme.typography.headlineLarge)
+            Spacer(Modifier.height(8.dp))
+        },
+        footer = {
+            OutlinedButton(onClick = onUndo, modifier = Modifier.fillMaxWidth()) { Text("Undo") }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
+        },
+    )
 }
 
 private const val MAX_EXERCISE_COUNT = 15

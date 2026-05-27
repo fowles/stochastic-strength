@@ -15,6 +15,8 @@ import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.location.LocationResult
+import io.github.fowles.stochastic_strength.ui.SummaryExercise
+import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 import io.github.fowles.stochastic_strength.location.LocationService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -26,9 +28,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 enum class ExerciseRemovalReason { NO_EQUIPMENT, DISLIKE, SKIP_TODAY }
-
-data class DoneExercise(val name: String, val weight: Float, val feedback: List<SetFeedback?>)
-data class DoneSummary(val durationSeconds: Long, val exercises: List<DoneExercise>, val weightUnit: WeightUnit)
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
@@ -44,8 +43,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _workoutCompleted = MutableStateFlow(false)
     val workoutCompleted: StateFlow<Boolean> = _workoutCompleted.asStateFlow()
 
-    private val _doneSummary = MutableStateFlow<DoneSummary?>(null)
-    val doneSummary: StateFlow<DoneSummary?> = _doneSummary.asStateFlow()
+    private val _doneSummary = MutableStateFlow<WorkoutSummaryData?>(null)
+    val doneSummary: StateFlow<WorkoutSummaryData?> = _doneSummary.asStateFlow()
 
     private var restTimerJob: Job? = null
     private var addExerciseJob: Job? = null
@@ -310,19 +309,20 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private suspend fun loadDoneSummary(sessionId: Long, endTime: Long): DoneSummary {
+    private suspend fun loadDoneSummary(sessionId: Long, endTime: Long): WorkoutSummaryData {
         val weightUnit = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
         val sets = app.database.workoutSetDao().getSetsForSession(sessionId)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
         val exercises = exerciseIds.map { id ->
             val exerciseSets = sets.filter { it.exerciseId == id }
-            DoneExercise(
+            SummaryExercise(
                 name = app.database.exerciseDao().getById(id)?.name ?: "Unknown",
                 weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f,
                 feedback = exerciseSets.map { it.feedback },
             )
         }
-        return DoneSummary(
+        return WorkoutSummaryData(
+            startTime = sessionStartTime,
             durationSeconds = (endTime - sessionStartTime) / 1000,
             exercises = exercises,
             weightUnit = weightUnit,

@@ -8,8 +8,9 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
-import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.ui.SummaryExercise
+import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
@@ -21,20 +22,7 @@ class SummaryViewModel(
 ) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
 
-    data class ExerciseSummary(
-        val name: String,
-        val feedback: List<SetFeedback?>,
-        val weight: Float,
-    )
-
-    data class SummaryData(
-        val startTime: Long,
-        val durationSeconds: Long,
-        val exercises: List<ExerciseSummary>,
-        val weightUnit: WeightUnit,
-    )
-
-    val summary: StateFlow<SummaryData?> = flow {
+    val summary: StateFlow<WorkoutSummaryData?> = flow {
         val profile = app.database.userProfileDao().getProfile()
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
         val session = app.database.workoutSessionDao().getById(sessionId)
@@ -46,7 +34,7 @@ class SummaryViewModel(
 
         val exercises = exerciseIds.map { id ->
             val exerciseSets = sets.filter { it.exerciseId == id }
-            ExerciseSummary(
+            SummaryExercise(
                 name = nameById[id] ?: "Unknown",
                 feedback = exerciseSets.map { it.feedback },
                 weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f,
@@ -57,7 +45,7 @@ class SummaryViewModel(
             (session.endTime - session.startTime) / 1000
         } else 0L
 
-        emit(SummaryData(
+        emit(WorkoutSummaryData(
             startTime = session?.startTime ?: 0L,
             durationSeconds = duration,
             exercises = exercises,
