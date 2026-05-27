@@ -88,6 +88,7 @@ fun AppNavigation() {
                     }
                 },
                 onBack = { navController.popBackStack() },
+                onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
             )
         }
     }

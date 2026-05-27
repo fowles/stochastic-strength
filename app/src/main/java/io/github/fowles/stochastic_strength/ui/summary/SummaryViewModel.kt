@@ -36,6 +36,7 @@ class SummaryViewModel(
             val exerciseSets = sets.filter { it.exerciseId == id }
             SummaryExercise(
                 name = nameById[id] ?: "Unknown",
+                exerciseId = id,
                 feedback = exerciseSets.map { it.feedback },
                 weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f,
             )

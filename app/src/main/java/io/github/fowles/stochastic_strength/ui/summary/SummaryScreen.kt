@@ -25,6 +25,7 @@ fun SummaryScreen(
     sessionId: Long,
     onDone: () -> Unit,
     onBack: (() -> Unit)? = null,
+    onExerciseTap: ((Long) -> Unit)? = null,
     viewModel: SummaryViewModel = viewModel(factory = SummaryViewModel.factory(sessionId)),
 ) {
     val summary by viewModel.summary.collectAsState()
@@ -33,6 +34,7 @@ fun SummaryScreen(
         WorkoutSummaryContent(
             summary = summary,
             modifier = Modifier.padding(paddingValues),
+            onExerciseTap = onExerciseTap,
             header = {
                 val s = summary
                 if (s != null) {

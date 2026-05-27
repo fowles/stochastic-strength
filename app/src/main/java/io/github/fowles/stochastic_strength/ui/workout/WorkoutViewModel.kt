@@ -317,6 +317,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             val exerciseSets = sets.filter { it.exerciseId == id }
             SummaryExercise(
                 name = app.database.exerciseDao().getById(id)?.name ?: "Unknown",
+                exerciseId = id,
                 weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f,
                 feedback = exerciseSets.map { it.feedback },
             )
