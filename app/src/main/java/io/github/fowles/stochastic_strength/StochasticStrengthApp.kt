@@ -23,6 +23,7 @@ class StochasticStrengthApp : Application() {
             if (database.exerciseDao().count() == 0) {
                 database.exerciseDao().insertAll(ExerciseLibrary.exercises)
             }
+            DebugSeeder.seedIfEmpty(database)
         }
     }
 }
