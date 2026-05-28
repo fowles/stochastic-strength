@@ -15,6 +15,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutNotificationState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ class WorkoutNotificationService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var notificationManager: NotificationManager
+    private var collectJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -35,7 +37,8 @@ class WorkoutNotificationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildPlaceholderNotification())
         val app = application as StochasticStrengthApp
-        serviceScope.launch {
+        collectJob?.cancel()
+        collectJob = serviceScope.launch {
             app.workoutNotificationState.collect { state ->
                 if (state == null) {
                     stopSelf()

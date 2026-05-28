@@ -9,25 +9,24 @@ object ProgressionEngine {
 
     fun computeNextBaseline(baseline: Float, feedbacks: List<SetFeedback>): Float {
         if (feedbacks.isEmpty()) return baseline
-        return applyBaselineFeedback(baseline, aggregateFeedback(feedbacks))
+        if (SetFeedback.HURT in feedbacks) return weightDecreased(baseline, 0.85f)
+        val score = scoreFromFeedbacks(feedbacks) ?: return baseline
+        return applyScoreBaseline(baseline, score)
     }
 
-    fun applyBaselineFeedback(baseline: Float, feedback: SetFeedback): Float = when (feedback) {
-        SetFeedback.RIR_5_PLUS -> weightIncreased(baseline, 1.05f)
-        SetFeedback.RIR_2_4   -> weightIncreased(baseline, 1.025f)
-        SetFeedback.RIR_0_1   -> baseline
-        SetFeedback.TOO_HARD  -> weightDecreased(baseline, 0.90f)
-        SetFeedback.HURT      -> weightDecreased(baseline, 0.85f)
+    fun scoreFromFeedbacks(feedbacks: List<SetFeedback>): Float? {
+        val scored = feedbacks.filter { it != SetFeedback.HURT }
+        if (scored.isEmpty()) return null
+        return scored.sumOf { feedbackPoints(it) }.toFloat() / scored.size
     }
 
-    // Conservative aggregation across multiple exercises in the same muscle group.
-    // HURT/TOO_HARD override everything; among positive signals, the least enthusiastic wins.
-    fun aggregateMuscleGroupFeedback(feedbacks: List<SetFeedback>): SetFeedback {
-        if (SetFeedback.HURT in feedbacks) return SetFeedback.HURT
-        if (SetFeedback.TOO_HARD in feedbacks) return SetFeedback.TOO_HARD
-        if (SetFeedback.RIR_0_1 in feedbacks) return SetFeedback.RIR_0_1
-        if (SetFeedback.RIR_2_4 in feedbacks) return SetFeedback.RIR_2_4
-        return SetFeedback.RIR_5_PLUS
+    fun applyScoreBaseline(baseline: Float, score: Float): Float = when {
+        score >= 2.5f  -> weightIncreasedWithFloor(baseline, 1.075f, 2.5f)
+        score >= 1.5f  -> weightIncreasedWithFloor(baseline, 1.05f,  1.0f)
+        score >= 0.5f  -> weightIncreasedWithFloor(baseline, 1.025f, 0.5f)
+        score > -0.5f  -> baseline
+        score >= -1.5f -> weightDecreasedWithFloor(baseline, 0.95f, 0.5f)
+        else           -> weightDecreasedWithFloor(baseline, 0.90f, 1.0f)
     }
 
     fun scaleWeight(weight: Float, fromReps: Int, toReps: Int): Float {
@@ -36,10 +35,24 @@ object ProgressionEngine {
         return roundInternal(oneRepMax / (1f + toReps / 30f))
     }
 
-    private fun aggregateFeedback(feedbacks: List<SetFeedback>): SetFeedback {
-        if (SetFeedback.HURT in feedbacks) return SetFeedback.HURT
-        if (SetFeedback.TOO_HARD in feedbacks) return SetFeedback.TOO_HARD
-        return feedbacks.last { it == SetFeedback.RIR_0_1 || it == SetFeedback.RIR_2_4 || it == SetFeedback.RIR_5_PLUS }
+    private fun feedbackPoints(feedback: SetFeedback): Int = when (feedback) {
+        SetFeedback.RIR_5_PLUS -> 3
+        SetFeedback.RIR_2_4   -> 2
+        SetFeedback.RIR_0_1   -> 1
+        SetFeedback.TOO_HARD  -> -2
+        SetFeedback.HURT      -> error("HURT has no points")
+    }
+
+    private fun weightIncreasedWithFloor(current: Float, factor: Float, minIncrement: Float): Float {
+        val scaled = roundInternal(current * factor)
+        val floored = roundInternal(current + minIncrement)
+        return maxOf(scaled, floored)
+    }
+
+    private fun weightDecreasedWithFloor(current: Float, factor: Float, minDecrement: Float): Float {
+        val scaled = roundInternal(current * factor)
+        val floored = roundInternal(current - minDecrement)
+        return maxOf(INTERNAL_INCREMENT, minOf(scaled, floored))
     }
 
     private fun weightIncreased(current: Float, factor: Float): Float {

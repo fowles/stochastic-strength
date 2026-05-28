@@ -115,8 +115,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             if (allFeedbacks.isEmpty()) continue
 
             val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
-            val aggregated = ProgressionEngine.aggregateMuscleGroupFeedback(allFeedbacks)
-            val newBaseline = ProgressionEngine.applyBaselineFeedback(current.baselineWeight, aggregated)
+            val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks)
             db.muscleGroupStrengthDao().upsert(
                 current.copy(baselineWeight = WeightFormatter.round(newBaseline, weightUnit))
             )
