@@ -1,23 +1,27 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
 import android.app.Application
+import android.content.Intent
 import android.location.Geocoder
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.location.LocationResult
+import io.github.fowles.stochastic_strength.location.LocationService
+import io.github.fowles.stochastic_strength.notification.WorkoutNotificationService
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
-import io.github.fowles.stochastic_strength.location.LocationService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +59,15 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         startWorkout()
+        viewModelScope.launch {
+            app.workoutCommandFlow.collect { command ->
+                when (command) {
+                    is WorkoutCommand.RecordFeedback -> recordFeedback(command.feedback)
+                    WorkoutCommand.SkipRest -> skipRest()
+                    WorkoutCommand.CompleteWarmupSet -> completeWarmupSet()
+                }
+            }
+        }
     }
 
     private fun startWorkout() {
@@ -78,7 +91,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val sessionId = app.database.workoutSessionDao().insert(
             WorkoutSession(startTime = sessionStartTime, locationId = locationId)
         )
-        _state.value = WorkoutState.PlanPreview(plan = plan, sessionId = sessionId)
+        setState(WorkoutState.PlanPreview(plan = plan, sessionId = sessionId))
         setExerciseCount(preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT)
     }
 
@@ -98,10 +111,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             val replacement = repository.pickReplacement(preview.plan, index, _weightUnit.value)
             val newExercises = preview.plan.exercises.toMutableList()
             if (replacement != null) newExercises[index] = replacement else newExercises.removeAt(index)
-            _state.value = WorkoutState.PlanPreview(
+            setState(WorkoutState.PlanPreview(
                 plan = preview.plan.copy(exercises = newExercises),
                 sessionId = preview.sessionId,
-            )
+            ))
         }
     }
 
@@ -112,7 +125,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         when {
             targetCount < current.size -> {
                 val trimmed = current.take(targetCount.coerceAtLeast(1))
-                _state.value = preview.copy(plan = preview.plan.copy(exercises = trimmed))
+                setState(preview.copy(plan = preview.plan.copy(exercises = trimmed)))
             }
             targetCount > current.size -> {
                 val needed = targetCount - current.size
@@ -120,7 +133,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     repeat(needed) {
                         val p = _state.value as? WorkoutState.PlanPreview ?: return@launch
                         val extra = repository.pickAdditional(p.plan, _weightUnit.value) ?: return@launch
-                        _state.value = p.copy(plan = p.plan.copy(exercises = p.plan.exercises + extra))
+                        setState(p.copy(plan = p.plan.copy(exercises = p.plan.exercises + extra)))
                     }
                 }
             }
@@ -137,22 +150,22 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         val firstExercise = preview.plan.exercises[0]
-        _state.value = WorkoutState.ActiveSet(
+        setState(WorkoutState.ActiveSet(
             plan = preview.plan,
             exerciseIndex = 0,
             setIndex = 0,
             sessionId = preview.sessionId,
             warmupSetIndex = if (firstExercise.warmupSets.isNotEmpty()) 0 else null,
-        )
+        ))
     }
 
     fun completeWarmupSet() {
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         val warmupIdx = current.warmupSetIndex ?: return
         val nextIdx = warmupIdx + 1
-        _state.value = current.copy(
+        setState(current.copy(
             warmupSetIndex = if (nextIdx < current.plannedExercise.warmupSets.size) nextIdx else null,
-        )
+        ))
     }
 
     fun recordFeedback(feedback: SetFeedback) {
@@ -177,7 +190,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         if (isLastSet) {
             finishWorkout(current.plan, current.exerciseIndex, current.setIndex, current.sessionId)
         } else {
-            _state.value = WorkoutState.Resting(
+            setState(WorkoutState.Resting(
                 plan = current.plan,
                 exerciseIndex = current.exerciseIndex,
                 completedSetIndex = completedSetIndex,
@@ -185,7 +198,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 sessionId = current.sessionId,
                 secondsRemaining = REST_SECONDS,
                 lastFeedback = feedback,
-            )
+            ))
             startRestTimer()
         }
     }
@@ -201,12 +214,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 setNumber = resting.recordedSetIndex + 1,
             )
         }
-        _state.value = WorkoutState.ActiveSet(
+        setState(WorkoutState.ActiveSet(
             plan = resting.plan,
             exerciseIndex = resting.exerciseIndex,
             setIndex = resting.recordedSetIndex,
             sessionId = resting.sessionId,
-        )
+        ))
     }
 
     fun skipRest() {
@@ -256,7 +269,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     advanceAfterRest()
                     return@launch
                 }
-                _state.value = current.copy(secondsRemaining = current.secondsRemaining - 1)
+                setState(current.copy(secondsRemaining = current.secondsRemaining - 1))
             }
         }
     }
@@ -268,21 +281,21 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val nextSet = current.completedSetIndex + 1
 
         when {
-            nextSet < totalSets -> _state.value = WorkoutState.ActiveSet(
+            nextSet < totalSets -> setState(WorkoutState.ActiveSet(
                 plan = plan,
                 exerciseIndex = current.exerciseIndex,
                 setIndex = nextSet,
                 sessionId = current.sessionId,
-            )
+            ))
             current.exerciseIndex + 1 < plan.exercises.size -> {
                 val nextExercise = plan.exercises[current.exerciseIndex + 1]
-                _state.value = WorkoutState.ActiveSet(
+                setState(WorkoutState.ActiveSet(
                     plan = plan,
                     exerciseIndex = current.exerciseIndex + 1,
                     setIndex = 0,
                     sessionId = current.sessionId,
                     warmupSetIndex = if (nextExercise.warmupSets.isNotEmpty()) 0 else null,
-                )
+                ))
             }
             else -> finishWorkout(plan, current.exerciseIndex, current.recordedSetIndex, current.sessionId)
         }
@@ -297,14 +310,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val endTime = System.currentTimeMillis()
         viewModelScope.launch {
             app.database.workoutSessionDao().updateEndTime(sessionId, endTime)
-            _state.value = WorkoutState.Done(
+            setState(WorkoutState.Done(
                 sessionId = sessionId,
                 plan = plan,
                 startTime = sessionStartTime,
                 endTime = endTime,
                 lastExerciseIndex = lastExerciseIndex,
                 lastRecordedSetIndex = lastRecordedSetIndex,
-            )
+            ))
             _doneSummary.value = loadDoneSummary(sessionId, endTime)
         }
     }
@@ -340,12 +353,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 setNumber = done.lastRecordedSetIndex + 1,
             )
         }
-        _state.value = WorkoutState.ActiveSet(
+        setState(WorkoutState.ActiveSet(
             plan = done.plan,
             exerciseIndex = done.lastExerciseIndex,
             setIndex = done.lastRecordedSetIndex,
             sessionId = done.sessionId,
-        )
+        ))
     }
 
     fun completeWorkout() {
@@ -356,10 +369,62 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    private fun setState(newState: WorkoutState) {
+        val newNotifState = deriveNotificationState(newState)
+        val wasNull = app.workoutNotificationState.value == null
+        _state.value = newState
+        app.workoutNotificationState.value = newNotifState
+        if (wasNull && newNotifState != null) {
+            app.startForegroundService(Intent(app, WorkoutNotificationService::class.java))
+        }
+    }
+
+    private fun deriveNotificationState(state: WorkoutState): WorkoutNotificationState? = when (state) {
+        is WorkoutState.ActiveSet -> {
+            val planned = state.plannedExercise
+            if (state.warmupSetIndex != null) {
+                val warmupIdx = state.warmupSetIndex + 1
+                val totalWarmups = planned.warmupSets.size
+                WorkoutNotificationState.WarmupSet(
+                    exerciseName = planned.exercise.name,
+                    warmupSetLabel = "Warm-up $warmupIdx of $totalWarmups",
+                )
+            } else {
+                WorkoutNotificationState.ActiveSet(
+                    exerciseName = planned.exercise.name,
+                    weightLabel = if (planned.exercise.equipment == Equipment.BODYWEIGHT)
+                        "Bodyweight"
+                    else
+                        WeightFormatter.format(planned.sessionWeight, _weightUnit.value),
+                    reps = planned.sessionReps,
+                    setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
+                )
+            }
+        }
+        is WorkoutState.Resting -> {
+            val plan = state.plan
+            val nextSet = state.completedSetIndex + 1
+            val upNextLabel = when {
+                nextSet < PlannedExercise.DEFAULT_SETS ->
+                    "Next: Set ${nextSet + 1} · ${plan.exercises[state.exerciseIndex].exercise.name}"
+                state.exerciseIndex + 1 < plan.exercises.size ->
+                    "Next: ${plan.exercises[state.exerciseIndex + 1].exercise.name}"
+                else -> "Last set — almost done!"
+            }
+            WorkoutNotificationState.Resting(
+                secondsRemaining = state.secondsRemaining,
+                progressMax = REST_SECONDS,
+                upNextLabel = upNextLabel,
+            )
+        }
+        is WorkoutState.Done, is WorkoutState.PlanPreview, WorkoutState.Loading -> null
+    }
+
     override fun onCleared() {
         super.onCleared()
         restTimerJob?.cancel()
         addExerciseJob?.cancel()
+        app.workoutNotificationState.value = null
     }
 
     companion object {
