@@ -32,7 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.Equipment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,9 +72,6 @@ fun LocationEditScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    TextButton(onClick = { viewModel.save() }) { Text("Save") }
-                },
             )
         },
     ) { paddingValues ->
@@ -106,20 +103,32 @@ fun LocationEditScreen(
                 }
             }
 
-            for ((muscle, entries) in state.exercisesByMuscle.entries.sortedBy { it.key.name }) {
-                item(key = muscle.name) {
-                    Text(
-                        text = muscle.displayName(),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
+            for ((equipment, entries) in state.exercisesByEquipment.entries.sortedBy { it.key.name }) {
+                item(key = equipment.name) {
+                    val anyEnabled = entries.any { it.available }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = equipment.displayName(),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Switch(
+                            checked = anyEnabled,
+                            onCheckedChange = { viewModel.toggleEquipmentType(equipment) },
+                        )
+                    }
                 }
                 items(entries, key = { it.exercise.id }) { entry ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(start = 32.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -134,7 +143,7 @@ fun LocationEditScreen(
                         )
                     }
                 }
-                item(key = "${muscle.name}_divider") {
+                item(key = "${equipment.name}_divider") {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
