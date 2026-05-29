@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.locations
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,6 +48,7 @@ fun LocationEditScreen(
     viewModel: LocationEditViewModel = viewModel(factory = LocationEditViewModel.factory(locationId)),
 ) {
     val state by viewModel.state.collectAsState()
+    var collapsedSections by remember { mutableStateOf(emptySet<Equipment>()) }
 
     LaunchedEffect(state.navigateBack) {
         if (state.navigateBack) onBack()
@@ -104,19 +111,34 @@ fun LocationEditScreen(
             }
 
             for ((equipment, entries) in state.exercisesByEquipment.entries.sortedBy { it.key.name }) {
+                val isCollapsed = equipment in collapsedSections
                 item(key = equipment.name) {
                     val anyEnabled = entries.any { it.available }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable {
+                                collapsedSections = if (equipment in collapsedSections)
+                                    collapsedSections - equipment
+                                else
+                                    collapsedSections + equipment
+                            }
                             .padding(horizontal = 16.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        Icon(
+                            if (isCollapsed) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp,
+                            contentDescription = if (isCollapsed) "Expand" else "Collapse",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
                         Text(
                             text = equipment.displayName(),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 4.dp),
                         )
                         Switch(
                             checked = anyEnabled,
@@ -124,23 +146,25 @@ fun LocationEditScreen(
                         )
                     }
                 }
-                items(entries, key = { it.exercise.id }) { entry ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 32.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = entry.exercise.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Switch(
-                            checked = entry.available,
-                            onCheckedChange = { viewModel.toggleExercise(entry.exercise.id) },
-                        )
+                if (!isCollapsed) {
+                    items(entries, key = { it.exercise.id }) { entry ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 32.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = entry.exercise.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Switch(
+                                checked = entry.available,
+                                onCheckedChange = { viewModel.toggleExercise(entry.exercise.id) },
+                            )
+                        }
                     }
                 }
                 item(key = "${equipment.name}_divider") {
