@@ -198,7 +198,7 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     private fun computeWarmupSets(weightKg: Float, weightUnit: WeightUnit): List<WarmupSet> {
         if (weightKg < 40f) return emptyList()
-        fun w(pct: Float) = WeightFormatter.round(weightKg * pct, weightUnit)
+        fun w(pct: Float) = WeightFormatter.roundForWarmup(weightKg * pct, weightUnit)
         return if (weightKg < 60f) {
             listOf(WarmupSet(w(0.5f), 8), WarmupSet(w(0.75f), 5))
         } else {

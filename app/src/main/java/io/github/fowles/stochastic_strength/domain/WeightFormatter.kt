@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 object WeightFormatter {
@@ -10,6 +11,21 @@ object WeightFormatter {
         } else {
             val lbs = kg * 2.20462f
             "%.0f lbs".format(lbs)
+        }
+    }
+
+    // Snaps to the nearest 10 kg (or 10 lb) when within 12%, otherwise 5 kg / 5 lb.
+    // Avoids fractional plates (1.25/2.5 kg, 2.5 lb) in warmup sets where precision doesn't matter.
+    fun roundForWarmup(kg: Float, unit: WeightUnit): Float {
+        return if (unit == WeightUnit.KG) {
+            val nearest10 = (kg / 10f).roundToInt() * 10f
+            if (nearest10 > 0f && abs(nearest10 - kg) / kg <= 0.12f) nearest10
+            else (kg / 5f).roundToInt() * 5f
+        } else {
+            val lbs = kg * 2.20462f
+            // Bar is 45 lb; plate-loaded weights always end in 5 (45, 55, 65 ...).
+            val nearest = ((lbs - 5f) / 10f).roundToInt() * 10f + 5f
+            nearest / 2.20462f
         }
     }
 
