@@ -12,6 +12,9 @@ interface KnownLocationDao {
     @Query("SELECT * FROM known_locations")
     suspend fun getAll(): List<KnownLocation>
 
+    @Query("SELECT * FROM known_locations WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): KnownLocation?
+
     @Query("SELECT * FROM known_locations")
     fun observeAll(): Flow<List<KnownLocation>>
 

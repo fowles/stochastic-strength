@@ -56,6 +56,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private var preferredExerciseCount: Int? = null
 
     private var sessionLocationId: Long? = null
+    private var pendingLocationRefresh = false
 
     init {
         startWorkout()
@@ -81,17 +82,18 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 LocationResult.Unavailable -> null
             }
             sessionLocationId = locationId
-            continueWorkoutGeneration(locationId)
+            val locationName = locationId?.let { app.database.knownLocationDao().getById(it)?.name }
+            continueWorkoutGeneration(locationId, locationName)
         }
     }
 
-    private suspend fun continueWorkoutGeneration(locationId: Long?) {
+    private suspend fun continueWorkoutGeneration(locationId: Long?, locationName: String?) {
         val plan = repository.generateWorkoutForLocation(locationId, _weightUnit.value)
         sessionStartTime = System.currentTimeMillis()
         val sessionId = app.database.workoutSessionDao().insert(
             WorkoutSession(startTime = sessionStartTime, locationId = locationId)
         )
-        setState(WorkoutState.PlanPreview(plan = plan, sessionId = sessionId))
+        setState(WorkoutState.PlanPreview(plan = plan, sessionId = sessionId, locationName = locationName))
         setExerciseCount(preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT)
     }
 
@@ -143,6 +145,44 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             viewModelScope.launch {
                 val profile = app.database.userProfileDao().getProfile() ?: return@launch
                 app.database.userProfileDao().insert(profile.copy(preferredExerciseCount = targetCount))
+            }
+        }
+    }
+
+    fun onNavigatedToLocationEdit() {
+        pendingLocationRefresh = true
+    }
+
+    fun onResumed() {
+        if (!pendingLocationRefresh) return
+        pendingLocationRefresh = false
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val locationId = sessionLocationId ?: return
+        viewModelScope.launch {
+            val locationName = app.database.knownLocationDao().getById(locationId)?.name
+            val excluded = repository.getExcludedExerciseIds(locationId)
+            var plan = preview.plan
+            var i = 0
+            while (i < plan.exercises.size) {
+                if (plan.exercises[i].exercise.id in excluded) {
+                    val replacement = repository.pickReplacement(plan, i, _weightUnit.value)
+                    val updated = plan.exercises.toMutableList()
+                    if (replacement != null) {
+                        updated[i] = replacement
+                    } else {
+                        updated.removeAt(i)
+                        i--
+                    }
+                    plan = plan.copy(exercises = updated)
+                }
+                i++
+            }
+            if (plan != preview.plan || locationName != preview.locationName) {
+                setState(WorkoutState.PlanPreview(
+                    plan = plan,
+                    sessionId = preview.sessionId,
+                    locationName = locationName,
+                ))
             }
         }
     }

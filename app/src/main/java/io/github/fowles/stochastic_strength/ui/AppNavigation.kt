@@ -74,6 +74,7 @@ fun AppNavigation() {
                         popUpTo("home") { inclusive = true }
                     }
                 },
+                onEditLocation = { locationId -> navController.navigate("location/$locationId") },
             )
         }
         composable(

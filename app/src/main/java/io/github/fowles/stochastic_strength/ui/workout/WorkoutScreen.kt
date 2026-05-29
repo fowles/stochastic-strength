@@ -24,7 +24,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,6 +44,7 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,7 +63,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
@@ -74,6 +80,7 @@ import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 @Composable
 fun WorkoutScreen(
     onWorkoutDone: () -> Unit,
+    onEditLocation: (locationId: Long) -> Unit,
     viewModel: WorkoutViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -84,6 +91,15 @@ fun WorkoutScreen(
 
     BackHandler(enabled = state !is WorkoutState.Done) {
         activity.moveTaskToBack(true)
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResumed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -114,6 +130,10 @@ fun WorkoutScreen(
                     onStart = viewModel::startFirstExercise,
                     onReplace = viewModel::replaceExercise,
                     onSetExerciseCount = viewModel::setExerciseCount,
+                    onEditLocation = { locationId ->
+                        viewModel.onNavigatedToLocationEdit()
+                        onEditLocation(locationId)
+                    },
                 )
                 is WorkoutState.ActiveSet -> if (s.warmupSetIndex != null) {
                     WarmupSetContent(
@@ -150,6 +170,7 @@ private fun PlanPreviewContent(
     onStart: () -> Unit,
     onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
     onSetExerciseCount: (Int) -> Unit,
+    onEditLocation: (locationId: Long) -> Unit,
 ) {
     val plan = state.plan
     val totalSets = plan.exercises.size * PlannedExercise.DEFAULT_SETS
@@ -169,6 +190,18 @@ private fun PlanPreviewContent(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        val locationId = state.plan.locationId
+        val locationName = state.locationName
+        if (locationId != null && locationName != null) {
+            Spacer(Modifier.height(4.dp))
+            AssistChip(
+                onClick = { onEditLocation(locationId) },
+                label = { Text(locationName) },
+                leadingIcon = {
+                    Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                },
+            )
+        }
         Spacer(Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -196,6 +229,13 @@ private fun PlanPreviewContent(
             )
         }
         Spacer(Modifier.height(8.dp))
+        HorizontalDivider()
+        Text(
+            "Swipe left to reject an exercise",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 4.dp),
+        )
         HorizontalDivider()
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
