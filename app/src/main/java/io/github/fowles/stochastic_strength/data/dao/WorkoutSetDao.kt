@@ -14,7 +14,7 @@ interface WorkoutSetDao {
     @Update
     suspend fun update(set: WorkoutSet)
 
-    @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY exerciseId, setNumber")
+    @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     suspend fun getSetsForSession(sessionId: Long): List<WorkoutSet>
 
     @Query("SELECT * FROM workout_sets WHERE exerciseId = :exerciseId ORDER BY completedAt DESC LIMIT :limit")
