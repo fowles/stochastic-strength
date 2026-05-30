@@ -1,19 +1,32 @@
 package io.github.fowles.stochastic_strength.ui.summary
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
 import java.text.SimpleDateFormat
@@ -29,8 +42,41 @@ fun SummaryScreen(
     viewModel: SummaryViewModel = viewModel(factory = SummaryViewModel.factory(sessionId)),
 ) {
     val summary by viewModel.summary.collectAsState()
+    val stravaState by viewModel.stravaState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    Scaffold { paddingValues ->
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResumed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(stravaState) {
+        when (val state = stravaState) {
+            is StravaExportState.NeedsAuth -> {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.authUrl)))
+                viewModel.onAuthUrlLaunched()
+            }
+            is StravaExportState.Success -> {
+                snackbarHostState.showSnackbar("Exported to Strava! Activity ID: ${state.activityId}")
+                viewModel.onStravaMessageShown()
+            }
+            is StravaExportState.Error -> {
+                snackbarHostState.showSnackbar(message = state.message, duration = androidx.compose.material3.SnackbarDuration.Long)
+                viewModel.onStravaMessageShown()
+            }
+            else -> Unit
+        }
+    }
+
+    val exportBusy = stravaState is StravaExportState.Exporting ||
+        stravaState is StravaExportState.WaitingForAuth
+
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { paddingValues ->
         WorkoutSummaryContent(
             summary = summary,
             modifier = Modifier.padding(paddingValues),
@@ -51,6 +97,18 @@ fun SummaryScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                 }
+                OutlinedButton(
+                    onClick = { viewModel.onExportToStrava() },
+                    enabled = !exportBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (exportBusy) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Export to Strava")
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
                     Text("Done")
                 }

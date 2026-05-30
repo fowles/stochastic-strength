@@ -11,10 +11,22 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+sealed interface StravaExportState {
+    object Idle : StravaExportState
+    data class NeedsAuth(val authUrl: String) : StravaExportState
+    object WaitingForAuth : StravaExportState
+    object Exporting : StravaExportState
+    data class Success(val activityId: Long) : StravaExportState
+    data class Error(val message: String) : StravaExportState
+}
 
 class SummaryViewModel(
     application: Application,
@@ -53,6 +65,48 @@ class SummaryViewModel(
             weightUnit = weightUnit,
         ))
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    private val _stravaState = MutableStateFlow<StravaExportState>(StravaExportState.Idle)
+    val stravaState: StateFlow<StravaExportState> = _stravaState.asStateFlow()
+
+    fun onExportToStrava() {
+        if (!app.stravaExporter.isAuthenticated()) {
+            _stravaState.value = StravaExportState.NeedsAuth(app.stravaExporter.getAuthUrl())
+            return
+        }
+        launchExport()
+    }
+
+    fun onAuthUrlLaunched() {
+        if (_stravaState.value is StravaExportState.NeedsAuth) {
+            _stravaState.value = StravaExportState.WaitingForAuth
+        }
+    }
+
+    fun onResumed() {
+        if (_stravaState.value is StravaExportState.WaitingForAuth &&
+            app.stravaExporter.isAuthenticated()
+        ) {
+            launchExport()
+        }
+    }
+
+    fun onStravaMessageShown() {
+        _stravaState.value = StravaExportState.Idle
+    }
+
+    private fun launchExport() {
+        _stravaState.value = StravaExportState.Exporting
+        viewModelScope.launch {
+            val weightUnit = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+            runCatching { app.stravaExporter.exportSession(sessionId, weightUnit) }
+                .onSuccess { activityId -> _stravaState.value = StravaExportState.Success(activityId) }
+                .onFailure { e ->
+                    android.util.Log.e("StravaExport", "Export failed", e)
+                    _stravaState.value = StravaExportState.Error(e.message ?: "Export to Strava failed")
+                }
+        }
+    }
 
     companion object {
         fun factory(sessionId: Long): ViewModelProvider.Factory =
