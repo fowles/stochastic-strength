@@ -1,6 +1,17 @@
 package io.github.fowles.stochastic_strength.domain.strava
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import io.github.fowles.stochastic_strength.BuildConfig
+import io.github.fowles.stochastic_strength.R
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -12,7 +23,38 @@ class StravaExporter(
     private val db: AppDatabase,
     private val tokenStore: StravaTokenStore,
     private val fitBuilder: FitFileBuilder,
+    private val context: Context,
 ) {
+    private val notificationManager =
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    init {
+        notificationManager.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Strava Export", NotificationManager.IMPORTANCE_LOW)
+                .apply { description = "Notifications for Strava workout exports" }
+        )
+    }
+
+    fun notifyUploadResult(success: Boolean, error: String? = null) {
+        val (title, text) = if (success)
+            "Exported to Strava!" to "Your workout has been uploaded."
+        else
+            "Strava export failed" to (error ?: "Unknown error")
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, title, Toast.LENGTH_SHORT).show()
+        }
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setTimeoutAfter(5_000)
+            .build()
+        notificationManager.notify(NOTIFICATION_ID, notification)
+    }
     fun getAuthUrl(): String = StravaApiClient.buildAuthUrl(BuildConfig.STRAVA_CLIENT_ID)
 
     fun isAuthenticated(): Boolean = tokenStore.isAuthenticated()
@@ -106,5 +148,10 @@ class StravaExporter(
         SetFeedback.RIR_2_4 -> "💪"
         SetFeedback.RIR_5_PLUS -> "😌"
         null -> "—"
+    }
+
+    companion object {
+        private const val CHANNEL_ID = "strava_export"
+        private const val NOTIFICATION_ID = 1002
     }
 }

@@ -25,6 +25,7 @@ class StochasticStrengthApp : Application() {
             db = database,
             tokenStore = StravaTokenStore(this),
             fitBuilder = FitFileBuilder(cacheDir),
+            context = this,
         )
     }
 

@@ -3,9 +3,9 @@ package io.github.fowles.stochastic_strength.ui.summary
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -97,13 +97,18 @@ class SummaryViewModel(
 
     private fun launchExport() {
         _stravaState.value = StravaExportState.Exporting
-        viewModelScope.launch {
+        app.applicationScope.launch {
             val weightUnit = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
             runCatching { app.stravaExporter.exportSession(sessionId, weightUnit) }
-                .onSuccess { activityId -> _stravaState.value = StravaExportState.Success(activityId) }
+                .onSuccess { activityId ->
+                    _stravaState.value = StravaExportState.Success(activityId)
+                    app.stravaExporter.notifyUploadResult(success = true)
+                }
                 .onFailure { e ->
                     android.util.Log.e("StravaExport", "Export failed", e)
-                    _stravaState.value = StravaExportState.Error(e.message ?: "Export to Strava failed")
+                    val msg = e.message ?: "Export to Strava failed"
+                    _stravaState.value = StravaExportState.Error(msg)
+                    app.stravaExporter.notifyUploadResult(success = false, error = msg)
                 }
         }
     }

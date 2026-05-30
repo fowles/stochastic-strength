@@ -12,15 +12,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -43,7 +40,6 @@ fun SummaryScreen(
 ) {
     val summary by viewModel.summary.collectAsState()
     val stravaState by viewModel.stravaState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -61,14 +57,8 @@ fun SummaryScreen(
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.authUrl)))
                 viewModel.onAuthUrlLaunched()
             }
-            is StravaExportState.Success -> {
-                snackbarHostState.showSnackbar("Exported to Strava! Activity ID: ${state.activityId}")
-                viewModel.onStravaMessageShown()
-            }
-            is StravaExportState.Error -> {
-                snackbarHostState.showSnackbar(message = state.message, duration = androidx.compose.material3.SnackbarDuration.Long)
-                viewModel.onStravaMessageShown()
-            }
+            is StravaExportState.Success -> viewModel.onStravaMessageShown()
+            is StravaExportState.Error -> viewModel.onStravaMessageShown()
             else -> Unit
         }
     }
@@ -76,7 +66,7 @@ fun SummaryScreen(
     val exportBusy = stravaState is StravaExportState.Exporting ||
         stravaState is StravaExportState.WaitingForAuth
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { paddingValues ->
+    Scaffold { paddingValues ->
         WorkoutSummaryContent(
             summary = summary,
             modifier = Modifier.padding(paddingValues),
