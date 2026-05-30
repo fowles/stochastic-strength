@@ -5,6 +5,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,6 +82,7 @@ import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 fun WorkoutScreen(
     onWorkoutDone: () -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
+    onExerciseTap: (exerciseId: Long) -> Unit,
     viewModel: WorkoutViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -134,6 +136,7 @@ fun WorkoutScreen(
                         viewModel.onNavigatedToLocationEdit()
                         onEditLocation(locationId)
                     },
+                    onExerciseTap = onExerciseTap,
                 )
                 is WorkoutState.ActiveSet -> if (s.warmupSetIndex != null) {
                     WarmupSetContent(
@@ -171,6 +174,7 @@ private fun PlanPreviewContent(
     onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
     onSetExerciseCount: (Int) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
+    onExerciseTap: (exerciseId: Long) -> Unit,
 ) {
     val plan = state.plan
     val totalSets = plan.exercises.size * PlannedExercise.DEFAULT_SETS
@@ -243,6 +247,7 @@ private fun PlanPreviewContent(
                     planned = planned,
                     weightUnit = weightUnit,
                     onReplace = { reason -> onReplace(plan.exercises.indexOf(planned), reason) },
+                    onTap = { onExerciseTap(planned.exercise.id) },
                     modifier = Modifier.animateItem(),
                 )
                 HorizontalDivider()
@@ -260,6 +265,7 @@ private fun ExercisePreviewRow(
     planned: io.github.fowles.stochastic_strength.domain.model.PlannedExercise,
     weightUnit: WeightUnit,
     onReplace: (ExerciseRemovalReason) -> Unit,
+    onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
@@ -307,6 +313,7 @@ private fun ExercisePreviewRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
+                    .clickable(onClick = onTap)
                     .padding(vertical = 12.dp),
             ) {
                 Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)

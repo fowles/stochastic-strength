@@ -75,6 +75,7 @@ fun AppNavigation() {
                     }
                 },
                 onEditLocation = { locationId -> navController.navigate("location/$locationId") },
+                onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
             )
         }
         composable(
