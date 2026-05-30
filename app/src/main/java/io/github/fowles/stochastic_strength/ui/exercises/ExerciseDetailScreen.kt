@@ -73,6 +73,7 @@ import java.util.Date
 import java.util.Locale
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +93,14 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     }
                 },
             )
+        },
+        bottomBar = {
+            if (exercise != null) {
+                YoutubeFormCard(
+                    exerciseName = exercise.name,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 32.dp, top = 8.dp),
+                )
+            }
         },
     ) { padding ->
         if (exercise == null) {

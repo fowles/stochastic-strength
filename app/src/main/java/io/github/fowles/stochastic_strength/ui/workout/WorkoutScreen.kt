@@ -19,19 +19,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.Manifest
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -77,6 +72,7 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
 
 @Composable
 fun WorkoutScreen(
@@ -477,40 +473,6 @@ private fun ExerciseSetLayout(
     }
 }
 
-@Composable
-private fun YoutubeFormCard(exerciseName: String, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    Card(
-        onClick = {
-            val query = Uri.encode("$exerciseName proper form tutorial")
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
-            context.startActivity(intent)
-        },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFCC0000)),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(32.dp),
-            )
-            Spacer(Modifier.size(10.dp))
-            Text(
-                "Watch form guide",
-                style = MaterialTheme.typography.labelLarge,
-                color = Color.White,
-            )
-        }
-    }
-}
 
 @Composable
 private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
