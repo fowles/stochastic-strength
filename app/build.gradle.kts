@@ -20,6 +20,8 @@ android {
         versionName = "1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "STRAVA_CLIENT_ID", "\"${providers.gradleProperty("STRAVA_CLIENT_ID").getOrElse("")}\"")
+        buildConfigField("String", "STRAVA_CLIENT_SECRET", "\"${providers.gradleProperty("STRAVA_CLIENT_SECRET").getOrElse("")}\"")
     }
 
     signingConfigs {
@@ -43,7 +45,6 @@ providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
         }
         create("releaseLocal") {
             initWith(getByName("release"))
-            signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += "release"
         }
     }
@@ -53,6 +54,7 @@ providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -73,6 +75,9 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.androidx.room.ktx)
     implementation(libs.vico.compose.m3)
+    implementation(libs.garmin.fit)
+    implementation(libs.okhttp)
+    implementation(libs.security.crypto)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)
