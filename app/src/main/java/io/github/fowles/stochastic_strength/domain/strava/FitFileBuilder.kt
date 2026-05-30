@@ -18,6 +18,7 @@ import com.garmin.fit.Fit
 import com.garmin.fit.FitBaseUnit
 import com.garmin.fit.FlyeExerciseName
 import com.garmin.fit.HipRaiseExerciseName
+import com.garmin.fit.HipStabilityExerciseName
 import com.garmin.fit.HipSwingExerciseName
 import com.garmin.fit.HyperextensionExerciseName
 import com.garmin.fit.LapMesg
@@ -28,6 +29,7 @@ import com.garmin.fit.LungeExerciseName
 import com.garmin.fit.Manufacturer
 import com.garmin.fit.MessageIndex
 import com.garmin.fit.PlankExerciseName
+import com.garmin.fit.PlyoExerciseName
 import com.garmin.fit.PullUpExerciseName
 import com.garmin.fit.PushUpExerciseName
 import com.garmin.fit.RowExerciseName
@@ -40,7 +42,11 @@ import com.garmin.fit.SitUpExerciseName
 import com.garmin.fit.Sport
 import com.garmin.fit.SquatExerciseName
 import com.garmin.fit.SubSport
+import com.garmin.fit.TotalBodyExerciseName
 import com.garmin.fit.TricepsExtensionExerciseName
+import com.garmin.fit.WktStepDuration
+import com.garmin.fit.WktStepTarget
+import com.garmin.fit.WorkoutStepMesg
 import com.garmin.fit.DateTime as FitDateTime
 import com.garmin.fit.File as FitFile
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -65,8 +71,21 @@ class FitFileBuilder(private val cacheDir: File) {
         val outFile = File(cacheDir, "strava_export_${session.id}.fit")
         val encoder = FileEncoder(outFile, Fit.ProtocolVersion.V2_0)
 
+        // Map each exercise to its step index (order of first appearance)
+        val stepIndexByExercise: Map<Long, Int> = sets
+            .map { it.exerciseId }
+            .distinct()
+            .withIndex()
+            .associate { (i, id) -> id to i }
+
         encoder.write(buildFileId(startDt))
         encoder.write(buildDeviceInfo(startDt))
+
+        for ((exerciseId, stepIndex) in stepIndexByExercise) {
+            val name = nameById[exerciseId] ?: ""
+            encoder.write(buildWorkoutStep(stepIndex, name))
+        }
+
         encoder.write(buildActivity(endDt, elapsedSec))
         encoder.write(buildSession(startDt, endDt, elapsedSec))
         encoder.write(buildLap(startDt, endDt, elapsedSec))
@@ -74,7 +93,8 @@ class FitFileBuilder(private val cacheDir: File) {
         var setIndex = 0
         for (set in sets) {
             val name = nameById[set.exerciseId] ?: ""
-            encoder.write(buildSet(set, name, setIndex++))
+            val stepIndex = stepIndexByExercise[set.exerciseId] ?: 0
+            encoder.write(buildSet(set, name, setIndex++, stepIndex))
         }
 
         encoder.close()
@@ -137,9 +157,19 @@ class FitFileBuilder(private val cacheDir: File) {
         return msg
     }
 
-    private fun buildSet(set: WorkoutSet, exerciseName: String, index: Int): SetMesg {
+    private fun buildWorkoutStep(stepIndex: Int, exerciseName: String): WorkoutStepMesg {
+        val msg = WorkoutStepMesg()
+        msg.messageIndex = stepIndex
+        msg.wktStepName = exerciseName
+        msg.durationType = WktStepDuration.OPEN
+        msg.targetType = WktStepTarget.OPEN
+        return msg
+    }
+
+    private fun buildSet(set: WorkoutSet, exerciseName: String, index: Int, stepIndex: Int): SetMesg {
         val msg = SetMesg()
         msg.messageIndex = index
+        msg.wktStepIndex = stepIndex
         msg.setType = SetType.ACTIVE
         msg.duration = set.targetReps * 3f
         msg.repetitions = set.targetReps
@@ -171,7 +201,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Pec Deck" -> ExerciseCategory.FLYE to FlyeExerciseName.DUMBBELL_FLYE
         // CHEST — Push-Up
         "Push-Up" -> ExerciseCategory.PUSH_UP to PushUpExerciseName.PUSH_UP
-        "Burpee" -> ExerciseCategory.PUSH_UP to PushUpExerciseName.PUSH_UP
+        "Burpee" -> ExerciseCategory.TOTAL_BODY to TotalBodyExerciseName.BURPEE
         "Diamond Push-Up" -> ExerciseCategory.PUSH_UP to PushUpExerciseName.DIAMOND_PUSH_UP
         "Pike Push-Up" -> ExerciseCategory.PUSH_UP to PushUpExerciseName.PIKE_PUSH_UP
         "Machine Chest Press" -> ExerciseCategory.BENCH_PRESS to BenchPressExerciseName.BARBELL_BENCH_PRESS
@@ -184,18 +214,18 @@ class FitFileBuilder(private val cacheDir: File) {
         "Barbell Row" -> ExerciseCategory.ROW to RowExerciseName.BARBELL_ROW
         "T-Bar Row" -> ExerciseCategory.ROW to RowExerciseName.T_BAR_ROW
         "Dumbbell Row" -> ExerciseCategory.ROW to RowExerciseName.DUMBBELL_ROW
-        "Chest-Supported Dumbbell Row" -> ExerciseCategory.ROW to RowExerciseName.DUMBBELL_ROW
+        "Chest-Supported Dumbbell Row" -> ExerciseCategory.ROW to RowExerciseName.CHEST_SUPPORTED_DUMBBELL_ROW
         "Seated Cable Row" -> ExerciseCategory.ROW to RowExerciseName.SEATED_CABLE_ROW
         "Face Pull" -> ExerciseCategory.ROW to RowExerciseName.FACE_PULL
-        "Inverted Row" -> ExerciseCategory.ROW to RowExerciseName.MODIFIED_INVERTED_ROW
-        "Straight-Arm Pulldown" -> ExerciseCategory.PULL_UP to PullUpExerciseName.LAT_PULLDOWN
+        "Inverted Row" -> ExerciseCategory.ROW to RowExerciseName.INVERTED_ROW
+        "Straight-Arm Pulldown" -> ExerciseCategory.PULL_UP to PullUpExerciseName.STRAIGHT_ARM_PULLDOWN
         // BACK — Pull-Up / Lat Pulldown
         "Pull-Up" -> ExerciseCategory.PULL_UP to PullUpExerciseName.PULL_UP
         "Chin-Up" -> ExerciseCategory.PULL_UP to PullUpExerciseName.CHIN_UP
         "Lat Pulldown" -> ExerciseCategory.PULL_UP to PullUpExerciseName.LAT_PULLDOWN
         // BACK — Hyperextension
-        "Good Morning" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.BACK_EXTENSION_WITH_OPPOSITE_ARM_AND_LEG_REACH
-        "Superman" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.BACK_EXTENSION_WITH_OPPOSITE_ARM_AND_LEG_REACH
+        "Good Morning" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.GOOD_MORNING
+        "Superman" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.SUPERMAN_FROM_FLOOR
         // SHOULDERS — Press
         "Overhead Press" -> ExerciseCategory.SHOULDER_PRESS to ShoulderPressExerciseName.OVERHEAD_BARBELL_PRESS
         "Dumbbell Overhead Press" -> ExerciseCategory.SHOULDER_PRESS to ShoulderPressExerciseName.OVERHEAD_DUMBBELL_PRESS
@@ -205,7 +235,7 @@ class FitFileBuilder(private val cacheDir: File) {
         // SHOULDERS — Lateral Raise
         "Dumbbell Lateral Raise" -> ExerciseCategory.LATERAL_RAISE to LateralRaiseExerciseName.DUMBBELL_LATERAL_RAISE
         "Cable Lateral Raise" -> ExerciseCategory.LATERAL_RAISE to LateralRaiseExerciseName.ONE_ARM_CABLE_LATERAL_RAISE
-        "Machine Lateral Raise" -> ExerciseCategory.LATERAL_RAISE to LateralRaiseExerciseName.DUMBBELL_LATERAL_RAISE
+        "Machine Lateral Raise" -> ExerciseCategory.LATERAL_RAISE to LateralRaiseExerciseName.SEATED_LATERAL_RAISE
         "Front Raise" -> ExerciseCategory.LATERAL_RAISE to LateralRaiseExerciseName.FRONT_RAISE
         "Rear Delt Fly" -> ExerciseCategory.LATERAL_RAISE to LateralRaiseExerciseName.BENT_OVER_LATERAL_RAISE
         // SHOULDERS — Shrug / Upright Row
@@ -217,7 +247,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Hammer Curl" -> ExerciseCategory.CURL to CurlExerciseName.DUMBBELL_HAMMER_CURL
         "Concentration Curl" -> ExerciseCategory.CURL to CurlExerciseName.ONE_ARM_CONCENTRATION_CURL
         "Cable Curl" -> ExerciseCategory.CURL to CurlExerciseName.CABLE_BICEPS_CURL
-        "EZ Bar Curl" -> ExerciseCategory.CURL to CurlExerciseName.CLOSE_GRIP_EZ_BAR_BICEPS_CURL
+        "EZ Bar Curl" -> ExerciseCategory.CURL to CurlExerciseName.STANDING_EZ_BAR_BICEPS_CURL
         "Incline Dumbbell Curl" -> ExerciseCategory.CURL to CurlExerciseName.INCLINE_DUMBBELL_BICEPS_CURL
         // TRICEPS
         "Skull Crusher" -> ExerciseCategory.TRICEPS_EXTENSION to TricepsExtensionExerciseName.LYING_EZ_BAR_TRICEPS_EXTENSION
@@ -231,14 +261,14 @@ class FitFileBuilder(private val cacheDir: File) {
         "Front Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BARBELL_FRONT_SQUAT
         "Hack Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BARBELL_HACK_SQUAT
         "Goblet Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.GOBLET_SQUAT
-        "Bodyweight Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BACK_SQUAT_WITH_BODY_BAR
-        "Jump Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.SQUAT_JUMPS_IN_N_OUT
+        "Bodyweight Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.SQUAT
+        "Jump Squat" -> ExerciseCategory.PLYO to PlyoExerciseName.JUMP_SQUAT
         "Leg Press" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
         "Leg Extension" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
         // QUADS — Lunge
-        "Lunge" -> ExerciseCategory.LUNGE to LungeExerciseName.WALKING_LUNGE
-        "Bulgarian Split Squat" -> ExerciseCategory.LUNGE to LungeExerciseName.DUMBBELL_BULGARIAN_SPLIT_SQUAT
-        "Step-Up" -> ExerciseCategory.LUNGE to LungeExerciseName.ALTERNATING_BARBELL_FORWARD_LUNGE
+        "Lunge" -> ExerciseCategory.LUNGE to LungeExerciseName.LUNGE
+        "Bulgarian Split Squat" -> ExerciseCategory.LUNGE to LungeExerciseName.BACK_FOOT_ELEVATED_DUMBBELL_SPLIT_SQUAT
+        "Step-Up" -> ExerciseCategory.SQUAT to SquatExerciseName.STEP_UP
         // HAMSTRINGS
         "Leg Curl" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.LEG_CURL
         "Nordic Curl" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.LEG_CURL
@@ -249,27 +279,27 @@ class FitFileBuilder(private val cacheDir: File) {
         "Cable Kickback" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.HIP_RAISE
         "Donkey Kick" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.HIP_RAISE
         // GLUTES — Kettlebell Swing
-        "Kettlebell Swing" -> ExerciseCategory.HIP_SWING to HipSwingExerciseName.SINGLE_ARM_KETTLEBELL_SWING
+        "Kettlebell Swing" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.KETTLEBELL_SWING
         // CALVES
-        "Standing Calf Raise" -> ExerciseCategory.CALF_RAISE to CalfRaiseExerciseName._3_WAY_CALF_RAISE
+        "Standing Calf Raise" -> ExerciseCategory.CALF_RAISE to CalfRaiseExerciseName.STANDING_CALF_RAISE
         "Seated Calf Raise" -> ExerciseCategory.CALF_RAISE to CalfRaiseExerciseName.SEATED_CALF_RAISE
         "Leg Press Calf Raise" -> ExerciseCategory.CALF_RAISE to CalfRaiseExerciseName.SEATED_CALF_RAISE
         // CORE — Plank
-        "Plank" -> ExerciseCategory.PLANK to PlankExerciseName._45_DEGREE_PLANK
-        "Mountain Climber" -> ExerciseCategory.PLANK to PlankExerciseName.CROSS_BODY_MOUNTAIN_CLIMBER
-        "Dead Bug" -> ExerciseCategory.PLANK to PlankExerciseName._45_DEGREE_PLANK
+        "Plank" -> ExerciseCategory.PLANK to PlankExerciseName.PLANK
+        "Mountain Climber" -> ExerciseCategory.PLANK to PlankExerciseName.MOUNTAIN_CLIMBER
+        "Dead Bug" -> ExerciseCategory.HIP_STABILITY to HipStabilityExerciseName.DEAD_BUG
         // CORE — Crunch
         "Bicycle Crunch" -> ExerciseCategory.CRUNCH to CrunchExerciseName.BICYCLE_CRUNCH
         "Cable Crunch" -> ExerciseCategory.CRUNCH to CrunchExerciseName.CABLE_CRUNCH
-        "Russian Twist" -> ExerciseCategory.CRUNCH to CrunchExerciseName.BICYCLE_CRUNCH
+        "Russian Twist" -> ExerciseCategory.CORE to CoreExerciseName.RUSSIAN_TWIST
         // CORE — Sit-Up
         "Sit-Up" -> ExerciseCategory.SIT_UP to SitUpExerciseName.SIT_UP
         // CORE — Leg Raise
         "Hanging Leg Raise" -> ExerciseCategory.LEG_RAISE to LegRaiseExerciseName.HANGING_LEG_RAISE
         // CORE — Core
-        "Ab Wheel Rollout" -> ExerciseCategory.CORE to CoreExerciseName.BARBELL_ROLLOUT
+        "Ab Wheel Rollout" -> ExerciseCategory.CORE to CoreExerciseName.KNEELING_AB_WHEEL
         "Pallof Press" -> ExerciseCategory.CORE to CoreExerciseName.CABLE_CORE_PRESS
-        "Turkish Get-Up" -> ExerciseCategory.CORE to CoreExerciseName.ALTERNATING_PLATE_REACH
-        else -> ExerciseCategory.BENCH_PRESS to 0
+        "Turkish Get-Up" -> ExerciseCategory.CORE to CoreExerciseName.TURKISH_GET_UP
+        else -> ExerciseCategory.UNKNOWN to 65534
     }
 }
