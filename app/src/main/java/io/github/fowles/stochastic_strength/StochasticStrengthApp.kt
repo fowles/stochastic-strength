@@ -26,8 +26,10 @@ class StochasticStrengthApp : Application() {
             } catch (_: Exception) {
                 AppDatabase.reset(this@StochasticStrengthApp, applicationScope)
             }
-            if (database.exerciseDao().count() == 0) {
-                database.exerciseDao().insertAll(ExerciseLibrary.exercises)
+            val existingNames = database.exerciseDao().getNames().toHashSet()
+            val missing = ExerciseLibrary.exercises.filter { it.name !in existingNames }
+            if (missing.isNotEmpty()) {
+                database.exerciseDao().insertAll(missing)
             }
             DebugSeeder.seedIfEmpty(database)
         }

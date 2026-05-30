@@ -21,12 +21,14 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE id = :id")
     suspend fun getById(id: Long): Exercise?
 
+    @Query("SELECT name FROM exercises")
+    suspend fun getNames(): List<String>
+
     @Insert
     suspend fun insertAll(exercises: List<Exercise>)
 
     @Update
     suspend fun update(exercise: Exercise)
 
-    @Query("SELECT COUNT(*) FROM exercises")
-    suspend fun count(): Int
+
 }
