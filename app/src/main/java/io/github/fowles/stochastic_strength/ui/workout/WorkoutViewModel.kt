@@ -89,11 +89,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private suspend fun continueWorkoutGeneration(locationId: Long?, locationName: String?) {
         val plan = repository.generateWorkoutForLocation(locationId, _weightUnit.value)
-        sessionStartTime = System.currentTimeMillis()
-        val sessionId = app.database.workoutSessionDao().insert(
-            WorkoutSession(startTime = sessionStartTime, locationId = locationId)
-        )
-        setState(WorkoutState.PlanPreview(plan = plan, sessionId = sessionId, locationName = locationName))
+        setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
         setExerciseCount(preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT)
     }
 
@@ -113,10 +109,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             val replacement = repository.pickReplacement(preview.plan, index, _weightUnit.value)
             val newExercises = preview.plan.exercises.toMutableList()
             if (replacement != null) newExercises[index] = replacement else newExercises.removeAt(index)
-            setState(WorkoutState.PlanPreview(
-                plan = preview.plan.copy(exercises = newExercises),
-                sessionId = preview.sessionId,
-            ))
+            setState(WorkoutState.PlanPreview(plan = preview.plan.copy(exercises = newExercises)))
         }
     }
 
@@ -178,11 +171,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 i++
             }
             if (plan != preview.plan || locationName != preview.locationName) {
-                setState(WorkoutState.PlanPreview(
-                    plan = plan,
-                    sessionId = preview.sessionId,
-                    locationName = locationName,
-                ))
+                setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
             }
         }
     }
@@ -190,13 +179,19 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         val firstExercise = preview.plan.exercises[0]
-        setState(WorkoutState.ActiveSet(
-            plan = preview.plan,
-            exerciseIndex = 0,
-            setIndex = 0,
-            sessionId = preview.sessionId,
-            warmupSetIndex = if (firstExercise.warmupSets.isNotEmpty()) 0 else null,
-        ))
+        viewModelScope.launch {
+            sessionStartTime = System.currentTimeMillis()
+            val sessionId = app.database.workoutSessionDao().insert(
+                WorkoutSession(startTime = sessionStartTime, locationId = sessionLocationId)
+            )
+            setState(WorkoutState.ActiveSet(
+                plan = preview.plan,
+                exerciseIndex = 0,
+                setIndex = 0,
+                sessionId = sessionId,
+                warmupSetIndex = if (firstExercise.warmupSets.isNotEmpty()) 0 else null,
+            ))
+        }
     }
 
     fun completeWarmupSet() {

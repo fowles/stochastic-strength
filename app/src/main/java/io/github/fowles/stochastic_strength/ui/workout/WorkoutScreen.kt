@@ -89,7 +89,7 @@ fun WorkoutScreen(
     val doneSummary by viewModel.doneSummary.collectAsState()
     val activity = LocalContext.current as android.app.Activity
 
-    BackHandler(enabled = state !is WorkoutState.Done) {
+    BackHandler(enabled = state is WorkoutState.ActiveSet || state is WorkoutState.Resting) {
         activity.moveTaskToBack(true)
     }
 
