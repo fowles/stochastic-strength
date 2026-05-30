@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 data class ExercisesState(
     val exercises: List<Exercise> = emptyList(),
     val selectedFilter: MuscleGroup? = null,
+    val selectedEquipmentFilter: Equipment? = null,
 )
 
 class ExercisesViewModel(application: Application) : AndroidViewModel(application) {
@@ -34,5 +36,9 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun setFilter(muscle: MuscleGroup?) {
         _state.value = _state.value.copy(selectedFilter = muscle)
+    }
+
+    fun setEquipmentFilter(equipment: Equipment?) {
+        _state.value = _state.value.copy(selectedEquipmentFilter = equipment)
     }
 }

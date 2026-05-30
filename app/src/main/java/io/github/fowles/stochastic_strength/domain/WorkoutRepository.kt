@@ -107,7 +107,9 @@ class WorkoutRepository(private val db: AppDatabase) {
             }
         }
 
-        val exercisesByMuscle = exerciseById.values.groupBy { it.primaryMuscle }
+        val exercisesByMuscle = exerciseById.values
+            .filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
+            .groupBy { it.primaryMuscle }
         for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
             val allFeedbacks = muscleExercises.flatMap { exercise ->
                 sets.filter { it.exerciseId == exercise.id }.mapNotNull { it.feedback }

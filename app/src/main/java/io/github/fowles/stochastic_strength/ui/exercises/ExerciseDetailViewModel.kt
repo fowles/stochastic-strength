@@ -54,8 +54,9 @@ class ExerciseDetailViewModel(
     }
 
     private suspend fun loadChartData(exercise: Exercise) {
+        val isBodyweight = (ExerciseCoefficients.byName[exercise.name] ?: 0f) <= 0f
         val primarySets = repository.getAllSetsForExercise(exerciseId)
-        val primaryPoints = primarySets
+        val primaryPoints = if (isBodyweight) emptyList() else primarySets
             .filter { it.completedAt != null }
             .groupBy { it.completedAt!! / 86_400_000L }
             .map { (day, sets) ->
@@ -81,7 +82,7 @@ class ExerciseDetailViewModel(
     ): Pair<List<ChartPoint>, Map<Long, List<ExerciseSetEntry>>> {
         val thisCoeff = ExerciseCoefficients.byName[exercise.name]
             ?: return Pair(emptyList(), emptyMap())
-        if (thisCoeff <= 0f) return Pair(emptyList(), emptyMap())
+        val isBodyweight = thisCoeff <= 0f
 
         val allExercises = repository.observeAllExercises().first()
         val related = allExercises.filter {
@@ -93,7 +94,7 @@ class ExerciseDetailViewModel(
         for (rel in related) {
             val relCoeff = ExerciseCoefficients.byName[rel.name] ?: continue
             if (relCoeff <= 0f) continue
-            val scaleFactor = thisCoeff / relCoeff
+            val scaleFactor = if (isBodyweight) 1f else thisCoeff / relCoeff
             val sets = repository.getAllSetsForExercise(rel.id)
             for (set in sets) {
                 val completedAt = set.completedAt ?: continue

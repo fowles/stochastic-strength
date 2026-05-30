@@ -23,11 +23,13 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -48,10 +50,14 @@ fun ExercisesScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    val grouped = remember(state.exercises, state.selectedFilter) {
+    val grouped = remember(state.exercises, state.selectedFilter, state.selectedEquipmentFilter) {
         state.exercises
             .let { list ->
                 if (state.selectedFilter != null) list.filter { it.primaryMuscle == state.selectedFilter }
+                else list
+            }
+            .let { list ->
+                if (state.selectedEquipmentFilter != null) list.filter { it.equipment == state.selectedEquipmentFilter }
                 else list
             }
             .sortedWith(compareBy({ it.primaryMuscle.ordinal }, { it.name }))
@@ -71,23 +77,44 @@ fun ExercisesScreen(
         },
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                item {
-                    FilterChip(
-                        selected = state.selectedFilter == null,
-                        onClick = { viewModel.setFilter(null) },
-                        label = { Text("All") },
-                    )
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                LazyRow(
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = state.selectedFilter == null,
+                            onClick = { viewModel.setFilter(null) },
+                            label = { Text("All") },
+                        )
+                    }
+                    items(MuscleGroup.entries) { muscle ->
+                        FilterChip(
+                            selected = state.selectedFilter == muscle,
+                            onClick = { viewModel.setFilter(muscle) },
+                            label = { Text(muscle.displayName()) },
+                        )
+                    }
                 }
-                items(MuscleGroup.entries) { muscle ->
-                    FilterChip(
-                        selected = state.selectedFilter == muscle,
-                        onClick = { viewModel.setFilter(muscle) },
-                        label = { Text(muscle.displayName()) },
-                    )
+                LazyRow(
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = state.selectedEquipmentFilter == null,
+                            onClick = { viewModel.setEquipmentFilter(null) },
+                            label = { Text("All") },
+                        )
+                    }
+                    items(Equipment.entries) { equipment ->
+                        FilterChip(
+                            selected = state.selectedEquipmentFilter == equipment,
+                            onClick = { viewModel.setEquipmentFilter(equipment) },
+                            label = { Text(equipment.displayName()) },
+                        )
+                    }
                 }
             }
 
