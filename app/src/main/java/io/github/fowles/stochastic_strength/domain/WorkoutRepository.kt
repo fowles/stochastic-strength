@@ -46,7 +46,7 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun pickAdditional(plan: WorkoutPlan, weightUnit: WeightUnit): PlannedExercise? {
         val inPlan = plan.exercises.map { it.exercise.id }.toSet()
-        val excluded = excludedExerciseIds(plan.locationId)
+        val excluded = excludedExerciseIds(plan.locationId) + plan.sessionRejectedIds
         val candidates = db.exerciseDao().getActive()
             .filter { it.id !in inPlan && it.id !in excluded }
         if (candidates.isEmpty()) return null
@@ -67,7 +67,7 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int, weightUnit: WeightUnit): PlannedExercise? {
         val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
         val inPlan = remaining.map { it.exercise.id }.toSet()
-        val excluded = excludedExerciseIds(plan.locationId)
+        val excluded = excludedExerciseIds(plan.locationId) + plan.sessionRejectedIds
         val candidates = db.exerciseDao().getActive()
             .filter { it.id !in inPlan && it.id !in excluded }
         if (candidates.isEmpty()) return null

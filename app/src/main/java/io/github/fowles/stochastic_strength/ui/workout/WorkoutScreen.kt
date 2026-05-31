@@ -251,7 +251,7 @@ private fun PlanPreviewContent(
             }
         }
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onStart, enabled = plan.exercises.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
             Text("Let's Go")
         }
     }

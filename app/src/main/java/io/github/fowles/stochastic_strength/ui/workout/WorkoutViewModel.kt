@@ -108,10 +108,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 }
                 ExerciseRemovalReason.SKIP_TODAY -> Unit
             }
-            val replacement = repository.pickReplacement(preview.plan, index, _weightUnit.value)
-            val newExercises = preview.plan.exercises.toMutableList()
+            val rejectedId = planned.exercise.id
+            val updatedPlan = preview.plan.copy(sessionRejectedIds = preview.plan.sessionRejectedIds + rejectedId)
+            val replacement = repository.pickReplacement(updatedPlan, index, _weightUnit.value)
+            val newExercises = updatedPlan.exercises.toMutableList()
             if (replacement != null) newExercises[index] = replacement else newExercises.removeAt(index)
-            setState(WorkoutState.PlanPreview(plan = preview.plan.copy(exercises = newExercises)))
+            setState(preview.copy(plan = updatedPlan.copy(exercises = newExercises)))
         }
     }
 
@@ -180,6 +182,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        if (preview.plan.exercises.isEmpty()) return
         val firstExercise = preview.plan.exercises[0]
         viewModelScope.launch {
             sessionStartTime = System.currentTimeMillis()
