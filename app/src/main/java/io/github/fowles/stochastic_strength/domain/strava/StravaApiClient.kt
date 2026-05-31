@@ -1,16 +1,20 @@
 package io.github.fowles.stochastic_strength.domain.strava
 
+import android.net.Uri
+import android.util.Log
+import io.github.fowles.stochastic_strength.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 data class TokenResponse(
     val accessToken: String,
@@ -24,28 +28,44 @@ object StravaApiClient {
     private const val TOKEN_URL = "https://www.strava.com/oauth/token"
     private const val UPLOAD_URL = "https://www.strava.com/api/v3/uploads"
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
 
-    fun buildAuthUrl(clientId: String): String {
-        val url = "$AUTH_BASE?client_id=$clientId" +
-            "&redirect_uri=${android.net.Uri.encode(REDIRECT_URI)}" +
-            "&response_type=code" +
-            "&scope=activity:write" +
-            "&approval_prompt=auto"
-        android.util.Log.d("StravaApiClient", "Auth URL: $url")
-        return url
-    }
+    fun buildAuthUrl(clientId: String): String =
+        Uri.Builder()
+            .scheme("https")
+            .authority("www.strava.com")
+            .appendPath("oauth")
+            .appendPath("authorize")
+            .appendQueryParameter("client_id", clientId)
+            .appendQueryParameter("redirect_uri", REDIRECT_URI)
+            .appendQueryParameter("response_type", "code")
+            .appendQueryParameter("scope", "activity:write")
+            .appendQueryParameter("approval_prompt", "auto")
+            .build()
+            .toString()
 
     suspend fun exchangeCode(clientId: String, clientSecret: String, code: String): TokenResponse =
         withContext(Dispatchers.IO) {
-            val body = "client_id=$clientId&client_secret=$clientSecret&code=$code&grant_type=authorization_code"
-            postForToken(body)
+            postForToken(FormBody.Builder()
+                .add("client_id", clientId)
+                .add("client_secret", clientSecret)
+                .add("code", code)
+                .add("grant_type", "authorization_code")
+                .build())
         }
 
     suspend fun refreshToken(clientId: String, clientSecret: String, refreshToken: String): TokenResponse =
         withContext(Dispatchers.IO) {
-            val body = "client_id=$clientId&client_secret=$clientSecret&refresh_token=$refreshToken&grant_type=refresh_token"
-            postForToken(body)
+            postForToken(FormBody.Builder()
+                .add("client_id", clientId)
+                .add("client_secret", clientSecret)
+                .add("refresh_token", refreshToken)
+                .add("grant_type", "refresh_token")
+                .build())
         }
 
     suspend fun uploadFitFile(accessToken: String, fitFile: File, name: String, description: String): String =
@@ -70,7 +90,7 @@ object StravaApiClient {
 
             val response = client.newCall(request).execute()
             val bodyStr = response.body?.string() ?: throw IOException("Empty upload response")
-            android.util.Log.d("StravaApiClient", "Upload response ${response.code}: $bodyStr")
+            if (BuildConfig.DEBUG) Log.d("StravaApiClient", "Upload response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Upload failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)
@@ -87,7 +107,7 @@ object StravaApiClient {
 
             val response = client.newCall(request).execute()
             val bodyStr = response.body?.string() ?: throw IOException("Empty poll response")
-            android.util.Log.d("StravaApiClient", "Poll response ${response.code}: $bodyStr")
+            if (BuildConfig.DEBUG) Log.d("StravaApiClient", "Poll response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Poll failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)
@@ -103,10 +123,10 @@ object StravaApiClient {
             if (json.isNull("activity_id")) null else json.getLong("activity_id")
         }
 
-    private fun postForToken(formBody: String): TokenResponse {
+    private fun postForToken(body: FormBody): TokenResponse {
         val request = Request.Builder()
             .url(TOKEN_URL)
-            .post(formBody.toRequestBody("application/x-www-form-urlencoded".toMediaType()))
+            .post(body)
             .build()
 
         val response = client.newCall(request).execute()

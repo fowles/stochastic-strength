@@ -20,10 +20,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface StravaExportState {
+    val isBusy: Boolean get() = false
+
     object Idle : StravaExportState
     data class NeedsAuth(val authUrl: String) : StravaExportState
-    object WaitingForAuth : StravaExportState
-    object Exporting : StravaExportState
+    object WaitingForAuth : StravaExportState { override val isBusy = true }
+    object Exporting : StravaExportState { override val isBusy = true }
     data class Success(val activityId: Long) : StravaExportState
     data class Error(val message: String) : StravaExportState
 }
@@ -98,7 +100,7 @@ class SummaryViewModel(
     private fun launchExport() {
         _stravaState.value = StravaExportState.Exporting
         app.applicationScope.launch {
-            val weightUnit = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+            val weightUnit = summary.value?.weightUnit ?: WeightUnit.KG
             runCatching { app.stravaExporter.exportSession(sessionId, weightUnit) }
                 .onSuccess { activityId ->
                     _stravaState.value = StravaExportState.Success(activityId)

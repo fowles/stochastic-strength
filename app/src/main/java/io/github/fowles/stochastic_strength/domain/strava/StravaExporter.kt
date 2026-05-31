@@ -13,9 +13,9 @@ import androidx.core.app.NotificationCompat
 import io.github.fowles.stochastic_strength.BuildConfig
 import io.github.fowles.stochastic_strength.R
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import kotlinx.coroutines.delay
 import java.io.File
@@ -83,18 +83,15 @@ class StravaExporter(
         val nameById = exerciseById.mapValues { (_, ex) -> ex.name }
 
         val fitFile = fitBuilder.build(session, sets, nameById)
-        context.getExternalFilesDir(null)?.let { dir ->
-            fitFile.copyTo(File(dir, fitFile.name), overwrite = true)
-        }
         try {
             val durationMs = (session.endTime ?: session.startTime) - session.startTime
-            val name = buildWorkoutName(exerciseIds.mapNotNull { exerciseById[it]?.primaryMuscle })
+            val name = buildWorkoutName()
             val description = buildDescription(sets, nameById, durationMs, weightUnit)
             val uploadId = StravaApiClient.uploadFitFile(accessToken, fitFile, name, description)
             repeat(20) {
-                delay(1500)
                 val activityId = StravaApiClient.pollUpload(accessToken, uploadId)
                 if (activityId != null) return activityId
+                delay(1500)
             }
             throw IOException("Timed out waiting for Strava to process the upload")
         } finally {
@@ -103,9 +100,7 @@ class StravaExporter(
     }
 
     private suspend fun ensureValidToken(): String {
-        if (tokenStore.hasValidAccessToken()) {
-            return tokenStore.getAccessToken()!!
-        }
+        tokenStore.getValidAccessToken()?.let { return it }
         val refreshToken = tokenStore.getRefreshToken()
             ?: throw IOException("Not authenticated with Strava")
         val tokens = StravaApiClient.refreshToken(
@@ -117,40 +112,25 @@ class StravaExporter(
         return tokens.accessToken
     }
 
-    private fun buildWorkoutName(@Suppress("UNUSED_PARAMETER") primaryMuscles: List<MuscleGroup>): String {
-        val adjectives = listOf(
-            "Stochastic", "Capricious", "Serendipitous", "Haphazard", "Aleatory",
-            "Mercurial", "Erratic", "Fortuitous", "Whimsical", "Impromptu",
-            "Spontaneous", "Arbitrary", "Incidental", "Unpredictable", "Chaotic",
-        )
-        val strengths = listOf(
-            "Power", "Might", "Brawn", "Vigor", "Grit", "Strength",
-            "Mettle", "Fortitude", "Prowess", "Sinew", "Tenacity",
-        )
-        val workouts = listOf(
-            "Gauntlet", "Odyssey", "Quest", "Ritual", "Grind", "Workout",
-            "Endeavor", "Foray", "Sortie", "Romp", "Reckoning", "Session"
-        )
-        return "${adjectives.random()} ${strengths.random()} ${workouts.random()}"
-    }
+    private fun buildWorkoutName(): String =
+        "${ADJECTIVES.random()} ${STRENGTHS.random()} ${WORKOUT_NOUNS.random()}"
 
     private fun buildDescription(
-        sets: List<io.github.fowles.stochastic_strength.data.model.WorkoutSet>,
+        sets: List<WorkoutSet>,
         nameById: Map<Long, String>,
         durationMs: Long,
         weightUnit: WeightUnit,
     ): String {
-        val exerciseIds = sets.map { it.exerciseId }.distinct()
+        val setsByExercise = sets.groupBy { it.exerciseId }
         val sb = StringBuilder()
 
-        for (id in exerciseIds) {
+        for (id in nameById.keys) {
+            val exerciseSets = setsByExercise[id] ?: continue
+            val first = exerciseSets.first()
             val name = nameById[id] ?: "Unknown"
-            val exerciseSets = sets.filter { it.exerciseId == id }
-            val reps = exerciseSets.firstOrNull()?.targetReps ?: 0
-            val weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f
-            val weightStr = WeightFormatter.format(weight, weightUnit)
+            val weightStr = WeightFormatter.format(first.targetWeight, weightUnit)
 
-            sb.append("$name — ${exerciseSets.size} sets × $reps @ $weightStr\n")
+            sb.append("$name — ${exerciseSets.size} sets × ${first.targetReps} @ $weightStr\n")
             sb.append("  ")
             sb.append(exerciseSets.joinToString(" ") { feedbackEmoji(it.feedback) })
             sb.append("\n\n")
@@ -177,5 +157,19 @@ class StravaExporter(
     companion object {
         private const val CHANNEL_ID = "strava_export"
         private const val NOTIFICATION_ID = 1002
+
+        private val ADJECTIVES = listOf(
+            "Stochastic", "Capricious", "Serendipitous", "Haphazard", "Aleatory",
+            "Mercurial", "Erratic", "Fortuitous", "Whimsical", "Impromptu",
+            "Spontaneous", "Arbitrary", "Incidental", "Unpredictable", "Chaotic",
+        )
+        private val STRENGTHS = listOf(
+            "Power", "Might", "Brawn", "Vigor", "Grit", "Strength",
+            "Mettle", "Fortitude", "Prowess", "Sinew", "Tenacity",
+        )
+        private val WORKOUT_NOUNS = listOf(
+            "Gauntlet", "Odyssey", "Quest", "Ritual", "Grind", "Workout",
+            "Endeavor", "Foray", "Sortie", "Romp", "Reckoning", "Session",
+        )
     }
 }

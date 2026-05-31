@@ -206,7 +206,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Sumo Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.SUMO_DEADLIFT
         "Stiff-Leg Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.BARBELL_STRAIGHT_LEG_DEADLIFT
         // BACK — Row
-        "Barbell Row" -> ExerciseCategory.ROW to RowExerciseName.BARBELL_ROW
+        "Barbell Row" -> ExerciseCategory.ROW to RowExerciseName.REVERSE_GRIP_BARBELL_ROW
         "T-Bar Row" -> ExerciseCategory.ROW to RowExerciseName.T_BAR_ROW
         "Dumbbell Row" -> ExerciseCategory.ROW to RowExerciseName.DUMBBELL_ROW
         "Chest-Supported Dumbbell Row" -> ExerciseCategory.ROW to RowExerciseName.CHEST_SUPPORTED_DUMBBELL_ROW

@@ -63,8 +63,7 @@ fun SummaryScreen(
         }
     }
 
-    val exportBusy = stravaState is StravaExportState.Exporting ||
-        stravaState is StravaExportState.WaitingForAuth
+    val exportBusy = stravaState.isBusy
 
     Scaffold { paddingValues ->
         WorkoutSummaryContent(

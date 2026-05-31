@@ -25,10 +25,10 @@ class StravaTokenStore(context: Context) {
     fun getAccessToken(): String? = prefs.getString(KEY_ACCESS, null)
     fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH, null)
 
-    fun hasValidAccessToken(): Boolean {
-        val token = getAccessToken() ?: return false
+    fun getValidAccessToken(): String? {
+        val token = prefs.getString(KEY_ACCESS, null)?.takeIf { it.isNotEmpty() } ?: return null
         val expiresAt = prefs.getLong(KEY_EXPIRES_AT, 0L)
-        return token.isNotEmpty() && expiresAt > System.currentTimeMillis() / 1000 + 60
+        return if (expiresAt > System.currentTimeMillis() / 1000 + 60) token else null
     }
 
     fun isAuthenticated(): Boolean = !getRefreshToken().isNullOrEmpty()
