@@ -50,6 +50,12 @@ fun LocationEditScreen(
     val state by viewModel.state.collectAsState()
     var collapsedSections by remember { mutableStateOf(emptySet<Equipment>()) }
 
+    LaunchedEffect(state.exercisesByEquipment) {
+        if (state.exercisesByEquipment.isNotEmpty() && collapsedSections.isEmpty()) {
+            collapsedSections = state.exercisesByEquipment.keys.toSet()
+        }
+    }
+
     LaunchedEffect(state.navigateBack) {
         if (state.navigateBack) onBack()
     }
