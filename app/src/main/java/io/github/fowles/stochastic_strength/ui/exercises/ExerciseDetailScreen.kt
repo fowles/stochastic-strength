@@ -64,6 +64,7 @@ import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
@@ -189,8 +190,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     SelectedDayDetail(
                         day = day,
-                        exerciseName = exercise.name,
-                        isTimed = exercise.isTimed,
+                        exercise = exercise,
                         primarySets = state.allSets.filter {
                             it.completedAt != null && it.completedAt / 86_400_000L == day
                         },
@@ -362,8 +362,7 @@ private fun rememberSelectionMarker(): DefaultCartesianMarker {
 @Composable
 private fun SelectedDayDetail(
     day: Long,
-    exerciseName: String,
-    isTimed: Boolean,
+    exercise: Exercise,
     primarySets: List<WorkoutSet>,
     shadowSets: List<ExerciseSetEntry>,
     weightUnit: WeightUnit,
@@ -377,7 +376,7 @@ private fun SelectedDayDetail(
             modifier = Modifier.padding(bottom = 4.dp),
         )
         if (primarySets.isNotEmpty()) {
-            ExerciseSetSection(exerciseName, primarySets.map { it.toSummarySet(isTimed) }, weightUnit)
+            ExerciseSetSection(exercise.name, primarySets.map { it.toSummarySet(exercise.isTimed) }, weightUnit)
         }
         shadowSets.groupBy { it.exerciseName }.forEach { (name, entries) ->
             ExerciseSetSection(name, entries.map { it.set.toSummarySet(it.isTimed) }, weightUnit)

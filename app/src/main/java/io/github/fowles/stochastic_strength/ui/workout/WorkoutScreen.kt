@@ -66,6 +66,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
@@ -388,8 +389,7 @@ private fun WarmupSetContent(
     val exercise = state.plannedExercise.exercise
     val totalWarmups = state.plannedExercise.warmupSets.size
     ExerciseSetLayout(
-        exerciseName = exercise.name,
-        equipment = exercise.equipment,
+        exercise = exercise,
         progressLabel = "Warm-up ${state.warmupSetIndex!! + 1} of $totalWarmups",
         progressColor = MaterialTheme.colorScheme.secondary,
         weight = warmupSet.weight,
@@ -414,8 +414,7 @@ private fun ActiveSetContent(
         TimedSetContent(state = state, onStartTimedSet = onStartTimedSet, onFeedback = onFeedback)
     } else {
         ExerciseSetLayout(
-            exerciseName = exercise.name,
-            equipment = exercise.equipment,
+            exercise = exercise,
             progressLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
             progressColor = MaterialTheme.colorScheme.primary,
             weight = state.plannedExercise.sessionWeight,
@@ -522,8 +521,7 @@ private fun TimedSetContent(
 
 @Composable
 private fun ExerciseSetLayout(
-    exerciseName: String,
-    equipment: Equipment,
+    exercise: Exercise,
     progressLabel: String,
     progressColor: Color,
     weight: Float,
@@ -537,7 +535,7 @@ private fun ExerciseSetLayout(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(exerciseName, style = MaterialTheme.typography.headlineMedium)
+        Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
         Text(progressLabel, style = MaterialTheme.typography.titleLarge, color = progressColor)
 
         Spacer(Modifier.weight(1f))
@@ -546,7 +544,7 @@ private fun ExerciseSetLayout(
         when {
             weight > 0f -> {
                 Text(WeightFormatter.format(weight, weightUnit), style = MaterialTheme.typography.displaySmall)
-                if (equipment == Equipment.BARBELL) {
+                if (exercise.equipment == Equipment.BARBELL) {
                     WeightFormatter.platesPerSide(weight, weightUnit)?.let {
                         Text(
                             it,
@@ -557,7 +555,7 @@ private fun ExerciseSetLayout(
                     }
                 }
             }
-            equipment == Equipment.BODYWEIGHT -> Text(
+            exercise.equipment == Equipment.BODYWEIGHT -> Text(
                 "Bodyweight",
                 style = MaterialTheme.typography.displaySmall,
             )
@@ -567,7 +565,7 @@ private fun ExerciseSetLayout(
 
         bottomContent()
         Spacer(Modifier.height(16.dp))
-        YoutubeFormCard(exerciseName = exerciseName)
+        YoutubeFormCard(exerciseName = exercise.name)
         Spacer(Modifier.height(16.dp))
     }
 }
