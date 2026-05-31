@@ -178,8 +178,10 @@ class FitFileBuilder(private val cacheDir: File) {
             msg.duration = set.targetReps * 3f
             msg.repetitions = set.targetReps
         }
-        msg.weight = set.targetWeight
-        msg.weightDisplayUnit = FitBaseUnit.KILOGRAM
+        if (set.targetWeight > 0f) {
+            msg.weight = set.targetWeight
+            msg.weightDisplayUnit = FitBaseUnit.KILOGRAM
+        }
         msg.timestamp = FitDateTime(Date(set.completedAt ?: fallbackMs))
 
         val (category, subtype) = exerciseNameToFitCategory(exerciseName)

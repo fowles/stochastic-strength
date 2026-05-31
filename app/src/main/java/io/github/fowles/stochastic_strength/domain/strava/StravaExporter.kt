@@ -128,9 +128,12 @@ class StravaExporter(
             val exerciseSets = setsByExercise[id] ?: continue
             val first = exerciseSets.first()
             val name = nameById[id] ?: "Unknown"
-            val weightStr = WeightFormatter.format(first.targetWeight, weightUnit)
+            val weightSuffix = if (first.targetWeight > 0f)
+                " @ ${WeightFormatter.format(first.targetWeight, weightUnit)}"
+            else
+                ""
 
-            sb.append("$name — ${exerciseSets.size} sets × ${first.targetReps} @ $weightStr\n")
+            sb.append("$name — ${exerciseSets.size} sets × ${first.targetReps}$weightSuffix\n")
             sb.append("  ")
             sb.append(exerciseSets.joinToString(" ") { feedbackEmoji(it.feedback) })
             sb.append("\n\n")
