@@ -120,5 +120,7 @@ object ExerciseLibrary {
         Exercise(name = "Cable Crunch", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE),
         Exercise(name = "Pallof Press", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE, isUnilateral = true),
         Exercise(name = "Turkish Get-Up", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = listOf(MuscleGroup.SHOULDERS), equipment = Equipment.KETTLEBELL, isUnilateral = true),
+        Exercise(name = "Farmer's Carry", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = listOf(MuscleGroup.BACK, MuscleGroup.SHOULDERS), equipment = Equipment.KETTLEBELL),
+        Exercise(name = "Suitcase Carry", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = listOf(MuscleGroup.BACK, MuscleGroup.SHOULDERS), equipment = Equipment.KETTLEBELL, isUnilateral = true),
     )
 }

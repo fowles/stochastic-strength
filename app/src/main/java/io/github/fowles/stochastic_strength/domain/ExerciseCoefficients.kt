@@ -89,5 +89,7 @@ object ExerciseCoefficients {
         "Cable Crunch"                 to 1.00f,
         "Pallof Press"                 to 0.25f,
         "Turkish Get-Up"               to 0.25f,
+        "Farmer's Carry"               to 0.35f,  // per kettlebell
+        "Suitcase Carry"               to 0.35f,
     )
 }

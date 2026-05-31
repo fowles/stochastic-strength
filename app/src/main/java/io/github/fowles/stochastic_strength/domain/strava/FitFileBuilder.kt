@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.domain.strava
 import com.garmin.fit.Activity
 import com.garmin.fit.ActivityMesg
 import com.garmin.fit.BandedExercisesExerciseName
+import com.garmin.fit.CarryExerciseName
 import com.garmin.fit.BenchPressExerciseName
 import com.garmin.fit.CalfRaiseExerciseName
 import com.garmin.fit.CoreExerciseName
@@ -316,6 +317,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Ab Wheel Rollout" -> ExerciseCategory.CORE to CoreExerciseName.KNEELING_AB_WHEEL
         "Pallof Press" -> ExerciseCategory.CORE to CoreExerciseName.CABLE_CORE_PRESS
         "Turkish Get-Up" -> ExerciseCategory.CORE to CoreExerciseName.TURKISH_GET_UP
+        "Farmer's Carry" -> ExerciseCategory.CARRY to CarryExerciseName.FARMERS_CARRY
         else -> ExerciseCategory.UNKNOWN to 65534
     }
 }
