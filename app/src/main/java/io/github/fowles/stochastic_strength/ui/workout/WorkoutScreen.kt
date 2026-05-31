@@ -69,6 +69,7 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
@@ -320,7 +321,7 @@ private fun ExercisePreviewRow(
                     else -> null
                 }
                 val detail = buildString {
-                    val repsLabel = if (planned.exercise.isTimed) "${planned.sessionReps}s" else "${planned.sessionReps} reps"
+                    val repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed)
                     append("${PlannedExercise.DEFAULT_SETS} sets × $repsLabel")
                     if (weightLabel != null) append(" · $weightLabel")
                 }

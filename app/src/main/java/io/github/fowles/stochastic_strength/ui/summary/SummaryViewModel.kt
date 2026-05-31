@@ -11,6 +11,7 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.toSummarySet
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,17 +43,18 @@ class SummaryViewModel(
         val session = app.database.workoutSessionDao().getById(sessionId)
         val sets = app.database.workoutSetDao().getSetsForSession(sessionId)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
-        val nameById = exerciseIds
-            .mapNotNull { id -> app.database.exerciseDao().getById(id)?.let { id to it.name } }
+        val exerciseById = exerciseIds
+            .mapNotNull { id -> app.database.exerciseDao().getById(id)?.let { id to it } }
             .toMap()
+        val setsByExercise = sets.groupBy { it.exerciseId }
 
         val exercises = exerciseIds.map { id ->
-            val exerciseSets = sets.filter { it.exerciseId == id }
+            val exercise = exerciseById[id]
             SummaryExercise(
-                name = nameById[id] ?: "Unknown",
+                name = exercise?.name ?: "Unknown",
                 exerciseId = id,
-                feedback = exerciseSets.map { it.feedback },
-                weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f,
+                sets = (setsByExercise[id] ?: emptyList()).sortedBy { it.setNumber }
+                    .map { it.toSummarySet(exercise?.isTimed ?: false) },
             )
         }
 

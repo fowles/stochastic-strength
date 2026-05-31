@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 
 data class ChartPoint(val dateMs: Long, val weightKg: Float)
 
-data class ExerciseSetEntry(val exerciseName: String, val set: WorkoutSet)
+data class ExerciseSetEntry(val exerciseName: String, val set: WorkoutSet, val isTimed: Boolean = false)
 
 data class ExerciseDetailState(
     val exercise: Exercise? = null,
@@ -100,7 +100,7 @@ class ExerciseDetailViewModel(
                 val completedAt = set.completedAt ?: continue
                 val dayKey = completedAt / 86_400_000L
                 dayToWeights.getOrPut(dayKey) { mutableListOf() }.add(set.targetWeight * scaleFactor)
-                dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, set))
+                dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, set, rel.isTimed))
             }
         }
 

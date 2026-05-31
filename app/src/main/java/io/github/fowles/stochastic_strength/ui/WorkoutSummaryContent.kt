@@ -3,7 +3,6 @@ package io.github.fowles.stochastic_strength.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,10 +15,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import io.github.fowles.stochastic_strength.domain.WeightFormatter
 
 @Composable
 fun WorkoutSummaryContent(
@@ -56,26 +53,7 @@ fun WorkoutSummaryContent(
                             else Modifier
                         ),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(ex.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        if (ex.weight > 0f) {
-                            Text(
-                                WeightFormatter.format(ex.weight, summary.weightUnit),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                    ex.feedback.forEachIndexed { i, fb ->
-                        Text(
-                            "  Set ${i + 1}: ${fb?.displayLabel ?: "—"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    ExerciseSetSection(ex.name, ex.sets, summary.weightUnit)
                     Spacer(Modifier.height(4.dp))
                 }
                 HorizontalDivider()

@@ -5,6 +5,9 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 object WeightFormatter {
+    fun formatQuantity(reps: Int, isTimed: Boolean): String =
+        if (isTimed) "${reps}s" else "$reps reps"
+
     fun format(kg: Float, unit: WeightUnit): String {
         return if (unit == WeightUnit.KG) {
             "%.1f kg".format(kg)

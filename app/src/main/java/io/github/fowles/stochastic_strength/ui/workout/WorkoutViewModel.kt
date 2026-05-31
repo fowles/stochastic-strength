@@ -13,6 +13,7 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -22,6 +23,7 @@ import io.github.fowles.stochastic_strength.location.LocationService
 import io.github.fowles.stochastic_strength.notification.WorkoutNotificationService
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.toSummarySet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -387,13 +389,17 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val weightUnit = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
         val sets = app.database.workoutSetDao().getSetsForSession(sessionId)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
+        val exerciseById = exerciseIds
+            .mapNotNull { id -> app.database.exerciseDao().getById(id)?.let { id to it } }
+            .toMap()
+        val setsByExercise = sets.groupBy { it.exerciseId }
         val exercises = exerciseIds.map { id ->
-            val exerciseSets = sets.filter { it.exerciseId == id }
+            val exercise = exerciseById[id]
             SummaryExercise(
-                name = app.database.exerciseDao().getById(id)?.name ?: "Unknown",
+                name = exercise?.name ?: "Unknown",
                 exerciseId = id,
-                weight = exerciseSets.firstOrNull()?.targetWeight ?: 0f,
-                feedback = exerciseSets.map { it.feedback },
+                sets = (setsByExercise[id] ?: emptyList()).sortedBy { it.setNumber }
+                    .map { it.toSummarySet(exercise?.isTimed ?: false) },
             )
         }
         return WorkoutSummaryData(
@@ -457,8 +463,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                         "Bodyweight"
                     else
                         WeightFormatter.format(planned.sessionWeight, _weightUnit.value),
-                    repsLabel = if (planned.exercise.isTimed) "${planned.sessionReps}s"
-                                else "${planned.sessionReps} reps",
+                    repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed),
                     setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
                 )
             }

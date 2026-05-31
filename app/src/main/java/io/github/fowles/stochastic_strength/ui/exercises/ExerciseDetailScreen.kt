@@ -64,7 +64,6 @@ import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
-import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
@@ -73,6 +72,8 @@ import java.util.Date
 import java.util.Locale
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.ui.ExerciseSetSection
+import io.github.fowles.stochastic_strength.ui.toSummarySet
 import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -189,6 +190,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     SelectedDayDetail(
                         day = day,
                         exerciseName = exercise.name,
+                        isTimed = exercise.isTimed,
                         primarySets = state.allSets.filter {
                             it.completedAt != null && it.completedAt / 86_400_000L == day
                         },
@@ -361,6 +363,7 @@ private fun rememberSelectionMarker(): DefaultCartesianMarker {
 private fun SelectedDayDetail(
     day: Long,
     exerciseName: String,
+    isTimed: Boolean,
     primarySets: List<WorkoutSet>,
     shadowSets: List<ExerciseSetEntry>,
     weightUnit: WeightUnit,
@@ -374,42 +377,11 @@ private fun SelectedDayDetail(
             modifier = Modifier.padding(bottom = 4.dp),
         )
         if (primarySets.isNotEmpty()) {
-            ExerciseSetSection(exerciseName, primarySets, weightUnit)
+            ExerciseSetSection(exerciseName, primarySets.map { it.toSummarySet(isTimed) }, weightUnit)
         }
         shadowSets.groupBy { it.exerciseName }.forEach { (name, entries) ->
-            ExerciseSetSection(name, entries.map { it.set }, weightUnit)
+            ExerciseSetSection(name, entries.map { it.set.toSummarySet(it.isTimed) }, weightUnit)
         }
     }
 }
 
-@Composable
-private fun ExerciseSetSection(
-    exerciseName: String,
-    sets: List<WorkoutSet>,
-    weightUnit: WeightUnit,
-) {
-    Text(
-        text = exerciseName,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
-    )
-    sets.sortedBy { it.setNumber }.forEach { set ->
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "Set ${set.setNumber}: ${WeightFormatter.format(set.targetWeight, weightUnit)} × ${set.targetReps}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            set.feedback?.let { feedback ->
-                Text(
-                    text = feedback.displayLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}

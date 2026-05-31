@@ -13,10 +13,12 @@ import androidx.core.app.NotificationCompat
 import io.github.fowles.stochastic_strength.BuildConfig
 import io.github.fowles.stochastic_strength.R
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import kotlinx.coroutines.delay
 import java.io.File
 import java.io.IOException
@@ -86,7 +88,7 @@ class StravaExporter(
         try {
             val durationMs = (session.endTime ?: session.startTime) - session.startTime
             val name = buildWorkoutName()
-            val description = buildDescription(sets, nameById, durationMs, weightUnit)
+            val description = buildDescription(sets, exerciseById, durationMs, weightUnit)
             val uploadId = StravaApiClient.uploadFitFile(accessToken, fitFile, name, description)
             repeat(20) {
                 val activityId = StravaApiClient.pollUpload(accessToken, uploadId)
@@ -117,23 +119,20 @@ class StravaExporter(
 
     private fun buildDescription(
         sets: List<WorkoutSet>,
-        nameById: Map<Long, String>,
+        exerciseById: Map<Long, Exercise>,
         durationMs: Long,
         weightUnit: WeightUnit,
     ): String {
         val setsByExercise = sets.groupBy { it.exerciseId }
         val sb = StringBuilder()
 
-        for (id in nameById.keys) {
+        for ((id, exercise) in exerciseById) {
             val exerciseSets = setsByExercise[id] ?: continue
             val first = exerciseSets.first()
-            val name = nameById[id] ?: "Unknown"
             val weightSuffix = if (first.targetWeight > 0f)
                 " @ ${WeightFormatter.format(first.targetWeight, weightUnit)}"
-            else
-                ""
-
-            sb.append("$name — ${exerciseSets.size} sets × ${first.targetReps}$weightSuffix\n")
+            else ""
+            sb.append("${exercise.name} — ${exerciseSets.size} sets × ${formatQuantity(first.targetReps, exercise.isTimed)}$weightSuffix\n")
             sb.append("  ")
             sb.append(exerciseSets.joinToString(" ") { feedbackEmoji(it.feedback) })
             sb.append("\n\n")
