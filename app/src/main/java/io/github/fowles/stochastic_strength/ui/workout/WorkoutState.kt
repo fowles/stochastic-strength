@@ -14,6 +14,7 @@ sealed interface WorkoutState {
         val setIndex: Int,
         val sessionId: Long,
         val warmupSetIndex: Int? = null,
+        val timerSecondsRemaining: Int? = null,
     ) : WorkoutState {
         val plannedExercise: PlannedExercise get() = plan.exercises[exerciseIndex]
         val totalSets: Int get() = PlannedExercise.DEFAULT_SETS

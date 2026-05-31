@@ -33,7 +33,7 @@ import kotlinx.coroutines.CoroutineScope
         UserProfile::class,
         MuscleGroupStrength::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -51,6 +51,14 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("UPDATE exercises SET equipment = 'BARBELL' WHERE name = 'Stiff-Leg Deadlift'")
                 db.execSQL("UPDATE exercises SET isUnilateral = 1 WHERE name IN ('Lunge', 'Pallof Press', 'Kettlebell Clean and Press')")
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE exercises ADD COLUMN isTimed INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE exercises SET isTimed = 1 WHERE name IN ('Plank', 'Mountain Climber')")
+                db.execSQL("ALTER TABLE workout_sets ADD COLUMN durationSeconds INTEGER")
             }
         }
 
@@ -72,7 +80,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

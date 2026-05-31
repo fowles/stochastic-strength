@@ -13,4 +13,5 @@ data class Exercise(
     val isDisliked: Boolean = false,
     val hurtFlag: Boolean = false,
     val isUnilateral: Boolean = false,
+    val isTimed: Boolean = false,
 )

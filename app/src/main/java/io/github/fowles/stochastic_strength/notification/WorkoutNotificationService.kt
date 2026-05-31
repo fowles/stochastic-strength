@@ -110,7 +110,7 @@ class WorkoutNotificationService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("${state.exerciseName} · ${state.setLabel}")
-            .setContentText("${state.reps} reps · ${state.weightLabel}")
+            .setContentText("${state.repsLabel} · ${state.weightLabel}")
             .setOngoing(true)
             .setContentIntent(tapIntent())
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)

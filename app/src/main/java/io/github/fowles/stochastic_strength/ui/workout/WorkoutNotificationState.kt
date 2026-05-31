@@ -9,7 +9,7 @@ sealed interface WorkoutNotificationState {
     data class ActiveSet(
         val exerciseName: String,
         val weightLabel: String,
-        val reps: Int,
+        val repsLabel: String,
         val setLabel: String,
     ) : WorkoutNotificationState
 

@@ -34,12 +34,11 @@ class WorkoutRepository(private val db: AppDatabase) {
         val planned = WorkoutGenerator.generate(
             WorkoutGenerator.Input(exercises = exercises)
         ).map { pe ->
-            val weight = deriveWeight(pe.exercise, strengths, sessionReps, weightUnit)
-            pe.copy(
-                sessionWeight = weight,
-                sessionReps = sessionReps,
-                warmupSets = computeWarmupSets(weight, weightUnit),
-            )
+            if (pe.exercise.isTimed) pe.copy(sessionWeight = 0f, sessionReps = 60, warmupSets = emptyList())
+            else {
+                val weight = deriveWeight(pe.exercise, strengths, sessionReps, weightUnit)
+                pe.copy(sessionWeight = weight, sessionReps = sessionReps, warmupSets = computeWarmupSets(weight, weightUnit))
+            }
         }
 
         return WorkoutPlan(exercises = planned, locationId = locationId, sessionReps = sessionReps)
@@ -56,6 +55,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             currentExercises = plan.exercises,
         ) ?: return null
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        if (picked.exercise.isTimed) return picked.copy(sessionWeight = 0f, sessionReps = 60, warmupSets = emptyList())
         val weight = deriveWeight(picked.exercise, strengths, plan.sessionReps, weightUnit)
         return picked.copy(
             sessionWeight = weight,
@@ -78,6 +78,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         ) ?: return null
 
         val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        if (replacement.exercise.isTimed) return replacement.copy(sessionWeight = 0f, sessionReps = 60, warmupSets = emptyList())
         val weight = deriveWeight(replacement.exercise, strengths, plan.sessionReps, weightUnit)
         return replacement.copy(
             sessionWeight = weight,

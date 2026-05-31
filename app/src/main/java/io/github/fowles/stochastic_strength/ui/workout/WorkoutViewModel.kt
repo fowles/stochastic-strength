@@ -51,6 +51,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val doneSummary: StateFlow<WorkoutSummaryData?> = _doneSummary.asStateFlow()
 
     private var restTimerJob: Job? = null
+    private var timedSetTimerJob: Job? = null
     private var addExerciseJob: Job? = null
     private var sessionStartTime = 0L
     private var preferredExerciseCount: Int? = null
@@ -66,6 +67,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     is WorkoutCommand.RecordFeedback -> recordFeedback(command.feedback)
                     WorkoutCommand.SkipRest -> skipRest()
                     WorkoutCommand.CompleteWarmupSet -> completeWarmupSet()
+                    WorkoutCommand.StartTimedSet -> startTimedSet()
                 }
             }
         }
@@ -203,7 +205,27 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         ))
     }
 
+    fun startTimedSet() {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        if (current.timerSecondsRemaining != null) return
+        setState(current.copy(timerSecondsRemaining = TIMED_SET_SECONDS))
+        timedSetTimerJob?.cancel()
+        timedSetTimerJob = viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                val s = _state.value as? WorkoutState.ActiveSet ?: return@launch
+                val remaining = s.timerSecondsRemaining ?: return@launch
+                if (remaining <= 1) {
+                    recordFeedback(SetFeedback.RIR_0_1)
+                    return@launch
+                }
+                setState(s.copy(timerSecondsRemaining = remaining - 1))
+            }
+        }
+    }
+
     fun recordFeedback(feedback: SetFeedback) {
+        timedSetTimerJob?.cancel()
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         viewModelScope.launch {
             val planned = current.plannedExercise
@@ -216,6 +238,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     targetReps = planned.sessionReps,
                     feedback = feedback,
                     completedAt = System.currentTimeMillis(),
+                    durationSeconds = if (planned.exercise.isTimed) TIMED_SET_SECONDS else null,
                 )
             )
         }
@@ -431,7 +454,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                         "Bodyweight"
                     else
                         WeightFormatter.format(planned.sessionWeight, _weightUnit.value),
-                    reps = planned.sessionReps,
+                    repsLabel = if (planned.exercise.isTimed) "${planned.sessionReps}s"
+                                else "${planned.sessionReps} reps",
                     setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
                 )
             }
@@ -458,11 +482,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     override fun onCleared() {
         super.onCleared()
         restTimerJob?.cancel()
+        timedSetTimerJob?.cancel()
         addExerciseJob?.cancel()
         app.workoutNotificationState.value = null
     }
 
     companion object {
         const val REST_SECONDS = 90
+        const val TIMED_SET_SECONDS = 60
     }
 }

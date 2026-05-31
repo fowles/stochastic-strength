@@ -170,8 +170,13 @@ class FitFileBuilder(private val cacheDir: File) {
         val msg = SetMesg()
         msg.messageIndex = index
         msg.setType = SetType.ACTIVE
-        msg.duration = set.targetReps * 3f
-        msg.repetitions = set.targetReps
+        if (set.durationSeconds != null) {
+            msg.duration = set.durationSeconds.toFloat()
+            msg.repetitions = 0
+        } else {
+            msg.duration = set.targetReps * 3f
+            msg.repetitions = set.targetReps
+        }
         msg.weight = set.targetWeight
         msg.weightDisplayUnit = FitBaseUnit.KILOGRAM
         msg.timestamp = FitDateTime(Date(set.completedAt ?: fallbackMs))

@@ -145,6 +145,7 @@ fun WorkoutScreen(
                         state = s,
                         weightUnit = weightUnit,
                         onFeedback = viewModel::recordFeedback,
+                        onStartTimedSet = viewModel::startTimedSet,
                     )
                 }
                 is WorkoutState.Resting -> RestingContent(
@@ -319,7 +320,8 @@ private fun ExercisePreviewRow(
                     else -> null
                 }
                 val detail = buildString {
-                    append("${PlannedExercise.DEFAULT_SETS} sets × ${planned.sessionReps} reps")
+                    val repsLabel = if (planned.exercise.isTimed) "${planned.sessionReps}s" else "${planned.sessionReps} reps"
+                    append("${PlannedExercise.DEFAULT_SETS} sets × $repsLabel")
                     if (weightLabel != null) append(" · $weightLabel")
                 }
                 Text(
@@ -404,20 +406,116 @@ private fun ActiveSetContent(
     state: WorkoutState.ActiveSet,
     weightUnit: WeightUnit,
     onFeedback: (SetFeedback) -> Unit,
+    onStartTimedSet: () -> Unit,
 ) {
     val exercise = state.plannedExercise.exercise
-    ExerciseSetLayout(
-        exerciseName = exercise.name,
-        equipment = exercise.equipment,
-        progressLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
-        progressColor = MaterialTheme.colorScheme.primary,
-        weight = state.plannedExercise.sessionWeight,
-        reps = state.plannedExercise.sessionReps,
-        weightUnit = weightUnit,
+    if (exercise.isTimed) {
+        TimedSetContent(state = state, onStartTimedSet = onStartTimedSet, onFeedback = onFeedback)
+    } else {
+        ExerciseSetLayout(
+            exerciseName = exercise.name,
+            equipment = exercise.equipment,
+            progressLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
+            progressColor = MaterialTheme.colorScheme.primary,
+            weight = state.plannedExercise.sessionWeight,
+            reps = state.plannedExercise.sessionReps,
+            weightUnit = weightUnit,
+        ) {
+            Text("How did that feel?", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(12.dp))
+            FeedbackButtons(onFeedback = onFeedback)
+        }
+    }
+}
+
+@Composable
+private fun TimedSetContent(
+    state: WorkoutState.ActiveSet,
+    onStartTimedSet: () -> Unit,
+    onFeedback: (SetFeedback) -> Unit,
+) {
+    val exercise = state.plannedExercise.exercise
+    val secondsRemaining = state.timerSecondsRemaining
+    val started = secondsRemaining != null
+
+    val targetProgress = if (started) secondsRemaining!! / WorkoutViewModel.TIMED_SET_SECONDS.toFloat() else 1f
+    val animatedProgress = remember { Animatable(1f) }
+    LaunchedEffect(secondsRemaining) {
+        animatedProgress.animateTo(
+            targetValue = targetProgress,
+            animationSpec = tween(durationMillis = 1000, easing = LinearEasing),
+        )
+    }
+
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val arcColor = if (started) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .then(if (!started) Modifier.clickable { onStartTimedSet() } else Modifier),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Text("How did that feel?", style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(12.dp))
-        FeedbackButtons(onFeedback = onFeedback)
+        Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Set ${state.setIndex + 1} of ${state.totalSets}",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(24.dp))
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(180.dp)) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 12.dp.toPx()
+                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
+                drawArc(
+                    color = trackColor,
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    topLeft = topLeft,
+                    size = arcSize,
+                )
+                drawArc(
+                    color = arcColor,
+                    startAngle = -90f + (1f - animatedProgress.value) * 360f,
+                    sweepAngle = animatedProgress.value * 360f,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    topLeft = topLeft,
+                    size = arcSize,
+                )
+            }
+            if (!started) {
+                Text(
+                    "TAP TO START",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$secondsRemaining", style = MaterialTheme.typography.displayLarge)
+                    Text("seconds", style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
+        Spacer(Modifier.height(32.dp))
+        val errorColors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { onFeedback(SetFeedback.TOO_HARD) },
+                colors = errorColors,
+                modifier = Modifier.weight(1f),
+            ) { Text("Too Hard") }
+            OutlinedButton(
+                onClick = { onFeedback(SetFeedback.HURT) },
+                colors = errorColors,
+                modifier = Modifier.weight(1f),
+            ) { Text("Hurt") }
+        }
     }
 }
 

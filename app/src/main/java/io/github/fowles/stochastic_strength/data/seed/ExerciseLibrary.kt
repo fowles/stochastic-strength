@@ -109,8 +109,8 @@ object ExerciseLibrary {
         Exercise(name = "Seated Calf Raise", primaryMuscle = MuscleGroup.CALVES, secondaryMuscles = emptyList(), equipment = Equipment.MACHINE),
         Exercise(name = "Leg Press Calf Raise", primaryMuscle = MuscleGroup.CALVES, secondaryMuscles = emptyList(), equipment = Equipment.MACHINE),
         // CORE
-        Exercise(name = "Plank", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = emptyList(), equipment = Equipment.BODYWEIGHT),
-        Exercise(name = "Mountain Climber", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = listOf(MuscleGroup.QUADS), equipment = Equipment.BODYWEIGHT),
+        Exercise(name = "Plank", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = emptyList(), equipment = Equipment.BODYWEIGHT, isTimed = true),
+        Exercise(name = "Mountain Climber", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = listOf(MuscleGroup.QUADS), equipment = Equipment.BODYWEIGHT, isTimed = true),
         Exercise(name = "Bicycle Crunch", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = emptyList(), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Sit-Up", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = emptyList(), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Hanging Leg Raise", primaryMuscle = MuscleGroup.CORE, secondaryMuscles = emptyList(), equipment = Equipment.BODYWEIGHT),

@@ -6,4 +6,5 @@ sealed interface WorkoutCommand {
     data class RecordFeedback(val feedback: SetFeedback) : WorkoutCommand
     data object SkipRest : WorkoutCommand
     data object CompleteWarmupSet : WorkoutCommand
+    data object StartTimedSet : WorkoutCommand
 }
