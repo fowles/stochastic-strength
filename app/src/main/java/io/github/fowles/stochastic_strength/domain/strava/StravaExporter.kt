@@ -13,10 +13,12 @@ import androidx.core.app.NotificationCompat
 import io.github.fowles.stochastic_strength.BuildConfig
 import io.github.fowles.stochastic_strength.R
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import kotlinx.coroutines.delay
+import java.io.File
 import java.io.IOException
 
 class StravaExporter(
@@ -75,16 +77,20 @@ class StravaExporter(
             ?: throw IOException("Session $sessionId not found")
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
-        val nameById = exerciseIds
-            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it.name } }
+        val exerciseById = exerciseIds
+            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
             .toMap()
+        val nameById = exerciseById.mapValues { (_, ex) -> ex.name }
 
         val fitFile = fitBuilder.build(session, sets, nameById)
+        context.getExternalFilesDir(null)?.let { dir ->
+            fitFile.copyTo(File(dir, fitFile.name), overwrite = true)
+        }
         try {
             val durationMs = (session.endTime ?: session.startTime) - session.startTime
+            val name = buildWorkoutName(exerciseIds.mapNotNull { exerciseById[it]?.primaryMuscle })
             val description = buildDescription(sets, nameById, durationMs, weightUnit)
-            val uploadId = StravaApiClient.uploadFitFile(accessToken, fitFile, description)
-
+            val uploadId = StravaApiClient.uploadFitFile(accessToken, fitFile, name, description)
             repeat(20) {
                 delay(1500)
                 val activityId = StravaApiClient.pollUpload(accessToken, uploadId)
@@ -109,6 +115,23 @@ class StravaExporter(
         )
         tokenStore.saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresAt)
         return tokens.accessToken
+    }
+
+    private fun buildWorkoutName(@Suppress("UNUSED_PARAMETER") primaryMuscles: List<MuscleGroup>): String {
+        val adjectives = listOf(
+            "Stochastic", "Capricious", "Serendipitous", "Haphazard", "Aleatory",
+            "Mercurial", "Erratic", "Fortuitous", "Whimsical", "Impromptu",
+            "Spontaneous", "Arbitrary", "Incidental", "Unpredictable", "Chaotic",
+        )
+        val strengths = listOf(
+            "Power", "Might", "Brawn", "Vigor", "Grit", "Strength",
+            "Mettle", "Fortitude", "Prowess", "Sinew", "Tenacity",
+        )
+        val workouts = listOf(
+            "Gauntlet", "Odyssey", "Quest", "Ritual", "Grind", "Workout",
+            "Endeavor", "Foray", "Sortie", "Romp", "Reckoning", "Session"
+        )
+        return "${adjectives.random()} ${strengths.random()} ${workouts.random()}"
     }
 
     private fun buildDescription(
@@ -137,6 +160,7 @@ class StravaExporter(
         val mins = totalSec / 60
         val secs = totalSec % 60
         sb.append("Duration: $mins:%02d".format(secs))
+        sb.append("\n\nUploaded from Stochastic Strength")
 
         return sb.toString()
     }

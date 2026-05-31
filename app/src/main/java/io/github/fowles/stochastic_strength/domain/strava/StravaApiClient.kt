@@ -48,11 +48,12 @@ object StravaApiClient {
             postForToken(body)
         }
 
-    suspend fun uploadFitFile(accessToken: String, fitFile: File, description: String): String =
+    suspend fun uploadFitFile(accessToken: String, fitFile: File, name: String, description: String): String =
         withContext(Dispatchers.IO) {
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("data_type", "fit")
+                .addFormDataPart("name", name)
                 .addFormDataPart("description", description)
                 .addFormDataPart(
                     "file",
@@ -69,6 +70,7 @@ object StravaApiClient {
 
             val response = client.newCall(request).execute()
             val bodyStr = response.body?.string() ?: throw IOException("Empty upload response")
+            android.util.Log.d("StravaApiClient", "Upload response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Upload failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)
@@ -85,6 +87,7 @@ object StravaApiClient {
 
             val response = client.newCall(request).execute()
             val bodyStr = response.body?.string() ?: throw IOException("Empty poll response")
+            android.util.Log.d("StravaApiClient", "Poll response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Poll failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)

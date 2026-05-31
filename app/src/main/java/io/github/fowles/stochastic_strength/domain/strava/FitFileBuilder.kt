@@ -10,6 +10,7 @@ import com.garmin.fit.CurlExerciseName
 import com.garmin.fit.DeadliftExerciseName
 import com.garmin.fit.DeviceInfoMesg
 import com.garmin.fit.Event
+import com.garmin.fit.EventMesg
 import com.garmin.fit.EventType
 import com.garmin.fit.ExerciseCategory
 import com.garmin.fit.FileEncoder
@@ -27,11 +28,11 @@ import com.garmin.fit.LegCurlExerciseName
 import com.garmin.fit.LegRaiseExerciseName
 import com.garmin.fit.LungeExerciseName
 import com.garmin.fit.Manufacturer
-import com.garmin.fit.MessageIndex
 import com.garmin.fit.PlankExerciseName
 import com.garmin.fit.PlyoExerciseName
 import com.garmin.fit.PullUpExerciseName
 import com.garmin.fit.PushUpExerciseName
+import com.garmin.fit.RecordMesg
 import com.garmin.fit.RowExerciseName
 import com.garmin.fit.SessionMesg
 import com.garmin.fit.SetMesg
@@ -44,15 +45,13 @@ import com.garmin.fit.SquatExerciseName
 import com.garmin.fit.SubSport
 import com.garmin.fit.TotalBodyExerciseName
 import com.garmin.fit.TricepsExtensionExerciseName
-import com.garmin.fit.WktStepDuration
-import com.garmin.fit.WktStepTarget
-import com.garmin.fit.WorkoutStepMesg
 import com.garmin.fit.DateTime as FitDateTime
 import com.garmin.fit.File as FitFile
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import java.io.File
 import java.util.Date
+import java.util.TimeZone
 
 class FitFileBuilder(private val cacheDir: File) {
 
@@ -71,31 +70,26 @@ class FitFileBuilder(private val cacheDir: File) {
         val outFile = File(cacheDir, "strava_export_${session.id}.fit")
         val encoder = FileEncoder(outFile, Fit.ProtocolVersion.V2_0)
 
-        // Map each exercise to its step index (order of first appearance)
-        val stepIndexByExercise: Map<Long, Int> = sets
-            .map { it.exerciseId }
-            .distinct()
-            .withIndex()
-            .associate { (i, id) -> id to i }
-
         encoder.write(buildFileId(startDt))
         encoder.write(buildDeviceInfo(startDt))
 
-        for ((exerciseId, stepIndex) in stepIndexByExercise) {
-            val name = nameById[exerciseId] ?: ""
-            encoder.write(buildWorkoutStep(stepIndex, name))
-        }
+        // FIT protocol: data records must precede summary messages
+        encoder.write(buildEvent(startDt, Event.TIMER, EventType.START))
+        encoder.write(buildRecord(startDt))
 
-        encoder.write(buildActivity(endDt, elapsedSec))
-        encoder.write(buildSession(startDt, endDt, elapsedSec))
-        encoder.write(buildLap(startDt, endDt, elapsedSec))
-
+        val totalSets = sets.size.coerceAtLeast(1)
         var setIndex = 0
         for (set in sets) {
             val name = nameById[set.exerciseId] ?: ""
-            val stepIndex = stepIndexByExercise[set.exerciseId] ?: 0
-            encoder.write(buildSet(set, name, setIndex++, stepIndex))
+            val fallbackMs = startMs + (endMs - startMs) * (setIndex + 1) / totalSets
+            encoder.write(buildSet(set, name, setIndex++, fallbackMs))
         }
+
+        encoder.write(buildRecord(endDt))
+        encoder.write(buildEvent(endDt, Event.TIMER, EventType.STOP_ALL))
+        encoder.write(buildLap(startDt, endDt, elapsedSec))
+        encoder.write(buildSession(startDt, endDt, elapsedSec))
+        encoder.write(buildActivity(endDt, elapsedSec))
 
         encoder.close()
         return outFile
@@ -118,6 +112,20 @@ class FitFileBuilder(private val cacheDir: File) {
         return msg
     }
 
+    private fun buildRecord(dt: FitDateTime): RecordMesg {
+        val msg = RecordMesg()
+        msg.timestamp = dt
+        return msg
+    }
+
+    private fun buildEvent(dt: FitDateTime, event: Event, eventType: EventType): EventMesg {
+        val msg = EventMesg()
+        msg.timestamp = dt
+        msg.event = event
+        msg.eventType = eventType
+        return msg
+    }
+
     private fun buildActivity(endDt: FitDateTime, elapsedSec: Float): ActivityMesg {
         val msg = ActivityMesg()
         msg.timestamp = endDt
@@ -126,12 +134,14 @@ class FitFileBuilder(private val cacheDir: File) {
         msg.event = Event.ACTIVITY
         msg.eventType = EventType.STOP
         msg.totalTimerTime = elapsedSec
+        val tzOffsetSec = TimeZone.getDefault().getOffset(endDt.date.time) / 1000L
+        msg.setLocalTimestamp(endDt.timestamp + tzOffsetSec)
         return msg
     }
 
     private fun buildSession(startDt: FitDateTime, endDt: FitDateTime, elapsedSec: Float): SessionMesg {
         val msg = SessionMesg()
-        msg.messageIndex = MessageIndex.RESERVED
+        msg.messageIndex = 0
         msg.timestamp = endDt
         msg.startTime = startDt
         msg.sport = Sport.TRAINING
@@ -140,14 +150,12 @@ class FitFileBuilder(private val cacheDir: File) {
         msg.totalTimerTime = elapsedSec
         msg.firstLapIndex = 0
         msg.numLaps = 1
-        msg.event = Event.SESSION
-        msg.eventType = EventType.STOP
         return msg
     }
 
     private fun buildLap(startDt: FitDateTime, endDt: FitDateTime, elapsedSec: Float): LapMesg {
         val msg = LapMesg()
-        msg.messageIndex = MessageIndex.RESERVED
+        msg.messageIndex = 0
         msg.timestamp = endDt
         msg.startTime = startDt
         msg.sport = Sport.TRAINING
@@ -157,28 +165,15 @@ class FitFileBuilder(private val cacheDir: File) {
         return msg
     }
 
-    private fun buildWorkoutStep(stepIndex: Int, exerciseName: String): WorkoutStepMesg {
-        val msg = WorkoutStepMesg()
-        msg.messageIndex = stepIndex
-        msg.wktStepName = exerciseName
-        msg.durationType = WktStepDuration.OPEN
-        msg.targetType = WktStepTarget.OPEN
-        return msg
-    }
-
-    private fun buildSet(set: WorkoutSet, exerciseName: String, index: Int, stepIndex: Int): SetMesg {
+    private fun buildSet(set: WorkoutSet, exerciseName: String, index: Int, fallbackMs: Long): SetMesg {
         val msg = SetMesg()
         msg.messageIndex = index
-        msg.wktStepIndex = stepIndex
         msg.setType = SetType.ACTIVE
         msg.duration = set.targetReps * 3f
         msg.repetitions = set.targetReps
         msg.weight = set.targetWeight
         msg.weightDisplayUnit = FitBaseUnit.KILOGRAM
-
-        if (set.completedAt != null) {
-            msg.timestamp = FitDateTime(Date(set.completedAt))
-        }
+        msg.timestamp = FitDateTime(Date(set.completedAt ?: fallbackMs))
 
         val (category, subtype) = exerciseNameToFitCategory(exerciseName)
         msg.setCategory(0, category)
