@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain.strava
 
 import com.garmin.fit.Activity
 import com.garmin.fit.ActivityMesg
+import com.garmin.fit.BandedExercisesExerciseName
 import com.garmin.fit.BenchPressExerciseName
 import com.garmin.fit.CalfRaiseExerciseName
 import com.garmin.fit.CoreExerciseName
@@ -200,6 +201,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Diamond Push-Up" -> ExerciseCategory.PUSH_UP to PushUpExerciseName.DIAMOND_PUSH_UP
         "Pike Push-Up" -> ExerciseCategory.PUSH_UP to PushUpExerciseName.PIKE_PUSH_UP
         "Machine Chest Press" -> ExerciseCategory.BENCH_PRESS to BenchPressExerciseName.BARBELL_BENCH_PRESS
+        "Banded Chest Press" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.CHEST_PRESS
         // BACK — Deadlift
         "Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.BARBELL_DEADLIFT
         "Romanian Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.ROMANIAN_DEADLIFT
@@ -221,6 +223,9 @@ class FitFileBuilder(private val cacheDir: File) {
         // BACK — Hyperextension
         "Good Morning" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.GOOD_MORNING
         "Superman" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.SUPERMAN_FROM_FLOOR
+        "Back Extension" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.STATIC_BACK_EXTENSION
+        "Band Pull-Apart" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.PULL_APART
+        "Banded Row" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.ROW
         // SHOULDERS — Press
         "Overhead Press" -> ExerciseCategory.SHOULDER_PRESS to ShoulderPressExerciseName.OVERHEAD_BARBELL_PRESS
         "Dumbbell Overhead Press" -> ExerciseCategory.SHOULDER_PRESS to ShoulderPressExerciseName.OVERHEAD_DUMBBELL_PRESS
@@ -235,6 +240,8 @@ class FitFileBuilder(private val cacheDir: File) {
         "Rear Delt Fly" -> ExerciseCategory.LATERAL_RAISE to LateralRaiseExerciseName.BENT_OVER_LATERAL_RAISE
         // SHOULDERS — Shrug / Upright Row
         "Upright Row" -> ExerciseCategory.SHRUG to ShrugExerciseName.BARBELL_UPRIGHT_ROW
+        "Banded Lateral Raise" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.LATERAL_RAISE
+        "External Rotation" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.EXTERNAL_ROTATION
         // BICEPS
         "Barbell Curl" -> ExerciseCategory.CURL to CurlExerciseName.BARBELL_BICEPS_CURL
         "Preacher Curl" -> ExerciseCategory.CURL to CurlExerciseName.EZ_BAR_PREACHER_CURL
@@ -242,6 +249,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Hammer Curl" -> ExerciseCategory.CURL to CurlExerciseName.DUMBBELL_HAMMER_CURL
         "Concentration Curl" -> ExerciseCategory.CURL to CurlExerciseName.ONE_ARM_CONCENTRATION_CURL
         "Cable Curl" -> ExerciseCategory.CURL to CurlExerciseName.CABLE_BICEPS_CURL
+        "Banded Curl" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.CURL
         "EZ Bar Curl" -> ExerciseCategory.CURL to CurlExerciseName.STANDING_EZ_BAR_BICEPS_CURL
         "Incline Dumbbell Curl" -> ExerciseCategory.CURL to CurlExerciseName.INCLINE_DUMBBELL_BICEPS_CURL
         // TRICEPS
@@ -251,28 +259,36 @@ class FitFileBuilder(private val cacheDir: File) {
         "Tricep Kickback" -> ExerciseCategory.TRICEPS_EXTENSION to TricepsExtensionExerciseName.DUMBBELL_KICKBACK
         "Cable Overhead Tricep Extension" -> ExerciseCategory.TRICEPS_EXTENSION to TricepsExtensionExerciseName.CABLE_OVERHEAD_TRICEPS_EXTENSION
         "Dips" -> ExerciseCategory.TRICEPS_EXTENSION to TricepsExtensionExerciseName.BODY_WEIGHT_DIP
+        "Banded Tricep Extension" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.TRICEP_EXTENSION
         // QUADS
         "Barbell Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BARBELL_BACK_SQUAT
         "Front Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BARBELL_FRONT_SQUAT
         "Hack Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BARBELL_HACK_SQUAT
         "Goblet Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.GOBLET_SQUAT
         "Bodyweight Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.SQUAT
+        "Banded Squat" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.SQUAT
         "Jump Squat" -> ExerciseCategory.PLYO to PlyoExerciseName.JUMP_SQUAT
         "Leg Press" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
         "Leg Extension" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
         // QUADS — Lunge
         "Lunge" -> ExerciseCategory.LUNGE to LungeExerciseName.LUNGE
+        "Walking Lunge" -> ExerciseCategory.LUNGE to LungeExerciseName.WALKING_LUNGE
+        "Reverse Lunge" -> ExerciseCategory.LUNGE to LungeExerciseName.LUNGE
+        "Dumbbell Lunge" -> ExerciseCategory.LUNGE to LungeExerciseName.DUMBBELL_LUNGE
         "Bulgarian Split Squat" -> ExerciseCategory.LUNGE to LungeExerciseName.BACK_FOOT_ELEVATED_DUMBBELL_SPLIT_SQUAT
         "Step-Up" -> ExerciseCategory.SQUAT to SquatExerciseName.STEP_UP
         // HAMSTRINGS
         "Leg Curl" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.LEG_CURL
         "Nordic Curl" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.LEG_CURL
+        "Single-Leg Romanian Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.SINGLE_LEG_ROMANIAN_DEADLIFT_WITH_DUMBBELL
         // GLUTES
         "Hip Thrust" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.BARBELL_HIP_THRUST_WITH_BENCH
         "Glute Bridge" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.HIP_RAISE
         "Single-Leg Glute Bridge" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.SINGLE_LEG_HIP_RAISE
         "Cable Kickback" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.HIP_RAISE
         "Donkey Kick" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.HIP_RAISE
+        "Lateral Band Walk" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.LATERAL_BAND_WALKS
+        "Clamshell" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.CLAM_SHELLS
         // GLUTES — Kettlebell Swing
         "Kettlebell Swing" -> ExerciseCategory.HIP_RAISE to HipRaiseExerciseName.KETTLEBELL_SWING
         // CALVES
