@@ -21,6 +21,7 @@ class WorkoutCommandReceiver : BroadcastReceiver() {
             }
             WorkoutNotificationService.ACTION_SKIP_REST -> WorkoutCommand.SkipRest
             WorkoutNotificationService.ACTION_COMPLETE_WARMUP -> WorkoutCommand.CompleteWarmupSet
+            WorkoutNotificationService.ACTION_START_TIMED_SET -> WorkoutCommand.StartTimedSet
             else -> return
         }
         app.applicationScope.launch {

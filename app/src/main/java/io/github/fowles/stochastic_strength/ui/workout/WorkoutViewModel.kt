@@ -456,6 +456,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     exerciseName = planned.exercise.name,
                     warmupSetLabel = "Warm-up $warmupIdx of $totalWarmups",
                 )
+            } else if (planned.exercise.isTimed) {
+                WorkoutNotificationState.TimedActiveSet(
+                    exerciseName = planned.exercise.name,
+                    setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
+                    secondsRemaining = state.timerSecondsRemaining,
+                    progressMax = TIMED_SET_SECONDS,
+                )
             } else {
                 WorkoutNotificationState.ActiveSet(
                     exerciseName = planned.exercise.name,

@@ -86,6 +86,7 @@ class WorkoutNotificationService : Service() {
     private fun buildNotification(state: WorkoutNotificationState): Notification = when (state) {
         is WorkoutNotificationState.WarmupSet -> buildWarmupNotification(state)
         is WorkoutNotificationState.ActiveSet -> buildActiveSetNotification(state)
+        is WorkoutNotificationState.TimedActiveSet -> buildTimedActiveSetNotification(state)
         is WorkoutNotificationState.Resting -> buildRestingNotification(state)
     }
 
@@ -120,6 +121,29 @@ class WorkoutNotificationService : Service() {
             .build()
     }
 
+    private fun buildTimedActiveSetNotification(state: WorkoutNotificationState.TimedActiveSet): Notification {
+        val secondsRemaining = state.secondsRemaining
+        val displaySeconds = secondsRemaining ?: state.progressMax
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("${state.exerciseName} · ${state.setLabel}")
+            .setContentText("${displaySeconds}s")
+            .setOngoing(true)
+            .setContentIntent(tapIntent())
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+        if (secondsRemaining != null) {
+            builder.setProgress(state.progressMax, secondsRemaining, false)
+        } else {
+            val startPi = PendingIntent.getBroadcast(
+                this, REQUEST_START_TIMED_SET,
+                Intent(ACTION_START_TIMED_SET).setPackage(packageName),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            builder.addAction(0, "Start", startPi)
+        }
+        return builder.build()
+    }
+
     private fun buildRestingNotification(state: WorkoutNotificationState.Resting): Notification {
         val skipPi = PendingIntent.getBroadcast(
             this, REQUEST_SKIP,
@@ -152,11 +176,13 @@ class WorkoutNotificationService : Service() {
         const val ACTION_FEEDBACK = "io.github.fowles.stochastic_strength.ACTION_FEEDBACK"
         const val ACTION_SKIP_REST = "io.github.fowles.stochastic_strength.ACTION_SKIP_REST"
         const val ACTION_COMPLETE_WARMUP = "io.github.fowles.stochastic_strength.ACTION_COMPLETE_WARMUP"
+        const val ACTION_START_TIMED_SET = "io.github.fowles.stochastic_strength.ACTION_START_TIMED_SET"
         const val EXTRA_FEEDBACK = "feedback"
         private const val REQUEST_RIR_0_1 = 101
         private const val REQUEST_RIR_2_4 = 102
         private const val REQUEST_RIR_5_PLUS = 103
         private const val REQUEST_SKIP = 104
         private const val REQUEST_COMPLETE_WARMUP = 105
+        private const val REQUEST_START_TIMED_SET = 106
     }
 }

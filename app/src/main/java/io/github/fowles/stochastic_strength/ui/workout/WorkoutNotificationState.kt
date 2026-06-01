@@ -13,6 +13,13 @@ sealed interface WorkoutNotificationState {
         val setLabel: String,
     ) : WorkoutNotificationState
 
+    data class TimedActiveSet(
+        val exerciseName: String,
+        val setLabel: String,
+        val secondsRemaining: Int?,
+        val progressMax: Int,
+    ) : WorkoutNotificationState
+
     data class Resting(
         val secondsRemaining: Int,
         val progressMax: Int,

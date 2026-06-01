@@ -58,6 +58,7 @@
                 <action android:name="io.github.fowles.stochastic_strength.ACTION_FEEDBACK" />
                 <action android:name="io.github.fowles.stochastic_strength.ACTION_SKIP_REST" />
                 <action android:name="io.github.fowles.stochastic_strength.ACTION_COMPLETE_WARMUP" />
+                <action android:name="io.github.fowles.stochastic_strength.ACTION_START_TIMED_SET" />
             </intent-filter>
         </receiver>
     </application>
