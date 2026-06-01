@@ -3,6 +3,8 @@ package io.github.fowles.stochastic_strength.ui.workout
 import android.app.Application
 import android.content.Intent
 import android.location.Geocoder
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
@@ -221,6 +223,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 val s = _state.value as? WorkoutState.ActiveSet ?: return@launch
                 val remaining = s.timerSecondsRemaining ?: return@launch
                 if (remaining <= 1) {
+                    vibrate()
                     recordFeedback(SetFeedback.RIR_0_1)
                     return@launch
                 }
@@ -329,6 +332,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 delay(1000)
                 val current = _state.value as? WorkoutState.Resting ?: return@launch
                 if (current.secondsRemaining <= 1) {
+                    vibrate()
                     advanceAfterRest()
                     return@launch
                 }
@@ -492,6 +496,11 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             )
         }
         is WorkoutState.Done, is WorkoutState.PlanPreview, WorkoutState.Loading -> null
+    }
+
+    private fun vibrate() {
+        app.getSystemService(Vibrator::class.java)
+            .vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK))
     }
 
     override fun onCleared() {
