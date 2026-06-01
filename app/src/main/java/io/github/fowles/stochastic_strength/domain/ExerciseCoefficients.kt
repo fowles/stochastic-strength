@@ -81,6 +81,7 @@ object ExerciseCoefficients {
         "Bodyweight Squat"             to 0.00f,
         "Banded Squat"                 to 0.00f,
         "Jump Squat"                   to 0.00f,
+        "Wall Sit"                     to 0.00f,
         "Goblet Squat"                 to 0.25f,
         "Bulgarian Split Squat"        to 0.30f,  // per dumbbell
         "Step-Up"                      to 0.20f,  // per dumbbell

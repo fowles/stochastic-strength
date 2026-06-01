@@ -184,14 +184,15 @@ class FitFileBuilder(private val cacheDir: File) {
         }
         msg.timestamp = FitDateTime(Date(set.completedAt ?: fallbackMs))
 
-        val (category, subtype) = exerciseNameToFitCategory(exerciseName)
+        val (category, subtype) = Companion.exerciseNameToFitCategory(exerciseName)
         msg.setCategory(0, category)
         msg.setCategorySubtype(0, subtype)
 
         return msg
     }
 
-    private fun exerciseNameToFitCategory(name: String): Pair<Int, Int> = when (name) {
+    companion object {
+    internal fun exerciseNameToFitCategory(name: String): Pair<Int, Int> = when (name) {
         // CHEST — Bench Press
         "Barbell Bench Press" -> ExerciseCategory.BENCH_PRESS to BenchPressExerciseName.BARBELL_BENCH_PRESS
         "Incline Barbell Bench Press" -> ExerciseCategory.BENCH_PRESS to BenchPressExerciseName.INCLINE_BARBELL_BENCH_PRESS
@@ -276,6 +277,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Bodyweight Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.SQUAT
         "Banded Squat" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.SQUAT
         "Jump Squat" -> ExerciseCategory.PLYO to PlyoExerciseName.JUMP_SQUAT
+        "Wall Sit" -> ExerciseCategory.SQUAT to SquatExerciseName.BODY_WEIGHT_WALL_SQUAT
         "Leg Press" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
         "Leg Extension" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
         // QUADS — Lunge
@@ -320,6 +322,8 @@ class FitFileBuilder(private val cacheDir: File) {
         "Pallof Press" -> ExerciseCategory.CORE to CoreExerciseName.CABLE_CORE_PRESS
         "Turkish Get-Up" -> ExerciseCategory.CORE to CoreExerciseName.TURKISH_GET_UP
         "Farmer's Carry" -> ExerciseCategory.CARRY to CarryExerciseName.FARMERS_CARRY
+        "Suitcase Carry" -> ExerciseCategory.CARRY to CarryExerciseName.FARMERS_CARRY
         else -> ExerciseCategory.UNKNOWN to 65534
+    }
     }
 }

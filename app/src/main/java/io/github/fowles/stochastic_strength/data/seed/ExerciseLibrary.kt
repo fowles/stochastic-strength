@@ -84,6 +84,7 @@ object ExerciseLibrary {
         Exercise(name = "Bodyweight Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Banded Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.BAND),
         Exercise(name = "Jump Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.BODYWEIGHT),
+        Exercise(name = "Wall Sit", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.BODYWEIGHT, isTimed = true),
         Exercise(name = "Goblet Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES), equipment = Equipment.DUMBBELL),
         Exercise(name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.DUMBBELL, isUnilateral = true),
         Exercise(name = "Step-Up", primaryMuscle = MuscleGroup.QUADS, secondaryMuscles = listOf(MuscleGroup.GLUTES, MuscleGroup.HAMSTRINGS), equipment = Equipment.DUMBBELL, isUnilateral = true),
