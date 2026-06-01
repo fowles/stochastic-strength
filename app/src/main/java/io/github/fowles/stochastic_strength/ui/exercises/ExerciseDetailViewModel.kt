@@ -80,8 +80,7 @@ class ExerciseDetailViewModel(
     private suspend fun computeShadowPoints(
         exercise: Exercise,
     ): Pair<List<ChartPoint>, Map<Long, List<ExerciseSetEntry>>> {
-        val thisCoeff = ExerciseCoefficients.byName[exercise.name]
-            ?: return Pair(emptyList(), emptyMap())
+        val thisCoeff = ExerciseCoefficients.byName[exercise.name] ?: 0f
         val isBodyweight = thisCoeff <= 0f
 
         val allExercises = repository.observeAllExercises().first()
