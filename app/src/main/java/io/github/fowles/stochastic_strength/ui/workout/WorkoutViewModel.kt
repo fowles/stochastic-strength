@@ -5,7 +5,7 @@ import android.content.Intent
 import android.util.Log
 import android.location.Geocoder
 import android.os.VibrationEffect
-import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
@@ -550,8 +550,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun vibrate() {
-        app.getSystemService(Vibrator::class.java)
-            .vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK))
+        val vibrator = app.getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
+        vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 100, 100, 100, 100, 100), -1))
     }
 
     override fun onCleared() {
