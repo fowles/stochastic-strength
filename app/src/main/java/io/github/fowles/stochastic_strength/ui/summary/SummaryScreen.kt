@@ -6,9 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -26,6 +24,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportButton
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,15 +55,12 @@ fun SummaryScreen(
         when (val state = stravaState) {
             is StravaExportState.NeedsAuth -> {
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.authUrl)))
-                viewModel.onAuthUrlLaunched()
+                viewModel.onStravaAuthUrlLaunched()
             }
-            is StravaExportState.Success -> viewModel.onStravaMessageShown()
             is StravaExportState.Error -> viewModel.onStravaMessageShown()
             else -> Unit
         }
     }
-
-    val exportBusy = stravaState.isBusy
 
     Scaffold { paddingValues ->
         WorkoutSummaryContent(
@@ -86,17 +83,11 @@ fun SummaryScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                 }
-                OutlinedButton(
-                    onClick = { viewModel.onExportToStrava() },
-                    enabled = !exportBusy,
+                StravaExportButton(
+                    onExportToStrava = viewModel::onExportToStrava,
+                    stravaState = stravaState,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (exportBusy) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Export to Strava")
-                    }
-                }
+                )
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
                     Text("Done")

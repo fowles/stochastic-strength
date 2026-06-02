@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import android.app.Application
 import android.content.Intent
+import android.util.Log
 import android.location.Geocoder
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -25,6 +26,7 @@ import io.github.fowles.stochastic_strength.location.LocationService
 import io.github.fowles.stochastic_strength.notification.WorkoutNotificationService
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import io.github.fowles.stochastic_strength.ui.toSummarySet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -53,6 +55,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val _doneSummary = MutableStateFlow<WorkoutSummaryData?>(null)
     val doneSummary: StateFlow<WorkoutSummaryData?> = _doneSummary.asStateFlow()
+
+    private val _stravaState = MutableStateFlow<StravaExportState>(StravaExportState.Idle)
+    val stravaState: StateFlow<StravaExportState> = _stravaState.asStateFlow()
 
     private var restTimerJob: Job? = null
     private var timedSetTimerJob: Job? = null
@@ -155,32 +160,78 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun onResumed() {
-        if (!pendingLocationRefresh) return
-        pendingLocationRefresh = false
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        val locationId = sessionLocationId ?: return
-        viewModelScope.launch {
-            val locationName = app.database.knownLocationDao().getById(locationId)?.name
-            val excluded = repository.getExcludedExerciseIds(locationId)
-            var plan = preview.plan
-            var i = 0
-            while (i < plan.exercises.size) {
-                if (plan.exercises[i].exercise.id in excluded) {
-                    val replacement = repository.pickReplacement(plan, i, _weightUnit.value)
-                    val updated = plan.exercises.toMutableList()
-                    if (replacement != null) {
-                        updated[i] = replacement
-                    } else {
-                        updated.removeAt(i)
-                        i--
+        if (pendingLocationRefresh) {
+            pendingLocationRefresh = false
+            val preview = _state.value as? WorkoutState.PlanPreview
+            val locationId = sessionLocationId
+            if (preview != null && locationId != null) {
+                viewModelScope.launch {
+                    val locationName = app.database.knownLocationDao().getById(locationId)?.name
+                    val excluded = repository.getExcludedExerciseIds(locationId)
+                    var plan = preview.plan
+                    var i = 0
+                    while (i < plan.exercises.size) {
+                        if (plan.exercises[i].exercise.id in excluded) {
+                            val replacement = repository.pickReplacement(plan, i, _weightUnit.value)
+                            val updated = plan.exercises.toMutableList()
+                            if (replacement != null) {
+                                updated[i] = replacement
+                            } else {
+                                updated.removeAt(i)
+                                i--
+                            }
+                            plan = plan.copy(exercises = updated)
+                        }
+                        i++
                     }
-                    plan = plan.copy(exercises = updated)
+                    if (plan != preview.plan || locationName != preview.locationName) {
+                        setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
+                    }
                 }
-                i++
             }
-            if (plan != preview.plan || locationName != preview.locationName) {
-                setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
-            }
+        }
+        if (_stravaState.value is StravaExportState.WaitingForAuth && app.stravaExporter.isAuthenticated()) {
+            val done = _state.value as? WorkoutState.Done ?: return
+            launchStravaExport(done.sessionId)
+        }
+    }
+
+    fun onExportToStrava() {
+        val done = _state.value as? WorkoutState.Done ?: return
+        if (!app.stravaExporter.isAuthenticated()) {
+            _stravaState.value = StravaExportState.NeedsAuth(app.stravaExporter.getAuthUrl())
+            return
+        }
+        launchStravaExport(done.sessionId)
+    }
+
+    fun onStravaAuthUrlLaunched() {
+        if (_stravaState.value is StravaExportState.NeedsAuth) {
+            _stravaState.value = StravaExportState.WaitingForAuth
+        }
+    }
+
+    fun onStravaMessageShown() {
+        if (_stravaState.value !is StravaExportState.Success) {
+            _stravaState.value = StravaExportState.Idle
+        }
+    }
+
+    private fun launchStravaExport(sessionId: Long) {
+        _stravaState.value = StravaExportState.Exporting
+        app.applicationScope.launch {
+            runCatching { app.stravaExporter.exportSession(sessionId, _weightUnit.value) }
+                .onSuccess { activityId ->
+                    app.database.workoutSessionDao().updateStravaActivityId(sessionId, activityId)
+                    _stravaState.value = StravaExportState.Success(activityId)
+                    app.stravaExporter.notifyUploadResult(success = true)
+                }
+                .onFailure { e ->
+                    Log.e("StravaExport", "Export failed", e)
+                    val msg = e.message ?: "Export to Strava failed"
+                    _stravaState.value = StravaExportState.Error(msg)
+                    app.stravaExporter.notifyUploadResult(success = false, error = msg)
+                }
         }
     }
 

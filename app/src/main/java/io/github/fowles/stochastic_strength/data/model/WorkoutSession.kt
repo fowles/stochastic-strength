@@ -9,4 +9,5 @@ data class WorkoutSession(
     val locationId: Long? = null,
     val startTime: Long,
     val endTime: Long? = null,
+    val stravaActivityId: Long? = null,
 )

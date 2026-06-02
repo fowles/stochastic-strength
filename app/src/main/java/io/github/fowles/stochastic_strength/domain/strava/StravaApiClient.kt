@@ -113,11 +113,11 @@ object StravaApiClient {
             val json = JSONObject(bodyStr)
             val error = if (json.isNull("error")) null else json.optString("error", "")
             if (!error.isNullOrEmpty()) {
-                val message = if (error.contains("duplicate", ignoreCase = true))
-                    "Already uploaded to Strava"
-                else
-                    "Strava upload error: $error"
-                throw IOException(message)
+                val isDuplicate = error.contains("duplicate", ignoreCase = true)
+                if (isDuplicate && !json.isNull("activity_id")) {
+                    return@withContext json.getLong("activity_id")
+                }
+                throw IOException(if (isDuplicate) "Already uploaded to Strava" else "Strava upload error: $error")
             }
 
             if (json.isNull("activity_id")) null else json.getLong("activity_id")

@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.summary
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import io.github.fowles.stochastic_strength.ui.toSummarySet
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,16 +22,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-sealed interface StravaExportState {
-    val isBusy: Boolean get() = false
-
-    object Idle : StravaExportState
-    data class NeedsAuth(val authUrl: String) : StravaExportState
-    object WaitingForAuth : StravaExportState { override val isBusy = true }
-    object Exporting : StravaExportState { override val isBusy = true }
-    data class Success(val activityId: Long) : StravaExportState
-    data class Error(val message: String) : StravaExportState
-}
 
 class SummaryViewModel(
     application: Application,
@@ -73,6 +65,15 @@ class SummaryViewModel(
     private val _stravaState = MutableStateFlow<StravaExportState>(StravaExportState.Idle)
     val stravaState: StateFlow<StravaExportState> = _stravaState.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            val session = app.database.workoutSessionDao().getById(sessionId)
+            if (session?.stravaActivityId != null) {
+                _stravaState.value = StravaExportState.Success(session.stravaActivityId)
+            }
+        }
+    }
+
     fun onExportToStrava() {
         if (!app.stravaExporter.isAuthenticated()) {
             _stravaState.value = StravaExportState.NeedsAuth(app.stravaExporter.getAuthUrl())
@@ -81,7 +82,7 @@ class SummaryViewModel(
         launchExport()
     }
 
-    fun onAuthUrlLaunched() {
+    fun onStravaAuthUrlLaunched() {
         if (_stravaState.value is StravaExportState.NeedsAuth) {
             _stravaState.value = StravaExportState.WaitingForAuth
         }
@@ -96,7 +97,9 @@ class SummaryViewModel(
     }
 
     fun onStravaMessageShown() {
-        _stravaState.value = StravaExportState.Idle
+        if (_stravaState.value !is StravaExportState.Success) {
+            _stravaState.value = StravaExportState.Idle
+        }
     }
 
     private fun launchExport() {
@@ -105,11 +108,12 @@ class SummaryViewModel(
             val weightUnit = summary.value?.weightUnit ?: WeightUnit.KG
             runCatching { app.stravaExporter.exportSession(sessionId, weightUnit) }
                 .onSuccess { activityId ->
+                    app.database.workoutSessionDao().updateStravaActivityId(sessionId, activityId)
                     _stravaState.value = StravaExportState.Success(activityId)
                     app.stravaExporter.notifyUploadResult(success = true)
                 }
                 .onFailure { e ->
-                    android.util.Log.e("StravaExport", "Export failed", e)
+                    Log.e("StravaExport", "Export failed", e)
                     val msg = e.message ?: "Export to Strava failed"
                     _stravaState.value = StravaExportState.Error(msg)
                     app.stravaExporter.notifyUploadResult(success = false, error = msg)

@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
@@ -75,6 +77,8 @@ import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportButton
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 
 @Composable
 fun WorkoutScreen(
@@ -87,6 +91,7 @@ fun WorkoutScreen(
     val weightUnit by viewModel.weightUnit.collectAsState()
     val workoutCompleted by viewModel.workoutCompleted.collectAsState()
     val doneSummary by viewModel.doneSummary.collectAsState()
+    val stravaState by viewModel.stravaState.collectAsState()
     val activity = LocalContext.current as android.app.Activity
 
     BackHandler(enabled = state is WorkoutState.ActiveSet || state is WorkoutState.Resting) {
@@ -114,6 +119,17 @@ fun WorkoutScreen(
 
     LaunchedEffect(workoutCompleted) {
         if (workoutCompleted) onWorkoutDone()
+    }
+
+    LaunchedEffect(stravaState) {
+        when (val s = stravaState) {
+            is StravaExportState.NeedsAuth -> {
+                activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.authUrl)))
+                viewModel.onStravaAuthUrlLaunched()
+            }
+            is StravaExportState.Error -> viewModel.onStravaMessageShown()
+            else -> Unit
+        }
     }
 
     Scaffold { paddingValues ->
@@ -157,7 +173,9 @@ fun WorkoutScreen(
                 )
                 is WorkoutState.Done -> DoneContent(
                     doneSummary = doneSummary,
+                    stravaState = stravaState,
                     onUndo = viewModel::undoLastSetFromDone,
+                    onExportToStrava = viewModel::onExportToStrava,
                     onDone = viewModel::completeWorkout,
                 )
             }
@@ -615,7 +633,9 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
 @Composable
 private fun DoneContent(
     doneSummary: WorkoutSummaryData?,
+    stravaState: StravaExportState,
     onUndo: () -> Unit,
+    onExportToStrava: () -> Unit,
     onDone: () -> Unit,
 ) {
     WorkoutSummaryContent(
@@ -625,7 +645,17 @@ private fun DoneContent(
             Spacer(Modifier.height(8.dp))
         },
         footer = {
-            OutlinedButton(onClick = onUndo, modifier = Modifier.fillMaxWidth()) { Text("Undo") }
+            OutlinedButton(
+                onClick = onUndo,
+                enabled = !stravaState.undoBlocked,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Undo") }
+            Spacer(Modifier.height(8.dp))
+            StravaExportButton(
+                onExportToStrava = onExportToStrava,
+                stravaState = stravaState,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(8.dp))
             Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
         },
