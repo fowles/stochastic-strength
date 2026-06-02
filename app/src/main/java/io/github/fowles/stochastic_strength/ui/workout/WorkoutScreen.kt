@@ -24,8 +24,11 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -674,13 +677,6 @@ private fun RestingContent(
     val totalSets = PlannedExercise.DEFAULT_SETS
     val nextSet = state.completedSetIndex + 1
 
-    val upNextLabel = when {
-        nextSet < totalSets -> "Set ${nextSet + 1} of $totalSets — ${plan.exercises[state.exerciseIndex].exercise.name}"
-        state.exerciseIndex + 1 < plan.exercises.size ->
-            "Next exercise: ${plan.exercises[state.exerciseIndex + 1].exercise.name}"
-        else -> "Last set — almost done!"
-    }
-
     val targetProgress = state.secondsRemaining / WorkoutViewModel.REST_SECONDS.toFloat()
     val animatedProgress = remember { Animatable(targetProgress) }
     LaunchedEffect(state.secondsRemaining) {
@@ -698,55 +694,141 @@ private fun RestingContent(
             .fillMaxSize()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Text("Rest", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Logged: ${state.lastFeedback.displayLabel}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.height(24.dp))
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(180.dp)) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val strokeWidth = 12.dp.toPx()
-                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-                val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
-                drawArc(
-                    color = trackColor,
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                    topLeft = topLeft,
-                    size = arcSize,
-                )
-                drawArc(
-                    color = progressColor,
-                    startAngle = -90f + (1f - animatedProgress.value) * 360f,
-                    sweepAngle = animatedProgress.value * 360f,
-                    useCenter = false,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                    topLeft = topLeft,
-                    size = arcSize,
-                )
-            }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${state.secondsRemaining}", style = MaterialTheme.typography.displayLarge)
-                Text("seconds", style = MaterialTheme.typography.bodyLarge)
+                Text("Rest", style = MaterialTheme.typography.headlineMedium)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Logged: ${state.lastFeedback.displayLabel}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(24.dp))
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(180.dp)) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val strokeWidth = 12.dp.toPx()
+                        val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                        val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
+                        drawArc(
+                            color = trackColor,
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                            topLeft = topLeft,
+                            size = arcSize,
+                        )
+                        drawArc(
+                            color = progressColor,
+                            startAngle = -90f + (1f - animatedProgress.value) * 360f,
+                            sweepAngle = animatedProgress.value * 360f,
+                            useCenter = false,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                            topLeft = topLeft,
+                            size = arcSize,
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${state.secondsRemaining}", style = MaterialTheme.typography.displayLarge)
+                        Text("seconds", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onUndo) { Text("Undo") }
+                    OutlinedButton(onClick = onSkipRest) { Text("Skip Rest") }
+                }
             }
         }
-        Spacer(Modifier.height(32.dp))
+        RemainingExerciseList(
+            exercises = plan.exercises,
+            currentExerciseIndex = state.exerciseIndex,
+            setsRemainingForCurrent = totalSets - nextSet,
+        )
+    }
+}
+
+private enum class ExerciseProgress { COMPLETED, IN_PROGRESS, PENDING }
+
+@Composable
+private fun RemainingExerciseList(
+    exercises: List<PlannedExercise>,
+    currentExerciseIndex: Int,
+    setsRemainingForCurrent: Int,
+) {
+    val totalSets = PlannedExercise.DEFAULT_SETS
+    val inProgressIndex = when {
+        setsRemainingForCurrent > 0 -> currentExerciseIndex
+        currentExerciseIndex + 1 < exercises.size -> currentExerciseIndex + 1
+        else -> -1
+    }
+    val inProgressRemaining = if (setsRemainingForCurrent > 0) setsRemainingForCurrent else totalSets
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            upNextLabel,
-            style = MaterialTheme.typography.bodyLarge,
+            "Exercises",
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(32.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onUndo) { Text("Undo") }
-            OutlinedButton(onClick = onSkipRest) { Text("Skip Rest") }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        exercises.forEachIndexed { i, planned ->
+            val progress = when {
+                inProgressIndex < 0 || i < inProgressIndex -> ExerciseProgress.COMPLETED
+                i == inProgressIndex -> ExerciseProgress.IN_PROGRESS
+                else -> ExerciseProgress.PENDING
+            }
+            val detail = when (progress) {
+                ExerciseProgress.COMPLETED -> "done"
+                ExerciseProgress.IN_PROGRESS -> "$inProgressRemaining left"
+                ExerciseProgress.PENDING -> "$totalSets sets"
+            }
+            RemainingExerciseRow(name = planned.exercise.name, detail = detail, progress = progress)
         }
+    }
+}
+
+@Composable
+private fun RemainingExerciseRow(name: String, detail: String, progress: ExerciseProgress) {
+    val iconTint = when (progress) {
+        ExerciseProgress.IN_PROGRESS -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val nameColor = when (progress) {
+        ExerciseProgress.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = when (progress) {
+                ExerciseProgress.COMPLETED -> Icons.Filled.CheckCircle
+                ExerciseProgress.IN_PROGRESS -> Icons.Filled.PlayArrow
+                ExerciseProgress.PENDING -> Icons.Outlined.CheckCircle
+            },
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = nameColor,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            detail,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
