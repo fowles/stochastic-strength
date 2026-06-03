@@ -588,7 +588,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private fun vibrate() {
         val vibrator = app.getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
-        vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 100, 100, 100, 100, 100), -1))
+        val effect = VibrationEffect.startComposition()
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD)
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 1.0f, 80)
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 1.0f, 80)
+            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 1.0f, 80)
+            .compose()
+        vibrator.vibrate(effect)
     }
 
     override fun onCleared() {
