@@ -127,10 +127,10 @@ class ExerciseDetailViewModel(
         }
     }
 
-    fun clearHurtFlag() {
+    fun toggleHurtFlag() {
         val exercise = _state.value.exercise ?: return
         viewModelScope.launch {
-            val updated = exercise.copy(hurtFlag = false)
+            val updated = exercise.copy(hurtFlag = !exercise.hurtFlag)
             repository.updateExercise(updated)
             _state.value = _state.value.copy(exercise = updated)
         }

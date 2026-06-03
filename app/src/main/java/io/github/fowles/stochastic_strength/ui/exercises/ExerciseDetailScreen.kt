@@ -16,12 +16,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -141,17 +145,44 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilterChip(
-                    selected = exercise.isDisliked,
+                Button(
                     onClick = { viewModel.toggleDisliked() },
-                    label = { Text("Disliked") },
-                )
-                if (exercise.hurtFlag) {
-                    OutlinedButton(onClick = { viewModel.clearHurtFlag() }) {
-                        Text("Clear Hurt Flag", color = MaterialTheme.colorScheme.error)
-                    }
+                    colors = if (exercise.isDisliked) ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) else ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    Text("Disliked")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Switch(checked = exercise.isDisliked, onCheckedChange = null)
+                }
+                Button(
+                    onClick = { viewModel.toggleHurtFlag() },
+                    colors = if (exercise.hurtFlag) ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ) else ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    Text("Hurt")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Switch(
+                        checked = exercise.hurtFlag,
+                        onCheckedChange = null,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.onError,
+                            checkedTrackColor = MaterialTheme.colorScheme.error,
+                            checkedBorderColor = MaterialTheme.colorScheme.error,
+                        ),
+                    )
                 }
             }
 
