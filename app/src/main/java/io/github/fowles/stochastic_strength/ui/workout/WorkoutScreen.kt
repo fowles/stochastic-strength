@@ -477,8 +477,8 @@ private fun TimedSetContent(
             .padding(24.dp)
             .then(if (!started) Modifier.clickable { onStartTimedSet() } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
+        Spacer(Modifier.weight(1f))
         Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
         Text(
             "Set ${state.setIndex + 1} of ${state.totalSets}",
@@ -537,6 +537,9 @@ private fun TimedSetContent(
                 modifier = Modifier.weight(1f),
             ) { Text("Hurt") }
         }
+        Spacer(Modifier.weight(1f))
+        YoutubeFormCard(exerciseName = exercise.name)
+        Spacer(Modifier.height(16.dp))
     }
 }
 
