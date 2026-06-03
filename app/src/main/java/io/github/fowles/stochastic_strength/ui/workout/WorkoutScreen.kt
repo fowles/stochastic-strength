@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.Manifest
@@ -149,6 +150,7 @@ fun WorkoutScreen(
                     onStart = viewModel::startFirstExercise,
                     onReplace = viewModel::replaceExercise,
                     onSetExerciseCount = viewModel::setExerciseCount,
+                    onAdjustWeight = viewModel::adjustExerciseWeight,
                     onEditLocation = { locationId ->
                         viewModel.onNavigatedToLocationEdit()
                         onEditLocation(locationId)
@@ -193,6 +195,7 @@ private fun PlanPreviewContent(
     onStart: () -> Unit,
     onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
     onSetExerciseCount: (Int) -> Unit,
+    onAdjustWeight: (index: Int, delta: Float) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
 ) {
@@ -263,10 +266,17 @@ private fun PlanPreviewContent(
         HorizontalDivider()
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
+                val index = plan.exercises.indexOf(planned)
                 ExercisePreviewRow(
                     planned = planned,
                     weightUnit = weightUnit,
-                    onReplace = { reason -> onReplace(plan.exercises.indexOf(planned), reason) },
+                    onReplace = { reason -> onReplace(index, reason) },
+                    onWeightDecrement = if (planned.sessionWeight > 0f) {
+                        { onAdjustWeight(index, -2.5f) }
+                    } else null,
+                    onWeightIncrement = if (planned.sessionWeight > 0f) {
+                        { onAdjustWeight(index, +2.5f) }
+                    } else null,
                     onTap = { onExerciseTap(planned.exercise.id) },
                     modifier = Modifier.animateItem(),
                 )
@@ -285,6 +295,8 @@ private fun ExercisePreviewRow(
     planned: io.github.fowles.stochastic_strength.domain.model.PlannedExercise,
     weightUnit: WeightUnit,
     onReplace: (ExerciseRemovalReason) -> Unit,
+    onWeightDecrement: (() -> Unit)?,
+    onWeightIncrement: (() -> Unit)?,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -329,29 +341,55 @@ private fun ExercisePreviewRow(
             enableDismissFromStartToEnd = false,
             modifier = modifier,
         ) {
-            Column(
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
                     .clickable(onClick = onTap)
                     .padding(vertical = 12.dp),
             ) {
-                Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
                 val weightLabel = when {
                     planned.sessionWeight > 0f -> WeightFormatter.format(planned.sessionWeight, weightUnit)
                     planned.exercise.equipment == Equipment.BODYWEIGHT -> "Bodyweight"
                     else -> null
                 }
-                val detail = buildString {
-                    val repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed)
-                    append("${PlannedExercise.DEFAULT_SETS} sets × $repsLabel")
-                    if (weightLabel != null) append(" · $weightLabel")
+                val repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
+                    val detail = buildString {
+                        append("${PlannedExercise.DEFAULT_SETS} sets × $repsLabel")
+                        if (onWeightDecrement == null && weightLabel != null) append(" · $weightLabel")
+                    }
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                Text(
-                    detail,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (onWeightDecrement != null && onWeightIncrement != null && weightLabel != null) {
+                    OutlinedButton(
+                        onClick = onWeightDecrement,
+                        modifier = Modifier.size(32.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                    ) {
+                        Text("−", style = MaterialTheme.typography.labelLarge)
+                    }
+                    Text(
+                        weightLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(min = 64.dp),
+                    )
+                    OutlinedButton(
+                        onClick = onWeightIncrement,
+                        modifier = Modifier.size(32.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                    ) {
+                        Text("+", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
+import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -152,6 +153,42 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 val profile = app.database.userProfileDao().getProfile() ?: return@launch
                 app.database.userProfileDao().insert(profile.copy(preferredExerciseCount = targetCount))
             }
+        }
+    }
+
+    fun adjustExerciseWeight(index: Int, delta: Float) {
+        val state = _state.value as? WorkoutState.PlanPreview ?: return
+        val unit = _weightUnit.value
+        val exercises = state.plan.exercises.toMutableList()
+        val pe = exercises[index]
+
+        val newWeight = WeightFormatter.round(
+            (pe.sessionWeight + delta).coerceAtLeast(2.5f),
+            unit,
+        )
+        if (newWeight == pe.sessionWeight) return
+
+        val newBaseline = repository.deriveBaselineFromSessionWeight(newWeight, pe)
+        if (newBaseline <= 0f) return
+
+        exercises[index] = pe.copy(
+            sessionWeight = newWeight,
+            warmupSets = if (pe.exercise.isTimed) emptyList()
+                         else repository.computeWarmupSets(newWeight, unit),
+        )
+
+        val muscle = pe.exercise.primaryMuscle
+        for (i in exercises.indices) {
+            if (i == index) continue
+            if (exercises[i].exercise.primaryMuscle == muscle) {
+                exercises[i] = repository.recomputeExercise(exercises[i], newBaseline, unit)
+            }
+        }
+
+        setState(state.copy(plan = state.plan.copy(exercises = exercises)))
+
+        viewModelScope.launch {
+            app.database.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscle, newBaseline))
         }
     }
 

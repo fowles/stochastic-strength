@@ -199,7 +199,24 @@ class WorkoutRepository(private val db: AppDatabase) {
         )
     }
 
-    private fun computeWarmupSets(weightKg: Float, weightUnit: WeightUnit): List<WarmupSet> {
+    fun deriveBaselineFromSessionWeight(sessionWeight: Float, pe: PlannedExercise): Float {
+        val coeff = ExerciseCoefficients.byName[pe.exercise.name] ?: return 0f
+        if (coeff <= 0f) return 0f
+        return ProgressionEngine.scaleWeight(sessionWeight, fromReps = pe.sessionReps, toReps = 10) / coeff
+    }
+
+    fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float, unit: WeightUnit): PlannedExercise {
+        val coeff = ExerciseCoefficients.byName[pe.exercise.name] ?: return pe
+        if (coeff <= 0f) return pe
+        val newWeight = WeightFormatter.round(
+            ProgressionEngine.scaleWeight(newBaselineKg * coeff, fromReps = 10, toReps = pe.sessionReps),
+            unit,
+        )
+        val newWarmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight, unit)
+        return pe.copy(sessionWeight = newWeight, warmupSets = newWarmups)
+    }
+
+    internal fun computeWarmupSets(weightKg: Float, weightUnit: WeightUnit): List<WarmupSet> {
         if (weightKg < 40f) return emptyList()
         fun w(pct: Float) = WeightFormatter.roundForWarmup(weightKg * pct, weightUnit)
         return if (weightKg < 60f) {
