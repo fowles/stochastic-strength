@@ -211,11 +211,12 @@ class FitFileBuilder(private val cacheDir: File) {
         "Pike Push-Up" -> ExerciseCategory.PUSH_UP to PushUpExerciseName.PIKE_PUSH_UP
         "Machine Chest Press" -> ExerciseCategory.BENCH_PRESS to BenchPressExerciseName.BARBELL_BENCH_PRESS
         "Banded Chest Press" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.CHEST_PRESS
-        // BACK — Deadlift
+        // HAMSTRINGS — Deadlift
         "Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.BARBELL_DEADLIFT
         "Romanian Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.ROMANIAN_DEADLIFT
         "Sumo Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.SUMO_DEADLIFT
         "Stiff-Leg Deadlift" -> ExerciseCategory.DEADLIFT to DeadliftExerciseName.BARBELL_STRAIGHT_LEG_DEADLIFT
+        "Good Morning" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.GOOD_MORNING
         // BACK — Row
         "Barbell Row" -> ExerciseCategory.ROW to RowExerciseName.REVERSE_GRIP_BARBELL_ROW
         "T-Bar Row" -> ExerciseCategory.ROW to RowExerciseName.T_BAR_ROW
@@ -230,7 +231,6 @@ class FitFileBuilder(private val cacheDir: File) {
         "Chin-Up" -> ExerciseCategory.PULL_UP to PullUpExerciseName.CHIN_UP
         "Lat Pulldown" -> ExerciseCategory.PULL_UP to PullUpExerciseName.LAT_PULLDOWN
         // BACK — Hyperextension
-        "Good Morning" -> ExerciseCategory.LEG_CURL to LegCurlExerciseName.GOOD_MORNING
         "Superman" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.SUPERMAN_FROM_FLOOR
         "Back Extension" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.STATIC_BACK_EXTENSION
         "Band Pull-Apart" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.PULL_APART

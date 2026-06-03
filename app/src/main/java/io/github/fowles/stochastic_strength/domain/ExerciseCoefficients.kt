@@ -16,10 +16,8 @@ object ExerciseCoefficients {
         "Machine Chest Press"          to 0.90f,
         "Banded Chest Press"           to 0.00f,
         // BACK (reference: Barbell Row)
-        "Deadlift"                     to 1.50f,
         "Barbell Row"                  to 1.00f,
         "T-Bar Row"                    to 0.90f,
-        "Good Morning"                 to 0.60f,
         "Pull-Up"                      to 0.00f,
         "Chin-Up"                      to 0.00f,
         "Inverted Row"                 to 0.00f,
@@ -86,8 +84,10 @@ object ExerciseCoefficients {
         "Bulgarian Split Squat"        to 0.30f,  // per dumbbell
         "Step-Up"                      to 0.20f,  // per dumbbell
         // HAMSTRINGS (reference: Romanian Deadlift)
+        "Deadlift"                     to 1.35f,
         "Romanian Deadlift"            to 1.00f,
         "Sumo Deadlift"                to 1.25f,
+        "Good Morning"                 to 0.55f,
         "Leg Curl"                     to 0.40f,
         "Nordic Curl"                  to 0.00f,
         "Single-Leg Romanian Deadlift" to 0.45f,  // per dumbbell
