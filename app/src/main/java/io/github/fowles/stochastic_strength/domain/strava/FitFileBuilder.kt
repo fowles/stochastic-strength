@@ -228,7 +228,7 @@ class FitFileBuilder(private val cacheDir: File) {
         "Straight-Arm Pulldown" -> ExerciseCategory.PULL_UP to PullUpExerciseName.STRAIGHT_ARM_PULLDOWN
         // BACK — Pull-Up / Lat Pulldown
         "Pull-Up" -> ExerciseCategory.PULL_UP to PullUpExerciseName.PULL_UP
-        "Chin-Up" -> ExerciseCategory.PULL_UP to PullUpExerciseName.CHIN_UP
+        "Chin-Up" -> ExerciseCategory.PULL_UP to PullUpExerciseName.CLOSE_GRIP_CHIN_UP
         "Lat Pulldown" -> ExerciseCategory.PULL_UP to PullUpExerciseName.LAT_PULLDOWN
         // BACK — Hyperextension
         "Superman" -> ExerciseCategory.HYPEREXTENSION to HyperextensionExerciseName.SUPERMAN_FROM_FLOOR
@@ -254,7 +254,7 @@ class FitFileBuilder(private val cacheDir: File) {
         // BICEPS
         "Barbell Curl" -> ExerciseCategory.CURL to CurlExerciseName.BARBELL_BICEPS_CURL
         "Preacher Curl" -> ExerciseCategory.CURL to CurlExerciseName.EZ_BAR_PREACHER_CURL
-        "Dumbbell Curl" -> ExerciseCategory.CURL to CurlExerciseName.DUMBBELL_BICEPS_CURL
+        "Dumbbell Curl" -> ExerciseCategory.CURL to CurlExerciseName.STANDING_DUMBBELL_BICEPS_CURL
         "Hammer Curl" -> ExerciseCategory.CURL to CurlExerciseName.DUMBBELL_HAMMER_CURL
         "Concentration Curl" -> ExerciseCategory.CURL to CurlExerciseName.ONE_ARM_CONCENTRATION_CURL
         "Cable Curl" -> ExerciseCategory.CURL to CurlExerciseName.CABLE_BICEPS_CURL
@@ -274,9 +274,9 @@ class FitFileBuilder(private val cacheDir: File) {
         "Front Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BARBELL_FRONT_SQUAT
         "Hack Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.BARBELL_HACK_SQUAT
         "Goblet Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.GOBLET_SQUAT
-        "Bodyweight Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.SQUAT
+        "Bodyweight Squat" -> ExerciseCategory.SQUAT to SquatExerciseName.AIR_SQUAT
         "Banded Squat" -> ExerciseCategory.BANDED_EXERCISES to BandedExercisesExerciseName.SQUAT
-        "Jump Squat" -> ExerciseCategory.PLYO to PlyoExerciseName.JUMP_SQUAT
+        "Jump Squat" -> ExerciseCategory.PLYO to PlyoExerciseName.BODY_WEIGHT_JUMP_SQUAT
         "Wall Sit" -> ExerciseCategory.SQUAT to SquatExerciseName.BODY_WEIGHT_WALL_SQUAT
         "Leg Press" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
         "Leg Extension" -> ExerciseCategory.SQUAT to SquatExerciseName.LEG_PRESS
