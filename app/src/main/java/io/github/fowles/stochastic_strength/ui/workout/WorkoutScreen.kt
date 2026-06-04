@@ -480,7 +480,7 @@ private fun ActiveSetContent(
             reps = state.plannedExercise.sessionReps,
             weightUnit = weightUnit,
         ) {
-            Text("How did that feel?", style = MaterialTheme.typography.labelLarge)
+            Text("How many more reps could you have done?", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(12.dp))
             FeedbackButtons(onFeedback = onFeedback)
         }
@@ -646,15 +646,15 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
             OutlinedButton(
                 onClick = { onFeedback(SetFeedback.RIR_0_1) },
                 modifier = Modifier.weight(1f),
-            ) { Text("0-1 left") }
+            ) { Text("0-1 more") }
             OutlinedButton(
                 onClick = { onFeedback(SetFeedback.RIR_2_4) },
                 modifier = Modifier.weight(1f),
-            ) { Text("2-4 left") }
+            ) { Text("2-4 more") }
             OutlinedButton(
                 onClick = { onFeedback(SetFeedback.RIR_5_PLUS) },
                 modifier = Modifier.weight(1f),
-            ) { Text("5+ left") }
+            ) { Text("5+ more") }
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -664,7 +664,7 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
                 onClick = { onFeedback(SetFeedback.TOO_HARD) },
                 colors = errorColor,
                 modifier = Modifier.weight(1f),
-            ) { Text("Too Hard") }
+            ) { Text("Too Heavy") }
             OutlinedButton(
                 onClick = { onFeedback(SetFeedback.HURT) },
                 colors = errorColor,
