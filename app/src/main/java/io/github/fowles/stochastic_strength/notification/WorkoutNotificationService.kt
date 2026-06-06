@@ -115,9 +115,9 @@ class WorkoutNotificationService : Service() {
             .setOngoing(true)
             .setContentIntent(tapIntent())
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .addAction(0, "0-1 left", feedbackPendingIntent(SetFeedback.RIR_0_1, REQUEST_RIR_0_1))
-            .addAction(0, "2-4 left", feedbackPendingIntent(SetFeedback.RIR_2_4, REQUEST_RIR_2_4))
-            .addAction(0, "5+ left", feedbackPendingIntent(SetFeedback.RIR_5_PLUS, REQUEST_RIR_5_PLUS))
+            .addAction(0, "0-1 more", feedbackPendingIntent(SetFeedback.RIR_0_1, REQUEST_RIR_0_1))
+            .addAction(0, "2-4 more", feedbackPendingIntent(SetFeedback.RIR_2_4, REQUEST_RIR_2_4))
+            .addAction(0, "5+ more", feedbackPendingIntent(SetFeedback.RIR_5_PLUS, REQUEST_RIR_5_PLUS))
             .build()
     }
 
