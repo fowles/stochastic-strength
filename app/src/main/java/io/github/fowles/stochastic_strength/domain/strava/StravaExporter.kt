@@ -105,13 +105,18 @@ class StravaExporter(
         tokenStore.getValidAccessToken()?.let { return it }
         val refreshToken = tokenStore.getRefreshToken()
             ?: throw IOException("Not authenticated with Strava")
-        val tokens = StravaApiClient.refreshToken(
-            BuildConfig.STRAVA_CLIENT_ID,
-            BuildConfig.STRAVA_CLIENT_SECRET,
-            refreshToken,
-        )
-        tokenStore.saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresAt)
-        return tokens.accessToken
+        try {
+            val tokens = StravaApiClient.refreshToken(
+                BuildConfig.STRAVA_CLIENT_ID,
+                BuildConfig.STRAVA_CLIENT_SECRET,
+                refreshToken,
+            )
+            tokenStore.saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresAt)
+            return tokens.accessToken
+        } catch (e: StravaAuthException) {
+            tokenStore.clearTokens()
+            throw e
+        }
     }
 
     private fun buildWorkoutName(): String =

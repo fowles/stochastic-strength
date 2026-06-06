@@ -16,6 +16,8 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+class StravaAuthException(message: String) : java.io.IOException(message)
+
 data class TokenResponse(
     val accessToken: String,
     val refreshToken: String,
@@ -131,7 +133,11 @@ object StravaApiClient {
 
         val response = client.newCall(request).execute()
         val bodyStr = response.body?.string() ?: throw IOException("Empty token response")
-        if (!response.isSuccessful) throw IOException("Token exchange failed ${response.code}: $bodyStr")
+        if (!response.isSuccessful) {
+            val msg = "Token exchange failed ${response.code}: $bodyStr"
+            if (response.code == 400 || response.code == 401) throw StravaAuthException(msg)
+            throw IOException(msg)
+        }
 
         val json = JSONObject(bodyStr)
         return TokenResponse(

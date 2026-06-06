@@ -1,7 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.summary
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,12 +11,11 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportController
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import io.github.fowles.stochastic_strength.ui.toSummarySet
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -62,64 +60,31 @@ class SummaryViewModel(
         ))
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    private val _stravaState = MutableStateFlow<StravaExportState>(StravaExportState.Idle)
-    val stravaState: StateFlow<StravaExportState> = _stravaState.asStateFlow()
+    private val stravaController = StravaExportController(app.stravaExporter, app.database, app.applicationScope)
+    val stravaState: StateFlow<StravaExportState> = stravaController.state
 
     init {
         viewModelScope.launch {
             val session = app.database.workoutSessionDao().getById(sessionId)
             if (session?.stravaActivityId != null) {
-                _stravaState.value = StravaExportState.Success(session.stravaActivityId)
+                stravaController.setState(StravaExportState.Success(session.stravaActivityId))
             }
         }
     }
 
     fun onExportToStrava() {
-        if (!app.stravaExporter.isAuthenticated()) {
-            _stravaState.value = StravaExportState.NeedsAuth(app.stravaExporter.getAuthUrl())
-            return
-        }
-        launchExport()
+        val weightUnit = summary.value?.weightUnit ?: WeightUnit.KG
+        stravaController.export(sessionId, weightUnit)
     }
 
-    fun onStravaAuthUrlLaunched() {
-        if (_stravaState.value is StravaExportState.NeedsAuth) {
-            _stravaState.value = StravaExportState.WaitingForAuth
-        }
-    }
+    fun onStravaAuthUrlLaunched() = stravaController.onAuthUrlLaunched()
 
     fun onResumed() {
-        if (_stravaState.value is StravaExportState.WaitingForAuth &&
-            app.stravaExporter.isAuthenticated()
-        ) {
-            launchExport()
-        }
+        val weightUnit = summary.value?.weightUnit ?: WeightUnit.KG
+        stravaController.onResumedWaitingForAuth(sessionId, weightUnit)
     }
 
-    fun onStravaMessageShown() {
-        if (_stravaState.value !is StravaExportState.Success) {
-            _stravaState.value = StravaExportState.Idle
-        }
-    }
-
-    private fun launchExport() {
-        _stravaState.value = StravaExportState.Exporting
-        app.applicationScope.launch {
-            val weightUnit = summary.value?.weightUnit ?: WeightUnit.KG
-            runCatching { app.stravaExporter.exportSession(sessionId, weightUnit) }
-                .onSuccess { activityId ->
-                    app.database.workoutSessionDao().updateStravaActivityId(sessionId, activityId)
-                    _stravaState.value = StravaExportState.Success(activityId)
-                    app.stravaExporter.notifyUploadResult(success = true)
-                }
-                .onFailure { e ->
-                    Log.e("StravaExport", "Export failed", e)
-                    val msg = e.message ?: "Export to Strava failed"
-                    _stravaState.value = StravaExportState.Error(msg)
-                    app.stravaExporter.notifyUploadResult(success = false, error = msg)
-                }
-        }
-    }
+    fun onStravaMessageShown() = stravaController.onMessageShown()
 
     companion object {
         fun factory(sessionId: Long): ViewModelProvider.Factory =

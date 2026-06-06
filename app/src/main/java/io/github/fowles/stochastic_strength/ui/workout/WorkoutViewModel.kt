@@ -2,7 +2,6 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import android.app.Application
 import android.content.Intent
-import android.util.Log
 import android.location.Geocoder
 import android.os.VibrationEffect
 import android.os.VibratorManager
@@ -27,6 +26,7 @@ import io.github.fowles.stochastic_strength.location.LocationService
 import io.github.fowles.stochastic_strength.notification.WorkoutNotificationService
 import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.strava.StravaExportController
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 import io.github.fowles.stochastic_strength.ui.toSummarySet
 import kotlinx.coroutines.Job
@@ -57,8 +57,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _doneSummary = MutableStateFlow<WorkoutSummaryData?>(null)
     val doneSummary: StateFlow<WorkoutSummaryData?> = _doneSummary.asStateFlow()
 
-    private val _stravaState = MutableStateFlow<StravaExportState>(StravaExportState.Idle)
-    val stravaState: StateFlow<StravaExportState> = _stravaState.asStateFlow()
+    private val stravaController = StravaExportController(app.stravaExporter, app.database, app.applicationScope)
+    val stravaState: StateFlow<StravaExportState> = stravaController.state
 
     private var restTimerJob: Job? = null
     private var timedSetTimerJob: Job? = null
@@ -227,50 +227,18 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
-        if (_stravaState.value is StravaExportState.WaitingForAuth && app.stravaExporter.isAuthenticated()) {
-            val done = _state.value as? WorkoutState.Done ?: return
-            launchStravaExport(done.sessionId)
-        }
+        val done = _state.value as? WorkoutState.Done
+        if (done != null) stravaController.onResumedWaitingForAuth(done.sessionId, _weightUnit.value)
     }
 
     fun onExportToStrava() {
         val done = _state.value as? WorkoutState.Done ?: return
-        if (!app.stravaExporter.isAuthenticated()) {
-            _stravaState.value = StravaExportState.NeedsAuth(app.stravaExporter.getAuthUrl())
-            return
-        }
-        launchStravaExport(done.sessionId)
+        stravaController.export(done.sessionId, _weightUnit.value)
     }
 
-    fun onStravaAuthUrlLaunched() {
-        if (_stravaState.value is StravaExportState.NeedsAuth) {
-            _stravaState.value = StravaExportState.WaitingForAuth
-        }
-    }
+    fun onStravaAuthUrlLaunched() = stravaController.onAuthUrlLaunched()
 
-    fun onStravaMessageShown() {
-        if (_stravaState.value !is StravaExportState.Success) {
-            _stravaState.value = StravaExportState.Idle
-        }
-    }
-
-    private fun launchStravaExport(sessionId: Long) {
-        _stravaState.value = StravaExportState.Exporting
-        app.applicationScope.launch {
-            runCatching { app.stravaExporter.exportSession(sessionId, _weightUnit.value) }
-                .onSuccess { activityId ->
-                    app.database.workoutSessionDao().updateStravaActivityId(sessionId, activityId)
-                    _stravaState.value = StravaExportState.Success(activityId)
-                    app.stravaExporter.notifyUploadResult(success = true)
-                }
-                .onFailure { e ->
-                    Log.e("StravaExport", "Export failed", e)
-                    val msg = e.message ?: "Export to Strava failed"
-                    _stravaState.value = StravaExportState.Error(msg)
-                    app.stravaExporter.notifyUploadResult(success = false, error = msg)
-                }
-        }
-    }
+    fun onStravaMessageShown() = stravaController.onMessageShown()
 
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
