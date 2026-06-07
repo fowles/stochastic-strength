@@ -57,7 +57,7 @@ class StravaJsonBuilder {
             // CHEST — Bench Press
             "Barbell Bench Press"             -> "BARBELL_BENCH_PRESS"
             "Incline Barbell Bench Press"     -> "INCLINE_BARBELL_BENCH_PRESS"
-            "Decline Bench Press"             -> "DECLINE_DUMBBELL_BENCH_PRESS"
+            "Decline Bench Press"             -> "BENCH_PRESS_GENERIC"
             "Dumbbell Bench Press"            -> "DUMBBELL_BENCH_PRESS"
             "Incline Dumbbell Press"          -> "INCLINE_DUMBBELL_BENCH_PRESS"
             "Close-Grip Bench Press"          -> "CLOSE_GRIP_BARBELL_BENCH_PRESS"
@@ -70,7 +70,7 @@ class StravaJsonBuilder {
             // CHEST — Push-Up
             "Push-Up"                         -> "PUSH_UP_GENERIC"
             "Diamond Push-Up"                 -> "DIAMOND_PUSH_UP"
-            "Pike Push-Up"                    -> "PUSH_UP_GENERIC"
+            "Pike Push-Up"                    -> "SHOULDER_FOCUSED_PRESS_UP"
             "Burpee"                          -> "BURPEE"
             // BACK — Row
             "Barbell Row"                     -> "BENT_OVER_BARBELL_ROW"
@@ -102,7 +102,7 @@ class StravaJsonBuilder {
             "Front Raise"                     -> "FRONT_RAISE"
             "Rear Delt Fly"                   -> "DUMBBELL_REAR_DELT_FLY"
             "Banded Lateral Raise"            -> "LATERAL_RAISE_GENERIC"
-            "External Rotation"               -> "FORTY_FIVE_DEGREE_CABLE_EXTERNAL_ROTATION"
+            "External Rotation"               -> "SHOULDER_STABILITY_GENERIC"
             // SHOULDERS — Shrug
             "Upright Row"                     -> "BARBELL_UPRIGHT_ROW"
             // BICEPS
@@ -141,14 +141,14 @@ class StravaJsonBuilder {
             "Banded Squat"                    -> "SQUAT_GENERIC"
             "Jump Squat"                      -> "BODY_WEIGHT_JUMP_SQUAT"
             "Wall Sit"                        -> "WALL_SIT"
-            "Leg Press"                       -> "LEG_PRESS"
+            "Leg Press"                       -> "MACHINE_LEG_PRESS"
             "Leg Extension"                   -> "MACHINE_LEG_EXTENSION"
             // QUADS — Lunge
             "Lunge"                           -> "LUNGE_GENERIC"
             "Walking Lunge"                   -> "WALKING_LUNGE"
             "Reverse Lunge"                   -> "REVERSE_LUNGE"
             "Dumbbell Lunge"                  -> "DUMBBELL_WALKING_LUNGES"
-            "Bulgarian Split Squat"           -> "BARBELL_BULGARIAN_SPLIT_SQUAT"
+            "Bulgarian Split Squat"           -> "DUMBBELL_BULGARIAN_SPLIT_SQUATS"
             "Step-Up"                         -> "STEP_UP"
             // GLUTES
             "Hip Thrust"                      -> "BARBELL_HIP_THRUST"
@@ -162,7 +162,7 @@ class StravaJsonBuilder {
             // CALVES
             "Standing Calf Raise"             -> "STANDING_CALF_RAISE"
             "Seated Calf Raise"               -> "SEATED_CALF_RAISE"
-            "Leg Press Calf Raise"            -> "SEATED_CALF_RAISE"
+            "Leg Press Calf Raise"            -> "MACHINE_CALF_PRESS"
             // CORE
             "Plank"                           -> "PLANK_HOLD"
             "Mountain Climber"                -> "MOUNTAIN_CLIMBER"
