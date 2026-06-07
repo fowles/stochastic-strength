@@ -15,6 +15,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
@@ -61,6 +62,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val stravaState: StateFlow<StravaExportState> = stravaController.state
 
     private var restTimerJob: Job? = null
+    private val pendingReductions = mutableMapOf<Long, Float>()
     private var timedSetTimerJob: Job? = null
     private var addExerciseJob: Job? = null
     private var sessionStartTime = 0L
@@ -329,6 +331,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         restTimerJob?.cancel()
         val resting = _state.value as? WorkoutState.Resting ?: return
         val exerciseId = resting.plan.exercises[resting.exerciseIndex].exercise.id
+        pendingReductions.remove(exerciseId)
+        val restoredPlan = resting.preReductionWeight?.let { originalWeight ->
+            val exercises = resting.plan.exercises.toMutableList()
+            exercises[resting.exerciseIndex] = exercises[resting.exerciseIndex].copy(sessionWeight = originalWeight)
+            resting.plan.copy(exercises = exercises)
+        } ?: resting.plan
         viewModelScope.launch {
             app.database.workoutSetDao().deleteSet(
                 sessionId = resting.sessionId,
@@ -337,7 +345,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             )
         }
         setState(WorkoutState.ActiveSet(
-            plan = resting.plan,
+            plan = restoredPlan,
             exerciseIndex = resting.exerciseIndex,
             setIndex = resting.recordedSetIndex,
             sessionId = resting.sessionId,
@@ -488,10 +496,30 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         ))
     }
 
+    fun reduceExerciseWeight(completedReps: Int) {
+        val resting = _state.value as? WorkoutState.Resting ?: return
+        val exercise = resting.plan.exercises[resting.exerciseIndex]
+        val currentWeight = exercise.sessionWeight
+        if (currentWeight <= 0f) return
+        val clampedReps = maxOf(1, completedReps)
+        val newWeight = maxOf(0.5f, WeightFormatter.round(ProgressionEngine.scaleWeight(currentWeight, clampedReps, exercise.sessionReps), _weightUnit.value))
+        val fraction = (currentWeight - newWeight) / currentWeight
+        val actuallyReduced = fraction > 0f
+        if (actuallyReduced) {
+            val exerciseId = exercise.exercise.id
+            pendingReductions[exerciseId] = maxOf(pendingReductions[exerciseId] ?: 0f, fraction)
+        }
+        val preReductionWeight = resting.preReductionWeight ?: currentWeight
+        val updatedExercises = resting.plan.exercises.toMutableList()
+        updatedExercises[resting.exerciseIndex] = exercise.copy(sessionWeight = newWeight)
+        val updatedPlan = resting.plan.copy(exercises = updatedExercises)
+        setState(resting.copy(plan = updatedPlan, weightReductionApplied = true, weightWasReduced = actuallyReduced, preReductionWeight = preReductionWeight))
+    }
+
     fun completeWorkout() {
         val done = _state.value as? WorkoutState.Done ?: return
         viewModelScope.launch {
-            repository.applySessionProgression(done.sessionId)
+            repository.applySessionProgression(done.sessionId, pendingReductions.toMap())
             _workoutCompleted.value = true
         }
     }

@@ -87,7 +87,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         )
     }
 
-    suspend fun applySessionProgression(sessionId: Long) {
+    suspend fun applySessionProgression(sessionId: Long, exerciseReductions: Map<Long, Float> = emptyMap()) {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
         val profile = db.userProfileDao().getProfile()
@@ -118,7 +118,8 @@ class WorkoutRepository(private val db: AppDatabase) {
             if (allFeedbacks.isEmpty()) continue
 
             val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
-            val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks)
+            val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
+            val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction)
             db.muscleGroupStrengthDao().upsert(
                 current.copy(baselineWeight = WeightFormatter.round(newBaseline, weightUnit))
             )

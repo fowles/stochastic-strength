@@ -7,11 +7,16 @@ object ProgressionEngine {
     private const val INTERNAL_INCREMENT = 0.5f
     val REP_OPTIONS = listOf(5, 8, 10)
 
-    fun computeNextBaseline(baseline: Float, feedbacks: List<SetFeedback>): Float {
-        if (feedbacks.isEmpty()) return baseline
+    fun computeNextBaseline(baseline: Float, feedbacks: List<SetFeedback>, minReductionFraction: Float = 0f): Float {
+        if (feedbacks.isEmpty() && minReductionFraction == 0f) return baseline
         if (SetFeedback.HURT in feedbacks) return weightDecreased(baseline, 0.85f)
-        val score = scoreFromFeedbacks(feedbacks) ?: return baseline
-        return applyScoreBaseline(baseline, score)
+        val score = scoreFromFeedbacks(feedbacks)
+        val scoreResult = if (score != null) applyScoreBaseline(baseline, score) else baseline
+        if (minReductionFraction > 0f) {
+            val cap = maxOf(INTERNAL_INCREMENT, roundInternal(baseline * (1f - minReductionFraction)))
+            return minOf(scoreResult, cap)
+        }
+        return scoreResult
     }
 
     fun scoreFromFeedbacks(feedbacks: List<SetFeedback>): Float? {

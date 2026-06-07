@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.items
 import android.Manifest
 import android.content.Intent
@@ -56,6 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.first
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +80,7 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -173,8 +179,10 @@ fun WorkoutScreen(
                 }
                 is WorkoutState.Resting -> RestingContent(
                     state = s,
+                    weightUnit = weightUnit,
                     onSkipRest = viewModel::skipRest,
                     onUndo = viewModel::undoLastSet,
+                    onReduceWeight = viewModel::reduceExerciseWeight,
                 )
                 is WorkoutState.Done -> DoneContent(
                     doneSummary = doneSummary,
@@ -675,6 +683,90 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
 }
 
 @Composable
+private fun WeightReductionCard(
+    sessionReps: Int,
+    sessionWeight: Float,
+    weightUnit: WeightUnit,
+    equipment: Equipment,
+    applied: Boolean,
+    weightReduced: Boolean,
+    onRepsSelected: (Int) -> Unit,
+) {
+    val errorColor = MaterialTheme.colorScheme.error
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        // Question content always in the layout tree so the card never shrinks when applied
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(if (applied) 0f else 1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "How many reps did you complete?",
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                repeat(sessionReps) { reps ->
+                    val newWeight = WeightFormatter.round(
+                        maxOf(0.5f, ProgressionEngine.scaleWeight(sessionWeight, maxOf(1, reps), sessionReps)),
+                        weightUnit,
+                    )
+                    val delta = sessionWeight - newWeight
+                    OutlinedButton(
+                        onClick = { onRepsSelected(reps) },
+                        enabled = !applied,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("$reps", style = MaterialTheme.typography.labelLarge)
+                            if (delta > 0f) {
+                                Text(
+                                    "↓ ${WeightFormatter.format(delta, weightUnit)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = errorColor,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Confirmation content overlaid on top when applied and weight actually changed
+        if (applied && weightReduced) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    "Weight reduced to ${WeightFormatter.format(sessionWeight, weightUnit)}",
+                    style = MaterialTheme.typography.labelLarge,
+                    textAlign = TextAlign.Center,
+                )
+                if (equipment == Equipment.BARBELL) {
+                    WeightFormatter.platesPerSide(sessionWeight, weightUnit)?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DoneContent(
     doneSummary: WorkoutSummaryData?,
     stravaState: StravaExportState,
@@ -711,8 +803,10 @@ private const val MAX_EXERCISE_COUNT = 15
 @Composable
 private fun RestingContent(
     state: WorkoutState.Resting,
+    weightUnit: WeightUnit,
     onSkipRest: () -> Unit,
     onUndo: () -> Unit,
+    onReduceWeight: (Int) -> Unit,
 ) {
     val plan = state.plan
     val totalSets = PlannedExercise.DEFAULT_SETS
@@ -738,9 +832,9 @@ private fun RestingContent(
     ) {
         Box(
             modifier = Modifier
-                .weight(1f)
+                .weight(0.6f)
                 .fillMaxWidth(),
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.BottomCenter,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Rest", style = MaterialTheme.typography.headlineMedium)
@@ -787,10 +881,36 @@ private fun RestingContent(
                 }
             }
         }
+        Spacer(Modifier.height(16.dp))
+        // Card area — always 20% regardless of card visibility
+        Box(
+            modifier = Modifier
+                .weight(0.2f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            val plannedExercise = state.plan.exercises[state.exerciseIndex]
+            val hasMoreSets = state.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
+            val isWeighted = plannedExercise.exercise.equipment != Equipment.BODYWEIGHT
+                && plannedExercise.sessionWeight > 0f
+            if (state.lastFeedback == SetFeedback.TOO_HARD && hasMoreSets && isWeighted) {
+                WeightReductionCard(
+                    sessionReps = plannedExercise.sessionReps,
+                    sessionWeight = plannedExercise.sessionWeight,
+                    weightUnit = weightUnit,
+                    equipment = plannedExercise.exercise.equipment,
+                    applied = state.weightReductionApplied,
+                    weightReduced = state.weightWasReduced,
+                    onRepsSelected = onReduceWeight,
+                )
+            }
+        }
+        // Exercises — always 20%
         RemainingExerciseList(
             exercises = plan.exercises,
             currentExerciseIndex = state.exerciseIndex,
             setsRemainingForCurrent = totalSets - nextSet,
+            modifier = Modifier.weight(0.2f),
         )
     }
 }
@@ -802,6 +922,7 @@ private fun RemainingExerciseList(
     exercises: List<PlannedExercise>,
     currentExerciseIndex: Int,
     setsRemainingForCurrent: Int,
+    modifier: Modifier = Modifier,
 ) {
     val totalSets = PlannedExercise.DEFAULT_SETS
     val inProgressIndex = when {
@@ -810,13 +931,33 @@ private fun RemainingExerciseList(
         else -> -1
     }
     val inProgressRemaining = if (setsRemainingForCurrent > 0) setsRemainingForCurrent else totalSets
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Exercises",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+    val listState = rememberLazyListState()
+    LaunchedEffect(inProgressIndex) {
+        if (inProgressIndex >= 0) {
+            // +1 because item 0 is the sticky header; negative offset places item at ~1/3 from top
+            val viewportHeight = snapshotFlow { listState.layoutInfo.viewportSize.height }
+                .first { it > 0 }
+            listState.scrollToItem(
+                index = inProgressIndex + 1,
+                scrollOffset = -(viewportHeight * 2 / 5),
+            )
+        }
+    }
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.Bottom,
+    ) {
+        stickyHeader(key = "header") {
+            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+                Text(
+                    "Exercises",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+        }
         exercises.forEachIndexed { i, planned ->
             val progress = when {
                 inProgressIndex < 0 || i < inProgressIndex -> ExerciseProgress.COMPLETED
@@ -828,7 +969,9 @@ private fun RemainingExerciseList(
                 ExerciseProgress.IN_PROGRESS -> "$inProgressRemaining left"
                 ExerciseProgress.PENDING -> "$totalSets sets"
             }
-            RemainingExerciseRow(name = planned.exercise.name, detail = detail, progress = progress)
+            item(key = planned.exercise.id) {
+                RemainingExerciseRow(name = planned.exercise.name, detail = detail, progress = progress)
+            }
         }
     }
 }
