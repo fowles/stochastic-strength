@@ -63,7 +63,7 @@ object ExerciseCoefficients {
         "Dips"                         to 0.00f,
         "Diamond Push-Up"              to 0.00f,
         "Overhead Tricep Extension"    to 0.35f,
-        "Tricep Kickback"              to 0.15f,
+        "Tricep Kickback"              to 0.30f,
         "Cable Overhead Tricep Extension" to 0.40f,
         "Banded Tricep Extension"      to 0.00f,
         // QUADS (reference: Barbell Squat)
