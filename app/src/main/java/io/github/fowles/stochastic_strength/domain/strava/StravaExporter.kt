@@ -26,7 +26,7 @@ import java.io.IOException
 class StravaExporter(
     private val db: AppDatabase,
     private val tokenStore: StravaTokenStore,
-    private val fitBuilder: FitFileBuilder,
+    private val jsonBuilder: StravaJsonBuilder,
     private val context: Context,
 ) {
     private val notificationManager =
@@ -84,21 +84,17 @@ class StravaExporter(
             .toMap()
         val nameById = exerciseById.mapValues { (_, ex) -> ex.name }
 
-        val fitFile = fitBuilder.build(session, sets, nameById)
-        try {
-            val durationMs = (session.endTime ?: session.startTime) - session.startTime
-            val name = buildWorkoutName()
-            val description = buildDescription(sets, exerciseById, durationMs, weightUnit)
-            val uploadId = StravaApiClient.uploadFitFile(accessToken, fitFile, name, description)
-            repeat(20) {
-                val activityId = StravaApiClient.pollUpload(accessToken, uploadId)
-                if (activityId != null) return activityId
-                delay(1500)
-            }
-            throw IOException("Timed out waiting for Strava to process the upload")
-        } finally {
-            fitFile.delete()
+        val durationMs = (session.endTime ?: session.startTime) - session.startTime
+        val name = buildWorkoutName()
+        val description = buildDescription(sets, exerciseById, durationMs, weightUnit)
+        val jsonBody = jsonBuilder.build(session, sets, nameById)
+        val uploadId = StravaApiClient.uploadJson(accessToken, jsonBody, name, description)
+        repeat(20) {
+            val activityId = StravaApiClient.pollUpload(accessToken, uploadId)
+            if (activityId != null) return activityId
+            delay(1500)
         }
+        throw IOException("Timed out waiting for Strava to process the upload")
     }
 
     private suspend fun ensureValidToken(): String {

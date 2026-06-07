@@ -10,9 +10,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -70,19 +69,22 @@ object StravaApiClient {
                 .build())
         }
 
-    suspend fun uploadFitFile(accessToken: String, fitFile: File, name: String, description: String): String =
+    suspend fun uploadJson(accessToken: String, jsonBody: String, name: String, description: String): String =
         withContext(Dispatchers.IO) {
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("data_type", "fit")
+                .addFormDataPart("data_type", "json")
+                .addFormDataPart("sport_type", "WeightTraining")
                 .addFormDataPart("name", name)
                 .addFormDataPart("description", description)
                 .addFormDataPart(
                     "file",
-                    fitFile.name,
-                    fitFile.asRequestBody("application/octet-stream".toMediaType()),
+                    "strava_export.json",
+                    jsonBody.toByteArray().toRequestBody("application/octet-stream".toMediaType()),
                 )
                 .build()
+
+            if (BuildConfig.DEBUG) Log.d("StravaApiClient", "JSON upload body: ${jsonBody.take(1000)}")
 
             val request = Request.Builder()
                 .url(UPLOAD_URL)

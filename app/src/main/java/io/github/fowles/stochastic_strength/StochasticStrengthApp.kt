@@ -3,8 +3,8 @@ package io.github.fowles.stochastic_strength
 import android.app.Application
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
-import io.github.fowles.stochastic_strength.domain.strava.FitFileBuilder
 import io.github.fowles.stochastic_strength.domain.strava.StravaExporter
+import io.github.fowles.stochastic_strength.domain.strava.StravaJsonBuilder
 import io.github.fowles.stochastic_strength.domain.strava.StravaTokenStore
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutCommand
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutNotificationState
@@ -24,7 +24,7 @@ class StochasticStrengthApp : Application() {
         StravaExporter(
             db = database,
             tokenStore = StravaTokenStore(this),
-            fitBuilder = FitFileBuilder(cacheDir),
+            jsonBuilder = StravaJsonBuilder(),
             context = this,
         )
     }
