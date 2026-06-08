@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 data class PlannedExercise(
     val exercise: Exercise,
     val sessionWeight: Float = 0f,
+    val originalSessionWeight: Float = sessionWeight,
     val sessionReps: Int = 10,
     val warmupSets: List<WarmupSet> = emptyList(),
 ) {

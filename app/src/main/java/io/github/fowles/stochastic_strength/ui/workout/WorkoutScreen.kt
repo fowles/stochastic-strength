@@ -900,7 +900,7 @@ private fun RestingContent(
                     weightUnit = weightUnit,
                     equipment = plannedExercise.exercise.equipment,
                     applied = state.weightReductionApplied,
-                    weightReduced = state.weightWasReduced,
+                    weightReduced = state.plan.exercises[state.exerciseIndex].sessionWeight != state.weightAtSetStart,
                     onRepsSelected = onReduceWeight,
                 )
             }

@@ -62,7 +62,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val stravaState: StateFlow<StravaExportState> = stravaController.state
 
     private var restTimerJob: Job? = null
-    private val pendingReductions = mutableMapOf<Long, Float>()
     private var timedSetTimerJob: Job? = null
     private var addExerciseJob: Job? = null
     private var sessionStartTime = 0L
@@ -245,14 +244,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         if (preview.plan.exercises.isEmpty()) return
-        val firstExercise = preview.plan.exercises[0]
+        val frozenExercises = preview.plan.exercises.map { it.copy(originalSessionWeight = it.sessionWeight) }
+        val plan = preview.plan.copy(exercises = frozenExercises)
+        val firstExercise = plan.exercises[0]
         viewModelScope.launch {
             sessionStartTime = System.currentTimeMillis()
             val sessionId = app.database.workoutSessionDao().insert(
                 WorkoutSession(startTime = sessionStartTime, locationId = sessionLocationId)
             )
             setState(WorkoutState.ActiveSet(
-                plan = preview.plan,
+                plan = plan,
                 exerciseIndex = 0,
                 setIndex = 0,
                 sessionId = sessionId,
@@ -322,6 +323,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 sessionId = current.sessionId,
                 secondsRemaining = REST_SECONDS,
                 lastFeedback = feedback,
+                weightAtSetStart = current.plannedExercise.sessionWeight,
             ))
             startRestTimer()
         }
@@ -331,12 +333,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         restTimerJob?.cancel()
         val resting = _state.value as? WorkoutState.Resting ?: return
         val exerciseId = resting.plan.exercises[resting.exerciseIndex].exercise.id
-        pendingReductions.remove(exerciseId)
-        val restoredPlan = resting.preReductionWeight?.let { originalWeight ->
-            val exercises = resting.plan.exercises.toMutableList()
-            exercises[resting.exerciseIndex] = exercises[resting.exerciseIndex].copy(sessionWeight = originalWeight)
-            resting.plan.copy(exercises = exercises)
-        } ?: resting.plan
+        val restoredExercises = resting.plan.exercises.toMutableList()
+        restoredExercises[resting.exerciseIndex] =
+            restoredExercises[resting.exerciseIndex].copy(sessionWeight = resting.weightAtSetStart)
+        val restoredPlan = resting.plan.copy(exercises = restoredExercises)
         viewModelScope.launch {
             app.database.workoutSetDao().deleteSet(
                 sessionId = resting.sessionId,
@@ -499,27 +499,23 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun reduceExerciseWeight(completedReps: Int) {
         val resting = _state.value as? WorkoutState.Resting ?: return
         val exercise = resting.plan.exercises[resting.exerciseIndex]
-        val currentWeight = exercise.sessionWeight
-        if (currentWeight <= 0f) return
-        val clampedReps = maxOf(1, completedReps)
-        val newWeight = maxOf(0.5f, WeightFormatter.round(ProgressionEngine.scaleWeight(currentWeight, clampedReps, exercise.sessionReps), _weightUnit.value))
-        val fraction = (currentWeight - newWeight) / currentWeight
-        val actuallyReduced = fraction > 0f
-        if (actuallyReduced) {
-            val exerciseId = exercise.exercise.id
-            pendingReductions[exerciseId] = maxOf(pendingReductions[exerciseId] ?: 0f, fraction)
-        }
-        val preReductionWeight = resting.preReductionWeight ?: currentWeight
+        if (exercise.sessionWeight <= 0f) return
+        val newWeight = maxOf(0.5f, WeightFormatter.round(
+            ProgressionEngine.scaleWeight(exercise.sessionWeight, maxOf(1, completedReps), exercise.sessionReps),
+            _weightUnit.value,
+        ))
         val updatedExercises = resting.plan.exercises.toMutableList()
         updatedExercises[resting.exerciseIndex] = exercise.copy(sessionWeight = newWeight)
-        val updatedPlan = resting.plan.copy(exercises = updatedExercises)
-        setState(resting.copy(plan = updatedPlan, weightReductionApplied = true, weightWasReduced = actuallyReduced, preReductionWeight = preReductionWeight))
+        setState(resting.copy(plan = resting.plan.copy(exercises = updatedExercises), weightReductionApplied = true))
     }
 
     fun completeWorkout() {
         val done = _state.value as? WorkoutState.Done ?: return
         viewModelScope.launch {
-            repository.applySessionProgression(done.sessionId, pendingReductions.toMap())
+            val reductions = done.plan.exercises
+                .filter { it.originalSessionWeight > 0f && it.sessionWeight < it.originalSessionWeight }
+                .associate { it.exercise.id to (it.originalSessionWeight - it.sessionWeight) / it.originalSessionWeight }
+            repository.applySessionProgression(done.sessionId, reductions)
             _workoutCompleted.value = true
         }
     }

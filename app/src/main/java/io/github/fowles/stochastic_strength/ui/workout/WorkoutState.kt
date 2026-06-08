@@ -35,8 +35,7 @@ sealed interface WorkoutState {
         val secondsRemaining: Int,
         val lastFeedback: SetFeedback,
         val weightReductionApplied: Boolean = false,
-        val weightWasReduced: Boolean = false,
-        val preReductionWeight: Float? = null,
+        val weightAtSetStart: Float,
     ) : WorkoutState
 
     data class Done(
