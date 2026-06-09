@@ -108,6 +108,8 @@ class WorkoutRepository(private val db: AppDatabase) {
             }
         }
 
+        val sessionReps = sets.firstOrNull()?.targetReps ?: 5
+
         val exercisesByMuscle = exerciseById.values
             .filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
@@ -119,7 +121,7 @@ class WorkoutRepository(private val db: AppDatabase) {
 
             val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
             val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
-            val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction)
+            val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
             db.muscleGroupStrengthDao().upsert(
                 current.copy(baselineWeight = WeightFormatter.round(newBaseline, weightUnit))
             )

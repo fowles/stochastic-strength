@@ -103,6 +103,33 @@ class ProgressionEngineTest {
         assertTrue("band6 (all TOO_HARD) should reduce more than band5", band6result < band5result)
     }
 
+    // --- 10-rep mixed leniency ---
+
+    @Test
+    fun tenRep_mixedWithAnySuccess_noChange() {
+        // At 10 reps, any mix of success + TOO_HARD → no change (accumulated fatigue, not overload)
+        val results = listOf(
+            ProgressionEngine.computeNextBaseline(60f, listOf(SetFeedback.RIR_0_1, SetFeedback.TOO_HARD, SetFeedback.TOO_HARD), sessionReps = 10),
+            ProgressionEngine.computeNextBaseline(60f, listOf(SetFeedback.RIR_2_4, SetFeedback.TOO_HARD, SetFeedback.TOO_HARD), sessionReps = 10),
+            ProgressionEngine.computeNextBaseline(60f, listOf(SetFeedback.RIR_5_PLUS, SetFeedback.TOO_HARD, SetFeedback.TOO_HARD), sessionReps = 10),
+            ProgressionEngine.computeNextBaseline(60f, listOf(SetFeedback.RIR_0_1, SetFeedback.RIR_0_1, SetFeedback.TOO_HARD), sessionReps = 10),
+        )
+        results.forEach { assertEquals("expected no change at 60f, got $it", 60f, it, 0.001f) }
+    }
+
+    @Test
+    fun tenRep_allTooHard_stillReduces() {
+        val result = ProgressionEngine.computeNextBaseline(60f, listOf(SetFeedback.TOO_HARD, SetFeedback.TOO_HARD, SetFeedback.TOO_HARD), sessionReps = 10)
+        assertTrue("all TOO_HARD at 10 reps should still reduce", result < 60f)
+    }
+
+    @Test
+    fun fiveRep_mixedNegative_stillReduces() {
+        // At 5 reps, the same mixed feedback that's lenient at 10 reps still penalizes
+        val result = ProgressionEngine.computeNextBaseline(60f, listOf(SetFeedback.RIR_0_1, SetFeedback.TOO_HARD, SetFeedback.TOO_HARD), sessionReps = 5)
+        assertTrue("mixed TOO_HARD at 5 reps should still reduce", result < 60f)
+    }
+
     // --- HURT override ---
 
     @Test
