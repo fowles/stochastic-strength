@@ -192,17 +192,41 @@ class ProgressionEngineTest {
     }
 
     @Test
-    fun scaleRepsEqualsToOneRepMaxThenFromOneRepMax() {
+    fun rawInversesAreAccurate() {
+        for (weight in listOf(20f, 60f, 100f, 142.5f)) {
+            for (reps in ProgressionEngine.REP_OPTIONS) {
+                val orm      = ProgressionEngine.rawToOneRepMax(weight, reps)
+                val restored = ProgressionEngine.rawFromOneRepMax(orm, reps)
+                assertEquals("rawFrom(rawTo($weight, $reps))", weight, restored, 0.01f)
+            }
+        }
+    }
+
+    @Test
+    fun scaleRepsRoundtripIsAccurate() {
+        // scaleReps uses raw (unrounded) intermediate 1RM, so a from→to→from roundtrip
+        // accumulates at most one rounding step of error.
         for (weight in listOf(20f, 60f, 100f, 142.5f)) {
             for (from in ProgressionEngine.REP_OPTIONS) {
                 for (to in ProgressionEngine.REP_OPTIONS) {
-                    val via1rm = ProgressionEngine.fromOneRepMax(ProgressionEngine.toOneRepMax(weight, from), to)
-                    assertEquals(
-                        "scaleReps($weight, from=$from, to=$to)",
-                        via1rm,
-                        ProgressionEngine.scaleReps(weight, from = from, to = to),
-                        0.5f, // toOneRepMax rounds internally, so two-step path can differ by up to 0.5
-                    )
+                    val scaled   = ProgressionEngine.scaleReps(weight, from = from, to = to)
+                    val restored = ProgressionEngine.scaleReps(scaled,  from = to,   to = from)
+                    assertEquals("roundtrip scaleReps($weight, $from→$to→$from)", weight, restored, 0.5f)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun roundedApiMatchesRawWithinHalfKg() {
+        // fromOneRepMax(toOneRepMax(w, from), to) rounds the intermediate 1RM, so it may
+        // differ from scaleReps (which keeps the 1RM unrounded) by up to 0.5 kg.
+        for (weight in listOf(20f, 60f, 100f, 142.5f)) {
+            for (from in ProgressionEngine.REP_OPTIONS) {
+                for (to in ProgressionEngine.REP_OPTIONS) {
+                    val viaRounded = ProgressionEngine.fromOneRepMax(ProgressionEngine.toOneRepMax(weight, from), to)
+                    val viaRaw     = ProgressionEngine.scaleReps(weight, from = from, to = to)
+                    assertEquals("fromOneRepMax(toOneRepMax($weight, $from), $to)", viaRaw, viaRounded, 0.5f)
                 }
             }
         }

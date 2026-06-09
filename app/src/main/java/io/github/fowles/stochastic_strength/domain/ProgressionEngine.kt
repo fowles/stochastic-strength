@@ -1,6 +1,8 @@
 package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import kotlin.math.ln
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 object ProgressionEngine {
@@ -38,19 +40,36 @@ object ProgressionEngine {
         else           -> weightDecreasedWithFloor(baseline, 0.90f, 1.0f)
     }
 
-    fun toOneRepMax(weight: Float, reps: Int): Float {
-        if (weight <= 0f) return weight
-        return roundInternal(weight * (1f + reps / 30f))
+    fun toOneRepMax(weight: Float, reps: Int): Float = roundInternal(rawToOneRepMax(weight, reps))
+
+    fun fromOneRepMax(oneRepMax: Float, reps: Int): Float = roundInternal(rawFromOneRepMax(oneRepMax, reps))
+
+    fun scaleReps(weight: Float, from: Int, to: Int): Float = roundInternal(rawFromOneRepMax(rawToOneRepMax(weight, from), to))
+
+    // arxiv.org/abs/2603.17495: 1RM = w × (1 + (r−1)^0.85 / (−2.55 + 4.58×ln(w)))
+    internal fun rawToOneRepMax(weight: Float, reps: Int): Float {
+        if (weight <= 0f || reps <= 1) return weight
+        val denom = -2.55f + 4.58f * ln(weight)
+        if (denom <= 0f) return weight * (1f + reps / 30f)
+        return weight * (1f + (reps - 1).toFloat().pow(0.85f) / denom)
     }
 
-    fun fromOneRepMax(oneRepMax: Float, reps: Int): Float {
-        if (oneRepMax <= 0f) return oneRepMax
-        return roundInternal(oneRepMax / (1f + reps / 30f))
-    }
-
-    fun scaleReps(weight: Float, from: Int, to: Int): Float {
-        if (weight <= 0f || from == to) return weight
-        return roundInternal(weight * (1f + from / 30f) / (1f + to / 30f))
+    internal fun rawFromOneRepMax(oneRepMax: Float, reps: Int): Float {
+        if (oneRepMax <= 0f || reps <= 1) return oneRepMax
+        val k = (reps - 1).toFloat().pow(0.85f)
+        val epley = oneRepMax / (1f + reps / 30f)
+        var w = epley
+        // Newton-Raphson on f(w) = rawToOneRepMax(w, reps) - oneRepMax = 0.
+        // f'(w) = 1 + k·(D − 4.58) / D²  where D = −2.55 + 4.58·ln(w).
+        // Falls back to Epley when the formula is non-invertible at low weights (D ≤ 0 or f' ≤ 0).
+        for (i in 0 until 3) {
+            val denom = -2.55f + 4.58f * ln(w)
+            if (denom <= 0f) return epley
+            val fprime = 1f + k * (denom - 4.58f) / (denom * denom)
+            if (fprime <= 0f) return epley
+            w -= (w * (1f + k / denom) - oneRepMax) / fprime
+        }
+        return w
     }
 
     private fun feedbackPoints(feedback: SetFeedback): Int = when (feedback) {
