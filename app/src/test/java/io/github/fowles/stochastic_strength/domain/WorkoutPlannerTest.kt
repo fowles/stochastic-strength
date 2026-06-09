@@ -4,7 +4,9 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
+import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import org.junit.Assert.assertEquals
@@ -31,13 +33,26 @@ class WorkoutPlannerTest {
         exercises: List<Exercise> = emptyList(),
         strengths: Map<MuscleGroup, MuscleGroupStrength> = emptyMap(),
         random: Random = Random(0),
+        recentHistory: Map<Long, List<WorkoutSet>> = emptyMap(),
+        nowMs: Long = System.currentTimeMillis(),
     ) = WorkoutPlanner(
         availableExercises = exercises,
         strengths = strengths,
-        recentHistory = emptyMap(),
+        recentHistory = recentHistory,
         weightUnit = WeightUnit.KG,
         locationId = null,
         random = random,
+        nowMs = nowMs,
+    )
+
+    private fun nearFailureSet(exerciseId: Long, completedAt: Long, feedback: SetFeedback = SetFeedback.RIR_0_1) = WorkoutSet(
+        sessionId = 1L,
+        exerciseId = exerciseId,
+        setNumber = 3,
+        targetWeight = 80f,
+        targetReps = 8,
+        feedback = feedback,
+        completedAt = completedAt,
     )
 
     private fun fullPool(): List<Exercise> =
@@ -223,6 +238,152 @@ class WorkoutPlannerTest {
         val p = planner()
         val warmups = p.computeWarmupSets(60f)
         assertEquals(3, warmups.size)
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // strengthOverrides via constructor
+    // ──────────────────────────────────────────────────────────────────────
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Recently-failed muscle group exclusion
+    // ──────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun generateWorkout_excludesWeightedExerciseForMuscleGroupWithTwoRir01WithinTwoDays() {
+        val now = 1_000_000_000L
+        val oneDayAgo = now - 24 * 60 * 60 * 1000L
+        val chestEx = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val shoulderEx = exercise(2L, "Ex2", MuscleGroup.SHOULDERS)
+        val p = planner(
+            exercises = listOf(chestEx, shoulderEx),
+            recentHistory = mapOf(chestEx.id to listOf(
+                nearFailureSet(chestEx.id, oneDayAgo),
+                nearFailureSet(chestEx.id, oneDayAgo - 60_000L),
+            )),
+            nowMs = now,
+        )
+        repeat(10) {
+            val plan = p.generateWorkout(5)
+            assertTrue("chest must be excluded when 2+ RIR_0_1 within 2 days",
+                plan.exercises.none { it.exercise.primaryMuscle == MuscleGroup.CHEST })
+        }
+    }
+
+    @Test
+    fun generateWorkout_doesNotExcludeForSingleRir01WithinTwoDays() {
+        val now = 1_000_000_000L
+        val oneDayAgo = now - 24 * 60 * 60 * 1000L
+        val chestEx = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = planner(
+            exercises = listOf(chestEx),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+            recentHistory = mapOf(chestEx.id to listOf(nearFailureSet(chestEx.id, oneDayAgo))),
+            nowMs = now,
+        )
+        val plan = p.generateWorkout(5)
+        assertTrue("chest may appear with only one RIR_0_1 set",
+            plan.exercises.any { it.exercise.primaryMuscle == MuscleGroup.CHEST })
+    }
+
+    @Test
+    fun generateWorkout_doesNotExcludeMuscleGroupWhoseFailureIsOlderThanTwoDays() {
+        val now = 1_000_000_000L
+        val threeDaysAgo = now - 3L * 24 * 60 * 60 * 1000L
+        val chestEx = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = planner(
+            exercises = listOf(chestEx),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+            recentHistory = mapOf(chestEx.id to listOf(
+                nearFailureSet(chestEx.id, threeDaysAgo),
+                nearFailureSet(chestEx.id, threeDaysAgo - 60_000L),
+            )),
+            nowMs = now,
+        )
+        val plan = p.generateWorkout(5)
+        assertTrue("chest may appear when failures were more than 2 days ago",
+            plan.exercises.any { it.exercise.primaryMuscle == MuscleGroup.CHEST })
+    }
+
+    @Test
+    fun generateWorkout_excludesMuscleGroupWithTooHardFeedbackWithinTwoDays() {
+        val now = 1_000_000_000L
+        val oneDayAgo = now - 24 * 60 * 60 * 1000L
+        val chestEx = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val shoulderEx = exercise(2L, "Ex2", MuscleGroup.SHOULDERS)
+        val p = planner(
+            exercises = listOf(chestEx, shoulderEx),
+            recentHistory = mapOf(chestEx.id to listOf(nearFailureSet(chestEx.id, oneDayAgo, SetFeedback.TOO_HARD))),
+            nowMs = now,
+        )
+        repeat(10) {
+            val plan = p.generateWorkout(5)
+            assertTrue("chest must be excluded when TOO_HARD within 2 days",
+                plan.exercises.none { it.exercise.primaryMuscle == MuscleGroup.CHEST })
+        }
+    }
+
+    @Test
+    fun generateWorkout_doesNotExcludeMuscleGroupWithOnlyNonFailureFeedback() {
+        val now = 1_000_000_000L
+        val oneDayAgo = now - 24 * 60 * 60 * 1000L
+        val chestEx = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val easySet = WorkoutSet(
+            sessionId = 1L, exerciseId = chestEx.id, setNumber = 3,
+            targetWeight = 80f, targetReps = 8,
+            feedback = SetFeedback.RIR_2_4, completedAt = oneDayAgo,
+        )
+        val p = planner(
+            exercises = listOf(chestEx),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+            recentHistory = mapOf(chestEx.id to listOf(easySet)),
+            nowMs = now,
+        )
+        val plan = p.generateWorkout(5)
+        assertTrue("chest may appear when recent feedback was RIR_2_4, not failure",
+            plan.exercises.any { it.exercise.primaryMuscle == MuscleGroup.CHEST })
+    }
+
+    @Test
+    fun generateWorkout_bodWeightExerciseNotExcludedEvenWhenMuscleGroupFailed() {
+        val now = 1_000_000_000L
+        val oneDayAgo = now - 24 * 60 * 60 * 1000L
+        val weightedChest = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val bodyweightChest = exercise(2L, "Ex2", MuscleGroup.CHEST, equipment = Equipment.BODYWEIGHT)
+        val p = planner(
+            exercises = listOf(weightedChest, bodyweightChest),
+            recentHistory = mapOf(weightedChest.id to listOf(
+                nearFailureSet(weightedChest.id, oneDayAgo, SetFeedback.TOO_HARD),
+            )),
+            nowMs = now,
+        )
+        val plan = p.generateWorkout(5)
+        assertTrue("bodyweight chest exercise must not be excluded by recent-failure rule",
+            plan.exercises.any { it.exercise.id == bodyweightChest.id })
+        assertTrue("weighted chest must be excluded when TOO_HARD",
+            plan.exercises.none { it.exercise.id == weightedChest.id })
+    }
+
+    @Test
+    fun pickAdditional_excludesMuscleGroupWorkedToFailureWithinTwoDays() {
+        val now = 1_000_000_000L
+        val oneDayAgo = now - 24 * 60 * 60 * 1000L
+        val chestEx = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val shoulderEx = exercise(2L, "Ex2", MuscleGroup.SHOULDERS)
+        val p = planner(
+            exercises = listOf(chestEx, shoulderEx),
+            recentHistory = mapOf(chestEx.id to listOf(
+                nearFailureSet(chestEx.id, oneDayAgo, SetFeedback.TOO_HARD),
+            )),
+            nowMs = now,
+        )
+        val plan = WorkoutPlan(exercises = emptyList(), locationId = null)
+        repeat(20) {
+            val added = p.pickAdditional(plan)
+            if (added != null) {
+                assertTrue("pickAdditional must not suggest a recently-failed muscle group",
+                    added.exercise.primaryMuscle != MuscleGroup.CHEST)
+            }
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────

@@ -1,14 +1,18 @@
 package io.github.fowles.stochastic_strength.domain
 
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
+import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import kotlin.random.Random
+
+private const val TWO_DAYS_MS = 2L * 24 * 60 * 60 * 1000
 
 class WorkoutPlanner(
     val availableExercises: List<Exercise>,
@@ -17,9 +21,28 @@ class WorkoutPlanner(
     val weightUnit: WeightUnit,
     val locationId: Long?,
     private val random: Random = Random.Default,
+    private val nowMs: Long = System.currentTimeMillis(),
 ) {
+    // Muscle groups where a weighted exercise hit RIR 0-1 within the past two days.
+    private val recentlyFailedMuscles: Set<MuscleGroup> by lazy {
+        val cutoff = nowMs - TWO_DAYS_MS
+        val muscleById = availableExercises
+            .filter { it.equipment != Equipment.BODYWEIGHT }
+            .associate { it.id to it.primaryMuscle }
+        recentHistory.entries
+            .filter { (exerciseId, sets) ->
+                if (exerciseId !in muscleById) return@filter false
+                val recent = sets.filter { it.completedAt != null && it.completedAt >= cutoff }
+                recent.any { it.feedback == SetFeedback.TOO_HARD } ||
+                    recent.count { it.feedback == SetFeedback.RIR_0_1 } > 1
+            }
+            .mapNotNull { (exerciseId, _) -> muscleById[exerciseId] }
+            .toSet()
+    }
+
     fun generateWorkout(sessionReps: Int = ProgressionEngine.REP_OPTIONS.random(random)): WorkoutPlan {
-        val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(availableExercises, random))
+        val plannable = availableExercises.filter { muscleGroupRested(it) }
+        val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(plannable, random))
             .map { withWeight(it, sessionReps) }
         return WorkoutPlan(exercises = exercises, locationId = locationId, sessionReps = sessionReps)
     }
@@ -74,10 +97,13 @@ class WorkoutPlanner(
         }
     }
 
+    private fun muscleGroupRested(exercise: Exercise): Boolean =
+        exercise.equipment == Equipment.BODYWEIGHT || exercise.primaryMuscle !in recentlyFailedMuscles
+
     private fun candidatesFor(plan: WorkoutPlan, currentExercises: List<PlannedExercise>): List<Exercise> {
         val inPlan = currentExercises.map { it.exercise.id }.toSet()
         val excluded = inPlan + plan.sessionRejectedIds
-        return availableExercises.filter { it.id !in excluded }
+        return availableExercises.filter { it.id !in excluded && muscleGroupRested(it) }
     }
 
     private fun withWeight(pe: PlannedExercise, sessionReps: Int): PlannedExercise {
