@@ -14,9 +14,6 @@ import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
-import io.github.fowles.stochastic_strength.domain.model.WarmupSet
-import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import kotlinx.coroutines.flow.Flow
 
 class WorkoutRepository(private val db: AppDatabase) {
@@ -24,66 +21,28 @@ class WorkoutRepository(private val db: AppDatabase) {
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
         else emptySet()
 
-    suspend fun generateWorkoutForLocation(locationId: Long?, weightUnit: WeightUnit): WorkoutPlan {
+    suspend fun buildPlanner(
+        locationId: Long?,
+        weightUnit: WeightUnit,
+        strengthOverrides: Map<MuscleGroup, Float> = emptyMap(),
+    ): WorkoutPlanner {
         val excluded = excludedExerciseIds(locationId)
-        val allExercises = db.exerciseDao().getActive()
-        val exercises = allExercises.filter { it.id !in excluded }
-        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
-
-        val sessionReps = ProgressionEngine.REP_OPTIONS.random()
-        val planned = WorkoutGenerator.generate(
-            WorkoutGenerator.Input(exercises = exercises)
-        ).map { pe ->
-            if (pe.exercise.isTimed) pe.copy(sessionWeight = 0f, sessionReps = 60, warmupSets = emptyList())
-            else {
-                val weight = deriveWeight(pe.exercise, strengths, sessionReps, weightUnit)
-                pe.copy(sessionWeight = weight, sessionReps = sessionReps, warmupSets = computeWarmupSets(weight, weightUnit))
+        val available = db.exerciseDao().getActive().filter { it.id !in excluded }
+        val dbStrengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        val strengths = if (strengthOverrides.isEmpty()) dbStrengths else
+            dbStrengths + strengthOverrides.mapValues { (muscle, baseline) ->
+                MuscleGroupStrength(muscleGroup = muscle, baselineWeight = baseline)
             }
-        }
-
-        return WorkoutPlan(exercises = planned, locationId = locationId, sessionReps = sessionReps)
-    }
-
-    suspend fun pickAdditional(plan: WorkoutPlan, weightUnit: WeightUnit): PlannedExercise? {
-        val inPlan = plan.exercises.map { it.exercise.id }.toSet()
-        val excluded = excludedExerciseIds(plan.locationId) + plan.sessionRejectedIds
-        val candidates = db.exerciseDao().getActive()
-            .filter { it.id !in inPlan && it.id !in excluded }
-        if (candidates.isEmpty()) return null
-        val picked = WorkoutGenerator.pickReplacement(
-            input = WorkoutGenerator.Input(exercises = candidates),
-            currentExercises = plan.exercises,
-        ) ?: return null
-        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
-        if (picked.exercise.isTimed) return picked.copy(sessionWeight = 0f, sessionReps = 60, warmupSets = emptyList())
-        val weight = deriveWeight(picked.exercise, strengths, plan.sessionReps, weightUnit)
-        return picked.copy(
-            sessionWeight = weight,
-            sessionReps = plan.sessionReps,
-            warmupSets = computeWarmupSets(weight, weightUnit),
-        )
-    }
-
-    suspend fun pickReplacement(plan: WorkoutPlan, removedIndex: Int, weightUnit: WeightUnit): PlannedExercise? {
-        val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
-        val inPlan = remaining.map { it.exercise.id }.toSet()
-        val excluded = excludedExerciseIds(plan.locationId) + plan.sessionRejectedIds
-        val candidates = db.exerciseDao().getActive()
-            .filter { it.id !in inPlan && it.id !in excluded }
-        if (candidates.isEmpty()) return null
-
-        val replacement = WorkoutGenerator.pickReplacement(
-            input = WorkoutGenerator.Input(exercises = candidates),
-            currentExercises = remaining,
-        ) ?: return null
-
-        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
-        if (replacement.exercise.isTimed) return replacement.copy(sessionWeight = 0f, sessionReps = 60, warmupSets = emptyList())
-        val weight = deriveWeight(replacement.exercise, strengths, plan.sessionReps, weightUnit)
-        return replacement.copy(
-            sessionWeight = weight,
-            sessionReps = plan.sessionReps,
-            warmupSets = computeWarmupSets(weight, weightUnit),
+        val history = if (available.isNotEmpty())
+            db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
+                .groupBy { it.exerciseId }
+        else emptyMap()
+        return WorkoutPlanner(
+            availableExercises = available,
+            strengths = strengths,
+            recentHistory = history,
+            weightUnit = weightUnit,
+            locationId = locationId,
         )
     }
 
@@ -187,45 +146,4 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
         db.muscleGroupStrengthDao().getAll()
 
-    private fun deriveWeight(
-        exercise: Exercise,
-        strengths: Map<MuscleGroup, MuscleGroupStrength>,
-        sessionReps: Int,
-        weightUnit: WeightUnit,
-    ): Float {
-        val coeff = ExerciseCoefficients.byName[exercise.name] ?: return 0f
-        if (coeff <= 0f) return 0f
-        val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
-        return WeightFormatter.round(
-            ProgressionEngine.fromOneRepMax(baseline * coeff, sessionReps),
-            weightUnit,
-        )
-    }
-
-    fun deriveBaselineFromSessionWeight(sessionWeight: Float, pe: PlannedExercise): Float {
-        val coeff = ExerciseCoefficients.byName[pe.exercise.name] ?: return 0f
-        if (coeff <= 0f) return 0f
-        return ProgressionEngine.toOneRepMax(sessionWeight, pe.sessionReps) / coeff
-    }
-
-    fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float, unit: WeightUnit): PlannedExercise {
-        val coeff = ExerciseCoefficients.byName[pe.exercise.name] ?: return pe
-        if (coeff <= 0f) return pe
-        val newWeight = WeightFormatter.round(
-            ProgressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
-            unit,
-        )
-        val newWarmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight, unit)
-        return pe.copy(sessionWeight = newWeight, warmupSets = newWarmups)
-    }
-
-    internal fun computeWarmupSets(weightKg: Float, weightUnit: WeightUnit): List<WarmupSet> {
-        if (weightKg < 40f) return emptyList()
-        fun w(pct: Float) = WeightFormatter.roundForWarmup(weightKg * pct, weightUnit)
-        return if (weightKg < 60f) {
-            listOf(WarmupSet(w(0.5f), 8), WarmupSet(w(0.75f), 5))
-        } else {
-            listOf(WarmupSet(w(0.4f), 8), WarmupSet(w(0.6f), 5), WarmupSet(w(0.8f), 3))
-        }
-    }
 }

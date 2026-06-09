@@ -19,6 +19,7 @@ import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
+import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
@@ -69,6 +70,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private var sessionLocationId: Long? = null
     private var pendingLocationRefresh = false
+    private var planner: WorkoutPlanner? = null
 
     init {
         startWorkout()
@@ -101,13 +103,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private suspend fun continueWorkoutGeneration(locationId: Long?, locationName: String?) {
-        val plan = repository.generateWorkoutForLocation(locationId, _weightUnit.value)
+        val p = repository.buildPlanner(locationId, _weightUnit.value)
+        planner = p
+        val plan = p.generateWorkout()
         setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
         setExerciseCount(preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT)
     }
 
     fun replaceExercise(index: Int, reason: ExerciseRemovalReason) {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val rejectedId = preview.plan.exercises[index].exercise.id
         val planned = preview.plan.exercises[index]
         viewModelScope.launch {
             when (reason) {
@@ -119,12 +124,23 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 }
                 ExerciseRemovalReason.SKIP_TODAY -> Unit
             }
-            val rejectedId = planned.exercise.id
-            val updatedPlan = preview.plan.copy(sessionRejectedIds = preview.plan.sessionRejectedIds + rejectedId)
-            val replacement = repository.pickReplacement(updatedPlan, index, _weightUnit.value)
+            // Re-read current state after the async DB work so concurrent calls compose correctly.
+            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
+            val updatedPlan = current.plan.copy(
+                sessionRejectedIds = current.plan.sessionRejectedIds + rejectedId
+            )
+            val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
+                repository.buildPlanner(sessionLocationId, _weightUnit.value, updatedPlan.strengthOverrides)
+                    .also { planner = it }
+            } else {
+                planner ?: return@launch
+            }
+            val currentIndex = updatedPlan.exercises.indexOfFirst { it.exercise.id == rejectedId }
+            if (currentIndex < 0) return@launch
+            val replacement = p.pickReplacement(updatedPlan, currentIndex)
             val newExercises = updatedPlan.exercises.toMutableList()
-            if (replacement != null) newExercises[index] = replacement else newExercises.removeAt(index)
-            setState(preview.copy(plan = updatedPlan.copy(exercises = newExercises)))
+            if (replacement != null) newExercises[currentIndex] = replacement else newExercises.removeAt(currentIndex)
+            setState(current.copy(plan = updatedPlan.copy(exercises = newExercises)))
         }
     }
 
@@ -142,7 +158,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 addExerciseJob = viewModelScope.launch {
                     repeat(needed) {
                         val p = _state.value as? WorkoutState.PlanPreview ?: return@launch
-                        val extra = repository.pickAdditional(p.plan, _weightUnit.value) ?: return@launch
+                        val extra = planner?.pickAdditional(p.plan) ?: return@launch
                         setState(p.copy(plan = p.plan.copy(exercises = p.plan.exercises + extra)))
                     }
                 }
@@ -159,6 +175,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun adjustExerciseWeight(index: Int, delta: Float) {
         val state = _state.value as? WorkoutState.PlanPreview ?: return
+        val p = planner ?: return
         val unit = _weightUnit.value
         val exercises = state.plan.exercises.toMutableList()
         val pe = exercises[index]
@@ -169,27 +186,27 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         )
         if (newWeight == pe.sessionWeight) return
 
-        val newBaseline = repository.deriveBaselineFromSessionWeight(newWeight, pe)
+        val newBaseline = p.deriveBaselineFromSessionWeight(newWeight, pe)
         if (newBaseline <= 0f) return
 
         exercises[index] = pe.copy(
             sessionWeight = newWeight,
-            warmupSets = if (pe.exercise.isTimed) emptyList()
-                         else repository.computeWarmupSets(newWeight, unit),
+            warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight),
         )
 
         val muscle = pe.exercise.primaryMuscle
         for (i in exercises.indices) {
             if (i == index) continue
             if (exercises[i].exercise.primaryMuscle == muscle) {
-                exercises[i] = repository.recomputeExercise(exercises[i], newBaseline, unit)
+                exercises[i] = p.recomputeExercise(exercises[i], newBaseline)
             }
         }
 
-        setState(state.copy(plan = state.plan.copy(exercises = exercises)))
+        val updatedOverrides = state.plan.strengthOverrides + (muscle to newBaseline)
+        setState(state.copy(plan = state.plan.copy(exercises = exercises, strengthOverrides = updatedOverrides)))
 
         viewModelScope.launch {
-            app.database.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscle, newBaseline))
+            planner = repository.buildPlanner(sessionLocationId, unit, updatedOverrides)
         }
     }
 
@@ -205,12 +222,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             if (preview != null && locationId != null) {
                 viewModelScope.launch {
                     val locationName = app.database.knownLocationDao().getById(locationId)?.name
-                    val excluded = repository.getExcludedExerciseIds(locationId)
+                    val freshPlanner = repository.buildPlanner(locationId, _weightUnit.value, preview.plan.strengthOverrides)
+                    planner = freshPlanner
+                    val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
                     var plan = preview.plan
                     var i = 0
                     while (i < plan.exercises.size) {
-                        if (plan.exercises[i].exercise.id in excluded) {
-                            val replacement = repository.pickReplacement(plan, i, _weightUnit.value)
+                        if (plan.exercises[i].exercise.id !in availableIds) {
+                            val replacement = freshPlanner.pickReplacement(plan, i)
                             val updated = plan.exercises.toMutableList()
                             if (replacement != null) {
                                 updated[i] = replacement
@@ -248,6 +267,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val plan = preview.plan.copy(exercises = frozenExercises)
         val firstExercise = plan.exercises[0]
         viewModelScope.launch {
+            for ((muscle, baseline) in plan.strengthOverrides) {
+                app.database.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscle, baseline))
+            }
             sessionStartTime = System.currentTimeMillis()
             val sessionId = app.database.workoutSessionDao().insert(
                 WorkoutSession(startTime = sessionStartTime, locationId = sessionLocationId)
