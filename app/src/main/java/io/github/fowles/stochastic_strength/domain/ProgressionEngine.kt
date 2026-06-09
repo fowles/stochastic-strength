@@ -22,7 +22,7 @@ object ProgressionEngine {
     fun scoreFromFeedbacks(feedbacks: List<SetFeedback>, sessionReps: Int = 5): Float? {
         val scored = feedbacks.filter { it != SetFeedback.HURT }
         if (scored.isEmpty()) return null
-        if (sessionReps >= 10
+        if (sessionReps >= REP_OPTIONS.max()
             && scored.any { it == SetFeedback.TOO_HARD }
             && scored.any { it != SetFeedback.TOO_HARD }
         ) return 0f
@@ -38,10 +38,19 @@ object ProgressionEngine {
         else           -> weightDecreasedWithFloor(baseline, 0.90f, 1.0f)
     }
 
-    fun scaleWeight(weight: Float, fromReps: Int, toReps: Int): Float {
-        if (weight <= 0f || fromReps == toReps) return weight
-        val oneRepMax = weight * (1f + fromReps / 30f)
-        return roundInternal(oneRepMax / (1f + toReps / 30f))
+    fun toOneRepMax(weight: Float, reps: Int): Float {
+        if (weight <= 0f) return weight
+        return roundInternal(weight * (1f + reps / 30f))
+    }
+
+    fun fromOneRepMax(oneRepMax: Float, reps: Int): Float {
+        if (oneRepMax <= 0f) return oneRepMax
+        return roundInternal(oneRepMax / (1f + reps / 30f))
+    }
+
+    fun scaleReps(weight: Float, from: Int, to: Int): Float {
+        if (weight <= 0f || from == to) return weight
+        return roundInternal(weight * (1f + from / 30f) / (1f + to / 30f))
     }
 
     private fun feedbackPoints(feedback: SetFeedback): Int = when (feedback) {

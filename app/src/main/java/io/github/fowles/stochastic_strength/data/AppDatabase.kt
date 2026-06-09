@@ -33,7 +33,7 @@ import kotlinx.coroutines.CoroutineScope
         UserProfile::class,
         MuscleGroupStrength::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -75,6 +75,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Convert baselineWeight from 10RM to 1RM: 1RM = 10RM * (1 + 10/30) = 10RM * 4/3
+                // Rounded to nearest 0.5 kg increment to match internal storage convention.
+                db.execSQL("""
+                    UPDATE muscle_group_strength
+                    SET baselineWeight = ROUND(baselineWeight * 4.0 / 3.0 / 0.5) * 0.5
+                """)
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
@@ -93,7 +104,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
     }
 }

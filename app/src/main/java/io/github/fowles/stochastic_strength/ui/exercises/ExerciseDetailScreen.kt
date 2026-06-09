@@ -189,7 +189,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text(
-                text = "Progress",
+                text = "Estimated One Rep Max",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
             )

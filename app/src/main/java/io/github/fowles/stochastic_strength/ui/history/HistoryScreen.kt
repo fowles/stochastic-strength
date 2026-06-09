@@ -92,7 +92,7 @@ fun HistoryScreen(
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item {
-                SectionHeader("Current Strength")
+                SectionHeader("Estimated One Rep Max")
             }
 
             item {

@@ -14,16 +14,17 @@ object StartingWeights {
             put(Triple(Sex.FEMALE, StrengthLevel.MEDIUM, muscle), fM)
             put(Triple(Sex.FEMALE, StrengthLevel.HIGH, muscle), fH)
         }
-        add(MuscleGroup.CHEST,       30f,  60f, 100f,  15f,  35f,  60f)
-        add(MuscleGroup.BACK,        30f,  60f,  90f,  15f,  35f,  60f)
-        add(MuscleGroup.SHOULDERS,   20f,  40f,  65f,  10f, 22.5f, 40f)
-        add(MuscleGroup.BICEPS,      15f,  30f,  50f,  7.5f, 17.5f, 30f)
-        add(MuscleGroup.TRICEPS,     15f,  30f,  50f,  7.5f, 17.5f, 30f)
-        add(MuscleGroup.QUADS,       40f,  80f, 130f,  20f,  50f,  80f)
-        add(MuscleGroup.HAMSTRINGS,  40f,  70f, 110f,  20f,  45f,  70f)
-        add(MuscleGroup.GLUTES,      40f,  70f, 110f,  20f,  50f,  80f)
-        add(MuscleGroup.CALVES,      25f,  50f,  75f,  15f,  30f,  50f)
-        add(MuscleGroup.CORE,        20f,  40f,  60f,  10f,  20f,  35f)
+        // Values are 1RM baselines (10RM × 4/3, rounded to nearest 0.5 kg).
+        add(MuscleGroup.CHEST,       40f,   80f, 133.5f,  20f,  46.5f,  80f)
+        add(MuscleGroup.BACK,        40f,   80f, 120.0f,  20f,  46.5f,  80f)
+        add(MuscleGroup.SHOULDERS,  26.5f,  53.5f, 86.5f, 13.5f,  30f,  53.5f)
+        add(MuscleGroup.BICEPS,      20f,   40f,  66.5f,  10f,  23.5f,  40f)
+        add(MuscleGroup.TRICEPS,     20f,   40f,  66.5f,  10f,  23.5f,  40f)
+        add(MuscleGroup.QUADS,      53.5f, 106.5f, 173.5f, 26.5f, 66.5f, 106.5f)
+        add(MuscleGroup.HAMSTRINGS, 53.5f,  93.5f, 146.5f, 26.5f,  60f,  93.5f)
+        add(MuscleGroup.GLUTES,     53.5f,  93.5f, 146.5f, 26.5f, 66.5f, 106.5f)
+        add(MuscleGroup.CALVES,     33.5f,  66.5f, 100.0f,  20f,  40f,   66.5f)
+        add(MuscleGroup.CORE,       26.5f,  53.5f,  80.0f, 13.5f, 26.5f,  46.5f)
     }
 
     fun baseline(sex: Sex, level: StrengthLevel, muscle: MuscleGroup): Float =

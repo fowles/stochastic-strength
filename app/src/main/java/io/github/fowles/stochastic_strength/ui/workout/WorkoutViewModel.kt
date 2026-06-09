@@ -501,7 +501,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val exercise = resting.plan.exercises[resting.exerciseIndex]
         if (exercise.sessionWeight <= 0f) return
         val newWeight = maxOf(0.5f, WeightFormatter.round(
-            ProgressionEngine.scaleWeight(exercise.sessionWeight, maxOf(1, completedReps), exercise.sessionReps),
+            ProgressionEngine.scaleReps(exercise.sessionWeight, from = maxOf(1, completedReps), to = exercise.sessionReps),
             _weightUnit.value,
         ))
         val updatedExercises = resting.plan.exercises.toMutableList()

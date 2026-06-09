@@ -108,7 +108,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             }
         }
 
-        val sessionReps = sets.firstOrNull()?.targetReps ?: 5
+        val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
         val exercisesByMuscle = exerciseById.values
             .filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
@@ -197,7 +197,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         if (coeff <= 0f) return 0f
         val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
         return WeightFormatter.round(
-            ProgressionEngine.scaleWeight(baseline * coeff, fromReps = 10, toReps = sessionReps),
+            ProgressionEngine.fromOneRepMax(baseline * coeff, sessionReps),
             weightUnit,
         )
     }
@@ -205,14 +205,14 @@ class WorkoutRepository(private val db: AppDatabase) {
     fun deriveBaselineFromSessionWeight(sessionWeight: Float, pe: PlannedExercise): Float {
         val coeff = ExerciseCoefficients.byName[pe.exercise.name] ?: return 0f
         if (coeff <= 0f) return 0f
-        return ProgressionEngine.scaleWeight(sessionWeight, fromReps = pe.sessionReps, toReps = 10) / coeff
+        return ProgressionEngine.toOneRepMax(sessionWeight, pe.sessionReps) / coeff
     }
 
     fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float, unit: WeightUnit): PlannedExercise {
         val coeff = ExerciseCoefficients.byName[pe.exercise.name] ?: return pe
         if (coeff <= 0f) return pe
         val newWeight = WeightFormatter.round(
-            ProgressionEngine.scaleWeight(newBaselineKg * coeff, fromReps = 10, toReps = pe.sessionReps),
+            ProgressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
             unit,
         )
         val newWarmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight, unit)

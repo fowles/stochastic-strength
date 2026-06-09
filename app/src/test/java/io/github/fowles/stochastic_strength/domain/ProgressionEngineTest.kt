@@ -175,20 +175,37 @@ class ProgressionEngineTest {
     @Test
     fun scaleWeightPreservesOneRepMax() {
         val weight10 = 60f
-        val weight5 = ProgressionEngine.scaleWeight(weight10, fromReps = 10, toReps = 5)
-        val backTo10 = ProgressionEngine.scaleWeight(weight5, fromReps = 5, toReps = 10)
+        val weight5 = ProgressionEngine.scaleReps(weight10, from = 10, to = 5)
+        val backTo10 = ProgressionEngine.scaleReps(weight5, from = 5, to = 10)
         assertEquals(weight10, backTo10, 0.5f)
         assertTrue("5-rep weight should be heavier than 10-rep weight", weight5 > weight10)
     }
 
     @Test
     fun scaleWeightNoOpWhenSameReps() {
-        assertEquals(60f, ProgressionEngine.scaleWeight(60f, fromReps = 10, toReps = 10), 0.001f)
+        assertEquals(60f, ProgressionEngine.scaleReps(60f, from = 10, to = 10), 0.001f)
     }
 
     @Test
     fun scaleWeightZeroWeightUnchanged() {
-        assertEquals(0f, ProgressionEngine.scaleWeight(0f, fromReps = 10, toReps = 5), 0.001f)
+        assertEquals(0f, ProgressionEngine.scaleReps(0f, from = 10, to = 5), 0.001f)
+    }
+
+    @Test
+    fun scaleRepsEqualsToOneRepMaxThenFromOneRepMax() {
+        for (weight in listOf(20f, 60f, 100f, 142.5f)) {
+            for (from in ProgressionEngine.REP_OPTIONS) {
+                for (to in ProgressionEngine.REP_OPTIONS) {
+                    val via1rm = ProgressionEngine.fromOneRepMax(ProgressionEngine.toOneRepMax(weight, from), to)
+                    assertEquals(
+                        "scaleReps($weight, from=$from, to=$to)",
+                        via1rm,
+                        ProgressionEngine.scaleReps(weight, from = from, to = to),
+                        0.5f, // toOneRepMax rounds internally, so two-step path can differ by up to 0.5
+                    )
+                }
+            }
+        }
     }
 
     // --- WeightFormatter ---

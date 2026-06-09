@@ -716,7 +716,7 @@ private fun WeightReductionCard(
             ) {
                 repeat(sessionReps) { reps ->
                     val newWeight = WeightFormatter.round(
-                        maxOf(0.5f, ProgressionEngine.scaleWeight(sessionWeight, maxOf(1, reps), sessionReps)),
+                        maxOf(0.5f, ProgressionEngine.scaleReps(sessionWeight, from = maxOf(1, reps), to = sessionReps)),
                         weightUnit,
                     )
                     val delta = sessionWeight - newWeight
