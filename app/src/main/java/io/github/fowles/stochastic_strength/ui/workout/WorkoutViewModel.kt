@@ -39,8 +39,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
-enum class ExerciseRemovalReason { NO_EQUIPMENT, DISLIKE, SKIP_TODAY }
-
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
     private val repository = WorkoutRepository(app.database)
