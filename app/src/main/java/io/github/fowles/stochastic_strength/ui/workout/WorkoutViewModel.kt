@@ -75,7 +75,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     init {
         startWorkout()
         viewModelScope.launch {
-            app.workoutCommandFlow.collect { command ->
+            app.workoutSessionBus.commandFlow.collect { command ->
                 when (command) {
                     is WorkoutCommand.RecordFeedback -> recordFeedback(command.feedback)
                     WorkoutCommand.SkipRest -> skipRest()
@@ -544,9 +544,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private fun setState(newState: WorkoutState) {
         val newNotifState = deriveNotificationState(newState)
-        val wasNull = app.workoutNotificationState.value == null
+        val wasNull = app.workoutSessionBus.notificationState.value == null
         _state.value = newState
-        app.workoutNotificationState.value = newNotifState
+        app.workoutSessionBus.notificationState.value = newNotifState
         if (wasNull && newNotifState != null) {
             app.startForegroundService(Intent(app, WorkoutNotificationService::class.java))
         }
@@ -616,7 +616,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         restTimerJob?.cancel()
         timedSetTimerJob?.cancel()
         addExerciseJob?.cancel()
-        app.workoutNotificationState.value = null
+        app.workoutSessionBus.notificationState.value = null
     }
 
     companion object {

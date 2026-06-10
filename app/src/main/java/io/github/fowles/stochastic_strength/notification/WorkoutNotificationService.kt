@@ -39,7 +39,7 @@ class WorkoutNotificationService : Service() {
         val app = application as StochasticStrengthApp
         collectJob?.cancel()
         collectJob = serviceScope.launch {
-            app.workoutNotificationState.collect { state ->
+            app.workoutSessionBus.notificationState.collect { state ->
                 if (state == null) {
                     stopSelf()
                     return@collect
