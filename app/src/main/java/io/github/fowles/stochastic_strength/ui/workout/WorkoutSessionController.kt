@@ -6,7 +6,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.ProgressionEngine
+import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
@@ -289,7 +289,7 @@ class WorkoutSessionController(
         val exercise = resting.plan.exercises[resting.exerciseIndex]
         if (exercise.sessionWeight <= 0f) return
         val newWeight = maxOf(0.5f, WeightFormatter.round(
-            ProgressionEngine.scaleReps(exercise.sessionWeight, from = maxOf(1, completedReps), to = exercise.sessionReps),
+            DefaultProgressionEngine.scaleReps(exercise.sessionWeight, from = maxOf(1, completedReps), to = exercise.sessionReps),
             weightUnit,
         ))
         val updatedExercises = resting.plan.exercises.toMutableList()

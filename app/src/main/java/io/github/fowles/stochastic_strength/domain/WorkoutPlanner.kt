@@ -41,7 +41,7 @@ class WorkoutPlanner(
             .toSet()
     }
 
-    fun generateWorkout(sessionReps: Int = ProgressionEngine.REP_OPTIONS.random(random)): WorkoutPlan {
+    fun generateWorkout(sessionReps: Int = DefaultProgressionEngine.REP_OPTIONS.random(random)): WorkoutPlan {
         val plannable = availableExercises.filter { muscleGroupRested(it) }
         val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(plannable, random))
             .map { withWeight(it, sessionReps) }
@@ -72,14 +72,14 @@ class WorkoutPlanner(
     fun deriveBaselineFromSessionWeight(sessionWeight: Float, pe: PlannedExercise): Float {
         val coeff = coefficientSource.get(pe.exercise) ?: return 0f
         if (coeff <= 0f) return 0f
-        return ProgressionEngine.toOneRepMax(sessionWeight, pe.sessionReps) / coeff
+        return DefaultProgressionEngine.toOneRepMax(sessionWeight, pe.sessionReps) / coeff
     }
 
     fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float): PlannedExercise {
         val coeff = coefficientSource.get(pe.exercise) ?: return pe
         if (coeff <= 0f) return pe
         val newWeight = WeightFormatter.round(
-            ProgressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
+            DefaultProgressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
             weightUnit,
         )
         return pe.copy(
@@ -122,7 +122,7 @@ class WorkoutPlanner(
         if (coeff <= 0f) return 0f
         val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
         return WeightFormatter.round(
-            ProgressionEngine.fromOneRepMax(baseline * coeff, sessionReps),
+            DefaultProgressionEngine.fromOneRepMax(baseline * coeff, sessionReps),
             weightUnit,
         )
     }

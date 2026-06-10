@@ -81,7 +81,7 @@ class WorkoutPlannerTest {
         val plan = p.generateWorkout(sessionReps)
         val pe = plan.exercises.single()
 
-        val expected = WeightFormatter.round(ProgressionEngine.fromOneRepMax(baseline * 1.0f, sessionReps), WeightUnit.KG)
+        val expected = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(baseline * 1.0f, sessionReps), WeightUnit.KG)
         assertEquals(expected, pe.sessionWeight, 0.01f)
         assertEquals(sessionReps, pe.sessionReps)
     }
@@ -202,7 +202,7 @@ class WorkoutPlannerTest {
         val pe = PlannedExercise(
             exercise = ex,
             sessionWeight = WeightFormatter.round(
-                ProgressionEngine.fromOneRepMax(baseline, sessionReps), WeightUnit.KG
+                DefaultProgressionEngine.fromOneRepMax(baseline, sessionReps), WeightUnit.KG
             ),
             sessionReps = sessionReps,
         )
@@ -404,12 +404,12 @@ class WorkoutPlannerTest {
         val pe = plan.exercises.single()
 
         val expected = WeightFormatter.round(
-            ProgressionEngine.fromOneRepMax(overrideBaseline, sessionReps), WeightUnit.KG
+            DefaultProgressionEngine.fromOneRepMax(overrideBaseline, sessionReps), WeightUnit.KG
         )
         // Should use overrideBaseline, not dbBaseline
         assertTrue(abs(pe.sessionWeight - expected) < 1.0f)
         val dbExpected = WeightFormatter.round(
-            ProgressionEngine.fromOneRepMax(dbBaseline, sessionReps), WeightUnit.KG
+            DefaultProgressionEngine.fromOneRepMax(dbBaseline, sessionReps), WeightUnit.KG
         )
         assertTrue("override baseline should produce different weight than DB baseline",
             abs(pe.sessionWeight - dbExpected) > 0.1f || overrideBaseline == dbBaseline)

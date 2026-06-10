@@ -86,7 +86,7 @@ class WorkoutRepository(
 
             val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
             val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
-            val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
+            val newBaseline = DefaultProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
             val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
             db.muscleGroupStrengthDao().upsert(current.copy(baselineWeight = roundedNewBaseline))
             db.baselineChangeLogDao().insert(
