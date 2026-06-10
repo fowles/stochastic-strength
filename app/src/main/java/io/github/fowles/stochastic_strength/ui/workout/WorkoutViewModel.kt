@@ -82,8 +82,11 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             controller.state.collect { s ->
-                if (s is WorkoutState.Done && _doneSummary.value == null) {
-                    _doneSummary.value = loadWorkoutSummary(app.database, s.sessionId)
+                when {
+                    s is WorkoutState.Done && _doneSummary.value == null ->
+                        _doneSummary.value = loadWorkoutSummary(app.database, s.sessionId)
+                    s !is WorkoutState.Done ->
+                        _doneSummary.value = null
                 }
             }
         }

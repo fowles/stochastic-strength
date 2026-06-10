@@ -54,6 +54,7 @@ class WorkoutSessionController(
     private var restTimerJob: Job? = null
     private var timedSetTimerJob: Job? = null
     private var addExerciseJob: Job? = null
+    private var weightAdjustJob: Job? = null
 
     init {
         scope.launch {
@@ -184,10 +185,10 @@ class WorkoutSessionController(
             }
         }
         val updatedOverrides = state.plan.strengthOverrides + (muscle to newBaseline)
-        val newState = state.copy(plan = state.plan.copy(exercises = exercises, strengthOverrides = updatedOverrides))
-        scope.launch {
+        setState(state.copy(plan = state.plan.copy(exercises = exercises, strengthOverrides = updatedOverrides)))
+        weightAdjustJob?.cancel()
+        weightAdjustJob = scope.launch {
             planner = repository.buildPlanner(sessionLocationId, weightUnit, updatedOverrides)
-            setState(newState)
         }
     }
 
