@@ -8,10 +8,10 @@ object ExerciseCoefficients {
         "Decline Bench Press"          to 0.95f,
         "Dumbbell Bench Press"         to 0.40f,  // per dumbbell
         "Incline Dumbbell Press"       to 0.35f,  // per dumbbell
-        "Dumbbell Fly"                 to 0.25f,
+        "Dumbbell Fly"                 to 0.30f,
         "Push-Up"                      to 0.00f,
         "Burpee"                       to 0.00f,
-        "Cable Chest Fly"              to 0.25f,
+        "Cable Chest Fly"              to 0.35f,
         "Pec Deck"                     to 0.40f,
         "Machine Chest Press"          to 0.90f,
         "Banded Chest Press"           to 0.00f,
@@ -25,8 +25,8 @@ object ExerciseCoefficients {
         "Back Extension"               to 0.00f,
         "Lat Pulldown"                 to 0.80f,
         "Seated Cable Row"             to 0.75f,
-        "Face Pull"                    to 0.30f,
-        "Dumbbell Row"                 to 0.50f,
+        "Face Pull"                    to 0.25f,
+        "Dumbbell Row"                 to 0.60f,
         "Chest-Supported Dumbbell Row" to 0.45f,
         "Straight-Arm Pulldown"        to 0.30f,
         "Band Pull-Apart"              to 0.00f,
@@ -38,7 +38,7 @@ object ExerciseCoefficients {
         "Dumbbell Overhead Press"      to 0.35f,
         "Arnold Press"                 to 0.35f,
         "Rear Delt Fly"                to 0.15f,
-        "Front Raise"                  to 0.15f,
+        "Front Raise"                  to 0.12f,
         "Cable Lateral Raise"          to 0.15f,
         "Machine Lateral Raise"        to 0.20f,
         "Push Press"                   to 1.20f,
@@ -70,17 +70,17 @@ object ExerciseCoefficients {
         "Barbell Squat"                to 1.00f,
         "Front Squat"                  to 0.80f,
         "Leg Press"                    to 2.50f,
-        "Leg Extension"                to 0.35f,
+        "Leg Extension"                to 0.45f,
         "Hack Squat"                   to 1.80f,
         "Lunge"                        to 0.00f,
         "Walking Lunge"                to 0.00f,
         "Reverse Lunge"                to 0.00f,
-        "Dumbbell Lunge"               to 0.20f,  // per dumbbell
+        "Dumbbell Lunge"               to 0.25f,  // per dumbbell
         "Bodyweight Squat"             to 0.00f,
         "Banded Squat"                 to 0.00f,
         "Jump Squat"                   to 0.00f,
         "Wall Sit"                     to 0.00f,
-        "Goblet Squat"                 to 0.25f,
+        "Goblet Squat"                 to 0.35f,
         "Bulgarian Split Squat"        to 0.30f,  // per dumbbell
         "Step-Up"                      to 0.20f,  // per dumbbell
         // HAMSTRINGS (reference: Romanian Deadlift)
@@ -88,9 +88,9 @@ object ExerciseCoefficients {
         "Romanian Deadlift"            to 1.00f,
         "Sumo Deadlift"                to 1.25f,
         "Good Morning"                 to 0.55f,
-        "Leg Curl"                     to 0.40f,
+        "Leg Curl"                     to 0.50f,
         "Nordic Curl"                  to 0.00f,
-        "Single-Leg Romanian Deadlift" to 0.45f,  // per dumbbell
+        "Single-Leg Romanian Deadlift" to 0.25f,  // per dumbbell
         "Stiff-Leg Deadlift"           to 0.90f,
         // GLUTES (reference: Hip Thrust)
         "Hip Thrust"                   to 1.00f,
@@ -116,8 +116,8 @@ object ExerciseCoefficients {
         "Dead Bug"                     to 0.00f,
         "Cable Crunch"                 to 1.00f,
         "Pallof Press"                 to 0.25f,
-        "Turkish Get-Up"               to 0.25f,
-        "Farmer's Carry"               to 0.35f,  // per kettlebell
-        "Suitcase Carry"               to 0.35f,
+        "Turkish Get-Up"               to 0.35f,
+        "Farmer's Carry"               to 0.50f,  // per kettlebell
+        "Suitcase Carry"               to 0.45f,
     )
 }
