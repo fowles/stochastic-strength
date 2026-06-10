@@ -18,7 +18,10 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlinx.coroutines.flow.Flow
 
-class WorkoutRepository(private val db: AppDatabase) {
+class WorkoutRepository(
+    private val db: AppDatabase,
+    private val coefficientSource: CoefficientSource = ExerciseCoefficients,
+) {
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
         else emptySet()
@@ -45,6 +48,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             recentHistory = history,
             weightUnit = weightUnit,
             locationId = locationId,
+            coefficientSource = coefficientSource,
         )
     }
 
@@ -72,7 +76,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
         val exercisesByMuscle = exerciseById.values
-            .filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
+            .filter { (coefficientSource.get(it) ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
         for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
             val allFeedbacks = muscleExercises.flatMap { exercise ->
