@@ -90,9 +90,10 @@ class WorkoutSessionController(
             for ((muscle, baseline) in plan.strengthOverrides) {
                 database.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscle, baseline))
             }
-            sessionStartTime = System.currentTimeMillis()
+            val now = System.currentTimeMillis()
+            sessionStartTime = now
             val sessionId = database.workoutSessionDao().insert(
-                WorkoutSession(startTime = sessionStartTime, locationId = sessionLocationId)
+                WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
             setState(WorkoutState.ActiveSet(
                 plan = plan,
@@ -183,9 +184,10 @@ class WorkoutSessionController(
             }
         }
         val updatedOverrides = state.plan.strengthOverrides + (muscle to newBaseline)
-        setState(state.copy(plan = state.plan.copy(exercises = exercises, strengthOverrides = updatedOverrides)))
+        val newState = state.copy(plan = state.plan.copy(exercises = exercises, strengthOverrides = updatedOverrides))
         scope.launch {
             planner = repository.buildPlanner(sessionLocationId, weightUnit, updatedOverrides)
+            setState(newState)
         }
     }
 
