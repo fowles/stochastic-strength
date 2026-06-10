@@ -26,11 +26,10 @@ import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
 import io.github.fowles.stochastic_strength.notification.WorkoutNotificationService
-import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportController
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
-import io.github.fowles.stochastic_strength.ui.toSummarySet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -471,33 +470,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 lastExerciseIndex = lastExerciseIndex,
                 lastRecordedSetIndex = lastRecordedSetIndex,
             ))
-            _doneSummary.value = loadDoneSummary(sessionId, endTime)
+            _doneSummary.value = loadWorkoutSummary(app.database, sessionId)
         }
-    }
-
-    private suspend fun loadDoneSummary(sessionId: Long, endTime: Long): WorkoutSummaryData {
-        val weightUnit = app.database.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
-        val sets = app.database.workoutSetDao().getSetsForSession(sessionId)
-        val exerciseIds = sets.map { it.exerciseId }.distinct()
-        val exerciseById = exerciseIds
-            .mapNotNull { id -> app.database.exerciseDao().getById(id)?.let { id to it } }
-            .toMap()
-        val setsByExercise = sets.groupBy { it.exerciseId }
-        val exercises = exerciseIds.map { id ->
-            val exercise = exerciseById[id]
-            SummaryExercise(
-                name = exercise?.name ?: "Unknown",
-                exerciseId = id,
-                sets = (setsByExercise[id] ?: emptyList()).sortedBy { it.setNumber }
-                    .map { it.toSummarySet(exercise?.isTimed ?: false) },
-            )
-        }
-        return WorkoutSummaryData(
-            startTime = sessionStartTime,
-            durationSeconds = (endTime - sessionStartTime) / 1000,
-            exercises = exercises,
-            weightUnit = weightUnit,
-        )
     }
 
     fun undoLastSetFromDone() {
