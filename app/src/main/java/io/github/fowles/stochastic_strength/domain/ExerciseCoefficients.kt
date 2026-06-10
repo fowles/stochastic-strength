@@ -1,6 +1,8 @@
 package io.github.fowles.stochastic_strength.domain
 
-object ExerciseCoefficients {
+import io.github.fowles.stochastic_strength.data.model.Exercise
+
+object ExerciseCoefficients : CoefficientSource {
     val byName: Map<String, Float> = mapOf(
         // CHEST (reference: Barbell Bench Press)
         "Barbell Bench Press"          to 1.00f,
@@ -120,4 +122,6 @@ object ExerciseCoefficients {
         "Farmer's Carry"               to 0.50f,  // per kettlebell
         "Suitcase Carry"               to 0.45f,
     )
+
+    override fun get(exercise: Exercise): Float? = byName[exercise.name]
 }
