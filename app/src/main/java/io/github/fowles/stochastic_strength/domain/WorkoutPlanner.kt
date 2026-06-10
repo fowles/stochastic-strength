@@ -23,6 +23,7 @@ class WorkoutPlanner(
     private val random: Random = Random.Default,
     private val nowMs: Long = System.currentTimeMillis(),
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
+    private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
 ) {
     // Muscle groups where a weighted exercise hit RIR 0-1 within the past two days.
     private val recentlyFailedMuscles: Set<MuscleGroup> by lazy {
@@ -72,14 +73,14 @@ class WorkoutPlanner(
     fun deriveBaselineFromSessionWeight(sessionWeight: Float, pe: PlannedExercise): Float {
         val coeff = coefficientSource.get(pe.exercise) ?: return 0f
         if (coeff <= 0f) return 0f
-        return DefaultProgressionEngine.toOneRepMax(sessionWeight, pe.sessionReps) / coeff
+        return progressionEngine.toOneRepMax(sessionWeight, pe.sessionReps) / coeff
     }
 
     fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float): PlannedExercise {
         val coeff = coefficientSource.get(pe.exercise) ?: return pe
         if (coeff <= 0f) return pe
         val newWeight = WeightFormatter.round(
-            DefaultProgressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
+            progressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
             weightUnit,
         )
         return pe.copy(
@@ -122,7 +123,7 @@ class WorkoutPlanner(
         if (coeff <= 0f) return 0f
         val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
         return WeightFormatter.round(
-            DefaultProgressionEngine.fromOneRepMax(baseline * coeff, sessionReps),
+            progressionEngine.fromOneRepMax(baseline * coeff, sessionReps),
             weightUnit,
         )
     }

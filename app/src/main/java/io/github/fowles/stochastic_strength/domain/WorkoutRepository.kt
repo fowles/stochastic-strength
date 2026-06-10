@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 class WorkoutRepository(
     private val db: AppDatabase,
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
+    private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
 ) {
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -49,6 +50,7 @@ class WorkoutRepository(
             weightUnit = weightUnit,
             locationId = locationId,
             coefficientSource = coefficientSource,
+            progressionEngine = progressionEngine,
         )
     }
 
@@ -86,7 +88,7 @@ class WorkoutRepository(
 
             val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
             val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
-            val newBaseline = DefaultProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
+            val newBaseline = progressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
             val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
             db.muscleGroupStrengthDao().upsert(current.copy(baselineWeight = roundedNewBaseline))
             db.baselineChangeLogDao().insert(
