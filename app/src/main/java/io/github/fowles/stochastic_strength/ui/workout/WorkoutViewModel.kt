@@ -8,21 +8,10 @@ import android.os.VibratorManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
-import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.data.model.WorkoutSession
-import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.ProgressionEngine
-import io.github.fowles.stochastic_strength.domain.WeightFormatter
-import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
-import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
-import io.github.fowles.stochastic_strength.domain.WorkoutRepository
-import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
-import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
 import io.github.fowles.stochastic_strength.notification.WorkoutNotificationService
@@ -30,8 +19,7 @@ import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportController
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,17 +29,20 @@ import kotlin.coroutines.resume
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
-    private val repository = WorkoutRepository(app.database)
     private val locationService = LocationService(app)
 
-    private val _state = MutableStateFlow<WorkoutState>(WorkoutState.Loading)
-    val state: StateFlow<WorkoutState> = _state.asStateFlow()
+    private val controller = WorkoutSessionController(
+        database = app.database,
+        bus = app.workoutSessionBus,
+        scope = viewModelScope,
+        onVibrate = ::vibrate,
+    )
+
+    val state: StateFlow<WorkoutState> = controller.state
+    val navigationEvent: Flow<NavigationEvent> = controller.navigationEvent
 
     private val _weightUnit = MutableStateFlow(WeightUnit.KG)
     val weightUnit: StateFlow<WeightUnit> = _weightUnit.asStateFlow()
-
-    private val _workoutCompleted = MutableStateFlow(false)
-    val workoutCompleted: StateFlow<Boolean> = _workoutCompleted.asStateFlow()
 
     private val _doneSummary = MutableStateFlow<WorkoutSummaryData?>(null)
     val doneSummary: StateFlow<WorkoutSummaryData?> = _doneSummary.asStateFlow()
@@ -59,108 +50,47 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val stravaController = StravaExportController(app.stravaExporter, app.database, app.applicationScope)
     val stravaState: StateFlow<StravaExportState> = stravaController.state
 
-    private var restTimerJob: Job? = null
-    private var timedSetTimerJob: Job? = null
-    private var addExerciseJob: Job? = null
-    private var sessionStartTime = 0L
-    private var preferredExerciseCount: Int? = null
-
-    private var sessionLocationId: Long? = null
-    private var pendingLocationRefresh = false
-    private var planner: WorkoutPlanner? = null
+    private var preferredExerciseCount: Int = WorkoutGenerator.DEFAULT_EXERCISE_COUNT
 
     init {
-        startWorkout()
-        viewModelScope.launch {
-            app.workoutSessionBus.commandFlow.collect { command ->
-                when (command) {
-                    is WorkoutCommand.RecordFeedback -> recordFeedback(command.feedback)
-                    WorkoutCommand.SkipRest -> skipRest()
-                    WorkoutCommand.CompleteWarmupSet -> completeWarmupSet()
-                    WorkoutCommand.StartTimedSet -> startTimedSet()
-                }
-            }
-        }
-    }
-
-    private fun startWorkout() {
         viewModelScope.launch {
             val profile = app.database.userProfileDao().getProfile()
             _weightUnit.value = profile?.weightUnit ?: WeightUnit.KG
             preferredExerciseCount = profile?.preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT
-            val locationId = when (val loc = locationService.resolveLocation(app.database)) {
-                is LocationResult.Known -> loc.locationId
-                is LocationResult.Unknown -> createLocation(loc.latitude to loc.longitude)
-                LocationResult.Unavailable -> null
-            }
-            sessionLocationId = locationId
+            val locationId = resolveLocation()
             val locationName = locationId?.let { app.database.knownLocationDao().getById(it)?.name }
-            continueWorkoutGeneration(locationId, locationName)
+            controller.initializeSession(locationId, locationName, preferredExerciseCount, _weightUnit.value)
         }
-    }
-
-    private suspend fun continueWorkoutGeneration(locationId: Long?, locationName: String?) {
-        val p = repository.buildPlanner(locationId, _weightUnit.value)
-        planner = p
-        val plan = p.generateWorkout()
-        setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
-        setExerciseCount(preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT)
-    }
-
-    fun replaceExercise(index: Int, reason: ExerciseRemovalReason) {
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        val rejectedId = preview.plan.exercises[index].exercise.id
-        val planned = preview.plan.exercises[index]
         viewModelScope.launch {
-            when (reason) {
-                ExerciseRemovalReason.DISLIKE ->
-                    app.database.exerciseDao().update(planned.exercise.copy(isDisliked = true))
-                ExerciseRemovalReason.NO_EQUIPMENT -> {
-                    val locationId = sessionLocationId ?: return@launch
-                    repository.excludeExercise(locationId, planned.exercise.id)
+            app.workoutSessionBus.commandFlow.collect { command ->
+                when (command) {
+                    is WorkoutCommand.RecordFeedback -> controller.recordFeedback(command.feedback)
+                    WorkoutCommand.SkipRest -> controller.skipRest()
+                    WorkoutCommand.CompleteWarmupSet -> controller.completeWarmupSet()
+                    WorkoutCommand.StartTimedSet -> controller.startTimedSet()
                 }
-                ExerciseRemovalReason.SKIP_TODAY -> Unit
             }
-            // Re-read current state after the async DB work so concurrent calls compose correctly.
-            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-            val updatedPlan = current.plan.copy(
-                sessionRejectedIds = current.plan.sessionRejectedIds + rejectedId
-            )
-            val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
-                repository.buildPlanner(sessionLocationId, _weightUnit.value, updatedPlan.strengthOverrides)
-                    .also { planner = it }
-            } else {
-                planner ?: return@launch
+        }
+        viewModelScope.launch {
+            var serviceStarted = false
+            app.workoutSessionBus.notificationState.collect { s ->
+                if (!serviceStarted && s != null) {
+                    serviceStarted = true
+                    app.startForegroundService(Intent(app, WorkoutNotificationService::class.java))
+                }
             }
-            val currentIndex = updatedPlan.exercises.indexOfFirst { it.exercise.id == rejectedId }
-            if (currentIndex < 0) return@launch
-            val replacement = p.pickReplacement(updatedPlan, currentIndex)
-            val newExercises = updatedPlan.exercises.toMutableList()
-            if (replacement != null) newExercises[currentIndex] = replacement else newExercises.removeAt(currentIndex)
-            setState(current.copy(plan = updatedPlan.copy(exercises = newExercises)))
+        }
+        viewModelScope.launch {
+            controller.state.collect { s ->
+                if (s is WorkoutState.Done && _doneSummary.value == null) {
+                    _doneSummary.value = loadWorkoutSummary(app.database, s.sessionId)
+                }
+            }
         }
     }
 
     fun setExerciseCount(targetCount: Int) {
-        addExerciseJob?.cancel()
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        val current = preview.plan.exercises
-        when {
-            targetCount < current.size -> {
-                val trimmed = current.take(targetCount.coerceAtLeast(1))
-                setState(preview.copy(plan = preview.plan.copy(exercises = trimmed)))
-            }
-            targetCount > current.size -> {
-                val needed = targetCount - current.size
-                addExerciseJob = viewModelScope.launch {
-                    repeat(needed) {
-                        val p = _state.value as? WorkoutState.PlanPreview ?: return@launch
-                        val extra = planner?.pickAdditional(p.plan) ?: return@launch
-                        setState(p.copy(plan = p.plan.copy(exercises = p.plan.exercises + extra)))
-                    }
-                }
-            }
-        }
+        controller.adjustExerciseCount(targetCount)
         if (targetCount != preferredExerciseCount) {
             preferredExerciseCount = targetCount
             viewModelScope.launch {
@@ -170,210 +100,38 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun adjustExerciseWeight(index: Int, delta: Float) {
-        val state = _state.value as? WorkoutState.PlanPreview ?: return
-        val p = planner ?: return
-        val unit = _weightUnit.value
-        val exercises = state.plan.exercises.toMutableList()
-        val pe = exercises[index]
-
-        val newWeight = WeightFormatter.round(
-            (pe.sessionWeight + delta).coerceAtLeast(2.5f),
-            unit,
-        )
-        if (newWeight == pe.sessionWeight) return
-
-        val newBaseline = p.deriveBaselineFromSessionWeight(newWeight, pe)
-        if (newBaseline <= 0f) return
-
-        exercises[index] = pe.copy(
-            sessionWeight = newWeight,
-            warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight),
-        )
-
-        val muscle = pe.exercise.primaryMuscle
-        for (i in exercises.indices) {
-            if (i == index) continue
-            if (exercises[i].exercise.primaryMuscle == muscle) {
-                exercises[i] = p.recomputeExercise(exercises[i], newBaseline)
-            }
-        }
-
-        val updatedOverrides = state.plan.strengthOverrides + (muscle to newBaseline)
-        setState(state.copy(plan = state.plan.copy(exercises = exercises, strengthOverrides = updatedOverrides)))
-
-        viewModelScope.launch {
-            planner = repository.buildPlanner(sessionLocationId, unit, updatedOverrides)
-        }
-    }
-
-    fun onNavigatedToLocationEdit() {
-        pendingLocationRefresh = true
-    }
+    fun startFirstExercise() = controller.startFirstExercise()
+    fun replaceExercise(index: Int, reason: ExerciseRemovalReason) = controller.replaceExercise(index, reason)
+    fun adjustExerciseWeight(index: Int, delta: Float) = controller.adjustExerciseWeight(index, delta)
+    fun completeWarmupSet() = controller.completeWarmupSet()
+    fun startTimedSet() = controller.startTimedSet()
+    fun recordFeedback(feedback: SetFeedback) = controller.recordFeedback(feedback)
+    fun undoLastSet() = controller.undoLastSet()
+    fun skipRest() = controller.skipRest()
+    fun reduceExerciseWeight(completedReps: Int) = controller.reduceExerciseWeight(completedReps)
+    fun undoLastSetFromDone() = controller.undoLastSetFromDone()
+    fun completeWorkout() = controller.completeWorkout()
 
     fun onResumed() {
-        if (pendingLocationRefresh) {
-            pendingLocationRefresh = false
-            val preview = _state.value as? WorkoutState.PlanPreview
-            val locationId = sessionLocationId
-            if (preview != null && locationId != null) {
-                viewModelScope.launch {
-                    val locationName = app.database.knownLocationDao().getById(locationId)?.name
-                    val freshPlanner = repository.buildPlanner(locationId, _weightUnit.value, preview.plan.strengthOverrides)
-                    planner = freshPlanner
-                    val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
-                    var plan = preview.plan
-                    var i = 0
-                    while (i < plan.exercises.size) {
-                        if (plan.exercises[i].exercise.id !in availableIds) {
-                            val replacement = freshPlanner.pickReplacement(plan, i)
-                            val updated = plan.exercises.toMutableList()
-                            if (replacement != null) {
-                                updated[i] = replacement
-                            } else {
-                                updated.removeAt(i)
-                                i--
-                            }
-                            plan = plan.copy(exercises = updated)
-                        }
-                        i++
-                    }
-                    if (plan != preview.plan || locationName != preview.locationName) {
-                        setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
-                    }
-                }
-            }
+        if (controller.state.value is WorkoutState.PlanPreview) {
+            controller.onLocationRefreshed()
         }
-        val done = _state.value as? WorkoutState.Done
+        val done = controller.state.value as? WorkoutState.Done
         if (done != null) stravaController.onResumedWaitingForAuth(done.sessionId, _weightUnit.value)
     }
 
     fun onExportToStrava() {
-        val done = _state.value as? WorkoutState.Done ?: return
+        val done = controller.state.value as? WorkoutState.Done ?: return
         stravaController.export(done.sessionId, _weightUnit.value)
     }
 
     fun onStravaAuthUrlLaunched() = stravaController.onAuthUrlLaunched()
-
     fun onStravaMessageShown() = stravaController.onMessageShown()
 
-    fun startFirstExercise() {
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        if (preview.plan.exercises.isEmpty()) return
-        val frozenExercises = preview.plan.exercises.map { it.copy(originalSessionWeight = it.sessionWeight) }
-        val plan = preview.plan.copy(exercises = frozenExercises)
-        val firstExercise = plan.exercises[0]
-        viewModelScope.launch {
-            for ((muscle, baseline) in plan.strengthOverrides) {
-                app.database.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscle, baseline))
-            }
-            sessionStartTime = System.currentTimeMillis()
-            val sessionId = app.database.workoutSessionDao().insert(
-                WorkoutSession(startTime = sessionStartTime, locationId = sessionLocationId)
-            )
-            setState(WorkoutState.ActiveSet(
-                plan = plan,
-                exerciseIndex = 0,
-                setIndex = 0,
-                sessionId = sessionId,
-                warmupSetIndex = if (firstExercise.warmupSets.isNotEmpty()) 0 else null,
-            ))
-        }
-    }
-
-    fun completeWarmupSet() {
-        val current = _state.value as? WorkoutState.ActiveSet ?: return
-        val warmupIdx = current.warmupSetIndex ?: return
-        val nextIdx = warmupIdx + 1
-        setState(current.copy(
-            warmupSetIndex = if (nextIdx < current.plannedExercise.warmupSets.size) nextIdx else null,
-        ))
-    }
-
-    fun startTimedSet() {
-        val current = _state.value as? WorkoutState.ActiveSet ?: return
-        if (current.timerSecondsRemaining != null) return
-        setState(current.copy(timerSecondsRemaining = TIMED_SET_SECONDS))
-        timedSetTimerJob?.cancel()
-        timedSetTimerJob = viewModelScope.launch {
-            while (true) {
-                delay(1000)
-                val s = _state.value as? WorkoutState.ActiveSet ?: return@launch
-                val remaining = s.timerSecondsRemaining ?: return@launch
-                if (remaining <= 1) {
-                    vibrate()
-                    recordFeedback(SetFeedback.RIR_0_1)
-                    return@launch
-                }
-                setState(s.copy(timerSecondsRemaining = remaining - 1))
-            }
-        }
-    }
-
-    fun recordFeedback(feedback: SetFeedback) {
-        timedSetTimerJob?.cancel()
-        val current = _state.value as? WorkoutState.ActiveSet ?: return
-        viewModelScope.launch {
-            val planned = current.plannedExercise
-            app.database.workoutSetDao().insert(
-                WorkoutSet(
-                    sessionId = current.sessionId,
-                    exerciseId = planned.exercise.id,
-                    setNumber = current.setIndex + 1,
-                    targetWeight = planned.sessionWeight,
-                    targetReps = planned.sessionReps,
-                    feedback = feedback,
-                    completedAt = System.currentTimeMillis(),
-                    durationSeconds = if (planned.exercise.isTimed) TIMED_SET_SECONDS else null,
-                )
-            )
-        }
-        val completedSetIndex = if (feedback == SetFeedback.HURT) current.totalSets - 1 else current.setIndex
-        val isLastSet = completedSetIndex + 1 >= current.totalSets &&
-            current.exerciseIndex + 1 >= current.plan.exercises.size
-        if (isLastSet) {
-            finishWorkout(current.plan, current.exerciseIndex, current.setIndex, current.sessionId)
-        } else {
-            setState(WorkoutState.Resting(
-                plan = current.plan,
-                exerciseIndex = current.exerciseIndex,
-                completedSetIndex = completedSetIndex,
-                recordedSetIndex = current.setIndex,
-                sessionId = current.sessionId,
-                secondsRemaining = REST_SECONDS,
-                lastFeedback = feedback,
-                weightAtSetStart = current.plannedExercise.sessionWeight,
-            ))
-            startRestTimer()
-        }
-    }
-
-    fun undoLastSet() {
-        restTimerJob?.cancel()
-        val resting = _state.value as? WorkoutState.Resting ?: return
-        val exerciseId = resting.plan.exercises[resting.exerciseIndex].exercise.id
-        val restoredExercises = resting.plan.exercises.toMutableList()
-        restoredExercises[resting.exerciseIndex] =
-            restoredExercises[resting.exerciseIndex].copy(sessionWeight = resting.weightAtSetStart)
-        val restoredPlan = resting.plan.copy(exercises = restoredExercises)
-        viewModelScope.launch {
-            app.database.workoutSetDao().deleteSet(
-                sessionId = resting.sessionId,
-                exerciseId = exerciseId,
-                setNumber = resting.recordedSetIndex + 1,
-            )
-        }
-        setState(WorkoutState.ActiveSet(
-            plan = restoredPlan,
-            exerciseIndex = resting.exerciseIndex,
-            setIndex = resting.recordedSetIndex,
-            sessionId = resting.sessionId,
-        ))
-    }
-
-    fun skipRest() {
-        restTimerJob?.cancel()
-        advanceAfterRest()
+    private suspend fun resolveLocation(): Long? = when (val loc = locationService.resolveLocation(app.database)) {
+        is LocationResult.Known -> loc.locationId
+        is LocationResult.Unknown -> createLocation(loc.latitude to loc.longitude)
+        LocationResult.Unavailable -> null
     }
 
     private suspend fun createLocation(coords: Pair<Double, Double>): Long =
@@ -408,170 +166,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun startRestTimer() {
-        restTimerJob?.cancel()
-        restTimerJob = viewModelScope.launch {
-            while (true) {
-                delay(1000)
-                val current = _state.value as? WorkoutState.Resting ?: return@launch
-                if (current.secondsRemaining <= 1) {
-                    vibrate()
-                    advanceAfterRest()
-                    return@launch
-                }
-                setState(current.copy(secondsRemaining = current.secondsRemaining - 1))
-            }
-        }
-    }
-
-    private fun advanceAfterRest() {
-        val current = _state.value as? WorkoutState.Resting ?: return
-        val plan = current.plan
-        val totalSets = PlannedExercise.DEFAULT_SETS
-        val nextSet = current.completedSetIndex + 1
-
-        when {
-            nextSet < totalSets -> setState(WorkoutState.ActiveSet(
-                plan = plan,
-                exerciseIndex = current.exerciseIndex,
-                setIndex = nextSet,
-                sessionId = current.sessionId,
-            ))
-            current.exerciseIndex + 1 < plan.exercises.size -> {
-                val nextExercise = plan.exercises[current.exerciseIndex + 1]
-                setState(WorkoutState.ActiveSet(
-                    plan = plan,
-                    exerciseIndex = current.exerciseIndex + 1,
-                    setIndex = 0,
-                    sessionId = current.sessionId,
-                    warmupSetIndex = if (nextExercise.warmupSets.isNotEmpty()) 0 else null,
-                ))
-            }
-            else -> finishWorkout(plan, current.exerciseIndex, current.recordedSetIndex, current.sessionId)
-        }
-    }
-
-    private fun finishWorkout(
-        plan: WorkoutPlan,
-        lastExerciseIndex: Int,
-        lastRecordedSetIndex: Int,
-        sessionId: Long,
-    ) {
-        val endTime = System.currentTimeMillis()
-        viewModelScope.launch {
-            app.database.workoutSessionDao().updateEndTime(sessionId, endTime)
-            setState(WorkoutState.Done(
-                sessionId = sessionId,
-                plan = plan,
-                startTime = sessionStartTime,
-                endTime = endTime,
-                lastExerciseIndex = lastExerciseIndex,
-                lastRecordedSetIndex = lastRecordedSetIndex,
-            ))
-            _doneSummary.value = loadWorkoutSummary(app.database, sessionId)
-        }
-    }
-
-    fun undoLastSetFromDone() {
-        val done = _state.value as? WorkoutState.Done ?: return
-        val exerciseId = done.plan.exercises[done.lastExerciseIndex].exercise.id
-        viewModelScope.launch {
-            app.database.workoutSetDao().deleteSet(
-                sessionId = done.sessionId,
-                exerciseId = exerciseId,
-                setNumber = done.lastRecordedSetIndex + 1,
-            )
-        }
-        setState(WorkoutState.ActiveSet(
-            plan = done.plan,
-            exerciseIndex = done.lastExerciseIndex,
-            setIndex = done.lastRecordedSetIndex,
-            sessionId = done.sessionId,
-        ))
-    }
-
-    fun reduceExerciseWeight(completedReps: Int) {
-        val resting = _state.value as? WorkoutState.Resting ?: return
-        val exercise = resting.plan.exercises[resting.exerciseIndex]
-        if (exercise.sessionWeight <= 0f) return
-        val newWeight = maxOf(0.5f, WeightFormatter.round(
-            ProgressionEngine.scaleReps(exercise.sessionWeight, from = maxOf(1, completedReps), to = exercise.sessionReps),
-            _weightUnit.value,
-        ))
-        val updatedExercises = resting.plan.exercises.toMutableList()
-        updatedExercises[resting.exerciseIndex] = exercise.copy(sessionWeight = newWeight)
-        setState(resting.copy(plan = resting.plan.copy(exercises = updatedExercises), weightReductionApplied = true))
-    }
-
-    fun completeWorkout() {
-        val done = _state.value as? WorkoutState.Done ?: return
-        viewModelScope.launch {
-            val reductions = done.plan.exercises
-                .filter { it.originalSessionWeight > 0f && it.sessionWeight < it.originalSessionWeight }
-                .associate { it.exercise.id to (it.originalSessionWeight - it.sessionWeight) / it.originalSessionWeight }
-            repository.applySessionProgression(done.sessionId, reductions)
-            _workoutCompleted.value = true
-        }
-    }
-
-    private fun setState(newState: WorkoutState) {
-        val newNotifState = deriveNotificationState(newState)
-        val wasNull = app.workoutSessionBus.notificationState.value == null
-        _state.value = newState
-        app.workoutSessionBus.notificationState.value = newNotifState
-        if (wasNull && newNotifState != null) {
-            app.startForegroundService(Intent(app, WorkoutNotificationService::class.java))
-        }
-    }
-
-    private fun deriveNotificationState(state: WorkoutState): WorkoutNotificationState? = when (state) {
-        is WorkoutState.ActiveSet -> {
-            val planned = state.plannedExercise
-            if (state.warmupSetIndex != null) {
-                val warmupIdx = state.warmupSetIndex + 1
-                val totalWarmups = planned.warmupSets.size
-                WorkoutNotificationState.WarmupSet(
-                    exerciseName = planned.exercise.name,
-                    warmupSetLabel = "Warm-up $warmupIdx of $totalWarmups",
-                )
-            } else if (planned.exercise.isTimed) {
-                WorkoutNotificationState.TimedActiveSet(
-                    exerciseName = planned.exercise.name,
-                    setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
-                    secondsRemaining = state.timerSecondsRemaining,
-                    progressMax = TIMED_SET_SECONDS,
-                )
-            } else {
-                WorkoutNotificationState.ActiveSet(
-                    exerciseName = planned.exercise.name,
-                    weightLabel = if (planned.exercise.equipment == Equipment.BODYWEIGHT)
-                        "Bodyweight"
-                    else
-                        WeightFormatter.format(planned.sessionWeight, _weightUnit.value),
-                    repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed),
-                    setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
-                )
-            }
-        }
-        is WorkoutState.Resting -> {
-            val plan = state.plan
-            val nextSet = state.completedSetIndex + 1
-            val upNextLabel = when {
-                nextSet < PlannedExercise.DEFAULT_SETS ->
-                    "Next: Set ${nextSet + 1} · ${plan.exercises[state.exerciseIndex].exercise.name}"
-                state.exerciseIndex + 1 < plan.exercises.size ->
-                    "Next: ${plan.exercises[state.exerciseIndex + 1].exercise.name}"
-                else -> "Last set — almost done!"
-            }
-            WorkoutNotificationState.Resting(
-                secondsRemaining = state.secondsRemaining,
-                progressMax = REST_SECONDS,
-                upNextLabel = upNextLabel,
-            )
-        }
-        is WorkoutState.Done, is WorkoutState.PlanPreview, WorkoutState.Loading -> null
-    }
-
     private fun vibrate() {
         val vibrator = app.getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
         val effect = VibrationEffect.startComposition()
@@ -581,18 +175,5 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 1.0f, 80)
             .compose()
         vibrator.vibrate(effect)
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        restTimerJob?.cancel()
-        timedSetTimerJob?.cancel()
-        addExerciseJob?.cancel()
-        app.workoutSessionBus.notificationState.value = null
-    }
-
-    companion object {
-        const val REST_SECONDS = 90
-        const val TIMED_SET_SECONDS = 60
     }
 }
