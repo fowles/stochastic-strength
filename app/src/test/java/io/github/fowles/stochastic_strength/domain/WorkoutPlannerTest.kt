@@ -216,6 +216,27 @@ class WorkoutPlannerTest {
             pe.sessionWeight, recomputed.sessionWeight, 1.0f)
     }
 
+    @Test
+    fun recomputeExercise_appliesNewBaselineWithCoefficient() {
+        val ex = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val newBaseline = 120f  // coeff for Barbell Bench Press = 1.0
+        val sessionReps = 5
+        val p = planner(listOf(ex), strengthsFor(MuscleGroup.CHEST to 100f))
+
+        val pe = PlannedExercise(exercise = ex, sessionReps = sessionReps,
+            sessionWeight = WeightFormatter.round(
+                DefaultProgressionEngine.fromOneRepMax(100f, sessionReps), WeightUnit.KG))
+
+        val recomputed = p.recomputeExercise(pe, newBaseline)
+
+        val expected = WeightFormatter.round(
+            DefaultProgressionEngine.fromOneRepMax(newBaseline * 1.0f, sessionReps), WeightUnit.KG)
+        assertEquals("recomputeExercise with coeff=1.0 should apply new baseline directly",
+            expected, recomputed.sessionWeight, 0.01f)
+        assertTrue("new weight should differ from original when baseline changed",
+            recomputed.sessionWeight != pe.sessionWeight)
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     // computeWarmupSets
     // ──────────────────────────────────────────────────────────────────────
