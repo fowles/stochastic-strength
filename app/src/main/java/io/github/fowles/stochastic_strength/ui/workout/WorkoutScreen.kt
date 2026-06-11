@@ -937,23 +937,13 @@ private fun RestingContent(
                 )
             } else if (!hasMoreSets && nextExercise != null) {
                 val warmup = nextExercise.warmupSets.firstOrNull()
-                if (warmup != null) {
-                    NextExerciseCard(
-                        title = "Warm up",
-                        exerciseName = nextExercise.exercise.name,
-                        weight = warmup.weight,
-                        equipment = nextExercise.exercise.equipment,
-                        weightUnit = weightUnit,
-                    )
-                } else {
-                    NextExerciseCard(
-                        title = "Next up",
-                        exerciseName = nextExercise.exercise.name,
-                        weight = nextExercise.sessionWeight,
-                        equipment = nextExercise.exercise.equipment,
-                        weightUnit = weightUnit,
-                    )
-                }
+                NextExerciseCard(
+                    title = if (warmup != null) "Warm up" else "Next up",
+                    exerciseName = nextExercise.exercise.name,
+                    weight = warmup?.weight ?: nextExercise.sessionWeight,
+                    equipment = nextExercise.exercise.equipment,
+                    weightUnit = weightUnit,
+                )
             }
         }
         // Exercises — always 20%
