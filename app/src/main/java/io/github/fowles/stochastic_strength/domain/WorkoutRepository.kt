@@ -126,8 +126,9 @@ class WorkoutRepository(
     }
 
     internal suspend fun buildCoefficientInput(): CoefficientComputationInput {
-        val exercises = db.exerciseDao().getActive()
-        val exerciseMuscle = exercises.associate { it.id to it.primaryMuscle }
+        val allExercises = db.exerciseDao().getAll()
+        val activeExercises = db.exerciseDao().getActive()
+        val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
         val sessionTimeById = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
         val progressionLogs = db.baselineChangeLogDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.PROGRESSION }
@@ -153,7 +154,7 @@ class WorkoutRepository(
             .sortedBy { it.sessionTime }
         val latestUserCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
-        val currentCoefficients = exercises.associate { exercise ->
+        val currentCoefficients = activeExercises.associate { exercise ->
             exercise.id to (latestUserCoefficients[exercise.id]
                 ?: coefficientSource.get(exercise)
                 ?: 0f)
