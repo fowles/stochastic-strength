@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.domain
 import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
+import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
@@ -164,6 +165,38 @@ class WorkoutRepository(
             currentCoefficients = currentCoefficients,
         )
     }
+
+    suspend fun recomputeCoefficients() {
+        if (heuristics.isEmpty()) return
+        val input = buildCoefficientInput()
+        val candidatesByExercise = mutableMapOf<Long, MutableList<Pair<String, CoefficientResult>>>()
+        for (heuristic in heuristics) {
+            for (result in heuristic.compute(input)) {
+                candidatesByExercise.getOrPut(result.exerciseId) { mutableListOf() }
+                    .add(heuristic.name to result)
+            }
+        }
+        val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associateBy { it.exerciseId }
+        val now = System.currentTimeMillis()
+        for ((exerciseId, candidates) in candidatesByExercise) {
+            val (winnerName, winner) = mergeHeuristicResults(candidates) ?: continue
+            db.coefficientChangeLogDao().insert(
+                CoefficientChangeLog(
+                    exerciseId = exerciseId,
+                    previousCoefficient = latestByExercise[exerciseId]?.coefficient,
+                    coefficient = winner.coefficient,
+                    heuristicName = winnerName,
+                    heuristicMetadata = winner.metadata,
+                    computedAt = now,
+                )
+            )
+        }
+    }
+
+    private fun mergeHeuristicResults(
+        candidates: List<Pair<String, CoefficientResult>>,
+    ): Pair<String, CoefficientResult>? = candidates.firstOrNull()
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit))

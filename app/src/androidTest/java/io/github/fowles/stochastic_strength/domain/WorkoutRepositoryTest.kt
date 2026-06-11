@@ -29,6 +29,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+
 @RunWith(AndroidJUnit4::class)
 class WorkoutRepositoryTest {
 
@@ -247,6 +248,81 @@ class WorkoutRepositoryTest {
         assertEquals(75f, snap.sets[1].targetWeight, 0.001f)
         assertEquals(SetFeedback.TOO_HARD, snap.sets[1].feedback)
         assertEquals(1.0f, input.currentCoefficients[exerciseId]!!, 0.001f)
+    }
+
+    private suspend fun seedChestSession(startTime: Long = 1000L): Pair<Long, Long> {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(
+                name = "Barbell Bench Press",
+                primaryMuscle = MuscleGroup.CHEST,
+                equipment = Equipment.BARBELL,
+            )
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = startTime))
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId,
+            exerciseId = exerciseId,
+            setNumber = 1,
+            targetWeight = 80f,
+            targetReps = 5,
+            feedback = SetFeedback.RIR_2_4,
+        ))
+        db.baselineChangeLogDao().insert(
+            BaselineChangeLog(
+                sessionId = sessionId,
+                muscleGroup = MuscleGroup.CHEST,
+                previousBaseline = 100f,
+                newBaseline = 102f,
+                changeReason = BaselineChangeReason.PROGRESSION,
+                timestamp = startTime,
+            )
+        )
+        return exerciseId to sessionId
+    }
+
+    @Test
+    fun recomputeCoefficients_writes_log_row_with_null_previousCoefficient_on_first_run() = runBlocking {
+        val (exerciseId, _) = seedChestSession()
+        val testHeuristic = object : CoefficientHeuristic {
+            override val name = "test-heuristic"
+            override fun compute(input: CoefficientComputationInput) =
+                input.history.map { CoefficientResult(it.exerciseId, 0.9f, "meta") }
+        }
+        val repo = WorkoutRepository(db, heuristics = listOf(testHeuristic))
+
+        repo.recomputeCoefficients()
+
+        val logs = db.coefficientChangeLogDao().getLatestPerExercise()
+        assertEquals(1, logs.size)
+        assertEquals(exerciseId, logs.first().exerciseId)
+        assertEquals(0.9f, logs.first().coefficient, 0.001f)
+        assertNull(logs.first().previousCoefficient)
+        assertEquals("test-heuristic", logs.first().heuristicName)
+        assertEquals("meta", logs.first().heuristicMetadata)
+    }
+
+    @Test
+    fun recomputeCoefficients_second_run_populates_previousCoefficient() = runBlocking {
+        val (exerciseId, _) = seedChestSession()
+        val heuristic1 = object : CoefficientHeuristic {
+            override val name = "h1"
+            override fun compute(input: CoefficientComputationInput) =
+                input.history.map { CoefficientResult(it.exerciseId, 0.9f) }
+        }
+        WorkoutRepository(db, heuristics = listOf(heuristic1)).recomputeCoefficients()
+
+        val heuristic2 = object : CoefficientHeuristic {
+            override val name = "h2"
+            override fun compute(input: CoefficientComputationInput) =
+                input.history.map { CoefficientResult(it.exerciseId, 0.95f) }
+        }
+        WorkoutRepository(db, heuristics = listOf(heuristic2)).recomputeCoefficients()
+
+        val latest = db.coefficientChangeLogDao().getLatestPerExercise()
+        assertEquals(1, latest.size)
+        assertEquals(0.95f, latest.first().coefficient, 0.001f)
+        assertEquals(0.9f, latest.first().previousCoefficient!!, 0.001f)
     }
 
     @Test
