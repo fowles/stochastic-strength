@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutScreen.kt`
 
-- [ ] **Step 1: Add `NextExerciseCard` after the `WeightReductionCard` composable (around line 766)**
+- [x] **Step 1: Add `NextExerciseCard` after the `WeightReductionCard` composable (around line 766)**
 
   Insert this private composable immediately after the closing brace of `WeightReductionCard`:
 
@@ -65,7 +65,7 @@
   }
   ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
   ```
   ./gradlew :app:assembleDebug
@@ -73,7 +73,7 @@
 
   Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
   ```
   jj commit -m "feat: add NextExerciseCard composable"
@@ -88,7 +88,7 @@
 
 The `WeightReductionCard` composable currently has a bespoke confirmation overlay (`if (applied && weightReduced) { Column { Text("Weight reduced to ...") ... } }`). Replace it with `NextExerciseCard` and add `exerciseName` as a parameter.
 
-- [ ] **Step 1: Add `exerciseName: String` parameter to `WeightReductionCard`**
+- [x] **Step 1: Add `exerciseName: String` parameter to `WeightReductionCard`**
 
   Change the signature from:
 
@@ -119,7 +119,7 @@ The `WeightReductionCard` composable currently has a bespoke confirmation overla
   )
   ```
 
-- [ ] **Step 2: Replace the bespoke confirmation Column with `NextExerciseCard`**
+- [x] **Step 2: Replace the bespoke confirmation Column with `NextExerciseCard`**
 
   Find the block near the bottom of `WeightReductionCard`:
 
@@ -163,7 +163,7 @@ The `WeightReductionCard` composable currently has a bespoke confirmation overla
   }
   ```
 
-- [ ] **Step 3: Update the call site in `RestingContent` to pass `exerciseName`**
+- [x] **Step 3: Update the call site in `RestingContent` to pass `exerciseName`**
 
   Find the existing `WeightReductionCard(...)` call inside `RestingContent`. Add `exerciseName = plannedExercise.exercise.name` as the first argument:
 
@@ -180,7 +180,7 @@ The `WeightReductionCard` composable currently has a bespoke confirmation overla
   )
   ```
 
-- [ ] **Step 4: Verify it compiles**
+- [x] **Step 4: Verify it compiles**
 
   ```
   ./gradlew :app:assembleDebug
@@ -188,7 +188,7 @@ The `WeightReductionCard` composable currently has a bespoke confirmation overla
 
   Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```
   jj commit -m "feat: replace WeightReductionCard confirmation with NextExerciseCard"
@@ -203,7 +203,7 @@ The `WeightReductionCard` composable currently has a bespoke confirmation overla
 
 In `RestingContent`, the card-area `Box` currently renders `WeightReductionCard` or nothing. Add an `else if` branch for the last-set case.
 
-- [ ] **Step 1: Add next-exercise preview to the card area in `RestingContent`**
+- [x] **Step 1: Add next-exercise preview to the card area in `RestingContent`**
 
   Find the card area block in `RestingContent` (the `Box` with `weight(0.2f)`). It currently contains:
 
@@ -262,7 +262,7 @@ In `RestingContent`, the card-area `Box` currently renders `WeightReductionCard`
   }
   ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
   ```
   ./gradlew :app:assembleDebug
@@ -270,7 +270,7 @@ In `RestingContent`, the card-area `Box` currently renders `WeightReductionCard`
 
   Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 3: Run unit tests to check for regressions**
+- [x] **Step 3: Run unit tests to check for regressions**
 
   ```
   ./gradlew :app:testDebugUnitTest
@@ -278,7 +278,7 @@ In `RestingContent`, the card-area `Box` currently renders `WeightReductionCard`
 
   Expected: `BUILD SUCCESSFUL` with all tests passing.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
   ```
   jj commit -m "feat: show next exercise weight card after last set during rest"
