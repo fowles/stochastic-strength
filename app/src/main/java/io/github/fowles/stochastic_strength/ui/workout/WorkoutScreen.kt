@@ -682,71 +682,53 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
 
 @Composable
 private fun WeightReductionCard(
-    exerciseName: String,
     sessionReps: Int,
     sessionWeight: Float,
     weightUnit: WeightUnit,
-    equipment: Equipment,
     applied: Boolean,
-    weightReduced: Boolean,
     onRepsSelected: (Int) -> Unit,
 ) {
     val errorColor = MaterialTheme.colorScheme.error
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.TopCenter,
+    // Question content always in the layout tree so the card never shrinks when applied
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (applied) 0f else 1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Question content always in the layout tree so the card never shrinks when applied
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .alpha(if (applied) 0f else 1f),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Text(
+            "How many reps did you complete?",
+            style = MaterialTheme.typography.labelLarge,
+            textAlign = TextAlign.Center,
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                "How many reps did you complete?",
-                style = MaterialTheme.typography.labelLarge,
-                textAlign = TextAlign.Center,
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                repeat(sessionReps) { reps ->
-                    val newWeight = WeightFormatter.round(
-                        maxOf(0.5f, DefaultProgressionEngine.scaleReps(sessionWeight, from = maxOf(1, reps), to = sessionReps)),
-                        weightUnit,
-                    )
-                    val delta = sessionWeight - newWeight
-                    OutlinedButton(
-                        onClick = { onRepsSelected(reps) },
-                        enabled = !applied,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("$reps", style = MaterialTheme.typography.labelLarge)
-                            if (delta > 0f) {
-                                Text(
-                                    "↓ ${WeightFormatter.format(delta, weightUnit)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = errorColor,
-                                )
-                            }
+            repeat(sessionReps) { reps ->
+                val newWeight = WeightFormatter.round(
+                    maxOf(0.5f, DefaultProgressionEngine.scaleReps(sessionWeight, from = maxOf(1, reps), to = sessionReps)),
+                    weightUnit,
+                )
+                val delta = sessionWeight - newWeight
+                OutlinedButton(
+                    onClick = { onRepsSelected(reps) },
+                    enabled = !applied,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("$reps", style = MaterialTheme.typography.labelLarge)
+                        if (delta > 0f) {
+                            Text(
+                                "↓ ${WeightFormatter.format(delta, weightUnit)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = errorColor,
+                            )
                         }
                     }
                 }
             }
-        }
-        // Confirmation content overlaid on top when applied and weight actually changed
-        if (applied && weightReduced) {
-            NextExerciseCard(
-                title = "Reduced weight",
-                exerciseName = exerciseName,
-                weight = sessionWeight,
-                equipment = equipment,
-                weightUnit = weightUnit,
-            )
         }
     }
 }
@@ -760,37 +742,25 @@ private fun NextExerciseCard(
     weightUnit: WeightUnit,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            title,
+            "$title: $exerciseName",
             style = MaterialTheme.typography.labelLarge,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            exerciseName,
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
         )
         if (weight > 0f) {
+            val plates = if (equipment == Equipment.BARBELL)
+                WeightFormatter.platesPerSide(weight, weightUnit) else null
+            val weightLine = buildString {
+                append(WeightFormatter.format(weight, weightUnit))
+                if (plates != null) append(" • $plates")
+            }
             Text(
-                WeightFormatter.format(weight, weightUnit),
+                weightLine,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
             )
-            if (equipment == Equipment.BARBELL) {
-                WeightFormatter.platesPerSide(weight, weightUnit)?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
         }
     }
 }
@@ -924,17 +894,25 @@ private fun RestingContent(
                 && plannedExercise.sessionWeight > 0f
             val nextExercise = if (state.exerciseIndex + 1 < plan.exercises.size)
                 plan.exercises[state.exerciseIndex + 1] else null
+            val weightReduced = state.plan.exercises[state.exerciseIndex].sessionWeight != state.weightAtSetStart
             if (state.lastFeedback == SetFeedback.TOO_HARD && hasMoreSets && isWeighted) {
-                WeightReductionCard(
-                    exerciseName = plannedExercise.exercise.name,
-                    sessionReps = plannedExercise.sessionReps,
-                    sessionWeight = plannedExercise.sessionWeight,
-                    weightUnit = weightUnit,
-                    equipment = plannedExercise.exercise.equipment,
-                    applied = state.weightReductionApplied,
-                    weightReduced = state.plan.exercises[state.exerciseIndex].sessionWeight != state.weightAtSetStart,
-                    onRepsSelected = onReduceWeight,
-                )
+                if (state.weightReductionApplied && weightReduced) {
+                    NextExerciseCard(
+                        title = "Reduced weight",
+                        exerciseName = plannedExercise.exercise.name,
+                        weight = plannedExercise.sessionWeight,
+                        equipment = plannedExercise.exercise.equipment,
+                        weightUnit = weightUnit,
+                    )
+                } else {
+                    WeightReductionCard(
+                        sessionReps = plannedExercise.sessionReps,
+                        sessionWeight = plannedExercise.sessionWeight,
+                        weightUnit = weightUnit,
+                        applied = state.weightReductionApplied,
+                        onRepsSelected = onReduceWeight,
+                    )
+                }
             } else if (!hasMoreSets && nextExercise != null) {
                 val warmup = nextExercise.warmupSets.firstOrNull()
                 NextExerciseCard(
