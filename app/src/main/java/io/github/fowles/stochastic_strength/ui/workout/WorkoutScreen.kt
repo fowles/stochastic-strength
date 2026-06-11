@@ -765,6 +765,50 @@ private fun WeightReductionCard(
 }
 
 @Composable
+private fun NextExerciseCard(
+    title: String,
+    exerciseName: String,
+    weight: Float,
+    equipment: Equipment,
+    weightUnit: WeightUnit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            exerciseName,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+        )
+        if (weight > 0f) {
+            Text(
+                WeightFormatter.format(weight, weightUnit),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            if (equipment == Equipment.BARBELL) {
+                WeightFormatter.platesPerSide(weight, weightUnit)?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DoneContent(
     doneSummary: WorkoutSummaryData?,
     stravaState: StravaExportState,
