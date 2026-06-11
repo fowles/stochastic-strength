@@ -42,7 +42,7 @@ class WorkoutPlanner(
             .toSet()
     }
 
-    fun generateWorkout(sessionReps: Int = DefaultProgressionEngine.REP_OPTIONS.random(random)): WorkoutPlan {
+    fun generateWorkout(sessionReps: Int = progressionEngine.repOptions.random(random)): WorkoutPlan {
         val plannable = availableExercises.filter { muscleGroupRested(it) }
         val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(plannable, random))
             .map { withWeight(it, sessionReps) }

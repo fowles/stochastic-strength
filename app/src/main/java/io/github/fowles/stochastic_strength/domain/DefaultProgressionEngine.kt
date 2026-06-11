@@ -8,7 +8,8 @@ import kotlin.math.roundToInt
 object DefaultProgressionEngine : ProgressionEngine {
     private const val INTERNAL_INCREMENT = 0.5f
 
-    val REP_OPTIONS = listOf(5, 8, 10)
+    override val repOptions: List<Int> = listOf(5, 8, 10)
+    val REP_OPTIONS get() = repOptions  // alias for external callers
 
     override fun computeNextBaseline(baseline: Float, feedbacks: List<SetFeedback>, minReductionFraction: Float, sessionReps: Int): Float {
         if (feedbacks.isEmpty() && minReductionFraction == 0f) return baseline
@@ -22,7 +23,7 @@ object DefaultProgressionEngine : ProgressionEngine {
         return scoreResult
     }
 
-    override fun scoreFromFeedbacks(feedbacks: List<SetFeedback>, sessionReps: Int): Float? {
+    fun scoreFromFeedbacks(feedbacks: List<SetFeedback>, sessionReps: Int = 5): Float? {
         val scored = feedbacks.filter { it != SetFeedback.HURT }
         if (scored.isEmpty()) return null
         if (sessionReps >= REP_OPTIONS.max()
@@ -32,7 +33,7 @@ object DefaultProgressionEngine : ProgressionEngine {
         return scored.sumOf { feedbackPoints(it) }.toFloat() / scored.size
     }
 
-    fun applyScoreBaseline(baseline: Float, score: Float): Float = when {
+    internal fun applyScoreBaseline(baseline: Float, score: Float): Float = when {
         score >= 2.5f  -> weightIncreasedWithFloor(baseline, 1.075f, 2.5f)
         score >= 1.5f  -> weightIncreasedWithFloor(baseline, 1.05f,  1.0f)
         score >= 0.5f  -> weightIncreasedWithFloor(baseline, 1.025f, 0.5f)

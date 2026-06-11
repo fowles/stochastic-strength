@@ -10,7 +10,7 @@ interface ProgressionEngine {
         sessionReps: Int = 5,
     ): Float
 
-    fun scoreFromFeedbacks(feedbacks: List<SetFeedback>, sessionReps: Int = 5): Float?
+    val repOptions: List<Int>
 
     fun toOneRepMax(weight: Float, reps: Int): Float
     fun fromOneRepMax(oneRepMax: Float, reps: Int): Float
