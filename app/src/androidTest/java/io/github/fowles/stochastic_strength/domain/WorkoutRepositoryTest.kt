@@ -367,6 +367,30 @@ class WorkoutRepositoryTest {
     }
 
     @Test
+    fun recomputeCoefficients_firstHeuristicWinsWhenBothEmitResultForSameExercise() = runBlocking {
+        val (exerciseId, _) = seedChestSession()
+        val heuristic1 = object : CoefficientHeuristic {
+            override val name = "first"
+            override fun compute(input: CoefficientComputationInput) =
+                input.history.map { CoefficientResult(it.exerciseId, 0.75f, "meta1") }
+        }
+        val heuristic2 = object : CoefficientHeuristic {
+            override val name = "second"
+            override fun compute(input: CoefficientComputationInput) =
+                input.history.map { CoefficientResult(it.exerciseId, 0.85f, "meta2") }
+        }
+        val repo = WorkoutRepository(db, heuristics = listOf(heuristic1, heuristic2))
+
+        repo.recomputeCoefficients()
+
+        val logs = db.coefficientChangeLogDao().getLatestPerExercise()
+        assertEquals(1, logs.size)
+        assertEquals(exerciseId, logs.first().exerciseId)
+        assertEquals(0.75f, logs.first().coefficient, 0.001f)
+        assertEquals("first", logs.first().heuristicName)
+    }
+
+    @Test
     fun buildPlanner_excludesExercisesMarkedForLocation() = runBlocking {
         db.exerciseDao().insertAll(listOf(
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),

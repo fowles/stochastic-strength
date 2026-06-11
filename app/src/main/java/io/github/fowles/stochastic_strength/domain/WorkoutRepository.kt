@@ -29,6 +29,12 @@ class WorkoutRepository(
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
         else emptySet()
 
+    private suspend fun effectiveCoefficientSource(): UserCoefficientSource {
+        val latest = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        return UserCoefficientSource(latest, coefficientSource)
+    }
+
     suspend fun buildPlanner(
         locationId: Long?,
         weightUnit: WeightUnit,
@@ -45,9 +51,7 @@ class WorkoutRepository(
             db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
                 .groupBy { it.exerciseId }
         else emptyMap()
-        val latestCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
-            .associate { it.exerciseId to it.coefficient }
-        val effectiveCoefficients = UserCoefficientSource(latestCoefficients, coefficientSource)
+        val effectiveCoefficients = effectiveCoefficientSource()
         return WorkoutPlanner(
             availableExercises = available,
             strengths = strengths,
@@ -82,9 +86,7 @@ class WorkoutRepository(
 
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
-        val latestCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
-            .associate { it.exerciseId to it.coefficient }
-        val effectiveCoefficients = UserCoefficientSource(latestCoefficients, coefficientSource)
+        val effectiveCoefficients = effectiveCoefficientSource()
         val exercisesByMuscle = exerciseById.values
             .filter { (effectiveCoefficients.get(it) ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
@@ -177,6 +179,7 @@ class WorkoutRepository(
 
     suspend fun recomputeCoefficients() {
         if (heuristics.isEmpty()) return
+        // buildCoefficientInput reads happen outside the write transaction — safe on a single-user device where no concurrent writes occur
         val input = buildCoefficientInput()
         val candidatesByExercise = mutableMapOf<Long, MutableList<Pair<String, CoefficientResult>>>()
         for (heuristic in heuristics) {
