@@ -682,6 +682,7 @@ private fun FeedbackButtons(onFeedback: (SetFeedback) -> Unit) {
 
 @Composable
 private fun WeightReductionCard(
+    exerciseName: String,
     sessionReps: Int,
     sessionWeight: Float,
     weightUnit: WeightUnit,
@@ -739,27 +740,13 @@ private fun WeightReductionCard(
         }
         // Confirmation content overlaid on top when applied and weight actually changed
         if (applied && weightReduced) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    "Weight reduced to ${WeightFormatter.format(sessionWeight, weightUnit)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    textAlign = TextAlign.Center,
-                )
-                if (equipment == Equipment.BARBELL) {
-                    WeightFormatter.platesPerSide(sessionWeight, weightUnit)?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
-            }
+            NextExerciseCard(
+                title = "Reduced weight",
+                exerciseName = exerciseName,
+                weight = sessionWeight,
+                equipment = equipment,
+                weightUnit = weightUnit,
+            )
         }
     }
 }
@@ -937,6 +924,7 @@ private fun RestingContent(
                 && plannedExercise.sessionWeight > 0f
             if (state.lastFeedback == SetFeedback.TOO_HARD && hasMoreSets && isWeighted) {
                 WeightReductionCard(
+                    exerciseName = plannedExercise.exercise.name,
                     sessionReps = plannedExercise.sessionReps,
                     sessionWeight = plannedExercise.sessionWeight,
                     weightUnit = weightUnit,
