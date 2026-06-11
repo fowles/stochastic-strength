@@ -922,6 +922,8 @@ private fun RestingContent(
             val hasMoreSets = state.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
             val isWeighted = plannedExercise.exercise.equipment != Equipment.BODYWEIGHT
                 && plannedExercise.sessionWeight > 0f
+            val nextExercise = if (state.exerciseIndex + 1 < plan.exercises.size)
+                plan.exercises[state.exerciseIndex + 1] else null
             if (state.lastFeedback == SetFeedback.TOO_HARD && hasMoreSets && isWeighted) {
                 WeightReductionCard(
                     exerciseName = plannedExercise.exercise.name,
@@ -933,6 +935,25 @@ private fun RestingContent(
                     weightReduced = state.plan.exercises[state.exerciseIndex].sessionWeight != state.weightAtSetStart,
                     onRepsSelected = onReduceWeight,
                 )
+            } else if (!hasMoreSets && nextExercise != null) {
+                val warmup = nextExercise.warmupSets.firstOrNull()
+                if (warmup != null) {
+                    NextExerciseCard(
+                        title = "Warm up",
+                        exerciseName = nextExercise.exercise.name,
+                        weight = warmup.weight,
+                        equipment = nextExercise.exercise.equipment,
+                        weightUnit = weightUnit,
+                    )
+                } else {
+                    NextExerciseCard(
+                        title = "Next up",
+                        exerciseName = nextExercise.exercise.name,
+                        weight = nextExercise.sessionWeight,
+                        equipment = nextExercise.exercise.equipment,
+                        weightUnit = weightUnit,
+                    )
+                }
             }
         }
         // Exercises — always 20%
