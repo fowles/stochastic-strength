@@ -185,7 +185,6 @@ fun WorkoutScreen(
                 is WorkoutState.Done -> DoneContent(
                     doneSummary = doneSummary,
                     stravaState = stravaState,
-                    onUndo = viewModel::undoLastSetFromDone,
                     onExportToStrava = viewModel::onExportToStrava,
                     onDone = viewModel::completeWorkout,
                 )
@@ -686,10 +685,10 @@ private fun WeightReductionCard(
     sessionWeight: Float,
     weightUnit: WeightUnit,
     applied: Boolean,
+    showWeightDelta: Boolean,
     onRepsSelected: (Int) -> Unit,
 ) {
     val errorColor = MaterialTheme.colorScheme.error
-    // Question content always in the layout tree so the card never shrinks when applied
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -719,7 +718,7 @@ private fun WeightReductionCard(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("$reps", style = MaterialTheme.typography.labelLarge)
-                        if (delta > 0f) {
+                        if (showWeightDelta && delta > 0f) {
                             Text(
                                 "↓ ${WeightFormatter.format(delta, weightUnit)}",
                                 style = MaterialTheme.typography.labelSmall,
@@ -769,7 +768,6 @@ private fun NextExerciseCard(
 private fun DoneContent(
     doneSummary: WorkoutSummaryData?,
     stravaState: StravaExportState,
-    onUndo: () -> Unit,
     onExportToStrava: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -780,12 +778,6 @@ private fun DoneContent(
             Spacer(Modifier.height(8.dp))
         },
         footer = {
-            OutlinedButton(
-                onClick = onUndo,
-                enabled = !stravaState.undoBlocked,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Undo") }
-            Spacer(Modifier.height(8.dp))
             StravaExportButton(
                 onExportToStrava = onExportToStrava,
                 stravaState = stravaState,
@@ -889,14 +881,26 @@ private fun RestingContent(
             contentAlignment = Alignment.BottomCenter,
         ) {
             val plannedExercise = state.plan.exercises[state.exerciseIndex]
-            val hasMoreSets = state.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
+            val moreSetsForThisExercise = state.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
             val isWeighted = plannedExercise.exercise.equipment != Equipment.BODYWEIGHT
                 && plannedExercise.sessionWeight > 0f
             val nextExercise = if (state.exerciseIndex + 1 < plan.exercises.size)
                 plan.exercises[state.exerciseIndex + 1] else null
-            val weightReduced = state.plan.exercises[state.exerciseIndex].sessionWeight != state.weightAtSetStart
-            if (state.lastFeedback == SetFeedback.TOO_HARD && hasMoreSets && isWeighted) {
-                if (state.weightReductionApplied && weightReduced) {
+            val weightReduced = plannedExercise.sessionWeight != state.weightAtSetStart
+
+            when {
+                state.lastFeedback == SetFeedback.TOO_HARD && !state.weightReductionApplied -> {
+                    WeightReductionCard(
+                        sessionReps = plannedExercise.sessionReps,
+                        sessionWeight = plannedExercise.sessionWeight,
+                        weightUnit = weightUnit,
+                        applied = false,
+                        showWeightDelta = moreSetsForThisExercise && isWeighted,
+                        onRepsSelected = onReduceWeight,
+                    )
+                }
+                state.lastFeedback == SetFeedback.TOO_HARD && state.weightReductionApplied
+                    && moreSetsForThisExercise && weightReduced -> {
                     NextExerciseCard(
                         title = "Reduced weight",
                         exerciseName = plannedExercise.exercise.name,
@@ -904,24 +908,17 @@ private fun RestingContent(
                         equipment = plannedExercise.exercise.equipment,
                         weightUnit = weightUnit,
                     )
-                } else {
-                    WeightReductionCard(
-                        sessionReps = plannedExercise.sessionReps,
-                        sessionWeight = plannedExercise.sessionWeight,
+                }
+                !moreSetsForThisExercise && nextExercise != null -> {
+                    val warmup = nextExercise.warmupSets.firstOrNull()
+                    NextExerciseCard(
+                        title = if (warmup != null) "Warm up" else "Next up",
+                        exerciseName = nextExercise.exercise.name,
+                        weight = warmup?.weight ?: nextExercise.sessionWeight,
+                        equipment = nextExercise.exercise.equipment,
                         weightUnit = weightUnit,
-                        applied = state.weightReductionApplied,
-                        onRepsSelected = onReduceWeight,
                     )
                 }
-            } else if (!hasMoreSets && nextExercise != null) {
-                val warmup = nextExercise.warmupSets.firstOrNull()
-                NextExerciseCard(
-                    title = if (warmup != null) "Warm up" else "Next up",
-                    exerciseName = nextExercise.exercise.name,
-                    weight = warmup?.weight ?: nextExercise.sessionWeight,
-                    equipment = nextExercise.exercise.equipment,
-                    weightUnit = weightUnit,
-                )
             }
         }
         // Exercises — always 20%

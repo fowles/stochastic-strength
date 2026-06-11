@@ -112,7 +112,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun undoLastSet() = controller.undoLastSet()
     fun skipRest() = controller.skipRest()
     fun reduceExerciseWeight(completedReps: Int) = controller.reduceExerciseWeight(completedReps)
-    fun undoLastSetFromDone() = controller.undoLastSetFromDone()
     fun completeWorkout() = controller.completeWorkout()
 
     fun onResumed() {

@@ -11,6 +11,7 @@ data class WorkoutSet(
     val setNumber: Int,
     val targetWeight: Float,
     val targetReps: Int,
+    val actualReps: Int? = null,
     val feedback: SetFeedback? = null,
     val completedAt: Long? = null,
     val durationSeconds: Int? = null,

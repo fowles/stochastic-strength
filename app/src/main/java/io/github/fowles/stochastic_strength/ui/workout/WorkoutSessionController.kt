@@ -223,34 +223,33 @@ class WorkoutSessionController(
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         scope.launch {
             val planned = current.plannedExercise
-            database.workoutSetDao().insert(
+            val initialActualReps: Int? = when (feedback) {
+                SetFeedback.RIR_0_1, SetFeedback.RIR_2_4, SetFeedback.RIR_5_PLUS -> planned.sessionReps
+                SetFeedback.TOO_HARD, SetFeedback.HURT -> null
+            }
+            val rowId = database.workoutSetDao().insert(
                 WorkoutSet(
                     sessionId = current.sessionId,
                     exerciseId = planned.exercise.id,
                     setNumber = current.setIndex + 1,
                     targetWeight = planned.sessionWeight,
                     targetReps = planned.sessionReps,
+                    actualReps = initialActualReps,
                     feedback = feedback,
                     completedAt = System.currentTimeMillis(),
                     durationSeconds = if (planned.exercise.isTimed) TIMED_SET_SECONDS else null,
                 )
             )
-        }
-        val completedSetIndex = if (feedback == SetFeedback.HURT) current.totalSets - 1 else current.setIndex
-        val isLastSet = completedSetIndex + 1 >= current.totalSets &&
-            current.exerciseIndex + 1 >= current.plan.exercises.size
-        if (isLastSet) {
-            finishWorkout(current.plan, current.exerciseIndex, current.setIndex, current.sessionId)
-        } else {
+            val completedSetIndex = if (feedback == SetFeedback.HURT) current.totalSets - 1 else current.setIndex
             setState(WorkoutState.Resting(
                 plan = current.plan,
                 exerciseIndex = current.exerciseIndex,
                 completedSetIndex = completedSetIndex,
-                recordedSetIndex = current.setIndex,
                 sessionId = current.sessionId,
                 secondsRemaining = REST_SECONDS,
                 lastFeedback = feedback,
                 weightAtSetStart = current.plannedExercise.sessionWeight,
+                currentSetRowId = rowId,
             ))
             startRestTimer()
         }
@@ -259,24 +258,22 @@ class WorkoutSessionController(
     fun undoLastSet() {
         restTimerJob?.cancel()
         val resting = _state.value as? WorkoutState.Resting ?: return
-        val exerciseId = resting.plan.exercises[resting.exerciseIndex].exercise.id
         val restoredExercises = resting.plan.exercises.toMutableList()
         restoredExercises[resting.exerciseIndex] =
             restoredExercises[resting.exerciseIndex].copy(sessionWeight = resting.weightAtSetStart)
         val restoredPlan = resting.plan.copy(exercises = restoredExercises)
         scope.launch {
-            database.workoutSetDao().deleteSet(
+            val row = database.workoutSetDao().getById(resting.currentSetRowId)
+            val setIndex = row?.let { it.setNumber - 1 }
+                ?: resting.completedSetIndex.coerceAtMost(PlannedExercise.DEFAULT_SETS - 1)
+            database.workoutSetDao().deleteById(resting.currentSetRowId)
+            setState(WorkoutState.ActiveSet(
+                plan = restoredPlan,
+                exerciseIndex = resting.exerciseIndex,
+                setIndex = setIndex,
                 sessionId = resting.sessionId,
-                exerciseId = exerciseId,
-                setNumber = resting.recordedSetIndex + 1,
-            )
+            ))
         }
-        setState(WorkoutState.ActiveSet(
-            plan = restoredPlan,
-            exerciseIndex = resting.exerciseIndex,
-            setIndex = resting.recordedSetIndex,
-            sessionId = resting.sessionId,
-        ))
     }
 
     fun skipRest() {
@@ -286,8 +283,16 @@ class WorkoutSessionController(
 
     fun reduceExerciseWeight(completedReps: Int) {
         val resting = _state.value as? WorkoutState.Resting ?: return
+        scope.launch {
+            database.workoutSetDao().updateActualReps(resting.currentSetRowId, completedReps)
+        }
+        val moreSetsForThisExercise =
+            resting.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
         val exercise = resting.plan.exercises[resting.exerciseIndex]
-        if (exercise.sessionWeight <= 0f) return
+        if (!moreSetsForThisExercise || exercise.sessionWeight <= 0f) {
+            setState(resting.copy(weightReductionApplied = true))
+            return
+        }
         val newWeight = maxOf(0.5f, WeightFormatter.round(
             DefaultProgressionEngine.scaleReps(exercise.sessionWeight, from = maxOf(1, completedReps), to = exercise.sessionReps),
             weightUnit,
@@ -295,24 +300,6 @@ class WorkoutSessionController(
         val updatedExercises = resting.plan.exercises.toMutableList()
         updatedExercises[resting.exerciseIndex] = exercise.copy(sessionWeight = newWeight)
         setState(resting.copy(plan = resting.plan.copy(exercises = updatedExercises), weightReductionApplied = true))
-    }
-
-    fun undoLastSetFromDone() {
-        val done = _state.value as? WorkoutState.Done ?: return
-        val exerciseId = done.plan.exercises[done.lastExerciseIndex].exercise.id
-        scope.launch {
-            database.workoutSetDao().deleteSet(
-                sessionId = done.sessionId,
-                exerciseId = exerciseId,
-                setNumber = done.lastRecordedSetIndex + 1,
-            )
-        }
-        setState(WorkoutState.ActiveSet(
-            plan = done.plan,
-            exerciseIndex = done.lastExerciseIndex,
-            setIndex = done.lastRecordedSetIndex,
-            sessionId = done.sessionId,
-        ))
     }
 
     fun completeWorkout() {
@@ -393,14 +380,12 @@ class WorkoutSessionController(
                     warmupSetIndex = if (nextExercise.warmupSets.isNotEmpty()) 0 else null,
                 ))
             }
-            else -> finishWorkout(plan, current.exerciseIndex, current.recordedSetIndex, current.sessionId)
+            else -> finishWorkout(plan, current.sessionId)
         }
     }
 
     private fun finishWorkout(
         plan: WorkoutPlan,
-        lastExerciseIndex: Int,
-        lastRecordedSetIndex: Int,
         sessionId: Long,
     ) {
         val endTime = System.currentTimeMillis()
@@ -411,8 +396,6 @@ class WorkoutSessionController(
                 plan = plan,
                 startTime = sessionStartTime,
                 endTime = endTime,
-                lastExerciseIndex = lastExerciseIndex,
-                lastRecordedSetIndex = lastRecordedSetIndex,
             ))
         }
     }
