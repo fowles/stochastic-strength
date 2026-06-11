@@ -1,6 +1,6 @@
 # Test Coverage + DI Seams Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Fill domain-layer test gaps and introduce constructor-injection seams for `CoefficientSource` and `ProgressionEngine` before the upcoming progression-engine + dynamic-coefficients refactor.
 
@@ -33,7 +33,7 @@
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/CoefficientSource.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/ExerciseCoefficients.kt`
 
-- [ ] **Step 1: Create the interface**
+- [x] **Step 1: Create the interface**
 
 Create `domain/CoefficientSource.kt`:
 
@@ -47,7 +47,7 @@ interface CoefficientSource {
 }
 ```
 
-- [ ] **Step 2: Make `ExerciseCoefficients` implement it**
+- [x] **Step 2: Make `ExerciseCoefficients` implement it**
 
 In `domain/ExerciseCoefficients.kt`, change the first line of the object declaration and add the `override fun get`:
 
@@ -63,7 +63,7 @@ object ExerciseCoefficients : CoefficientSource {
 
 The `byName` map body stays exactly as it is — only add the `: CoefficientSource` clause and the `override fun get` at the bottom.
 
-- [ ] **Step 3: Run unit tests to confirm no regression**
+- [x] **Step 3: Run unit tests to confirm no regression**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -71,7 +71,7 @@ The `byName` map body stays exactly as it is — only add the `: CoefficientSour
 
 Expected: all tests pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "refactor: extract CoefficientSource interface from ExerciseCoefficients"
@@ -85,7 +85,7 @@ jj commit -m "refactor: extract CoefficientSource interface from ExerciseCoeffic
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Add `coefficientSource` to `WorkoutPlanner` constructor**
+- [x] **Step 1: Add `coefficientSource` to `WorkoutPlanner` constructor**
 
 In `WorkoutPlanner.kt`, add the parameter to the constructor (after `nowMs`):
 
@@ -102,7 +102,7 @@ class WorkoutPlanner(
 )
 ```
 
-- [ ] **Step 2: Replace `ExerciseCoefficients.byName[...]` calls in `WorkoutPlanner`**
+- [x] **Step 2: Replace `ExerciseCoefficients.byName[...]` calls in `WorkoutPlanner`**
 
 There are three callsites. Replace each `ExerciseCoefficients.byName[exercise.name]` with `coefficientSource.get(exercise)` (or `coefficientSource.get(pe.exercise)` where the variable is a `PlannedExercise`):
 
@@ -146,7 +146,7 @@ fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float): PlannedExercis
 
 Note: `ProgressionEngine.fromOneRepMax` and `ProgressionEngine.toOneRepMax` still refer to the current static `object ProgressionEngine` — that is correct at this stage. Task 4 will replace them.
 
-- [ ] **Step 3: Add `coefficientSource` to `WorkoutRepository` constructor**
+- [x] **Step 3: Add `coefficientSource` to `WorkoutRepository` constructor**
 
 In `WorkoutRepository.kt`, add the parameter:
 
@@ -157,7 +157,7 @@ class WorkoutRepository(
 )
 ```
 
-- [ ] **Step 4: Replace `ExerciseCoefficients.byName[...]` call in `WorkoutRepository`**
+- [x] **Step 4: Replace `ExerciseCoefficients.byName[...]` call in `WorkoutRepository`**
 
 In `applySessionProgression`, change the filter predicate:
 
@@ -167,7 +167,7 @@ val exercisesByMuscle = exerciseById.values
     .groupBy { it.primaryMuscle }
 ```
 
-- [ ] **Step 5: Forward `coefficientSource` when constructing `WorkoutPlanner` in `buildPlanner`**
+- [x] **Step 5: Forward `coefficientSource` when constructing `WorkoutPlanner` in `buildPlanner`**
 
 In `buildPlanner`, the returned `WorkoutPlanner(...)` call needs the new param:
 
@@ -182,7 +182,7 @@ return WorkoutPlanner(
 )
 ```
 
-- [ ] **Step 6: Run unit and instrumented tests**
+- [x] **Step 6: Run unit and instrumented tests**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -191,7 +191,7 @@ return WorkoutPlanner(
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "refactor: inject CoefficientSource into WorkoutPlanner and WorkoutRepository"
@@ -207,7 +207,7 @@ jj commit -m "refactor: inject CoefficientSource into WorkoutPlanner and Workout
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/ProgressionEngineTest.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt`
 
-- [ ] **Step 1: Replace the contents of `ProgressionEngine.kt` with the interface**
+- [x] **Step 1: Replace the contents of `ProgressionEngine.kt` with the interface**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -230,7 +230,7 @@ interface ProgressionEngine {
 }
 ```
 
-- [ ] **Step 2: Create `DefaultProgressionEngine.kt` with the full implementation**
+- [x] **Step 2: Create `DefaultProgressionEngine.kt` with the full implementation**
 
 Create `domain/DefaultProgressionEngine.kt` with the entire body of the old `object ProgressionEngine`, renamed, and adding `REP_OPTIONS` to the companion:
 
@@ -336,7 +336,7 @@ object DefaultProgressionEngine : ProgressionEngine {
 }
 ```
 
-- [ ] **Step 3: Update `ProgressionEngineTest.kt` to use `DefaultProgressionEngine`**
+- [x] **Step 3: Update `ProgressionEngineTest.kt` to use `DefaultProgressionEngine`**
 
 Do a search-replace of `ProgressionEngine.` → `DefaultProgressionEngine.` throughout the file. Every test method body stays identical — only the object name prefix on static calls changes. Update the import too:
 
@@ -360,7 +360,7 @@ for (reps in DefaultProgressionEngine.REP_OPTIONS) { ... }
 
 The two `WeightFormatter` tests at the bottom of the file reference `WeightFormatter` directly, not `ProgressionEngine` — no changes needed there.
 
-- [ ] **Step 4: Update static `ProgressionEngine.` references in `WorkoutPlannerTest.kt`**
+- [x] **Step 4: Update static `ProgressionEngine.` references in `WorkoutPlannerTest.kt`**
 
 The `deriveBaselineFromSessionWeight_roundTrip` test uses `ProgressionEngine.fromOneRepMax`. Change to `DefaultProgressionEngine.fromOneRepMax`:
 
@@ -382,7 +382,7 @@ val expected = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(base
 
 Also update the import in `WorkoutPlannerTest.kt` — add `DefaultProgressionEngine`, remove unused `ProgressionEngine` import if it becomes unused after Task 4.
 
-- [ ] **Step 5: Update static `ProgressionEngine.` references in `WorkoutPlanner.kt`**
+- [x] **Step 5: Update static `ProgressionEngine.` references in `WorkoutPlanner.kt`**
 
 The default parameter in `generateWorkout` and the private helper methods still call `ProgressionEngine.xxx` as a static object call. Replace with `DefaultProgressionEngine.xxx`:
 
@@ -425,14 +425,14 @@ fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float): PlannedExercis
 }
 ```
 
-- [ ] **Step 6: Update static `ProgressionEngine.` reference in `WorkoutRepository.kt`**
+- [x] **Step 6: Update static `ProgressionEngine.` reference in `WorkoutRepository.kt`**
 
 In `applySessionProgression`:
 ```kotlin
 val newBaseline = DefaultProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
 ```
 
-- [ ] **Step 7: Run unit tests to confirm no regression**
+- [x] **Step 7: Run unit tests to confirm no regression**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -440,7 +440,7 @@ val newBaseline = DefaultProgressionEngine.computeNextBaseline(current.baselineW
 
 Expected: all tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 jj commit -m "refactor: extract ProgressionEngine interface, rename impl to DefaultProgressionEngine"
@@ -454,7 +454,7 @@ jj commit -m "refactor: extract ProgressionEngine interface, rename impl to Defa
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Add `progressionEngine` param to `WorkoutPlanner` constructor**
+- [x] **Step 1: Add `progressionEngine` param to `WorkoutPlanner` constructor**
 
 ```kotlin
 class WorkoutPlanner(
@@ -470,7 +470,7 @@ class WorkoutPlanner(
 )
 ```
 
-- [ ] **Step 2: Replace `DefaultProgressionEngine.xxx` instance calls in `WorkoutPlanner`**
+- [x] **Step 2: Replace `DefaultProgressionEngine.xxx` instance calls in `WorkoutPlanner`**
 
 The `generateWorkout` default param references `DefaultProgressionEngine.REP_OPTIONS` — leave that as-is since it's a static property, not an instance call. Replace only the calls inside method bodies:
 
@@ -495,7 +495,7 @@ val newWeight = WeightFormatter.round(
 )
 ```
 
-- [ ] **Step 3: Add `progressionEngine` param to `WorkoutRepository` constructor**
+- [x] **Step 3: Add `progressionEngine` param to `WorkoutRepository` constructor**
 
 ```kotlin
 class WorkoutRepository(
@@ -505,14 +505,14 @@ class WorkoutRepository(
 )
 ```
 
-- [ ] **Step 4: Replace the `DefaultProgressionEngine.computeNextBaseline` call in `WorkoutRepository`**
+- [x] **Step 4: Replace the `DefaultProgressionEngine.computeNextBaseline` call in `WorkoutRepository`**
 
 In `applySessionProgression`:
 ```kotlin
 val newBaseline = progressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
 ```
 
-- [ ] **Step 5: Forward `progressionEngine` in `buildPlanner`**
+- [x] **Step 5: Forward `progressionEngine` in `buildPlanner`**
 
 ```kotlin
 return WorkoutPlanner(
@@ -526,7 +526,7 @@ return WorkoutPlanner(
 )
 ```
 
-- [ ] **Step 6: Run all tests**
+- [x] **Step 6: Run all tests**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -535,7 +535,7 @@ return WorkoutPlanner(
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "refactor: inject ProgressionEngine into WorkoutPlanner and WorkoutRepository"
@@ -548,7 +548,7 @@ jj commit -m "refactor: inject ProgressionEngine into WorkoutPlanner and Workout
 **Files:**
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/StartingWeightsTest.kt`
 
-- [ ] **Step 1: Create the test file**
+- [x] **Step 1: Create the test file**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -599,7 +599,7 @@ class StartingWeightsTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests**
+- [x] **Step 2: Run the tests**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.StartingWeightsTest"
@@ -607,7 +607,7 @@ class StartingWeightsTest {
 
 Expected: all three tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj commit -m "test: add StartingWeightsTest covering all sex/level/muscle combinations"
@@ -620,7 +620,7 @@ jj commit -m "test: add StartingWeightsTest covering all sex/level/muscle combin
 **Files:**
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt`
 
-- [ ] **Step 1: Add the test to `WorkoutPlannerTest`**
+- [x] **Step 1: Add the test to `WorkoutPlannerTest`**
 
 Add this test after the existing `deriveBaselineFromSessionWeight_roundTrip` test, inside the same `// ── deriveBaseline ──` section:
 
@@ -652,7 +652,7 @@ Make sure `DefaultProgressionEngine` is imported at the top of the test file:
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest.recomputeExercise_appliesNewBaselineWithCoefficient"
@@ -660,7 +660,7 @@ import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj commit -m "test: add recomputeExercise test to WorkoutPlannerTest"
@@ -673,7 +673,7 @@ jj commit -m "test: add recomputeExercise test to WorkoutPlannerTest"
 **Files:**
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt`
 
-- [ ] **Step 1: Add necessary imports to `WorkoutRepositoryTest.kt`**
+- [x] **Step 1: Add necessary imports to `WorkoutRepositoryTest.kt`**
 
 Add these imports alongside the existing ones:
 
@@ -683,7 +683,7 @@ import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import org.junit.Assert.assertFalse
 ```
 
-- [ ] **Step 2: Add the hurt-flag test**
+- [x] **Step 2: Add the hurt-flag test**
 
 ```kotlin
 @Test
@@ -711,7 +711,7 @@ fun applySessionProgression_setsHurtFlagWhenFeedbackIsHurt() = runBlocking {
 }
 ```
 
-- [ ] **Step 3: Add the multi-exercise muscle-group aggregation test**
+- [x] **Step 3: Add the multi-exercise muscle-group aggregation test**
 
 ```kotlin
 @Test
@@ -748,7 +748,7 @@ fun applySessionProgression_aggregatesExercisesInSameMuscleGroupIntoOneLogEntry(
 }
 ```
 
-- [ ] **Step 4: Add the `minReductionFraction` cap test**
+- [x] **Step 4: Add the `minReductionFraction` cap test**
 
 ```kotlin
 @Test
@@ -780,7 +780,7 @@ fun applySessionProgression_capsBaselineWhenExerciseReductionProvided() = runBlo
 }
 ```
 
-- [ ] **Step 5: Add the `buildPlanner` location-exclusion test**
+- [x] **Step 5: Add the `buildPlanner` location-exclusion test**
 
 ```kotlin
 @Test
@@ -804,7 +804,7 @@ fun buildPlanner_excludesExercisesMarkedForLocation() = runBlocking {
 }
 ```
 
-- [ ] **Step 6: Run all instrumented tests**
+- [x] **Step 6: Run all instrumented tests**
 
 ```bash
 ./gradlew :app:connectedAndroidTest
@@ -812,7 +812,7 @@ fun buildPlanner_excludesExercisesMarkedForLocation() = runBlocking {
 
 Expected: all tests pass, including the four new ones.
 
-- [ ] **Step 7: Run full test suite to confirm no regressions**
+- [x] **Step 7: Run full test suite to confirm no regressions**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -821,7 +821,7 @@ Expected: all tests pass, including the four new ones.
 
 Expected: all tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 jj commit -m "test: add WorkoutRepository instrumented tests for hurt flag, aggregation, reduction cap, and buildPlanner exclusion"

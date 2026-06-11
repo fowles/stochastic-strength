@@ -1,6 +1,6 @@
 # Baseline Change Log Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add an append-only `baseline_change_log` table that records every write to `muscle_group_strength`, capturing before/after baseline, the triggering session, and the reason — enabling per-user coefficient analysis and workout replay.
 
@@ -31,7 +31,7 @@
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineChangeReason.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/Converters.kt`
 
-- [ ] **Step 1: Create the enum**
+- [x] **Step 1: Create the enum**
 
 ```kotlin
 // data/model/BaselineChangeReason.kt
@@ -43,7 +43,7 @@ enum class BaselineChangeReason {
 }
 ```
 
-- [ ] **Step 2: Add converters to `Converters.kt`**
+- [x] **Step 2: Add converters to `Converters.kt`**
 
 Add these two methods inside the `Converters` class, after the existing `fromStrengthLevel`/`toStrengthLevel` pair:
 
@@ -57,7 +57,7 @@ Also add the import at the top of the file:
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 ```
 
-- [ ] **Step 3: Verify it compiles**
+- [x] **Step 3: Verify it compiles**
 
 ```
 ./gradlew :app:assembleDebug
@@ -65,7 +65,7 @@ import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 
 Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineChangeReason.kt \
@@ -80,7 +80,7 @@ git commit -m "feat: add BaselineChangeReason enum and converter"
 **Files:**
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineChangeLog.kt`
 
-- [ ] **Step 1: Create the entity**
+- [x] **Step 1: Create the entity**
 
 ```kotlin
 // data/model/BaselineChangeLog.kt
@@ -104,7 +104,7 @@ data class BaselineChangeLog(
 )
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 ```
 ./gradlew :app:assembleDebug
@@ -112,7 +112,7 @@ data class BaselineChangeLog(
 
 Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineChangeLog.kt
@@ -126,7 +126,7 @@ git commit -m "feat: add BaselineChangeLog Room entity"
 **Files:**
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/BaselineChangeLogDao.kt`
 
-- [ ] **Step 1: Create the DAO**
+- [x] **Step 1: Create the DAO**
 
 ```kotlin
 // data/dao/BaselineChangeLogDao.kt
@@ -153,7 +153,7 @@ interface BaselineChangeLogDao {
 }
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 ```
 ./gradlew :app:assembleDebug
@@ -161,7 +161,7 @@ interface BaselineChangeLogDao {
 
 Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/dao/BaselineChangeLogDao.kt
@@ -175,7 +175,7 @@ git commit -m "feat: add BaselineChangeLogDao"
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt`
 
-- [ ] **Step 1: Add imports**
+- [x] **Step 1: Add imports**
 
 Add these two imports near the top of `AppDatabase.kt`:
 
@@ -184,7 +184,7 @@ import io.github.fowles.stochastic_strength.data.dao.BaselineChangeLogDao
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
 ```
 
-- [ ] **Step 2: Add `BaselineChangeLog::class` to the `@Database` annotation**
+- [x] **Step 2: Add `BaselineChangeLog::class` to the `@Database` annotation**
 
 The `entities` list currently ends with `MuscleGroupStrength::class`. Add `BaselineChangeLog::class` after it:
 
@@ -205,7 +205,7 @@ The `entities` list currently ends with `MuscleGroupStrength::class`. Add `Basel
 )
 ```
 
-- [ ] **Step 3: Add the abstract DAO accessor**
+- [x] **Step 3: Add the abstract DAO accessor**
 
 After the existing `abstract fun muscleGroupStrengthDao(): MuscleGroupStrengthDao` line, add:
 
@@ -213,7 +213,7 @@ After the existing `abstract fun muscleGroupStrengthDao(): MuscleGroupStrengthDa
 abstract fun baselineChangeLogDao(): BaselineChangeLogDao
 ```
 
-- [ ] **Step 4: Add MIGRATION_7_8**
+- [x] **Step 4: Add MIGRATION_7_8**
 
 Add this inside the `companion object`, after the `MIGRATION_6_7` block:
 
@@ -238,7 +238,7 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
 }
 ```
 
-- [ ] **Step 5: Register MIGRATION_7_8 in `addMigrations`**
+- [x] **Step 5: Register MIGRATION_7_8 in `addMigrations`**
 
 The `buildDatabase` method has `.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)`. Add `MIGRATION_7_8` to the end:
 
@@ -246,7 +246,7 @@ The `buildDatabase` method has `.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIG
 .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
 ```
 
-- [ ] **Step 6: Verify it compiles**
+- [x] **Step 6: Verify it compiles**
 
 ```
 ./gradlew :app:assembleDebug
@@ -254,7 +254,7 @@ The `buildDatabase` method has `.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIG
 
 Expected: `BUILD SUCCESSFUL`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt
@@ -268,7 +268,7 @@ git commit -m "feat: wire BaselineChangeLog into AppDatabase, version 7→8"
 **Files:**
 - Create: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt`
 
-- [ ] **Step 1: Create the test file**
+- [x] **Step 1: Create the test file**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -361,7 +361,7 @@ class WorkoutRepositoryTest {
 }
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [x] **Step 2: Run the test and confirm it fails**
 
 Requires a connected device or emulator.
 
@@ -379,14 +379,14 @@ Expected: test runs but `assertEquals(1, logs.size)` fails with `expected:<1> bu
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Add imports to `WorkoutRepository.kt`**
+- [x] **Step 1: Add imports to `WorkoutRepository.kt`**
 
 ```kotlin
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 ```
 
-- [ ] **Step 2: Replace the upsert call in `applySessionProgression` with an upsert + log insert**
+- [x] **Step 2: Replace the upsert call in `applySessionProgression` with an upsert + log insert**
 
 Find this block inside the `for ((muscleGroup, muscleExercises) in exercisesByMuscle)` loop (currently the last ~3 lines of the loop):
 
@@ -418,7 +418,7 @@ Replace with:
             )
 ```
 
-- [ ] **Step 3: Run the test and confirm it passes**
+- [x] **Step 3: Run the test and confirm it passes**
 
 ```
 ./gradlew :app:connectedAndroidTest \
@@ -427,7 +427,7 @@ Replace with:
 
 Expected: `BUILD SUCCESSFUL`, test result: PASSED
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -442,7 +442,7 @@ git commit -m "feat: log PROGRESSION rows in applySessionProgression"
 **Files:**
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt`
 
-- [ ] **Step 1: Add the second test to `WorkoutRepositoryTest`**
+- [x] **Step 1: Add the second test to `WorkoutRepositoryTest`**
 
 Add this test method inside the `WorkoutRepositoryTest` class, after the first test:
 
@@ -467,7 +467,7 @@ Add this test method inside the `WorkoutRepositoryTest` class, after the first t
     }
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails to compile or fails at runtime**
+- [x] **Step 2: Run the test and confirm it fails to compile or fails at runtime**
 
 ```
 ./gradlew :app:connectedAndroidTest \
@@ -483,7 +483,7 @@ Expected: compile error — `applyManualBaselineOverrides` does not exist yet on
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Add the new method to `WorkoutRepository`**
+- [x] **Step 1: Add the new method to `WorkoutRepository`**
 
 Add this method after `applySessionProgression`, before `seedInitialWeights`:
 
@@ -506,7 +506,7 @@ Add this method after `applySessionProgression`, before `seedInitialWeights`:
     }
 ```
 
-- [ ] **Step 2: Run both tests and confirm they pass**
+- [x] **Step 2: Run both tests and confirm they pass**
 
 ```
 ./gradlew :app:connectedAndroidTest \
@@ -515,7 +515,7 @@ Add this method after `applySessionProgression`, before `seedInitialWeights`:
 
 Expected: `BUILD SUCCESSFUL`, both tests PASSED
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -530,7 +530,7 @@ git commit -m "feat: add applyManualBaselineOverrides with MANUAL_OVERRIDE loggi
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt`
 
-- [ ] **Step 1: Remove the `MuscleGroupStrength` import**
+- [x] **Step 1: Remove the `MuscleGroupStrength` import**
 
 Delete this line from the imports:
 
@@ -538,7 +538,7 @@ Delete this line from the imports:
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 ```
 
-- [ ] **Step 2: Replace the raw DAO loop in `startFirstExercise`**
+- [x] **Step 2: Replace the raw DAO loop in `startFirstExercise`**
 
 Find this block inside the `scope.launch { }` in `startFirstExercise`:
 
@@ -564,7 +564,7 @@ Replace with (note: session is created first so its ID is available for the log)
             repository.applyManualBaselineOverrides(sessionId, plan.strengthOverrides)
 ```
 
-- [ ] **Step 3: Build and verify**
+- [x] **Step 3: Build and verify**
 
 ```
 ./gradlew :app:assembleDebug
@@ -572,7 +572,7 @@ Replace with (note: session is created first so its ID is available for the log)
 
 Expected: `BUILD SUCCESSFUL` — no references to `MuscleGroupStrength` or the removed DAO call remain.
 
-- [ ] **Step 4: Run the full unit test suite**
+- [x] **Step 4: Run the full unit test suite**
 
 ```
 ./gradlew :app:testDebugUnitTest
@@ -580,7 +580,7 @@ Expected: `BUILD SUCCESSFUL` — no references to `MuscleGroupStrength` or the r
 
 Expected: `BUILD SUCCESSFUL`, all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt

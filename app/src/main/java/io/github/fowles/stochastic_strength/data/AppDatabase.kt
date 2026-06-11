@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import io.github.fowles.stochastic_strength.data.dao.BaselineChangeLogDao
+import io.github.fowles.stochastic_strength.data.dao.CoefficientChangeLogDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.KnownLocationDao
 import io.github.fowles.stochastic_strength.data.dao.LocationExcludedExerciseDao
@@ -16,6 +17,7 @@ import io.github.fowles.stochastic_strength.data.dao.UserProfileDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSessionDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSetDao
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
+import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
@@ -35,8 +37,9 @@ import kotlinx.coroutines.CoroutineScope
         UserProfile::class,
         MuscleGroupStrength::class,
         BaselineChangeLog::class,
+        CoefficientChangeLog::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -49,6 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun muscleGroupStrengthDao(): MuscleGroupStrengthDao
     abstract fun baselineChangeLogDao(): BaselineChangeLogDao
+    abstract fun coefficientChangeLogDao(): CoefficientChangeLogDao
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2, 3) {
@@ -109,6 +113,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `coefficient_change_log` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `exerciseId` INTEGER NOT NULL,
+                        `previousCoefficient` REAL,
+                        `coefficient` REAL NOT NULL,
+                        `heuristicName` TEXT NOT NULL,
+                        `heuristicMetadata` TEXT,
+                        `computedAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
@@ -127,7 +147,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context, scope: CoroutineScope) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build()
     }
 }
