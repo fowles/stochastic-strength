@@ -19,6 +19,9 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.CoefficientComputationInput
+import io.github.fowles.stochastic_strength.domain.CoefficientHeuristic
+import io.github.fowles.stochastic_strength.domain.CoefficientResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -323,6 +326,43 @@ class WorkoutRepositoryTest {
         assertEquals(1, latest.size)
         assertEquals(0.95f, latest.first().coefficient, 0.001f)
         assertEquals(0.9f, latest.first().previousCoefficient!!, 0.001f)
+    }
+
+    @Test
+    fun applySessionProgression_triggers_coefficient_recompute() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(
+                name = "Barbell Bench Press",
+                primaryMuscle = MuscleGroup.CHEST,
+                equipment = Equipment.BARBELL,
+            )
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId,
+            exerciseId = exerciseId,
+            setNumber = 1,
+            targetWeight = 80f,
+            targetReps = 5,
+            feedback = SetFeedback.RIR_2_4,
+        ))
+        val testHeuristic = object : CoefficientHeuristic {
+            override val name = "test"
+            override fun compute(input: CoefficientComputationInput) =
+                input.history.map { CoefficientResult(it.exerciseId, 0.85f) }
+        }
+        val repo = WorkoutRepository(db, heuristics = listOf(testHeuristic))
+
+        repo.applySessionProgression(sessionId)
+
+        val logs = db.coefficientChangeLogDao().getLatestPerExercise()
+        assertEquals(1, logs.size)
+        assertEquals(0.85f, logs.first().coefficient, 0.001f)
     }
 
     @Test

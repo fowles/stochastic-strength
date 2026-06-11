@@ -45,13 +45,16 @@ class WorkoutRepository(
             db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
                 .groupBy { it.exerciseId }
         else emptyMap()
+        val latestCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        val effectiveCoefficients = UserCoefficientSource(latestCoefficients, coefficientSource)
         return WorkoutPlanner(
             availableExercises = available,
             strengths = strengths,
             recentHistory = history,
             weightUnit = weightUnit,
             locationId = locationId,
-            coefficientSource = coefficientSource,
+            coefficientSource = effectiveCoefficients,
             progressionEngine = progressionEngine,
         )
     }
@@ -107,6 +110,7 @@ class WorkoutRepository(
                 )
             )
         }
+        recomputeCoefficients()
     }
 
     suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
