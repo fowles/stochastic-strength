@@ -127,6 +127,8 @@ class WorkoutRepository(
     }
 
     internal suspend fun buildCoefficientInput(): CoefficientComputationInput {
+        // Use all exercises (including disliked) for history — we want full training data.
+        // Use only active exercises for currentCoefficients — disliked exercises are excluded from planning.
         val allExercises = db.exerciseDao().getAll()
         val activeExercises = db.exerciseDao().getActive()
         val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
@@ -176,21 +178,23 @@ class WorkoutRepository(
                     .add(heuristic.name to result)
             }
         }
-        val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
-            .associateBy { it.exerciseId }
         val now = System.currentTimeMillis()
-        for ((exerciseId, candidates) in candidatesByExercise) {
-            val (winnerName, winner) = mergeHeuristicResults(candidates) ?: continue
-            db.coefficientChangeLogDao().insert(
-                CoefficientChangeLog(
-                    exerciseId = exerciseId,
-                    previousCoefficient = latestByExercise[exerciseId]?.coefficient,
-                    coefficient = winner.coefficient,
-                    heuristicName = winnerName,
-                    heuristicMetadata = winner.metadata,
-                    computedAt = now,
+        db.withTransaction {
+            val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+                .associateBy { it.exerciseId }
+            for ((exerciseId, candidates) in candidatesByExercise) {
+                val (winnerName, winner) = mergeHeuristicResults(candidates) ?: continue
+                db.coefficientChangeLogDao().insert(
+                    CoefficientChangeLog(
+                        exerciseId = exerciseId,
+                        previousCoefficient = latestByExercise[exerciseId]?.coefficient,
+                        coefficient = winner.coefficient,
+                        heuristicName = winnerName,
+                        heuristicMetadata = winner.metadata,
+                        computedAt = now,
+                    )
                 )
-            )
+            }
         }
     }
 
