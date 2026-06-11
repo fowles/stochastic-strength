@@ -1,6 +1,6 @@
 # Per-User Exercise Coefficients Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the global hardcoded `ExerciseCoefficients` with a live per-user coefficient system that adapts from session history via pluggable heuristics.
 
@@ -33,7 +33,7 @@
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/CoefficientChangeLogDao.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt`
 
-- [ ] **Step 1: Create `CoefficientChangeLog.kt`**
+- [x] **Step 1: Create `CoefficientChangeLog.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.data.model
@@ -53,7 +53,7 @@ data class CoefficientChangeLog(
 )
 ```
 
-- [ ] **Step 2: Create `CoefficientChangeLogDao.kt`**
+- [x] **Step 2: Create `CoefficientChangeLogDao.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.data.dao
@@ -76,7 +76,7 @@ interface CoefficientChangeLogDao {
 }
 ```
 
-- [ ] **Step 3: Update `AppDatabase.kt`**
+- [x] **Step 3: Update `AppDatabase.kt`**
 
 Add `CoefficientChangeLog::class` to the `@Database` entities list:
 ```kotlin
@@ -132,14 +132,14 @@ import io.github.fowles.stochastic_strength.data.dao.CoefficientChangeLogDao
 import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
 ```
 
-- [ ] **Step 4: Build to verify DB compiles**
+- [x] **Step 4: Build to verify DB compiles**
 
 ```bash
 ./gradlew :app:assembleDebug
 ```
 Expected: `BUILD SUCCESSFUL`. No unresolved references.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: add CoefficientChangeLog entity, DAO, and MIGRATION_8_9"
@@ -152,7 +152,7 @@ jj commit -m "feat: add CoefficientChangeLog entity, DAO, and MIGRATION_8_9"
 **Files:**
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/CoefficientHeuristic.kt`
 
-- [ ] **Step 1: Create `CoefficientHeuristic.kt`**
+- [x] **Step 1: Create `CoefficientHeuristic.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -190,14 +190,14 @@ interface CoefficientHeuristic {
 }
 ```
 
-- [ ] **Step 2: Build to verify**
+- [x] **Step 2: Build to verify**
 
 ```bash
 ./gradlew :app:assembleDebug
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj commit -m "feat: add CoefficientHeuristic interface and snapshot types"
@@ -211,7 +211,7 @@ jj commit -m "feat: add CoefficientHeuristic interface and snapshot types"
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/UserCoefficientSourceTest.kt`
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/UserCoefficientSource.kt`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `UserCoefficientSourceTest.kt`:
 
@@ -260,14 +260,14 @@ class UserCoefficientSourceTest {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.UserCoefficientSourceTest"
 ```
 Expected: FAILED — `UserCoefficientSource` does not exist.
 
-- [ ] **Step 3: Implement `UserCoefficientSource.kt`**
+- [x] **Step 3: Implement `UserCoefficientSource.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -283,14 +283,14 @@ class UserCoefficientSource(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.UserCoefficientSourceTest"
 ```
 Expected: `BUILD SUCCESSFUL`, 3 tests passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: add UserCoefficientSource with global fallback"
@@ -305,7 +305,7 @@ jj commit -m "feat: add UserCoefficientSource with global fallback"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt`
 
-- [ ] **Step 1: Add `getAll()` to `WorkoutSetDao`**
+- [x] **Step 1: Add `getAll()` to `WorkoutSetDao`**
 
 Add after the existing `getFirst()` query:
 
@@ -314,7 +314,7 @@ Add after the existing `getFirst()` query:
 suspend fun getAll(): List<WorkoutSet>
 ```
 
-- [ ] **Step 2: Write the failing instrumented test**
+- [x] **Step 2: Write the failing instrumented test**
 
 Add to `WorkoutRepositoryTest`:
 
@@ -375,14 +375,14 @@ fun buildCoefficientInput_assembles_snapshots_from_sets_and_baseline_log() = run
 }
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 ```bash
 ./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.buildCoefficientInput_assembles_snapshots_from_sets_and_baseline_log"
 ```
 Expected: FAILED — `buildCoefficientInput` does not exist.
 
-- [ ] **Step 4: Implement `buildCoefficientInput()` in `WorkoutRepository`**
+- [x] **Step 4: Implement `buildCoefficientInput()` in `WorkoutRepository`**
 
 Add `heuristics` constructor parameter and `buildCoefficientInput()`. Also add the required import for `BaselineChangeReason`. Insert after `applyManualBaselineOverrides`:
 
@@ -448,21 +448,21 @@ import io.github.fowles.stochastic_strength.domain.SetSnapshot
 import io.github.fowles.stochastic_strength.domain.UserCoefficientSource
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 ```bash
 ./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.buildCoefficientInput_assembles_snapshots_from_sets_and_baseline_log"
 ```
 Expected: PASSED.
 
-- [ ] **Step 6: Run the full unit test suite to check for regressions**
+- [x] **Step 6: Run the full unit test suite to check for regressions**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
 ```
 Expected: `BUILD SUCCESSFUL`, all tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat: add buildCoefficientInput to WorkoutRepository"
@@ -476,7 +476,7 @@ jj commit -m "feat: add buildCoefficientInput to WorkoutRepository"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt`
 
-- [ ] **Step 1: Write the failing instrumented tests**
+- [x] **Step 1: Write the failing instrumented tests**
 
 Add both tests to `WorkoutRepositoryTest`. These tests need a shared helper — add this private fun inside the test class:
 
@@ -561,14 +561,14 @@ fun recomputeCoefficients_second_run_populates_previousCoefficient() = runBlocki
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 ./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.recomputeCoefficients_writes_log_row_with_null_previousCoefficient_on_first_run"
 ```
 Expected: FAILED — `recomputeCoefficients` does not exist.
 
-- [ ] **Step 3: Implement `recomputeCoefficients()` and `mergeHeuristicResults()` in `WorkoutRepository`**
+- [x] **Step 3: Implement `recomputeCoefficients()` and `mergeHeuristicResults()` in `WorkoutRepository`**
 
 Add after `buildCoefficientInput()`:
 
@@ -611,7 +611,7 @@ Add this import:
 import io.github.fowles.stochastic_strength.domain.CoefficientResult
 ```
 
-- [ ] **Step 4: Run both new tests to verify they pass**
+- [x] **Step 4: Run both new tests to verify they pass**
 
 ```bash
 ./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.recomputeCoefficients_writes_log_row_with_null_previousCoefficient_on_first_run"
@@ -619,7 +619,7 @@ import io.github.fowles.stochastic_strength.domain.CoefficientResult
 ```
 Expected: both PASSED.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: add recomputeCoefficients to WorkoutRepository"
@@ -633,7 +633,7 @@ jj commit -m "feat: add recomputeCoefficients to WorkoutRepository"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt`
 
-- [ ] **Step 1: Write the failing instrumented test**
+- [x] **Step 1: Write the failing instrumented test**
 
 Add to `WorkoutRepositoryTest`:
 
@@ -676,14 +676,14 @@ fun applySessionProgression_triggers_coefficient_recompute() = runBlocking {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 ./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.applySessionProgression_triggers_coefficient_recompute"
 ```
 Expected: FAILED — coefficient log is empty because `recomputeCoefficients` is not yet called.
 
-- [ ] **Step 3: Add `recomputeCoefficients()` call to the end of `applySessionProgression`**
+- [x] **Step 3: Add `recomputeCoefficients()` call to the end of `applySessionProgression`**
 
 At the very end of `applySessionProgression`, after the closing brace of the `for` loop:
 
@@ -691,7 +691,7 @@ At the very end of `applySessionProgression`, after the closing brace of the `fo
 recomputeCoefficients()
 ```
 
-- [ ] **Step 4: Wire `UserCoefficientSource` into `buildPlanner`**
+- [x] **Step 4: Wire `UserCoefficientSource` into `buildPlanner`**
 
 In `buildPlanner`, after the `history` val and before the `return WorkoutPlanner(...)`, add:
 
@@ -703,28 +703,28 @@ val effectiveCoefficients = UserCoefficientSource(latestCoefficients, coefficien
 
 Then change `coefficientSource = coefficientSource` to `coefficientSource = effectiveCoefficients` in the `WorkoutPlanner(...)` constructor call.
 
-- [ ] **Step 5: Run the new test to verify it passes**
+- [x] **Step 5: Run the new test to verify it passes**
 
 ```bash
 ./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.applySessionProgression_triggers_coefficient_recompute"
 ```
 Expected: PASSED.
 
-- [ ] **Step 6: Run the full instrumented test suite**
+- [x] **Step 6: Run the full instrumented test suite**
 
 ```bash
 ./gradlew :app:connectedAndroidTest
 ```
 Expected: `BUILD SUCCESSFUL`, all tests pass.
 
-- [ ] **Step 7: Run the full unit test suite**
+- [x] **Step 7: Run the full unit test suite**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
 ```
 Expected: `BUILD SUCCESSFUL`, all tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 jj commit -m "feat: wire UserCoefficientSource and recomputeCoefficients into WorkoutRepository"
