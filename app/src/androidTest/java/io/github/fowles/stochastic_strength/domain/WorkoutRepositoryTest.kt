@@ -362,6 +362,7 @@ class WorkoutRepositoryTest {
 
         val logs = db.coefficientChangeLogDao().getLatestPerExercise()
         assertEquals(1, logs.size)
+        assertEquals(exerciseId, logs.first().exerciseId)
         assertEquals(0.85f, logs.first().coefficient, 0.001f)
     }
 

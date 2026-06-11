@@ -82,8 +82,11 @@ class WorkoutRepository(
 
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
+        val latestCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        val effectiveCoefficients = UserCoefficientSource(latestCoefficients, coefficientSource)
         val exercisesByMuscle = exerciseById.values
-            .filter { (coefficientSource.get(it) ?: 0f) > 0f }
+            .filter { (effectiveCoefficients.get(it) ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
         for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
             val allFeedbacks = muscleExercises.flatMap { exercise ->
