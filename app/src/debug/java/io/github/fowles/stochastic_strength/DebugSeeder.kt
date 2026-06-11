@@ -2,8 +2,10 @@ package io.github.fowles.stochastic_strength
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import kotlin.random.Random
 
 object DebugSeeder {
@@ -34,6 +36,7 @@ object DebugSeeder {
         val exercises = db.exerciseDao().getActive()
         if (exercises.isEmpty()) return
 
+        val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
         val rng = Random(seed = 42)
         val now = System.currentTimeMillis()
         val msPerDay = 86_400_000L
@@ -70,10 +73,7 @@ object DebugSeeder {
             for (exercise in sessionExercises) {
                 val equipmentKey = exercise.equipment.name
                 val baseWeight = baseWeightByEquipment[equipmentKey] ?: 20f
-                val weight = (baseWeight * progressionFactor).let {
-                    // Round to nearest 2.5
-                    (it / 2.5f).toInt() * 2.5f
-                }
+                val weight = WeightFormatter.round(baseWeight * progressionFactor, weightUnit)
 
                 var setTime = startMs
                 for (setNumber in 1..3) {
