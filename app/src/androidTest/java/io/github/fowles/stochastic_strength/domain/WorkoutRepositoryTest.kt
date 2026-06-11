@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
@@ -191,6 +192,61 @@ class WorkoutRepositoryTest {
         )
         val log = db.baselineChangeLogDao().getForSession(sessionId).single()
         assertEquals(0.10f, log.minReductionFraction!!, 0.001f)
+    }
+
+    @Test
+    fun buildCoefficientInput_assembles_snapshots_from_sets_and_baseline_log() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(
+                name = "Barbell Bench Press",
+                primaryMuscle = MuscleGroup.CHEST,
+                equipment = Equipment.BARBELL,
+            )
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 5000L))
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId,
+            exerciseId = exerciseId,
+            setNumber = 1,
+            targetWeight = 80f,
+            targetReps = 5,
+            feedback = SetFeedback.RIR_2_4,
+        ))
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId,
+            exerciseId = exerciseId,
+            setNumber = 2,
+            targetWeight = 75f,
+            targetReps = 5,
+            feedback = SetFeedback.TOO_HARD,
+        ))
+        db.baselineChangeLogDao().insert(
+            BaselineChangeLog(
+                sessionId = sessionId,
+                muscleGroup = MuscleGroup.CHEST,
+                previousBaseline = 100f,
+                newBaseline = 95f,
+                changeReason = BaselineChangeReason.PROGRESSION,
+                timestamp = 5000L,
+            )
+        )
+
+        val input = repository.buildCoefficientInput()
+
+        assertEquals(1, input.history.size)
+        val snap = input.history.first()
+        assertEquals(exerciseId, snap.exerciseId)
+        assertEquals(sessionId, snap.sessionId)
+        assertEquals(5000L, snap.sessionTime)
+        assertEquals(5, snap.targetReps)
+        assertEquals(100f, snap.muscleBaseline, 0.001f)
+        assertEquals(2, snap.sets.size)
+        assertEquals(80f, snap.sets[0].targetWeight, 0.001f)
+        assertEquals(SetFeedback.RIR_2_4, snap.sets[0].feedback)
+        assertEquals(75f, snap.sets[1].targetWeight, 0.001f)
+        assertEquals(SetFeedback.TOO_HARD, snap.sets[1].feedback)
+        assertEquals(1.0f, input.currentCoefficients[exerciseId]!!, 0.001f)
     }
 
     @Test

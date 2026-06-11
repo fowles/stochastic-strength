@@ -22,6 +22,7 @@ class WorkoutRepository(
     private val db: AppDatabase,
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
+    private val heuristics: List<CoefficientHeuristic> = listOf(),
 ) {
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -122,6 +123,45 @@ class WorkoutRepository(
                 )
             )
         }
+    }
+
+    internal suspend fun buildCoefficientInput(): CoefficientComputationInput {
+        val exercises = db.exerciseDao().getActive()
+        val exerciseMuscle = exercises.associate { it.id to it.primaryMuscle }
+        val sessionTimeById = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
+        val progressionLogs = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.PROGRESSION }
+            .associateBy { it.sessionId to it.muscleGroup }
+        val snapshots = db.workoutSetDao().getAll()
+            .groupBy { it.sessionId to it.exerciseId }
+            .mapNotNull { (key, sets) ->
+                val (sessionId, exerciseId) = key
+                val muscle = exerciseMuscle[exerciseId] ?: return@mapNotNull null
+                val logEntry = progressionLogs[sessionId to muscle] ?: return@mapNotNull null
+                val sessionTime = sessionTimeById[sessionId] ?: return@mapNotNull null
+                val targetReps = sets.firstOrNull()?.targetReps ?: return@mapNotNull null
+                ExerciseSessionSnapshot(
+                    exerciseId = exerciseId,
+                    sessionId = sessionId,
+                    sessionTime = sessionTime,
+                    targetReps = targetReps,
+                    muscleBaseline = logEntry.previousBaseline,
+                    sets = sets.sortedBy { it.setNumber }
+                        .map { SetSnapshot(it.targetWeight, it.feedback) },
+                )
+            }
+            .sortedBy { it.sessionTime }
+        val latestUserCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        val currentCoefficients = exercises.associate { exercise ->
+            exercise.id to (latestUserCoefficients[exercise.id]
+                ?: coefficientSource.get(exercise)
+                ?: 0f)
+        }
+        return CoefficientComputationInput(
+            history = snapshots,
+            currentCoefficients = currentCoefficients,
+        )
     }
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
