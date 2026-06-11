@@ -126,6 +126,7 @@ abstract class AppDatabase : RoomDatabase() {
                         `computedAt` INTEGER NOT NULL
                     )
                 """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_coefficient_change_log_exerciseId` ON `coefficient_change_log` (`exerciseId`)")
             }
         }
 

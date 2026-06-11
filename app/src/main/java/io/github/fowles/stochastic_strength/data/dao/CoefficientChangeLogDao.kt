@@ -10,7 +10,7 @@ interface CoefficientChangeLogDao {
     @Insert
     suspend fun insert(entry: CoefficientChangeLog)
 
-    @Query("SELECT * FROM coefficient_change_log ORDER BY computedAt ASC")
+    @Query("SELECT * FROM coefficient_change_log ORDER BY id ASC")
     suspend fun getAll(): List<CoefficientChangeLog>
 
     @Query("SELECT * FROM coefficient_change_log WHERE id IN (SELECT MAX(id) FROM coefficient_change_log GROUP BY exerciseId)")
