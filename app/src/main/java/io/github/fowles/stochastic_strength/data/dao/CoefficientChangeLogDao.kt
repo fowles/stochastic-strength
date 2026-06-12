@@ -15,4 +15,10 @@ interface CoefficientChangeLogDao {
 
     @Query("SELECT * FROM coefficient_change_log WHERE id IN (SELECT MAX(id) FROM coefficient_change_log GROUP BY exerciseId)")
     suspend fun getLatestPerExercise(): List<CoefficientChangeLog>
+
+    @Query("SELECT * FROM coefficient_change_log ORDER BY computedAt DESC LIMIT :limit")
+    suspend fun getMostRecent(limit: Int): List<CoefficientChangeLog>
+
+    @Query("SELECT * FROM coefficient_change_log WHERE exerciseId = :exerciseId ORDER BY computedAt ASC")
+    suspend fun getForExercise(exerciseId: Long): List<CoefficientChangeLog>
 }
