@@ -136,6 +136,8 @@ class WorkoutRepository(
     }
 
     internal suspend fun buildCoefficientInput(): CoefficientComputationInput {
+        // History pulls from all exercises (training signal lives there even for disliked ones),
+        // but currentCoefficients only covers active exercises since disliked ones aren't planned.
         val allExercises = db.exerciseDao().getAll()
         val activeExercises = db.exerciseDao().getActive()
         val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
