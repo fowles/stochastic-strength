@@ -83,7 +83,7 @@ fun DebugStatsScreen(
                 }
             }
 
-            item { SectionHeader("All Exercises") }
+            item { SectionHeader("Exercise Coefficients") }
             items(state.allCoefficients, key = { "all-" + it.exerciseId }) { row ->
                 AlphabeticalCoefficientRow(row, onClick = { onExerciseTap(row.exerciseId) })
                 HorizontalDivider(modifier = Modifier.padding(start = 16.dp))

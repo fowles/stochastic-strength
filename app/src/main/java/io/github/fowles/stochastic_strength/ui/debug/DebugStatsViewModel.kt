@@ -34,7 +34,7 @@ class DebugStatsViewModel(application: Application) : AndroidViewModel(applicati
             val muscleStrengths = repository.getMuscleGroupStrengths()
                 .sortedBy { it.muscleGroup.ordinal }
             val recent = repository.getRecentCoefficientChanges(limit = 2)
-            val all = repository.getAllCoefficientRows()
+            val all = repository.getAllCoefficientRows().filter { it.currentCoefficient > 0f }
             _state.value = DebugStatsState(
                 loading = false,
                 weightUnit = weightUnit,
