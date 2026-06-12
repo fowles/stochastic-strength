@@ -1,23 +1,13 @@
 package io.github.fowles.stochastic_strength.domain
 
-import io.github.fowles.stochastic_strength.data.model.SetFeedback
-
-data class SetSnapshot(
-    val targetWeight: Float,
-    val feedback: SetFeedback?,
-)
-
-data class ExerciseSessionSnapshot(
-    val exerciseId: Long,
-    val sessionId: Long,
-    val sessionTime: Long,
-    val targetReps: Int,
-    val muscleBaseline: Float,
-    val sets: List<SetSnapshot>,
-)
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 
 data class CoefficientComputationInput(
-    val history: List<ExerciseSessionSnapshot>,
+    val sets: List<WorkoutSet>,
+    val sessionTimes: Map<Long, Long>,
+    val exerciseMuscle: Map<Long, MuscleGroup>,
+    val baselines: Map<Pair<Long, MuscleGroup>, Float>,
     val currentCoefficients: Map<Long, Float>,
 )
 

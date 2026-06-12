@@ -199,7 +199,7 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun buildCoefficientInput_assembles_snapshots_from_sets_and_baseline_log() = runBlocking {
+    fun buildCoefficientInput_populates_sets_sessionTimes_exerciseMuscle_baselines_and_currentCoefficients() = runBlocking {
         db.exerciseDao().insertAll(listOf(
             Exercise(
                 name = "Barbell Bench Press",
@@ -238,18 +238,18 @@ class WorkoutRepositoryTest {
 
         val input = repository.buildCoefficientInput()
 
-        assertEquals(1, input.history.size)
-        val snap = input.history.first()
-        assertEquals(exerciseId, snap.exerciseId)
-        assertEquals(sessionId, snap.sessionId)
-        assertEquals(5000L, snap.sessionTime)
-        assertEquals(5, snap.targetReps)
-        assertEquals(100f, snap.muscleBaseline, 0.001f)
-        assertEquals(2, snap.sets.size)
-        assertEquals(80f, snap.sets[0].targetWeight, 0.001f)
-        assertEquals(SetFeedback.RIR_2_4, snap.sets[0].feedback)
-        assertEquals(75f, snap.sets[1].targetWeight, 0.001f)
-        assertEquals(SetFeedback.TOO_HARD, snap.sets[1].feedback)
+        assertEquals(2, input.sets.size)
+        val firstSet = input.sets.first { it.setNumber == 1 }
+        val secondSet = input.sets.first { it.setNumber == 2 }
+        assertEquals(exerciseId, firstSet.exerciseId)
+        assertEquals(sessionId, firstSet.sessionId)
+        assertEquals(80f, firstSet.targetWeight, 0.001f)
+        assertEquals(SetFeedback.RIR_2_4, firstSet.feedback)
+        assertEquals(75f, secondSet.targetWeight, 0.001f)
+        assertEquals(SetFeedback.TOO_HARD, secondSet.feedback)
+        assertEquals(5000L, input.sessionTimes[sessionId])
+        assertEquals(MuscleGroup.CHEST, input.exerciseMuscle[exerciseId])
+        assertEquals(100f, input.baselines[sessionId to MuscleGroup.CHEST]!!, 0.001f)
         assertEquals(1.0f, input.currentCoefficients[exerciseId]!!, 0.001f)
     }
 
@@ -290,7 +290,8 @@ class WorkoutRepositoryTest {
         val testHeuristic = object : CoefficientHeuristic {
             override val name = "test-heuristic"
             override fun compute(input: CoefficientComputationInput) =
-                input.history.map { CoefficientResult(it.exerciseId, 0.9f, "meta") }
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.9f, "meta") }
         }
         val repo = WorkoutRepository(db, heuristics = listOf(testHeuristic))
 
@@ -311,14 +312,16 @@ class WorkoutRepositoryTest {
         val heuristic1 = object : CoefficientHeuristic {
             override val name = "h1"
             override fun compute(input: CoefficientComputationInput) =
-                input.history.map { CoefficientResult(it.exerciseId, 0.9f) }
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.9f) }
         }
         WorkoutRepository(db, heuristics = listOf(heuristic1)).recomputeCoefficients()
 
         val heuristic2 = object : CoefficientHeuristic {
             override val name = "h2"
             override fun compute(input: CoefficientComputationInput) =
-                input.history.map { CoefficientResult(it.exerciseId, 0.95f) }
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.95f) }
         }
         WorkoutRepository(db, heuristics = listOf(heuristic2)).recomputeCoefficients()
 
@@ -354,7 +357,8 @@ class WorkoutRepositoryTest {
         val testHeuristic = object : CoefficientHeuristic {
             override val name = "test"
             override fun compute(input: CoefficientComputationInput) =
-                input.history.map { CoefficientResult(it.exerciseId, 0.85f) }
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.85f) }
         }
         val repo = WorkoutRepository(db, heuristics = listOf(testHeuristic))
 
@@ -372,12 +376,14 @@ class WorkoutRepositoryTest {
         val heuristic1 = object : CoefficientHeuristic {
             override val name = "first"
             override fun compute(input: CoefficientComputationInput) =
-                input.history.map { CoefficientResult(it.exerciseId, 0.75f, "meta1") }
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.75f, "meta1") }
         }
         val heuristic2 = object : CoefficientHeuristic {
             override val name = "second"
             override fun compute(input: CoefficientComputationInput) =
-                input.history.map { CoefficientResult(it.exerciseId, 0.85f, "meta2") }
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.85f, "meta2") }
         }
         val repo = WorkoutRepository(db, heuristics = listOf(heuristic1, heuristic2))
 
