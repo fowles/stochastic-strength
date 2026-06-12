@@ -33,6 +33,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val controller = WorkoutSessionController(
         database = app.database,
+        repository = app.workoutRepository,
         bus = app.workoutSessionBus,
         scope = viewModelScope,
         onVibrate = ::vibrate,

@@ -13,6 +13,7 @@ import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -53,7 +54,7 @@ class WorkoutSessionControllerTest {
 
             bus = WorkoutSessionBus()
             scope = CoroutineScope(Dispatchers.Default)
-            controller = WorkoutSessionController(db, bus, scope)
+            controller = WorkoutSessionController(db, WorkoutRepository(db), bus, scope)
             controller.initializeSession(
                 locationId = null,
                 locationName = null,

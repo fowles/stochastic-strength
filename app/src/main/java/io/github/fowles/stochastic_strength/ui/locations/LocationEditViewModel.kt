@@ -11,8 +11,6 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
-import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
-import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,7 +35,7 @@ class LocationEditViewModel(
     private val locationId: Long,
 ) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
-    private val repository = WorkoutRepository(app.database, heuristics = listOf(EstCoefConsensusHeuristic()))
+    private val repository = app.workoutRepository
 
     private val _state = MutableStateFlow(LocationEditState())
     val state: StateFlow<LocationEditState> = _state.asStateFlow()

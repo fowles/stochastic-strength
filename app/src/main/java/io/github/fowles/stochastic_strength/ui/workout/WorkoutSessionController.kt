@@ -7,7 +7,6 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
-import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
@@ -34,11 +33,11 @@ sealed interface NavigationEvent {
 
 class WorkoutSessionController(
     private val database: AppDatabase,
+    private val repository: WorkoutRepository,
     private val bus: WorkoutSessionBus,
     private val scope: CoroutineScope,
     private val onVibrate: () -> Unit = {},
 ) {
-    private val repository = WorkoutRepository(database, heuristics = listOf(EstCoefConsensusHeuristic()))
 
     private val _state = MutableStateFlow<WorkoutState>(WorkoutState.Loading)
     val state: StateFlow<WorkoutState> = _state.asStateFlow()
