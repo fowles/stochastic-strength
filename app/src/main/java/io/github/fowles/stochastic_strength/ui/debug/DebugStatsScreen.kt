@@ -77,7 +77,7 @@ fun DebugStatsScreen(
 
             if (state.recentCoefficientChanges.isNotEmpty()) {
                 item { SectionHeader("Recently Changed Coefficients") }
-                items(state.recentCoefficientChanges, key = { "recent-" + it.exerciseId }) { row ->
+                items(state.recentCoefficientChanges, key = { "recent-" + it.computedAt }) { row ->
                     RecentCoefficientRow(row, onClick = { onExerciseTap(row.exerciseId) })
                     HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                 }

@@ -45,7 +45,7 @@ class StochasticStrengthApp : Application() {
             if (missing.isNotEmpty()) {
                 database.exerciseDao().insertAll(missing)
             }
-            DebugSeeder.seedIfEmpty(database)
+            DebugSeeder.seedIfEmpty(database, workoutRepository)
         }
         applicationScope.launch(Dispatchers.IO) {
             val profile = database.userProfileDao().getProfile() ?: return@launch

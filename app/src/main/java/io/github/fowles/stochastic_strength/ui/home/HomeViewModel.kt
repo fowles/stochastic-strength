@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.ui.home
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.fowles.stochastic_strength.DebugSeeder
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
@@ -35,6 +36,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun submitProfile(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         viewModelScope.launch {
             repository.seedInitialWeights(sex, strengthLevel, weightUnit)
+            DebugSeeder.seedIfEmpty(app.database, repository)
             _state.value = HomeState.Ready
         }
     }
