@@ -9,10 +9,10 @@ class EstCoefConsensusHeuristic(
     private val tauHalfMs: Long = 14L * 24 * 60 * 60 * 1000,
     private val minEvidenceWeight: Float = 1.5f,
     private val minOutlierSessions: Int = 2,
-    private val tauConsensusThreshold: Float = LN_105,
+    private val tauConsensusThreshold: Float = ln(1.05f),
     private val tauOutlierThreshold: Float = LN_110,
     private val alpha: Float = 0.2f,
-    private val maxLogStep: Float = LN_105,
+    private val maxLogStep: Float = ln(1.05f),
     private val minChangeThreshold: Float = 0.005f,
 ) : CoefficientHeuristic {
 
@@ -48,19 +48,26 @@ class EstCoefConsensusHeuristic(
             )
             SetFeedback.TOO_HARD -> {
                 val reps = set.actualReps
-                if (reps != null) SetSignal(
-                    est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, reps),
-                    confidence = 0.95f, isUpperBound = false, isDefinite = true,
-                ) else SetSignal(
-                    est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, maxOf(1, set.targetReps - 1)),
-                    confidence = 0.5f, isUpperBound = true, isDefinite = false,
-                )
+                if (reps != null) {
+                    SetSignal(
+                        est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, reps),
+                        confidence = 0.95f,
+                        isUpperBound = false,
+                        isDefinite = true,
+                    )
+                } else {
+                    SetSignal(
+                        est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, maxOf(1, set.targetReps - 1)),
+                        confidence = 0.5f,
+                        isUpperBound = true,
+                        isDefinite = false,
+                    )
+                }
             }
         }
     }
 
     companion object {
-        private val LN_105 = ln(1.05f)
         private val LN_110 = ln(1.10f)
     }
 }
