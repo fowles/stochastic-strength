@@ -32,7 +32,7 @@
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt` (lines 138–178)
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt` (lines 202–254, plus heuristic-stub usages on lines 290–391)
 
-- [ ] **Step 1.1: Replace `CoefficientHeuristic.kt` body**
+- [x] **Step 1.1: Replace `CoefficientHeuristic.kt` body**
 
 Overwrite the file with:
 
@@ -62,7 +62,7 @@ interface CoefficientHeuristic {
 }
 ```
 
-- [ ] **Step 1.2: Rewrite `WorkoutRepository.buildCoefficientInput()`**
+- [x] **Step 1.2: Rewrite `WorkoutRepository.buildCoefficientInput()`**
 
 Replace lines 138–178 in `WorkoutRepository.kt` with:
 
@@ -93,7 +93,7 @@ Replace lines 138–178 in `WorkoutRepository.kt` with:
     }
 ```
 
-- [ ] **Step 1.3: Update the existing `buildCoefficientInput_assembles_snapshots_from_sets_and_baseline_log` test**
+- [x] **Step 1.3: Update the existing `buildCoefficientInput_assembles_snapshots_from_sets_and_baseline_log` test**
 
 In `WorkoutRepositoryTest.kt`, replace the assertions block (lines 241–253) with assertions against the new input shape:
 
@@ -117,7 +117,7 @@ In `WorkoutRepositoryTest.kt`, replace the assertions block (lines 241–253) wi
 
 Also rename the test (function name only) to: `buildCoefficientInput_populates_sets_sessionTimes_exerciseMuscle_baselines_and_currentCoefficients`.
 
-- [ ] **Step 1.4: Update the test-heuristic stubs in `WorkoutRepositoryTest.kt`**
+- [x] **Step 1.4: Update the test-heuristic stubs in `WorkoutRepositoryTest.kt`**
 
 The stub heuristics on lines 290–391 reference `input.history.map { CoefficientResult(it.exerciseId, ...) }`. Since `history` no longer exists, change each occurrence:
 
@@ -136,7 +136,7 @@ override fun compute(input: CoefficientComputationInput) =
 
 Do the equivalent substitution everywhere the pattern appears (6 stubs — at approximately lines 292–293, 313–314, 320–321, 356–357, 374–375, 379–380; use grep to confirm). Keep the same coefficient and metadata values per stub.
 
-- [ ] **Step 1.5: Run the build and the existing tests**
+- [x] **Step 1.5: Run the build and the existing tests**
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -146,7 +146,7 @@ Do the equivalent substitution everywhere the pattern appears (6 stubs — at ap
 
 Expected: all compile, all pass. The instrumented test suite will exercise `buildCoefficientInput` against the new shape.
 
-- [ ] **Step 1.6: Commit**
+- [x] **Step 1.6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/CoefficientHeuristic.kt \
@@ -171,7 +171,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristicTest.kt`
 
-- [ ] **Step 2.1: Write the failing test file**
+- [x] **Step 2.1: Write the failing test file**
 
 Create `EstCoefConsensusHeuristicTest.kt`:
 
@@ -270,7 +270,7 @@ class EstCoefConsensusHeuristicTest {
 }
 ```
 
-- [ ] **Step 2.2: Run test, verify it fails to compile**
+- [x] **Step 2.2: Run test, verify it fails to compile**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest" 2>&1 | tail -20
@@ -278,7 +278,7 @@ class EstCoefConsensusHeuristicTest {
 
 Expected: compile error — `EstCoefConsensusHeuristic` not defined.
 
-- [ ] **Step 2.3: Create the heuristic file with skeleton + `setSignal`**
+- [x] **Step 2.3: Create the heuristic file with skeleton + `setSignal`**
 
 Create `EstCoefConsensusHeuristic.kt`:
 
@@ -351,7 +351,7 @@ class EstCoefConsensusHeuristic(
 }
 ```
 
-- [ ] **Step 2.4: Run test, verify it passes**
+- [x] **Step 2.4: Run test, verify it passes**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"
@@ -359,7 +359,7 @@ class EstCoefConsensusHeuristic(
 
 Expected: all 7 set-level tests pass.
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -382,7 +382,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristicTest.kt`
 
-- [ ] **Step 3.1: Add failing tests**
+- [x] **Step 3.1: Add failing tests**
 
 Append to `EstCoefConsensusHeuristicTest.kt`:
 
@@ -468,7 +468,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
     }
 ```
 
-- [ ] **Step 3.2: Run, verify failure**
+- [x] **Step 3.2: Run, verify failure**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest" 2>&1 | tail -20
@@ -476,7 +476,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
 
 Expected: compile error — `aggregateSession` not defined.
 
-- [ ] **Step 3.3: Implement `aggregateSession`**
+- [x] **Step 3.3: Implement `aggregateSession`**
 
 Add this nested class and method to `EstCoefConsensusHeuristic.kt`, inside the class body (after `setSignal`):
 
@@ -515,7 +515,7 @@ Add this nested class and method to `EstCoefConsensusHeuristic.kt`, inside the c
     }
 ```
 
-- [ ] **Step 3.4: Run tests, verify they pass**
+- [x] **Step 3.4: Run tests, verify they pass**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"
@@ -523,7 +523,7 @@ Add this nested class and method to `EstCoefConsensusHeuristic.kt`, inside the c
 
 Expected: all session-aggregation tests pass alongside the set-level tests.
 
-- [ ] **Step 3.5: Commit**
+- [x] **Step 3.5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -547,7 +547,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristicTest.kt`
 
-- [ ] **Step 4.1: Add failing tests**
+- [x] **Step 4.1: Add failing tests**
 
 Append to `EstCoefConsensusHeuristicTest.kt`:
 
@@ -624,7 +624,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
     }
 ```
 
-- [ ] **Step 4.2: Run, verify compile failure**
+- [x] **Step 4.2: Run, verify compile failure**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest" 2>&1 | tail -10
@@ -632,7 +632,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
 
 Expected: compile error — `SessionSignal`, `computeH1`, `H1Proposal` missing.
 
-- [ ] **Step 4.3: Implement `SessionSignal`, `H1Proposal`, `weightedMedian`, and `computeH1`**
+- [x] **Step 4.3: Implement `SessionSignal`, `H1Proposal`, `weightedMedian`, and `computeH1`**
 
 Add to `EstCoefConsensusHeuristic.kt`, inside the class body:
 
@@ -692,7 +692,7 @@ Add to `EstCoefConsensusHeuristic.kt`, inside the class body:
     }
 ```
 
-- [ ] **Step 4.4: Run tests, verify they pass**
+- [x] **Step 4.4: Run tests, verify they pass**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"
@@ -700,7 +700,7 @@ Add to `EstCoefConsensusHeuristic.kt`, inside the class body:
 
 Expected: all H1 tests pass.
 
-- [ ] **Step 4.5: Commit**
+- [x] **Step 4.5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -723,7 +723,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristicTest.kt`
 
-- [ ] **Step 5.1: Add failing tests**
+- [x] **Step 5.1: Add failing tests**
 
 Append to `EstCoefConsensusHeuristicTest.kt`:
 
@@ -820,7 +820,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
 
 To call `applyH2` directly, it needs to be `internal`. The signature uses `EmitProposal` as the value type — define it on the class.
 
-- [ ] **Step 5.2: Run, verify compile failure**
+- [x] **Step 5.2: Run, verify compile failure**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest" 2>&1 | tail -10
@@ -828,7 +828,7 @@ To call `applyH2` directly, it needs to be `internal`. The signature uses `EmitP
 
 Expected: compile error — `applyH2`, `EmitProposal` missing.
 
-- [ ] **Step 5.3: Implement `EmitProposal` and `applyH2`**
+- [x] **Step 5.3: Implement `EmitProposal` and `applyH2`**
 
 Add to `EstCoefConsensusHeuristic.kt` inside the class body:
 
@@ -894,7 +894,7 @@ Add to `EstCoefConsensusHeuristic.kt` inside the class body:
     }
 ```
 
-- [ ] **Step 5.4: Run tests, verify they pass**
+- [x] **Step 5.4: Run tests, verify they pass**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"
@@ -902,7 +902,7 @@ Add to `EstCoefConsensusHeuristic.kt` inside the class body:
 
 Expected: all H2 tests pass alongside earlier ones.
 
-- [ ] **Step 5.5: Commit**
+- [x] **Step 5.5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -925,7 +925,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristicTest.kt`
 
-- [ ] **Step 6.1: Add failing tests**
+- [x] **Step 6.1: Add failing tests**
 
 Append to `EstCoefConsensusHeuristicTest.kt`:
 
@@ -970,7 +970,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
     }
 ```
 
-- [ ] **Step 6.2: Run, verify failure**
+- [x] **Step 6.2: Run, verify failure**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest" 2>&1 | tail -10
@@ -978,7 +978,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
 
 Expected: compile error — `damp` not defined.
 
-- [ ] **Step 6.3: Implement `damp`**
+- [x] **Step 6.3: Implement `damp`**
 
 Add to `EstCoefConsensusHeuristic.kt`:
 
@@ -993,7 +993,7 @@ Add to `EstCoefConsensusHeuristic.kt`:
     }
 ```
 
-- [ ] **Step 6.4: Run tests, verify they pass**
+- [x] **Step 6.4: Run tests, verify they pass**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"
@@ -1001,7 +1001,7 @@ Add to `EstCoefConsensusHeuristic.kt`:
 
 Expected: all damping tests pass.
 
-- [ ] **Step 6.5: Commit**
+- [x] **Step 6.5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -1024,7 +1024,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristicTest.kt`
 
-- [ ] **Step 7.1: Add failing integration test**
+- [x] **Step 7.1: Add failing integration test**
 
 Append to `EstCoefConsensusHeuristicTest.kt`:
 
@@ -1089,7 +1089,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
     }
 ```
 
-- [ ] **Step 7.2: Run, verify failure**
+- [x] **Step 7.2: Run, verify failure**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest" 2>&1 | tail -10
@@ -1097,7 +1097,7 @@ Append to `EstCoefConsensusHeuristicTest.kt`:
 
 Expected: integration tests fail (compute returns empty by skeleton).
 
-- [ ] **Step 7.3: Implement `compute()`**
+- [x] **Step 7.3: Implement `compute()`**
 
 Replace the stub `compute(...)` in `EstCoefConsensusHeuristic.kt` with:
 
@@ -1139,7 +1139,7 @@ Replace the stub `compute(...)` in `EstCoefConsensusHeuristic.kt` with:
     }
 ```
 
-- [ ] **Step 7.4: Run all heuristic tests**
+- [x] **Step 7.4: Run all heuristic tests**
 
 ```bash
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"
@@ -1147,7 +1147,7 @@ Replace the stub `compute(...)` in `EstCoefConsensusHeuristic.kt` with:
 
 Expected: all tests pass.
 
-- [ ] **Step 7.5: Run the full unit-test suite for regressions**
+- [x] **Step 7.5: Run the full unit-test suite for regressions**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -1155,7 +1155,7 @@ Expected: all tests pass.
 
 Expected: green.
 
-- [ ] **Step 7.6: Commit**
+- [x] **Step 7.6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -1178,7 +1178,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt`
 
-- [ ] **Step 8.1: Inspect current repository construction**
+- [x] **Step 8.1: Inspect current repository construction**
 
 ```bash
 grep -n "WorkoutRepository(" /Users/mfk/dev/stochastic-strength/app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt
@@ -1194,7 +1194,7 @@ grep -rn "WorkoutRepository(" /Users/mfk/dev/stochastic-strength/app/src/main/ja
 
 The call site to update is wherever the singleton/factory `WorkoutRepository` is built for production use. (Per existing project notes, `StochasticStrengthApp` owns `AppDatabase`; the repo construction likely lives in a ViewModel or factory keyed off `application as StochasticStrengthApp`.)
 
-- [ ] **Step 8.2: Update the construction site to pass the heuristic**
+- [x] **Step 8.2: Update the construction site to pass the heuristic**
 
 In whichever file actually constructs the production `WorkoutRepository`, change e.g.:
 
@@ -1214,7 +1214,7 @@ Add the import:
 import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 ```
 
-- [ ] **Step 8.3: Build the app**
+- [x] **Step 8.3: Build the app**
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -1222,7 +1222,7 @@ import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 
 Expected: success.
 
-- [ ] **Step 8.4: Run full unit + instrumented suites**
+- [x] **Step 8.4: Run full unit + instrumented suites**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -1231,7 +1231,7 @@ Expected: success.
 
 Expected: green. Heuristic registration shouldn't break any existing test — instrumented tests still construct `WorkoutRepository` directly with explicit heuristics (or no heuristics).
 
-- [ ] **Step 8.5: Commit**
+- [x] **Step 8.5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt

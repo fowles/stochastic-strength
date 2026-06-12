@@ -7,6 +7,7 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +22,7 @@ data class ExercisesState(
 
 class ExercisesViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
-    private val repository = WorkoutRepository(app.database)
+    private val repository = WorkoutRepository(app.database, heuristics = listOf(EstCoefConsensusHeuristic()))
 
     private val _state = MutableStateFlow(ExercisesState())
     val state: StateFlow<ExercisesState> = _state.asStateFlow()

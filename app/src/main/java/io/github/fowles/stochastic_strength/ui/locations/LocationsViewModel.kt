@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
+import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +19,7 @@ sealed interface LocationsState {
 
 class LocationsViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
-    private val repository = WorkoutRepository(app.database)
+    private val repository = WorkoutRepository(app.database, heuristics = listOf(EstCoefConsensusHeuristic()))
 
     private val _state = MutableStateFlow<LocationsState>(LocationsState.Loading)
     val state: StateFlow<LocationsState> = _state.asStateFlow()

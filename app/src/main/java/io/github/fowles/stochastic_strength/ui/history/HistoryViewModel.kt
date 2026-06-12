@@ -8,6 +8,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
+import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.flow.first
@@ -34,7 +35,7 @@ data class HistoryState(
 
 class HistoryViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
-    private val repository = WorkoutRepository(app.database)
+    private val repository = WorkoutRepository(app.database, heuristics = listOf(EstCoefConsensusHeuristic()))
 
     private val _state = MutableStateFlow(HistoryState())
     val state: StateFlow<HistoryState> = _state.asStateFlow()
