@@ -100,6 +100,60 @@ class EstCoefConsensusHeuristic(
         }
     }
 
+    data class SessionSignal(
+        val sessionId: Long,
+        val sessionTime: Long,
+        val estCoef: Float,
+        val sessionConfidence: Float,
+        val hasDefinite: Boolean,
+    )
+
+    data class H1Proposal(
+        val proposal: Float,
+        val totalWeight: Float,
+        val proposalConfidence: Float,
+        val hasDefinite: Boolean,
+        val sessionCount: Int,
+    )
+
+    internal fun computeH1(signals: List<SessionSignal>): H1Proposal? {
+        if (signals.isEmpty()) return null
+        val nowT = now()
+        val ln2OverHalf = ln(2.0) / tauHalfMs
+        val weighted = signals.map { s ->
+            val recency = kotlin.math.exp(-(nowT - s.sessionTime).coerceAtLeast(0L) * ln2OverHalf).toFloat()
+            Triple(s, recency, recency * s.sessionConfidence)
+        }
+        val totalWeight = weighted.sumOf { it.third.toDouble() }.toFloat()
+        val hasDefinite = signals.any { it.hasDefinite }
+        if (totalWeight < minEvidenceWeight && !hasDefinite) return null
+
+        val median = weightedMedian(weighted.map { it.first.estCoef to it.third })
+        val recencySum = weighted.sumOf { it.second.toDouble() }.toFloat()
+        val confSum = weighted.sumOf { (it.second * it.first.sessionConfidence).toDouble() }.toFloat()
+        val proposalConfidence = if (recencySum > 0f) confSum / recencySum else 0f
+
+        return H1Proposal(
+            proposal = median,
+            totalWeight = totalWeight,
+            proposalConfidence = proposalConfidence,
+            hasDefinite = hasDefinite,
+            sessionCount = signals.size,
+        )
+    }
+
+    private fun weightedMedian(valueWeights: List<Pair<Float, Float>>): Float {
+        val sorted = valueWeights.sortedBy { it.first }
+        val total = sorted.sumOf { it.second.toDouble() }.toFloat()
+        val half = total / 2f
+        var cum = 0f
+        for ((v, w) in sorted) {
+            cum += w
+            if (cum >= half) return v
+        }
+        return sorted.last().first
+    }
+
     companion object {
         private val LN_110 = ln(1.10f)
     }

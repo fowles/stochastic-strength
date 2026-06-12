@@ -165,4 +165,75 @@ class EstCoefConsensusHeuristicTest {
         val expected = (rirEst * 0.4f + upperBound * 0.5f) / (0.4f + 0.5f)
         assertEquals(expected, agg.est1RM, 0.001f)
     }
+
+    // Synthetic sessions to drive computeH1 directly.
+    private fun sessionSignal(
+        sessionId: Long,
+        sessionTime: Long,
+        estCoef: Float,
+        sessionConfidence: Float,
+        hasDefinite: Boolean = false,
+    ) = EstCoefConsensusHeuristic.SessionSignal(
+        sessionId = sessionId,
+        sessionTime = sessionTime,
+        estCoef = estCoef,
+        sessionConfidence = sessionConfidence,
+        hasDefinite = hasDefinite,
+    )
+
+    @Test
+    fun computeH1_empty_returnsNull() {
+        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        assertNull(h.computeH1(emptyList()))
+    }
+
+    @Test
+    fun computeH1_belowMinEvidenceAndNoDefinite_returnsNull() {
+        // One RIR_2_4-like session, recency ~1.0, confidence 0.7 -> weight 0.7 < min_evidence_weight = 1.5.
+        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        val signals = listOf(sessionSignal(1L, 1000L, 1.25f, 0.7f, hasDefinite = false))
+        assertNull(h.computeH1(signals))
+    }
+
+    @Test
+    fun computeH1_singleDefinitePointBypassesMinEvidence() {
+        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        val signals = listOf(sessionSignal(1L, 1000L, 1.25f, 0.95f, hasDefinite = true))
+        val proposal = h.computeH1(signals)!!
+        assertEquals(1.25f, proposal.proposal, 0.001f)
+        assertEquals(1, proposal.sessionCount)
+        assertTrue(proposal.hasDefinite)
+    }
+
+    @Test
+    fun computeH1_weightedMedianIgnoresSingleOutlier() {
+        // Three near-1.0 + one freak — median picks the cluster.
+        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        val signals = listOf(
+            sessionSignal(1L, 1000L, 1.00f, 0.7f),
+            sessionSignal(2L, 1000L, 1.00f, 0.7f),
+            sessionSignal(3L, 1000L, 1.05f, 0.7f),
+            sessionSignal(4L, 1000L, 1.80f, 0.4f), // freak, low confidence
+        )
+        val proposal = h.computeH1(signals)!!
+        assertTrue("median should sit in the 1.0–1.05 cluster, got ${proposal.proposal}",
+            proposal.proposal in 1.00f..1.05f)
+        assertEquals(4, proposal.sessionCount)
+    }
+
+    @Test
+    fun computeH1_recencyDecayMakesRecentLowConfWeighComparableToOldHighConf() {
+        // tauHalf = 14d = 14*24*60*60*1000 ms. Two sessions:
+        // Recent low-confidence (0.4) at full recency, old high-confidence (0.85) at 28d (recency = 0.25).
+        val tauHalfMs = 14L * 24 * 60 * 60 * 1000
+        val nowT = 100_000_000L
+        val h = EstCoefConsensusHeuristic(now = { nowT })
+        val signals = listOf(
+            sessionSignal(1L, nowT, 1.10f, 0.4f),          // weight ≈ 1.0 × 0.4 = 0.40
+            sessionSignal(2L, nowT - 2 * tauHalfMs, 1.30f, 0.85f), // weight ≈ 0.25 × 0.85 = 0.2125
+        )
+        val proposal = h.computeH1(signals)
+        // total_weight ≈ 0.61 < 1.5 and no definite point → expect null
+        assertNull(proposal)
+    }
 }
