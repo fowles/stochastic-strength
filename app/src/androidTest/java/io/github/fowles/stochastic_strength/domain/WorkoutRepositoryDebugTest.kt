@@ -144,4 +144,31 @@ class WorkoutRepositoryDebugTest {
         // First 80 chars of the flattened metadata
         assertEquals("x".repeat(80), row.heuristicMetadataPreview)
     }
+
+    @Test
+    fun getBaselineEvents_filters_by_muscle_group_and_orders_ascending() = runBlocking {
+        db.baselineChangeLogDao().insert(BaselineChangeLog(
+            sessionId = 1L, muscleGroup = MuscleGroup.CHEST,
+            previousBaseline = 100f, newBaseline = 102f,
+            changeReason = BaselineChangeReason.PROGRESSION,
+            timestamp = 3000L,
+        ))
+        db.baselineChangeLogDao().insert(BaselineChangeLog(
+            sessionId = 2L, muscleGroup = MuscleGroup.BACK,
+            previousBaseline = 80f, newBaseline = 82f,
+            changeReason = BaselineChangeReason.PROGRESSION,
+            timestamp = 4000L,
+        ))
+        db.baselineChangeLogDao().insert(BaselineChangeLog(
+            sessionId = 3L, muscleGroup = MuscleGroup.CHEST,
+            previousBaseline = 102f, newBaseline = 104f,
+            changeReason = BaselineChangeReason.PROGRESSION,
+            timestamp = 5000L,
+        ))
+
+        val events = repository.getBaselineEvents(MuscleGroup.CHEST)
+
+        assertEquals(2, events.size)
+        assertEquals(listOf(3000L, 5000L), events.map { it.timestamp })
+    }
 }

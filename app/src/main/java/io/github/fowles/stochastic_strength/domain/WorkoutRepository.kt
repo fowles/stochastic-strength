@@ -300,4 +300,9 @@ class WorkoutRepository(
             .sortedBy { it.exerciseName }
     }
 
+    suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineChangeLog> =
+        db.baselineChangeLogDao().getAll()
+            .filter { it.muscleGroup == muscleGroup }
+            .sortedBy { it.timestamp }
+
 }
