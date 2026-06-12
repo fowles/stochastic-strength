@@ -90,4 +90,79 @@ class EstCoefConsensusHeuristicTest {
         val expected = DefaultProgressionEngine.toOneRepMax(80f, 1)
         assertEquals(expected, s.est1RM, 0.001f)
     }
+
+    @Test
+    fun aggregateSession_returnsNullForAllNullSets() {
+        val agg = heuristic.aggregateSession(listOf(
+            set(feedback = null),
+            set(feedback = SetFeedback.HURT),
+        ))
+        assertNull(agg)
+    }
+
+    @Test
+    fun aggregateSession_twoRir2_4Sets_returnsWeightedMean() {
+        val sets = listOf(
+            set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
+            set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
+        )
+        val agg = heuristic.aggregateSession(sets)!!
+        val expected = DefaultProgressionEngine.toOneRepMax(80f, 8)
+        assertEquals(expected, agg.est1RM, 0.001f)
+        assertEquals(0.7f, agg.sessionConfidence, 0.001f)
+        assertFalse(agg.hasDefinite)
+    }
+
+    @Test
+    fun aggregateSession_includesReducedWeightSets() {
+        // Original RIR_2_4 at 80 followed by reduced-weight RIR_0_1 at 70 (post-failure backoff).
+        val sets = listOf(
+            set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
+            set(targetWeight = 70f, targetReps = 5, feedback = SetFeedback.RIR_0_1),
+        )
+        val agg = heuristic.aggregateSession(sets)!!
+        val a = DefaultProgressionEngine.toOneRepMax(80f, 8)
+        val b = DefaultProgressionEngine.toOneRepMax(70f, 6)
+        val expectedEst1RM = (a * 0.7f + b * 0.85f) / (0.7f + 0.85f)
+        assertEquals(expectedEst1RM, agg.est1RM, 0.001f)
+    }
+
+    @Test
+    fun aggregateSession_definiteFlagSetWhenAnySetIsTooHardWithActualReps() {
+        val sets = listOf(
+            set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
+            set(targetWeight = 75f, targetReps = 5, actualReps = 3, feedback = SetFeedback.TOO_HARD),
+        )
+        val agg = heuristic.aggregateSession(sets)!!
+        assertTrue(agg.hasDefinite)
+    }
+
+    @Test
+    fun aggregateSession_upperBoundOmittedWhenOtherPointsLower() {
+        // The RIR_5_PLUS estimate at (60, 12) is much less than the upper bound at (100, 4) — upper bound
+        // would dominate if included. Spec says omit it when other-feedback est_1RM is below the bound.
+        val sets = listOf(
+            set(targetWeight = 60f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
+            set(targetWeight = 100f, targetReps = 5, actualReps = null, feedback = SetFeedback.TOO_HARD),
+        )
+        val agg = heuristic.aggregateSession(sets)!!
+        val rirEst = DefaultProgressionEngine.toOneRepMax(60f, 12)
+        assertEquals(rirEst, agg.est1RM, 0.001f)
+    }
+
+    @Test
+    fun aggregateSession_upperBoundIncludedWhenOtherPointsAgreeAbove() {
+        // Other-feedback est_1RM exceeds upper bound — bound is in agreement (below or equal) → included.
+        val sets = listOf(
+            set(targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
+            set(targetWeight = 100f, targetReps = 5, actualReps = null, feedback = SetFeedback.TOO_HARD),
+        )
+        val agg = heuristic.aggregateSession(sets)!!
+        val rirEst = DefaultProgressionEngine.toOneRepMax(100f, 12)
+        val upperBound = DefaultProgressionEngine.toOneRepMax(100f, 4)
+        // When upper bound is *below* the other-feedback estimate, it's a ceiling that pulls the agg down.
+        // Confidence-weighted mean of (rirEst @ 0.4, upperBound @ 0.5).
+        val expected = (rirEst * 0.4f + upperBound * 0.5f) / (0.4f + 0.5f)
+        assertEquals(expected, agg.est1RM, 0.001f)
+    }
 }

@@ -30,6 +30,39 @@ class EstCoefConsensusHeuristic(
         return emptyList()
     }
 
+    data class SessionAggregate(
+        val est1RM: Float,
+        val sessionConfidence: Float,
+        val hasDefinite: Boolean,
+    )
+
+    internal fun aggregateSession(sets: List<WorkoutSet>): SessionAggregate? {
+        val signals = sets.mapNotNull { setSignal(it) }
+        if (signals.isEmpty()) return null
+
+        val nonUpperBound = signals.filter { !it.isUpperBound }
+        val included = if (nonUpperBound.isEmpty()) {
+            signals
+        } else {
+            val nonBoundMean = nonUpperBound.sumOf { (it.est1RM * it.confidence).toDouble() }
+                .toFloat() / nonUpperBound.sumOf { it.confidence.toDouble() }.toFloat()
+            signals.filter { sig ->
+                if (!sig.isUpperBound) true
+                else nonBoundMean > sig.est1RM
+            }
+        }
+        if (included.isEmpty()) return null
+
+        val totalConf = included.sumOf { it.confidence.toDouble() }.toFloat()
+        val weighted1RM = included.sumOf { (it.est1RM * it.confidence).toDouble() }.toFloat() / totalConf
+        val avgConf = totalConf / included.size
+        return SessionAggregate(
+            est1RM = weighted1RM,
+            sessionConfidence = avgConf,
+            hasDefinite = signals.any { it.isDefinite },
+        )
+    }
+
     internal fun setSignal(set: WorkoutSet): SetSignal? {
         val feedback = set.feedback ?: return null
         return when (feedback) {
