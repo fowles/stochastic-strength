@@ -236,4 +236,93 @@ class EstCoefConsensusHeuristicTest {
         // total_weight ≈ 0.61 < 1.5 and no definite point → expect null
         assertNull(proposal)
     }
+
+    private fun proposal(
+        proposal: Float,
+        sessionCount: Int = 3,
+        confidence: Float = 0.8f,
+    ) = EstCoefConsensusHeuristic.H1Proposal(
+        proposal = proposal,
+        totalWeight = 3f,
+        proposalConfidence = confidence,
+        hasDefinite = false,
+        sessionCount = sessionCount,
+    )
+
+    @Test
+    fun applyH2_singleExercise_passesThrough() {
+        val h = EstCoefConsensusHeuristic()
+        val result = h.applyH2(
+            mapOf(1L to proposal(1.10f, confidence = 0.7f)),
+            currentCoefficients = mapOf(1L to 1.00f),
+        )
+        val emit = result.getValue(1L)
+        assertEquals(1.10f, emit.proposal, 0.001f)
+        assertEquals(0.7f, emit.confidence, 0.001f)
+    }
+
+    @Test
+    fun applyH2_uniformDriftAboveThreshold_suppressesAll() {
+        val h = EstCoefConsensusHeuristic()
+        val result = h.applyH2(
+            mapOf(
+                1L to proposal(1.07f),
+                2L to proposal(1.08f),
+                3L to proposal(1.06f),
+            ),
+            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 1.00f),
+        )
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun applyH2_uniformDriftBelowThreshold_passesThroughAll() {
+        val h = EstCoefConsensusHeuristic()
+        val result = h.applyH2(
+            mapOf(
+                1L to proposal(1.02f),
+                2L to proposal(1.01f),
+                3L to proposal(1.03f),
+            ),
+            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 1.00f),
+        )
+        assertEquals(3, result.size)
+        result.values.forEach { emit ->
+            assertEquals(0.8f, emit.confidence, 0.001f) // H1's native confidence
+        }
+    }
+
+    @Test
+    fun applyH2_outlierWithMultipleSessions_emitsBoostedConfidence() {
+        val h = EstCoefConsensusHeuristic()
+        val result = h.applyH2(
+            mapOf(
+                1L to proposal(1.01f), // sibling, flat
+                2L to proposal(0.99f), // sibling, flat
+                3L to proposal(0.96f, sessionCount = 3), // outlier
+            ),
+            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 0.75f),
+        )
+        assertEquals(1, result.size)
+        val outlier = result.getValue(3L)
+        assertEquals(0.96f, outlier.proposal, 0.001f)
+        assertEquals(1.0f, outlier.confidence, 0.001f)
+        assertTrue(outlier.metadata?.startsWith("consensus_outlier") == true)
+    }
+
+    @Test
+    fun applyH2_outlierWithSingleSession_fallsThroughToMixedPath() {
+        val h = EstCoefConsensusHeuristic()
+        val result = h.applyH2(
+            mapOf(
+                1L to proposal(1.01f, sessionCount = 3),
+                2L to proposal(0.99f, sessionCount = 3),
+                3L to proposal(0.96f, sessionCount = 1, confidence = 0.95f), // freak single
+            ),
+            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 0.75f),
+        )
+        assertEquals(3, result.size)
+        // Outlier emits at H1's native confidence, not 1.0
+        assertEquals(0.95f, result.getValue(3L).confidence, 0.001f)
+    }
 }

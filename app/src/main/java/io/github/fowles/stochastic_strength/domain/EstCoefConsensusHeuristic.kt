@@ -142,6 +142,66 @@ class EstCoefConsensusHeuristic(
         )
     }
 
+    data class EmitProposal(
+        val proposal: Float,
+        val confidence: Float,
+        val metadata: String?,
+    )
+
+    internal fun applyH2(
+        proposals: Map<Long, H1Proposal>,
+        currentCoefficients: Map<Long, Float>,
+        exerciseMuscle: Map<Long, io.github.fowles.stochastic_strength.data.model.MuscleGroup> = emptyMap(),
+    ): Map<Long, EmitProposal> {
+        val out = mutableMapOf<Long, EmitProposal>()
+        // If exerciseMuscle is empty (test convenience), treat all as one synthetic group.
+        val groups = if (exerciseMuscle.isEmpty()) {
+            mapOf("ALL" to proposals.keys.toList())
+        } else {
+            proposals.keys.groupBy { exerciseMuscle[it]?.name ?: "UNKNOWN" }
+        }
+
+        for ((muscleName, exerciseIds) in groups) {
+            val entries = exerciseIds.map { id ->
+                val p = proposals.getValue(id)
+                val cur = currentCoefficients[id] ?: 0f
+                if (cur <= 0f) return@map null
+                Triple(id, p, ln((p.proposal / cur).toDouble()).toFloat())
+            }.filterNotNull()
+
+            val n = entries.size
+            when {
+                n == 0 -> { /* nothing */ }
+                n == 1 -> {
+                    val (id, p, _) = entries.single()
+                    out[id] = EmitProposal(p.proposal, p.proposalConfidence, null)
+                }
+                else -> {
+                    val mean = entries.sumOf { it.third.toDouble() }.toFloat() / n
+                    val sameSign = entries.all { it.third >= 0f } || entries.all { it.third <= 0f }
+                    if (sameSign && kotlin.math.abs(mean) > tauConsensusThreshold) {
+                        // suppress all
+                    } else {
+                        val outlierCandidates = entries.filter { kotlin.math.abs(it.third) > tauOutlierThreshold }
+                        val siblings = entries - outlierCandidates.toSet()
+                        val siblingsCalm = siblings.all { kotlin.math.abs(it.third) < tauConsensusThreshold }
+                        if (n >= 3 && outlierCandidates.size == 1 && siblingsCalm
+                            && outlierCandidates.single().second.sessionCount >= minOutlierSessions) {
+                            val (id, p, _) = outlierCandidates.single()
+                            out[id] = EmitProposal(p.proposal, 1.0f, "consensus_outlier:m=$muscleName,sibling_count=${n - 1}")
+                        } else {
+                            for ((id, p, _) in entries) {
+                                val meta = "consensus_mixed:m=$muscleName,n=$n"
+                                out[id] = EmitProposal(p.proposal, p.proposalConfidence, meta)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
     private fun weightedMedian(valueWeights: List<Pair<Float, Float>>): Float {
         val sorted = valueWeights.sortedBy { it.first }
         val total = sorted.sumOf { it.second.toDouble() }.toFloat()
