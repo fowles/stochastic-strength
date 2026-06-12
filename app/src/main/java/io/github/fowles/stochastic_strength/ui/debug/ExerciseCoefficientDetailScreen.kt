@@ -130,7 +130,7 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     }
                 }
             } else {
-                items(state.events, key = { it.computedAt }) { event ->
+                items(state.events, key = { "${it.computedAt}_${it.heuristicName}" }) { event ->
                     CoefficientEventRow(event)
                     HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                 }

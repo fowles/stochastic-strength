@@ -30,8 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
-import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.ui.components.StrengthGrid
 import java.time.Instant
 import java.time.ZoneId
