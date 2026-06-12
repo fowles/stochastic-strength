@@ -171,4 +171,32 @@ class WorkoutRepositoryDebugTest {
         assertEquals(2, events.size)
         assertEquals(listOf(3000L, 5000L), events.map { it.timestamp })
     }
+
+    @Test
+    fun getCoefficientEvents_returns_events_for_exercise_ascending() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Squat",                primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
+        ))
+        val exercises = db.exerciseDao().getAll()
+        val bench = exercises.first { it.name == "Barbell Bench Press" }
+        val squat = exercises.first { it.name == "Squat" }
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = bench.id, previousCoefficient = null, coefficient = 0.95f,
+            heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = bench.id, previousCoefficient = 0.95f, coefficient = 0.92f,
+            heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = squat.id, previousCoefficient = null, coefficient = 0.9f,
+            heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
+        ))
+
+        val events = repository.getCoefficientEvents(bench.id)
+
+        assertEquals(2, events.size)
+        assertEquals(listOf(1000L, 3000L), events.map { it.computedAt })
+    }
 }

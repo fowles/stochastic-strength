@@ -305,4 +305,7 @@ class WorkoutRepository(
             .filter { it.muscleGroup == muscleGroup }
             .sortedBy { it.timestamp }
 
+    suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientChangeLog> =
+        db.coefficientChangeLogDao().getForExercise(exerciseId)
+
 }
