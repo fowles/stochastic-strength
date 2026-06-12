@@ -308,4 +308,7 @@ class WorkoutRepository(
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientChangeLog> =
         db.coefficientChangeLogDao().getForExercise(exerciseId)
 
+    fun getSeedCoefficient(exercise: Exercise): Float? =
+        coefficientSource.get(exercise)
+
 }

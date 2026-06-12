@@ -199,4 +199,17 @@ class WorkoutRepositoryDebugTest {
         assertEquals(2, events.size)
         assertEquals(listOf(1000L, 3000L), events.map { it.computedAt })
     }
+
+    @Test
+    fun getSeedCoefficient_returns_default_from_coefficient_source() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val bench = db.exerciseDao().getAll().single()
+
+        val seed = repository.getSeedCoefficient(bench)
+
+        // ExerciseCoefficients seeds Barbell Bench Press at 1.0
+        assertEquals(1.0f, seed!!, 0.001f)
+    }
 }
