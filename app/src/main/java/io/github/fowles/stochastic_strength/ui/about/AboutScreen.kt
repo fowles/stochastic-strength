@@ -44,6 +44,29 @@ fun AboutScreen(onDebug: () -> Unit, onBack: () -> Unit) {
                 },
             )
         },
+        bottomBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("View on GitHub")
+                }
+                OutlinedButton(
+                    onClick = onDebug,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Debug and Advanced Stats")
+                }
+            }
+        },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -80,25 +103,6 @@ fun AboutScreen(onDebug: () -> Unit, onBack: () -> Unit) {
                     "individual coefficients from your performance.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("View on GitHub")
-            }
-
-            Spacer(Modifier.height(48.dp))
-            OutlinedButton(
-                onClick = onDebug,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Debug and Advanced Stats")
-            }
-            Spacer(Modifier.height(24.dp))
         }
     }
 }
