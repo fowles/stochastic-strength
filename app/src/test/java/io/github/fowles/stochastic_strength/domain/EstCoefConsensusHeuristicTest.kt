@@ -325,4 +325,43 @@ class EstCoefConsensusHeuristicTest {
         // Outlier emits at H1's native confidence, not 1.0
         assertEquals(0.95f, result.getValue(3L).confidence, 0.001f)
     }
+
+    @Test
+    fun damp_proposalEqualsCurrent_emitsNothing() {
+        val h = EstCoefConsensusHeuristic()
+        val result = h.damp(
+            exerciseId = 1L,
+            emit = EstCoefConsensusHeuristic.EmitProposal(1.00f, 0.8f, null),
+            currentCoef = 1.00f,
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun damp_smallChangeProportionalToConfidenceAndDistance() {
+        val h = EstCoefConsensusHeuristic()
+        // log(1.10/1.00) = 0.0953. α=0.2 × conf 0.5 × 0.0953 = 0.00953. Under cap (0.0488).
+        val result = h.damp(
+            exerciseId = 1L,
+            emit = EstCoefConsensusHeuristic.EmitProposal(1.10f, 0.5f, "m"),
+            currentCoef = 1.00f,
+        )!!
+        val expected = 1.00f * kotlin.math.exp(0.2f * 0.5f * kotlin.math.ln(1.10f))
+        assertEquals(expected, result.coefficient, 0.001f)
+        assertEquals(1L, result.exerciseId)
+        assertEquals("m", result.metadata)
+    }
+
+    @Test
+    fun damp_largeChangeIsClampedToMaxLogStep() {
+        val h = EstCoefConsensusHeuristic()
+        // Confidence 1.0 + huge gap → log step clamped to ln(1.05).
+        val result = h.damp(
+            exerciseId = 1L,
+            emit = EstCoefConsensusHeuristic.EmitProposal(2.00f, 1.0f, null),
+            currentCoef = 1.00f,
+        )!!
+        val expected = 1.00f * 1.05f
+        assertEquals(expected, result.coefficient, 0.001f)
+    }
 }

@@ -202,6 +202,15 @@ class EstCoefConsensusHeuristic(
         return out
     }
 
+    internal fun damp(exerciseId: Long, emit: EmitProposal, currentCoef: Float): CoefficientResult? {
+        if (currentCoef <= 0f) return null
+        val raw = alpha * emit.confidence * ln((emit.proposal / currentCoef).toDouble()).toFloat()
+        val step = raw.coerceIn(-maxLogStep, maxLogStep)
+        val newCoef = currentCoef * kotlin.math.exp(step.toDouble()).toFloat()
+        if (kotlin.math.abs(newCoef - currentCoef) < minChangeThreshold) return null
+        return CoefficientResult(exerciseId, newCoef, emit.metadata)
+    }
+
     private fun weightedMedian(valueWeights: List<Pair<Float, Float>>): Float {
         val sorted = valueWeights.sortedBy { it.first }
         val total = sorted.sumOf { it.second.toDouble() }.toFloat()
