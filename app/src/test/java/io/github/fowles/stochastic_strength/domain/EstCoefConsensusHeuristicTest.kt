@@ -364,4 +364,63 @@ class EstCoefConsensusHeuristicTest {
         val expected = 1.00f * 1.05f
         assertEquals(expected, result.coefficient, 0.001f)
     }
+
+    @Test
+    fun compute_singleExerciseConsistentRir2_4_nudgesCoefficientUp() {
+        // One exercise (CHEST), four recent sessions all RIR_2_4 at 80kg×5 against baseline 80kg.
+        // current_coef = 1.00, est_coef per session ≈ toOneRepMax(80,8) / 80 ≈ 1.30.
+        val nowT = 100_000_000_000L
+        val dayMs = 24L * 60 * 60 * 1000
+        val sets = listOf(2L, 7L, 13L, 20L).flatMapIndexed { idx, dayOffset ->
+            val sessionId = (idx + 1).toLong()
+            listOf(
+                WorkoutSet(
+                    id = sessionId * 10,
+                    sessionId = sessionId,
+                    exerciseId = 1L,
+                    setNumber = 1,
+                    targetWeight = 80f,
+                    targetReps = 5,
+                    feedback = SetFeedback.RIR_2_4,
+                )
+            )
+        }
+        val input = CoefficientComputationInput(
+            sets = sets,
+            sessionTimes = mapOf(1L to nowT - 2 * dayMs, 2L to nowT - 7 * dayMs,
+                                 3L to nowT - 13 * dayMs, 4L to nowT - 20 * dayMs),
+            exerciseMuscle = mapOf(1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST),
+            baselines = mapOf(
+                (1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
+                (2L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
+                (3L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
+                (4L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
+            ),
+            currentCoefficients = mapOf(1L to 1.00f),
+        )
+        val h = EstCoefConsensusHeuristic(now = { nowT })
+        val results = h.compute(input)
+        assertEquals(1, results.size)
+        val res = results.single()
+        assertEquals(1L, res.exerciseId)
+        assertTrue("expected nudge up, got ${res.coefficient}", res.coefficient in 1.02f..1.06f)
+    }
+
+    @Test
+    fun compute_skipsBodyweightExercisesWithZeroCoefficient() {
+        val nowT = 100_000_000_000L
+        val sets = listOf(WorkoutSet(
+            sessionId = 1L, exerciseId = 99L, setNumber = 1,
+            targetWeight = 0f, targetReps = 10, feedback = SetFeedback.RIR_2_4,
+        ))
+        val input = CoefficientComputationInput(
+            sets = sets,
+            sessionTimes = mapOf(1L to nowT),
+            exerciseMuscle = mapOf(99L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST),
+            baselines = mapOf((1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f),
+            currentCoefficients = mapOf(99L to 0f),
+        )
+        val h = EstCoefConsensusHeuristic(now = { nowT })
+        assertTrue(h.compute(input).isEmpty())
+    }
 }

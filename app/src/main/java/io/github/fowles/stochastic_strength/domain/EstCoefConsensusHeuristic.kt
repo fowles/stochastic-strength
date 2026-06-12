@@ -26,8 +26,39 @@ class EstCoefConsensusHeuristic(
     )
 
     override fun compute(input: CoefficientComputationInput): List<CoefficientResult> {
-        // filled in by later tasks
-        return emptyList()
+        val buckets = input.sets.groupBy { it.sessionId to it.exerciseId }
+        val perExerciseSignals = mutableMapOf<Long, MutableList<SessionSignal>>()
+
+        for ((key, bucketSets) in buckets) {
+            val (sessionId, exerciseId) = key
+            val current = input.currentCoefficients[exerciseId] ?: 0f
+            if (current <= 0f) continue
+            val muscle = input.exerciseMuscle[exerciseId] ?: continue
+            val baseline = input.baselines[sessionId to muscle] ?: continue
+            if (baseline <= 0f) continue
+            val sessionTime = input.sessionTimes[sessionId] ?: continue
+            val agg = aggregateSession(bucketSets) ?: continue
+            perExerciseSignals.getOrPut(exerciseId) { mutableListOf() }
+                .add(SessionSignal(
+                    sessionId = sessionId,
+                    sessionTime = sessionTime,
+                    estCoef = agg.est1RM / baseline,
+                    sessionConfidence = agg.sessionConfidence,
+                    hasDefinite = agg.hasDefinite,
+                ))
+        }
+
+        val h1Proposals = perExerciseSignals.mapNotNull { (id, signals) ->
+            computeH1(signals)?.let { id to it }
+        }.toMap()
+        if (h1Proposals.isEmpty()) return emptyList()
+
+        val survivors = applyH2(h1Proposals, input.currentCoefficients, input.exerciseMuscle)
+
+        return survivors.mapNotNull { (id, emit) ->
+            val cur = input.currentCoefficients[id] ?: return@mapNotNull null
+            damp(id, emit, cur)
+        }
     }
 
     data class SessionAggregate(
