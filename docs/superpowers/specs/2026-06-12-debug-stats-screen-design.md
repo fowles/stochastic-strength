@@ -110,7 +110,6 @@ data class DebugStatsState(
     val loading: Boolean = true,
     val weightUnit: WeightUnit = WeightUnit.KG,
     val muscleStrengths: List<MuscleGroupStrength> = emptyList(),
-    val referenceExerciseIds: Map<MuscleGroup, Long> = emptyMap(),
     val recentCoefficientChanges: List<CoefficientRow> = emptyList(),
     val allCoefficients: List<CoefficientRow> = emptyList(),
 )
@@ -125,11 +124,6 @@ data class CoefficientRow(
     val heuristicMetadataPreview: String?,  // populated only for "recently changed" rows; first 80 chars, newlines flattened
 )
 ```
-
-`referenceExerciseIds` is the same map `HistoryScreen` uses today to wire
-muscle-card taps to the exercise detail screen; in this screen the grid
-instead navigates to `debug/muscle/{muscleGroup}`, but the extracted
-`StrengthGrid` keeps the parameter for symmetry.
 
 ### Data sources
 
