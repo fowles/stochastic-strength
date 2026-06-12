@@ -256,6 +256,29 @@ class WorkoutRepository(
     suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
         db.muscleGroupStrengthDao().getAll()
 
+    suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
+        val rows = db.coefficientChangeLogDao().getMostRecent(limit)
+        if (rows.isEmpty()) return emptyList()
+        val exerciseIds = rows.map { it.exerciseId }.distinct()
+        val exercisesById = exerciseIds
+            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
+            .toMap()
+        return rows.mapNotNull { log ->
+            val exercise = exercisesById[log.exerciseId] ?: return@mapNotNull null
+            CoefficientRow(
+                exerciseId = exercise.id,
+                exerciseName = exercise.name,
+                currentCoefficient = log.coefficient,
+                previousCoefficient = log.previousCoefficient,
+                computedAt = log.computedAt,
+                heuristicName = log.heuristicName,
+                heuristicMetadataPreview = log.heuristicMetadata
+                    ?.replace('\n', ' ')
+                    ?.take(80),
+            )
+        }
+    }
+
     suspend fun getAllCoefficientRows(): List<CoefficientRow> {
         val allExercises = db.exerciseDao().getAll()
         val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()

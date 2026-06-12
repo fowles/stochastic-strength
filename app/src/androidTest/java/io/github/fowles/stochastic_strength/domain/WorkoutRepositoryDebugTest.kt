@@ -95,4 +95,53 @@ class WorkoutRepositoryDebugTest {
 
         assertEquals(listOf("Barbell Bench Press", "Pull-Up"), rows.map { it.exerciseName })
     }
+
+    @Test
+    fun getRecentCoefficientChanges_returns_newest_first_limited() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Squat",                primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
+            Exercise(name = "Deadlift",             primaryMuscle = MuscleGroup.HAMSTRINGS, equipment = Equipment.BARBELL),
+        ))
+        val exercises = db.exerciseDao().getAll()
+        val bench = exercises.first { it.name == "Barbell Bench Press" }
+        val squat = exercises.first { it.name == "Squat" }
+        val dead = exercises.first { it.name == "Deadlift" }
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.95f,
+            heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = squat.id, previousCoefficient = 1.0f, coefficient = 0.90f,
+            heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = dead.id, previousCoefficient = 1.0f, coefficient = 0.92f,
+            heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
+        ))
+
+        val recent = repository.getRecentCoefficientChanges(limit = 2)
+
+        assertEquals(2, recent.size)
+        assertEquals(listOf("Squat", "Deadlift"), recent.map { it.exerciseName })
+        assertEquals(1.0f, recent[0].previousCoefficient!!, 0.001f)
+    }
+
+    @Test
+    fun getRecentCoefficientChanges_populates_metadata_preview_with_truncation() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val bench = db.exerciseDao().getAll().single()
+        val longMeta = "x".repeat(200) + "\n" + "y".repeat(50)
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.9f,
+            heuristicName = "h", heuristicMetadata = longMeta, computedAt = 1000L,
+        ))
+
+        val row = repository.getRecentCoefficientChanges(limit = 2).single()
+
+        // First 80 chars of the flattened metadata
+        assertEquals("x".repeat(80), row.heuristicMetadataPreview)
+    }
 }
