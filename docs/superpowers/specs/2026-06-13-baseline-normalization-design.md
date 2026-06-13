@@ -195,7 +195,7 @@ private suspend fun buildNormalizationInput(): BaselineNormalizationInput {
 object BaselineNormalizationThreshold {
     fun forUnit(unit: WeightUnit): Float = when (unit) {
         WeightUnit.KG -> 2f
-        WeightUnit.LB -> 5f
+        WeightUnit.LBS -> 5f
     }
 }
 ```

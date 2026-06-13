@@ -94,7 +94,7 @@ class BaselineNormalizationThresholdTest {
 
     @Test
     fun forUnit_lb_returns5() {
-        assertEquals(5f, BaselineNormalizationThreshold.forUnit(WeightUnit.LB), 0f)
+        assertEquals(5f, BaselineNormalizationThreshold.forUnit(WeightUnit.LBS), 0f)
     }
 }
 ```
@@ -116,7 +116,7 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 object BaselineNormalizationThreshold {
     fun forUnit(unit: WeightUnit): Float = when (unit) {
         WeightUnit.KG -> 2f
-        WeightUnit.LB -> 5f
+        WeightUnit.LBS -> 5f
     }
 }
 ```
