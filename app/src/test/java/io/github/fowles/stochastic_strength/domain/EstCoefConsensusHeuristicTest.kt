@@ -353,6 +353,22 @@ class EstCoefConsensusHeuristicTest {
     }
 
     @Test
+    fun damp_lowCoefficientWithMeaningfulRelativeMove_isEmitted() {
+        // At a low coefficient (0.15), a 10% gap at full confidence produces an
+        // absolute change of ~0.003 — below an absolute 0.005 floor, but well above
+        // a sensible relative floor (0.5% of 0.15 = 0.00075). We expect the change
+        // to be emitted so low-coefficient exercises don't get anchored.
+        val h = EstCoefConsensusHeuristic()
+        val result = h.damp(
+            exerciseId = 1L,
+            emit = EstCoefConsensusHeuristic.EmitProposal(0.165f, 1.0f, null),
+            currentCoef = 0.15f,
+        )
+        val expected = 0.15f * kotlin.math.exp(0.2f * 1.0f * kotlin.math.ln(0.165f / 0.15f))
+        assertEquals(expected, result!!.coefficient, 0.0001f)
+    }
+
+    @Test
     fun damp_largeChangeIsClampedToMaxLogStep() {
         val h = EstCoefConsensusHeuristic()
         // Confidence 1.0 + huge gap → log step clamped to ln(1.05).
