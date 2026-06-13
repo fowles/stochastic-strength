@@ -24,6 +24,7 @@ class WorkoutRepository(
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val heuristics: List<CoefficientHeuristic> = listOf(),
+    private val normalizers: List<BaselineNormalizer> = listOf(),
 ) {
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -165,6 +166,21 @@ class WorkoutRepository(
             baselines = baselines,
             currentCoefficients = currentCoefficients,
         )
+    }
+
+    internal suspend fun buildNormalizationInput(): BaselineNormalizationInput {
+        val allExercises = db.exerciseDao().getAll()
+        val sets = db.workoutSetDao().getAll()
+        val baselines = db.muscleGroupStrengthDao().getAll()
+            .associate { it.muscleGroup to it.baselineWeight }
+        val latestCoefs = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        val snapshots = allExercises.map { ex ->
+            val seed = coefficientSource.get(ex) ?: 0f
+            val current = latestCoefs[ex.id] ?: seed
+            ExerciseCoefficientSnapshot(ex, seed, current)
+        }
+        return BaselineNormalizationInput(sets = sets, exercises = snapshots, baselines = baselines)
     }
 
     suspend fun recomputeCoefficients(asOf: Long? = null) {
