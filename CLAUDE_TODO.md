@@ -2,35 +2,27 @@
 
 Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 
+## Larger refactors (deferred from 2026-06-13 cleanup pass)
+
+- **Split `WorkoutScreen.kt` (1035 lines) by state.** 14 inline composables; each
+  `*Content` is bound to a single `WorkoutState` variant with no cross-talk.
+  Suggested split: `PlanPreviewContent.kt` (PlanPreview + ExercisePreviewRow +
+  ExerciseActionRow), `ActiveSetContent.kt` (ActiveSet + TimedSet +
+  ExerciseSetLayout + FeedbackButtons), `WarmupSetContent.kt`,
+  `RestingContent.kt` (Resting + WeightReductionCard + NextExerciseCard +
+  RemainingExerciseList + RemainingExerciseRow), `DoneContent.kt`. Mechanical
+  move + import fixes. Biggest long-term velocity win in the codebase.
+
+- **Decompose `WorkoutRepository.applySessionProgression` (~55 lines).** Mixes
+  four concerns: hurt-flag update, session rep target lookup, per-muscle
+  baseline progression (the meat), and change-log writes. Extract helpers
+  `updateHurtFlags(...)`, `determineSessionReps(...)`,
+  `progressMuscleBaselines(...)`. The previous memory entry said this was
+  "skipped or superseded" by the WorkoutSessionController extraction; that's
+  not true — the function still exists in its long form and is the single
+  hardest thing in WorkoutRepository to follow.
+
 ## Debug & Advanced Stats follow-ups (from 2026-06-12 final review)
-
-- **GitHub button missing launch icon.** `ui/about/AboutScreen.kt` "View on
-  GitHub" `OutlinedButton` is text-only; the spec calls for a launch icon
-  (`Icons.Default.OpenInNew`) as a clarity cue that the button leaves the app.
-
-- **Coefficient metadata `Surface` missing shape + border.** Spec asked for
-  "small bordered `Surface` (radius 4dp, surface variant background)"; the
-  implementation uses the default rectangular shape with no border. See
-  `ui/debug/ExerciseCoefficientDetailScreen.kt`'s `CoefficientEventRow`.
-
-- **`SectionHeader` is duplicated four times.** Identical `@Composable private
-  fun SectionHeader(title: String)` in `HistoryScreen.kt`,
-  `DebugStatsScreen.kt`, `MuscleBaselineDetailScreen.kt`,
-  `ExerciseCoefficientDetailScreen.kt`. Extract into `ui/components/`.
-
-- **`DATETIME_FORMATTER` duplicated three times.** Same `DateTimeFormatter`
-  pattern in `HistoryScreen.kt`, `MuscleBaselineDetailScreen.kt`,
-  `ExerciseCoefficientDetailScreen.kt`. Extract alongside `SectionHeader`.
-
-- **`getBaselineEvents` filters in Kotlin.** Spec endorsed this for the current
-  data size, but a DAO-side `WHERE muscleGroup = :muscleGroup` query is the
-  long-term fix once a user accumulates thousands of sessions.
-
-- **`getLatestPerExercise` uses `MAX(id)` as proxy for "latest".** Works today
-  because inserts are sequential, but if the app ever back-fills or edits log
-  entries the semantics diverge from `computedAt`. Consider changing to
-  `WHERE computedAt = (SELECT MAX(computedAt) ...)` next time the DAO is
-  touched.
 
 - **No ViewModel tests for the new debug screens.** Two behaviours worth
   covering if revisited: (a) the synthetic anchor logic in
