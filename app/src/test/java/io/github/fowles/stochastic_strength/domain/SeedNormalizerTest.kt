@@ -168,4 +168,38 @@ class SeedNormalizerTest {
         assertTrue(byMuscle.getValue(MuscleGroup.CHEST).scale < 1f)
         assertTrue(byMuscle.getValue(MuscleGroup.BACK).scale > 1f)
     }
+
+    @Test
+    fun compute_metadataContainsNAndMAndRmseBeforeAndAfter() {
+        val out = normalizer.compute(BaselineNormalizationInput(
+            sets = listOf(set(1L), set(2L)),
+            exercises = listOf(
+                snapshot(1L, MuscleGroup.CHEST, seed = 1.00f, current = 1.10f),
+                snapshot(2L, MuscleGroup.CHEST, seed = 0.85f, current = 0.95f),
+            ),
+            baselines = mapOf(MuscleGroup.CHEST to 100f),
+        ))
+        val meta = out.single().metadata
+        assertTrue("metadata should be non-null", meta != null)
+        assertTrue("metadata should contain n=2: $meta", meta!!.contains("n=2"))
+        assertTrue("metadata should contain m=: $meta", meta.contains("m="))
+        assertTrue("metadata should contain rmse_before=: $meta", meta.contains("rmse_before="))
+        assertTrue("metadata should contain rmse_after=: $meta", meta.contains("rmse_after="))
+    }
+
+    @Test
+    fun compute_metadataRmseAfterIsLowerThanRmseBefore_whenDriftExists() {
+        val out = normalizer.compute(BaselineNormalizationInput(
+            sets = listOf(set(1L), set(2L)),
+            exercises = listOf(
+                snapshot(1L, MuscleGroup.CHEST, seed = 1.00f, current = 1.10f),
+                snapshot(2L, MuscleGroup.CHEST, seed = 0.85f, current = 0.95f),
+            ),
+            baselines = mapOf(MuscleGroup.CHEST to 100f),
+        ))
+        val meta = out.single().metadata!!
+        val before = Regex("rmse_before=([0-9.]+)").find(meta)!!.groupValues[1].toFloat()
+        val after = Regex("rmse_after=([0-9.]+)").find(meta)!!.groupValues[1].toFloat()
+        assertTrue("after $after should be < before $before", after < before)
+    }
 }

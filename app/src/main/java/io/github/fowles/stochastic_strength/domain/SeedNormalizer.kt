@@ -15,11 +15,27 @@ class SeedNormalizer : BaselineNormalizer {
             val den = qualifying.sumOf { (it.currentCoefficient * it.currentCoefficient).toDouble() }
             if (den <= 0.0) return@mapNotNull null
             val m = (num / den).toFloat()
+            val rmseBefore = rmse(qualifying) { c, s -> c - s }
+            val rmseAfter = rmse(qualifying) { c, s -> m * c - s }
             BaselineNormalizationProposal(
                 muscleGroup = muscle,
                 scale = m,
-                metadata = null,
+                metadata = "n=${qualifying.size}, m=${formatFloat(m)}, " +
+                           "rmse_before=${formatFloat(rmseBefore)}, rmse_after=${formatFloat(rmseAfter)}",
             )
         }
     }
+
+    private inline fun rmse(
+        qs: List<ExerciseCoefficientSnapshot>,
+        residual: (Float, Float) -> Float,
+    ): Float {
+        val sumSq = qs.sumOf {
+            val r = residual(it.currentCoefficient, it.seedCoefficient)
+            (r * r).toDouble()
+        }
+        return kotlin.math.sqrt(sumSq / qs.size).toFloat()
+    }
+
+    private fun formatFloat(v: Float): String = "%.4f".format(v)
 }
