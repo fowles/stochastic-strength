@@ -235,6 +235,8 @@ class WorkoutRepository(
         val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
         val threshold = BaselineNormalizationThreshold.forUnit(weightUnit)
 
+        // Assumes at most one proposal per muscle group across all registered normalizers.
+        // Adding a second normalizer requires per-group dedup/merge or a disjointness contract.
         val proposals = normalizers.flatMap { it.compute(input) }
         if (proposals.isEmpty()) return
 
