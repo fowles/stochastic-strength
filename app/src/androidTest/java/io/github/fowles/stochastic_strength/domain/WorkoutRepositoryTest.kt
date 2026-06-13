@@ -854,12 +854,6 @@ class WorkoutRepositoryTest {
                 targetWeight = 105f, targetReps = 5, actualReps = 5,
                 feedback = SetFeedback.RIR_2_4, completedAt = startTime + 200L,
             ))
-            // Heuristic looks up baselines from PROGRESSION rows keyed by (sessionId, muscleGroup).
-            db.baselineChangeLogDao().insert(BaselineChangeLog(
-                sessionId = sessionId, muscleGroup = MuscleGroup.CHEST,
-                previousBaseline = 100f, newBaseline = 102f,
-                changeReason = BaselineChangeReason.PROGRESSION, timestamp = startTime + 200L,
-            ))
             repo.applySessionProgression(sessionId)
             startTime += day
         }
