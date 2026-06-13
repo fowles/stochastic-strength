@@ -51,6 +51,7 @@ class StochasticStrengthApp : Application() {
             val profile = database.userProfileDao().getProfile() ?: return@launch
             if (profile.actualRepsBackfilled) return@launch
             ActualRepsBackfill(database, profile.weightUnit).run()
+            workoutRepository.recomputeCoefficients()
             database.userProfileDao().insert(profile.copy(actualRepsBackfilled = true))
         }
     }
