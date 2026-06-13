@@ -839,7 +839,6 @@ class WorkoutRepositoryTest {
         // targetWeight choices are deliberate: bench at 80 kg gives estCoef < currentCoef (1.20), while
         // incline at 105 kg gives estCoef > currentCoef (1.05). Opposite signals prevent H2 consensus
         // suppression (which fires when both exercises drift the same direction past ln(1.05)).
-        var latestSessionId = 0L
         for (daysAgo in listOf(10L, 5L, 2L)) {
             val start = now - daysAgo * day
             val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = start, endTime = start + 60 * 60_000L))
@@ -860,9 +859,7 @@ class WorkoutRepositoryTest {
                 previousBaseline = 100f, newBaseline = 102f,
                 changeReason = BaselineChangeReason.PROGRESSION, timestamp = start + 30 * 60_000L,
             ))
-            latestSessionId = sessionId
         }
-        val sessionId = latestSessionId
 
         val repo = WorkoutRepository(db,
             heuristics = listOf(EstCoefConsensusHeuristic()),
