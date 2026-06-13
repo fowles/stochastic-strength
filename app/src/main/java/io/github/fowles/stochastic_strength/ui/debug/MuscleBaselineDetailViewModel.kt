@@ -12,6 +12,7 @@ import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +64,7 @@ data class MuscleBaselineDetailState(
     val weightUnit: WeightUnit = WeightUnit.KG,
     val events: List<BaselineEvent> = emptyList(),
     val chartPoints: List<DebugChartPoint> = emptyList(),
+    val coefficientDeviations: List<CoefficientDeviationRow> = emptyList(),
 )
 
 class MuscleBaselineDetailViewModel(
@@ -83,6 +85,17 @@ class MuscleBaselineDetailViewModel(
                 .firstOrNull { it.muscleGroup == muscleGroup }
                 ?.baselineWeight ?: 0f
             val logs = repository.getBaselineEvents(muscleGroup)
+
+            val allExercises = app.database.exerciseDao().getAll()
+                .filter { it.primaryMuscle == muscleGroup }
+            val latestUserCoefficients = app.database.coefficientChangeLogDao()
+                .getLatestPerExercise()
+                .associate { it.exerciseId to it.coefficient }
+            val coefficientDeviations = computeCoefficientDeviations(
+                exercises = allExercises.map { it.id to it.name },
+                seedByName = ExerciseCoefficients.byName,
+                currentByExerciseId = latestUserCoefficients,
+            )
 
             val events = logs.asReversed().map { log ->
                 BaselineEvent(
@@ -110,6 +123,7 @@ class MuscleBaselineDetailViewModel(
                 weightUnit = weightUnit,
                 events = events,
                 chartPoints = chartPoints,
+                coefficientDeviations = coefficientDeviations,
             )
         }
     }
