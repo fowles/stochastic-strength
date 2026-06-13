@@ -85,4 +85,87 @@ class SeedNormalizerTest {
         ))
         assertEquals(0, out.size)
     }
+
+    @Test
+    fun compute_returnsMNearOne_whenCoefficientsMatchSeeds() {
+        val out = normalizer.compute(BaselineNormalizationInput(
+            sets = listOf(set(1L), set(2L)),
+            exercises = listOf(
+                snapshot(1L, MuscleGroup.CHEST, seed = 1.0f, current = 1.0f),
+                snapshot(2L, MuscleGroup.CHEST, seed = 0.85f, current = 0.85f),
+            ),
+            baselines = mapOf(MuscleGroup.CHEST to 100f),
+        ))
+        assertEquals(1, out.size)
+        assertEquals(MuscleGroup.CHEST, out[0].muscleGroup)
+        assertEquals(1.0f, out[0].scale, 1e-4f)
+    }
+
+    @Test
+    fun compute_returnsMLessThanOne_whenCoefficientsDriftedAboveSeed() {
+        // c > s everywhere -> Σ(c·s) < Σ(c²) -> m < 1 -> scaling coefficients DOWN toward seed,
+        // baseline = old / m > old (the system thinks the user got stronger).
+        val out = normalizer.compute(BaselineNormalizationInput(
+            sets = listOf(set(1L), set(2L)),
+            exercises = listOf(
+                snapshot(1L, MuscleGroup.CHEST, seed = 1.0f, current = 1.10f),
+                snapshot(2L, MuscleGroup.CHEST, seed = 0.85f, current = 0.95f),
+            ),
+            baselines = mapOf(MuscleGroup.CHEST to 100f),
+        ))
+        assertEquals(1, out.size)
+        assertTrue("m should be < 1, got ${out[0].scale}", out[0].scale < 1f)
+    }
+
+    @Test
+    fun compute_returnsMGreaterThanOne_whenCoefficientsDriftedBelowSeed() {
+        val out = normalizer.compute(BaselineNormalizationInput(
+            sets = listOf(set(1L), set(2L)),
+            exercises = listOf(
+                snapshot(1L, MuscleGroup.CHEST, seed = 1.0f, current = 0.90f),
+                snapshot(2L, MuscleGroup.CHEST, seed = 0.85f, current = 0.75f),
+            ),
+            baselines = mapOf(MuscleGroup.CHEST to 100f),
+        ))
+        assertEquals(1, out.size)
+        assertTrue("m should be > 1, got ${out[0].scale}", out[0].scale > 1f)
+    }
+
+    @Test
+    fun compute_solvesLeastSquaresOptimally_handComputed() {
+        // c = [1.10, 0.95], s = [1.00, 0.85]
+        // num = 1.10*1.00 + 0.95*0.85 = 1.10 + 0.8075 = 1.9075
+        // den = 1.10^2 + 0.95^2 = 1.21 + 0.9025 = 2.1125
+        // m = 1.9075 / 2.1125 ≈ 0.9029586
+        val out = normalizer.compute(BaselineNormalizationInput(
+            sets = listOf(set(1L), set(2L)),
+            exercises = listOf(
+                snapshot(1L, MuscleGroup.CHEST, seed = 1.00f, current = 1.10f),
+                snapshot(2L, MuscleGroup.CHEST, seed = 0.85f, current = 0.95f),
+            ),
+            baselines = mapOf(MuscleGroup.CHEST to 100f),
+        ))
+        assertEquals(1, out.size)
+        assertEquals(0.9029586f, out[0].scale, 1e-4f)
+    }
+
+    @Test
+    fun compute_handlesMuscleGroupsIndependently() {
+        val out = normalizer.compute(BaselineNormalizationInput(
+            sets = listOf(set(1L), set(2L), set(3L), set(4L)),
+            exercises = listOf(
+                // CHEST: drifted up
+                snapshot(1L, MuscleGroup.CHEST, seed = 1.0f, current = 1.10f),
+                snapshot(2L, MuscleGroup.CHEST, seed = 0.85f, current = 0.95f),
+                // BACK: drifted down
+                snapshot(3L, MuscleGroup.BACK, seed = 1.0f, current = 0.90f),
+                snapshot(4L, MuscleGroup.BACK, seed = 0.60f, current = 0.50f),
+            ),
+            baselines = mapOf(MuscleGroup.CHEST to 100f, MuscleGroup.BACK to 80f),
+        ))
+        assertEquals(2, out.size)
+        val byMuscle = out.associateBy { it.muscleGroup }
+        assertTrue(byMuscle.getValue(MuscleGroup.CHEST).scale < 1f)
+        assertTrue(byMuscle.getValue(MuscleGroup.BACK).scale > 1f)
+    }
 }

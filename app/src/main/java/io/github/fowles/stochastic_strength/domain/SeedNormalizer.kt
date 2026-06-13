@@ -11,8 +11,15 @@ class SeedNormalizer : BaselineNormalizer {
                 it.exercise.id in observed && it.currentCoefficient > 0f
             }
             if (qualifying.size < 2) return@mapNotNull null
-            // Real math arrives in Task 5 — for now, emit a placeholder that the existing tests don't require.
-            null
+            val num = qualifying.sumOf { (it.currentCoefficient * it.seedCoefficient).toDouble() }
+            val den = qualifying.sumOf { (it.currentCoefficient * it.currentCoefficient).toDouble() }
+            if (den <= 0.0) return@mapNotNull null
+            val m = (num / den).toFloat()
+            BaselineNormalizationProposal(
+                muscleGroup = muscle,
+                scale = m,
+                metadata = null,
+            )
         }
     }
 }
