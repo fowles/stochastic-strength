@@ -3,12 +3,14 @@ package io.github.fowles.stochastic_strength.ui.debug
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -134,24 +136,27 @@ private fun SectionHeader(title: String) {
     )
 }
 
+// Fixed coefficient-vs-seed range. Deviations outside ±MAX_DEVIATION saturate.
+private const val MAX_DEVIATION = 0.5f
+
 @Composable
 private fun CoefficientDeviationList(rows: List<CoefficientDeviationRow>) {
-    val maxAbs = rows.maxOf { kotlin.math.abs(it.deviation) }.coerceAtLeast(1e-6f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        rows.forEach { row -> DeviationRow(row, maxAbs) }
+        rows.forEach { row -> DeviationRow(row) }
     }
 }
 
 @Composable
-private fun DeviationRow(row: CoefficientDeviationRow, maxAbs: Float) {
+private fun DeviationRow(row: CoefficientDeviationRow) {
     val positiveColor = MaterialTheme.colorScheme.primary
     val negativeColor = MaterialTheme.colorScheme.error
     val guidelineColor = MaterialTheme.colorScheme.outlineVariant
+    val tickColor = guidelineColor.copy(alpha = 0.5f)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -164,17 +169,38 @@ private fun DeviationRow(row: CoefficientDeviationRow, maxAbs: Float) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.width(140.dp),
         )
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
                 .height(16.dp)
                 .padding(horizontal = 4.dp),
         ) {
+            val halfWidth = maxWidth / 2
+            // Tick marks every 10% from -50% to +50% (i / 5 of half-width per side).
+            for (i in 1..5) {
+                val offsetDp = halfWidth * (i / 5f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(x = offsetDp)
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(tickColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(x = -offsetDp)
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(tickColor),
+                )
+            }
             Row(modifier = Modifier.fillMaxSize()) {
                 // Left half — holds negative bars, anchored to the right edge (center guideline).
                 Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     if (row.deviation < 0f) {
-                        val fraction = ((-row.deviation) / maxAbs).coerceIn(0f, 1f)
+                        val fraction = ((-row.deviation) / MAX_DEVIATION).coerceAtMost(1f)
                         Box(
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
@@ -188,7 +214,7 @@ private fun DeviationRow(row: CoefficientDeviationRow, maxAbs: Float) {
                 // Right half — holds positive bars, anchored to the left edge (center guideline).
                 Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     if (row.deviation > 0f) {
-                        val fraction = (row.deviation / maxAbs).coerceIn(0f, 1f)
+                        val fraction = (row.deviation / MAX_DEVIATION).coerceAtMost(1f)
                         Box(
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
