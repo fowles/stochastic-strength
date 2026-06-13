@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -30,10 +29,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.ui.components.LoadingBox
+import io.github.fowles.stochastic_strength.ui.components.SectionHeader
 import io.github.fowles.stochastic_strength.ui.components.StrengthGrid
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import io.github.fowles.stochastic_strength.ui.components.formatDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,12 +73,7 @@ fun HistoryScreen(
         }
 
         if (state.loading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
+            LoadingBox(contentPadding = padding)
             return@Scaffold
         }
 
@@ -126,18 +120,6 @@ fun HistoryScreen(
             }
         }
     }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    )
 }
 
 @Composable
@@ -190,14 +172,6 @@ private fun SessionRow(item: SessionListItem, onClick: () -> Unit, onDelete: () 
         }
     }
 }
-
-private val DATETIME_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a")
-
-private fun formatDateTime(epochMs: Long): String =
-    Instant.ofEpochMilli(epochMs)
-        .atZone(ZoneId.systemDefault())
-        .format(DATETIME_FORMATTER)
 
 private fun formatDuration(seconds: Long): String =
     "%d:%02d".format(seconds / 60, seconds % 60)
