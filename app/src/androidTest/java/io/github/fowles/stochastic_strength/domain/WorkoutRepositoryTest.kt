@@ -779,4 +779,21 @@ class WorkoutRepositoryTest {
         assertEquals(1, rows.size)
         assertEquals(sessionId, rows[0].sessionId)
     }
+
+    @Test
+    fun applyManualBaselineOverrides_doesNotTriggerNormalization() = runBlocking {
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
+
+        // Only the MANUAL_OVERRIDE row should exist — no NORMALIZATION row.
+        val rows = db.baselineChangeLogDao().getAll()
+        assertEquals(1, rows.size)
+        assertEquals(BaselineChangeReason.MANUAL_OVERRIDE, rows[0].changeReason)
+    }
 }
