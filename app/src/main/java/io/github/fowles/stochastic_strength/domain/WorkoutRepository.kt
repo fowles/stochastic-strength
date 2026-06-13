@@ -183,18 +183,6 @@ class WorkoutRepository(
         return BaselineNormalizationInput(sets = sets, exercises = snapshots, baselines = baselines)
     }
 
-    suspend fun recomputeDerivedState(asOf: Long? = null, sessionId: Long? = null) {
-        recomputeCoefficients(asOf = asOf)
-        val resolvedSessionId = sessionId
-            ?: db.workoutSessionDao().getAll()
-                .maxByOrNull { it.endTime ?: it.startTime }?.id
-            ?: return
-        applyBaselineNormalization(
-            asOf = asOf ?: System.currentTimeMillis(),
-            sessionId = resolvedSessionId,
-        )
-    }
-
     suspend fun recomputeCoefficients(asOf: Long? = null) {
         if (heuristics.isEmpty()) return
         // buildCoefficientInput reads happen outside the write transaction — safe on a single-user device where no concurrent writes occur
@@ -226,6 +214,18 @@ class WorkoutRepository(
                 )
             }
         }
+    }
+
+    suspend fun recomputeDerivedState(asOf: Long? = null, sessionId: Long? = null) {
+        recomputeCoefficients(asOf = asOf)
+        val resolvedSessionId = sessionId
+            ?: db.workoutSessionDao().getAll()
+                .maxByOrNull { it.endTime ?: it.startTime }?.id
+            ?: return
+        applyBaselineNormalization(
+            asOf = asOf ?: System.currentTimeMillis(),
+            sessionId = resolvedSessionId,
+        )
     }
 
     internal suspend fun applyBaselineNormalization(asOf: Long, sessionId: Long) {
