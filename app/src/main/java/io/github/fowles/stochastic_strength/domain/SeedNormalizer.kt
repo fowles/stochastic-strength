@@ -1,5 +1,7 @@
 package io.github.fowles.stochastic_strength.domain
 
+import java.util.Locale
+
 class SeedNormalizer : BaselineNormalizer {
     override val name: String = "seed-normalizer"
 
@@ -37,5 +39,5 @@ class SeedNormalizer : BaselineNormalizer {
         return kotlin.math.sqrt(sumSq / qs.size).toFloat()
     }
 
-    private fun formatFloat(v: Float): String = "%.4f".format(v)
+    private fun formatFloat(v: Float): String = "%.4f".format(Locale.ROOT, v)
 }
