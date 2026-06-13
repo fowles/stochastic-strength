@@ -216,6 +216,62 @@ class WorkoutRepository(
         }
     }
 
+    internal suspend fun applyBaselineNormalization(asOf: Long, sessionId: Long) {
+        if (normalizers.isEmpty()) return
+        val input = buildNormalizationInput()
+        val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+        val threshold = BaselineNormalizationThreshold.forUnit(weightUnit)
+
+        val proposals = normalizers.flatMap { it.compute(input) }
+        if (proposals.isEmpty()) return
+
+        db.withTransaction {
+            val latestCoefByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+                .associateBy { it.exerciseId }
+            for (proposal in proposals) {
+                val oldBaseline = input.baselines[proposal.muscleGroup] ?: continue
+                if (oldBaseline <= 0f || proposal.scale <= 0f) continue
+                val rawNew = oldBaseline / proposal.scale
+                val newBaseline = WeightFormatter.round(rawNew, weightUnit)
+                if (kotlin.math.abs(newBaseline - oldBaseline) < threshold) continue
+                if (newBaseline <= 0f) continue
+                val mEffective = oldBaseline / newBaseline
+
+                db.muscleGroupStrengthDao().upsert(
+                    MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = newBaseline)
+                )
+                db.baselineChangeLogDao().insert(
+                    BaselineChangeLog(
+                        sessionId = sessionId,
+                        muscleGroup = proposal.muscleGroup,
+                        previousBaseline = oldBaseline,
+                        newBaseline = newBaseline,
+                        changeReason = BaselineChangeReason.NORMALIZATION,
+                        timestamp = asOf,
+                    )
+                )
+
+                val inGroup = input.exercises.filter {
+                    it.exercise.primaryMuscle == proposal.muscleGroup && it.currentCoefficient > 0f
+                }
+                for (snap in inGroup) {
+                    val newCoef = snap.currentCoefficient * mEffective
+                    db.coefficientChangeLogDao().insert(
+                        CoefficientChangeLog(
+                            exerciseId = snap.exercise.id,
+                            previousCoefficient = latestCoefByExercise[snap.exercise.id]?.coefficient
+                                ?: snap.currentCoefficient,
+                            coefficient = newCoef,
+                            heuristicName = "baseline_normalization",
+                            heuristicMetadata = proposal.metadata,
+                            computedAt = asOf,
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     private fun mergeHeuristicResults(
         candidates: List<Pair<String, CoefficientResult>>,
     ): Pair<String, CoefficientResult>? = candidates.firstOrNull()
