@@ -19,13 +19,16 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
 import io.github.fowles.stochastic_strength.domain.BaselineNormalizationInput
 import io.github.fowles.stochastic_strength.domain.BaselineNormalizationProposal
 import io.github.fowles.stochastic_strength.domain.BaselineNormalizer
 import io.github.fowles.stochastic_strength.domain.CoefficientComputationInput
 import io.github.fowles.stochastic_strength.domain.CoefficientHeuristic
 import io.github.fowles.stochastic_strength.domain.CoefficientResult
+import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
+import io.github.fowles.stochastic_strength.domain.SeedNormalizer
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -795,5 +798,88 @@ class WorkoutRepositoryTest {
         val rows = db.baselineChangeLogDao().getAll()
         assertEquals(1, rows.size)
         assertEquals(BaselineChangeReason.MANUAL_OVERRIDE, rows[0].changeReason)
+    }
+
+    @Test
+    fun recomputeDerivedState_realStack_writesBothCoefficientHeuristicAndNormalizationLogs() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Incline Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val benchId = db.exerciseDao().getActive().first { it.name == "Barbell Bench Press" }.id
+        val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+
+        // Use realistic timestamps so the est-coef heuristic's recency decay doesn't collapse evidence
+        // weight to zero. Sessions must be recent relative to System.currentTimeMillis(). We also need
+        // enough cumulative evidence weight (minEvidenceWeight = 1.5f). Each RIR_2_4 set contributes
+        // ~confidence * recency; across three recent sessions this clears the threshold.
+        val now = System.currentTimeMillis()
+        val day = 24 * 60 * 60_000L
+
+        // Pre-seed inflated current coefficients (well above seed) by writing logs directly. This simulates
+        // the state that arises from drift accumulated over many real sessions, which would otherwise take
+        // a long sequence of sessions to produce in a test.
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = benchId, coefficient = 1.20f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = inclineId, coefficient = 1.05f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+
+        // Seed three recent sessions with sets that have feedback. The est-coef heuristic accumulates
+        // evidence weight across sessions; with three sessions the total clears minEvidenceWeight = 1.5.
+        // SeedNormalizer sees both exercises as observed via workoutSetDao.getAll().
+        //
+        // targetWeight choices are deliberate: bench at 80 kg gives estCoef < currentCoef (1.20), while
+        // incline at 105 kg gives estCoef > currentCoef (1.05). Opposite signals prevent H2 consensus
+        // suppression (which fires when both exercises drift the same direction past ln(1.05)).
+        var latestSessionId = 0L
+        for (daysAgo in listOf(10L, 5L, 2L)) {
+            val start = now - daysAgo * day
+            val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = start, endTime = start + 60 * 60_000L))
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = benchId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+                completedAt = start + 30 * 60_000L,
+            ))
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = inclineId, setNumber = 1,
+                targetWeight = 105f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+                completedAt = start + 30 * 60_000L,
+            ))
+            // The est-coef heuristic looks up baselines via BaselineChangeLog(PROGRESSION) keyed by
+            // (sessionId, muscleGroup). Without this row the heuristic finds no baseline and emits nothing.
+            db.baselineChangeLogDao().insert(BaselineChangeLog(
+                sessionId = sessionId, muscleGroup = MuscleGroup.CHEST,
+                previousBaseline = 100f, newBaseline = 102f,
+                changeReason = BaselineChangeReason.PROGRESSION, timestamp = start + 30 * 60_000L,
+            ))
+            latestSessionId = sessionId
+        }
+        val sessionId = latestSessionId
+
+        val repo = WorkoutRepository(db,
+            heuristics = listOf(EstCoefConsensusHeuristic()),
+            normalizers = listOf(SeedNormalizer()),
+        )
+
+        repo.recomputeDerivedState()
+
+        // Both kinds of writes must show up — this is the regression guard for "backfill ran one pass but
+        // not the other".
+        val coefHeuristicRows = db.coefficientChangeLogDao().getAll()
+            .filter { it.heuristicName == "est-coef-consensus" }
+        assertTrue("expected at least one est-coef-consensus row, got 0",
+            coefHeuristicRows.isNotEmpty())
+        val normRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertTrue("expected at least one NORMALIZATION row, got 0",
+            normRows.isNotEmpty())
     }
 }
