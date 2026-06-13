@@ -29,6 +29,33 @@ data class BaselineEvent(
     val minReductionFraction: Float?,
 )
 
+data class CoefficientDeviationRow(
+    val name: String,
+    val deviation: Float,
+)
+
+/**
+ * Returns the per-exercise drift of `current` coefficient vs `seed`,
+ * expressed as `current / seed - 1` and sorted descending. Exercises
+ * whose seed is `0f` are omitted (bodyweight — ratio undefined).
+ *
+ * If an exercise has no entry in [currentByExerciseId] the current value
+ * falls back to its seed, yielding a deviation of `0f`.
+ */
+internal fun computeCoefficientDeviations(
+    exercises: List<Pair<Long, String>>,
+    seedByName: Map<String, Float>,
+    currentByExerciseId: Map<Long, Float>,
+): List<CoefficientDeviationRow> {
+    val rows = exercises.mapNotNull { (id, name) ->
+        val seed = seedByName[name] ?: return@mapNotNull null
+        if (seed == 0f) return@mapNotNull null
+        val current = currentByExerciseId[id] ?: seed
+        CoefficientDeviationRow(name = name, deviation = current / seed - 1f)
+    }
+    return rows.sortedByDescending { it.deviation }
+}
+
 data class MuscleBaselineDetailState(
     val loading: Boolean = true,
     val muscleGroup: MuscleGroup,
