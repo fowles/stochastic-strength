@@ -34,10 +34,31 @@ import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
 import androidx.compose.material3.MaterialTheme
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 data class DebugChartPoint(val timestampMs: Long, val value: Float)
+
+/**
+ * Converts a wall-clock timestamp to an epoch-day index anchored in [zone].
+ *
+ * The chart x-axis must agree with the event-row dates (which are formatted
+ * in the system default zone), so the index must reflect the *local*
+ * calendar day rather than UTC.
+ */
+internal fun timestampToLocalEpochDay(timestampMs: Long, zone: ZoneId): Long =
+    Instant.ofEpochMilli(timestampMs).atZone(zone).toLocalDate().toEpochDay()
+
+/**
+ * Renders an epoch-day index using [sdf], whose [SimpleDateFormat.timeZone]
+ * must match the zone used to produce the index.
+ */
+internal fun epochDayLabel(epochDay: Long, sdf: SimpleDateFormat): String =
+    sdf.format(Date(LocalDate.ofEpochDay(epochDay).atStartOfDay(sdf.timeZone.toZoneId()).toInstant().toEpochMilli()))
 
 @Composable
 internal fun DebugLineChart(
@@ -45,13 +66,14 @@ internal fun DebugLineChart(
     yFormatter: (Float) -> String,
     modifier: Modifier = Modifier,
 ) {
+    val zone = remember { ZoneId.systemDefault() }
     val modelProducer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(points) {
+    LaunchedEffect(points, zone) {
         modelProducer.runTransaction {
             lineSeries {
                 if (points.isNotEmpty()) {
                     series(
-                        x = points.map { it.timestampMs / 86_400_000L },
+                        x = points.map { timestampToLocalEpochDay(it.timestampMs, zone) },
                         y = points.map { it.value },
                     )
                 }
@@ -90,10 +112,12 @@ internal fun DebugLineChart(
     val yValueFormatter = remember(yFormatter) {
         CartesianValueFormatter { _, value, _ -> yFormatter(value.toFloat()) }
     }
-    val dateFormatter = remember {
-        val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
+    val dateFormatter = remember(zone) {
+        val sdf = SimpleDateFormat("MMM d", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone(zone)
+        }
         CartesianValueFormatter { _, value, _ ->
-            sdf.format(Date(value.toLong() * 86_400_000L))
+            epochDayLabel(value.toLong(), sdf)
         }
     }
 
@@ -139,10 +163,14 @@ private fun rememberMarker(): DefaultCartesianMarker {
         background = labelBackground,
     )
     val guideline = rememberAxisGuidelineComponent()
-    val sdf = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val sdf = remember {
+        SimpleDateFormat("MMM d", Locale.getDefault()).apply {
+            timeZone = TimeZone.getDefault()
+        }
+    }
     val dateFormatter = remember(sdf) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
-            sdf.format(Date((targets.firstOrNull()?.x?.toLong() ?: 0L) * 86_400_000L))
+            epochDayLabel(targets.firstOrNull()?.x?.toLong() ?: 0L, sdf)
         }
     }
     return rememberDefaultCartesianMarker(
