@@ -39,7 +39,7 @@ import kotlinx.coroutines.CoroutineScope
         BaselineChangeLog::class,
         CoefficientChangeLog::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -142,6 +142,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Replaces the single-purpose `actualRepsBackfilled` flag with a monotonically increasing
+        // `derivedStateVersion` counter so future re-derivations catch users on any upgrade path.
+        // Existing rows reset to version 0 — DerivedStateBackfill replays each pending step (the
+        // ActualRepsBackfill is idempotent, recomputeDerivedState recomputes from current state).
+        // Recreate-table is required because Android 13's bundled SQLite (3.32) predates DROP COLUMN.
+        internal val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE `user_profile_new` (
+                        `id` INTEGER NOT NULL,
+                        `sex` TEXT NOT NULL,
+                        `strengthLevel` TEXT NOT NULL,
+                        `weightUnit` TEXT NOT NULL,
+                        `preferredExerciseCount` INTEGER,
+                        `derivedStateVersion` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO user_profile_new (id, sex, strengthLevel, weightUnit, preferredExerciseCount)
+                    SELECT id, sex, strengthLevel, weightUnit, preferredExerciseCount FROM user_profile
+                """.trimIndent())
+                db.execSQL("DROP TABLE user_profile")
+                db.execSQL("ALTER TABLE user_profile_new RENAME TO user_profile")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
@@ -163,7 +190,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
-                    MIGRATION_10_11,
+                    MIGRATION_10_11, MIGRATION_11_12,
                 )
                 .build()
     }

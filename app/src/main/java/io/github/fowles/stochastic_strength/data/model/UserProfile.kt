@@ -10,5 +10,7 @@ data class UserProfile(
     val strengthLevel: StrengthLevel,
     val weightUnit: WeightUnit,
     val preferredExerciseCount: Int? = null,
-    val actualRepsBackfilled: Boolean = false,
+    // Monotonically increasing counter for one-shot upgrade passes that re-derive state
+    // (backfills, normalizer wire-ups, etc.). See DerivedStateBackfill.
+    val derivedStateVersion: Int = 0,
 )
