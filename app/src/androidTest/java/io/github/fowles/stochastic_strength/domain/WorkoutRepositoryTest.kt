@@ -801,7 +801,7 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun applySessionProgression_repeatedDriftEventuallyTriggersNormalization() = runBlocking {
+    fun applySessionProgression_withDriftedCoefficients_writesNormalizationRow() = runBlocking {
         db.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
         )
@@ -813,9 +813,10 @@ class WorkoutRepositoryTest {
         val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
         db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
 
-        // Pre-seed inflated coefficients so the SeedNormalizer immediately sees drift exceeding the
-        // 2 kg threshold. This simulates the state after many real sessions of accumulated drift,
-        // which would otherwise take a very long sequence of sessions to produce in a test.
+        // With pre-seeded drift in the coefficient log, applySessionProgression's full pipeline
+        // (progression → heuristic recompute → normalization pass) writes a NORMALIZATION row.
+        // We run 10 sessions (rather than 1) to also exercise idempotency: subsequent calls
+        // must not crash or violate invariants once the first normalization has fired.
         val now = System.currentTimeMillis()
         val day = 24 * 60 * 60_000L
         db.coefficientChangeLogDao().insert(CoefficientChangeLog(
