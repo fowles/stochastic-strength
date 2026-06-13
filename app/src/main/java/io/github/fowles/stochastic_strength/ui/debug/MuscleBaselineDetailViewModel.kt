@@ -28,6 +28,7 @@ data class BaselineEvent(
     val feedbacks: List<SetFeedback>,
     val sessionReps: Int?,
     val minReductionFraction: Float?,
+    val exerciseNames: List<String>,
 )
 
 data class CoefficientDeviationRow(
@@ -93,7 +94,19 @@ class MuscleBaselineDetailViewModel(
                 currentByExerciseId = latestUserCoefficients,
             )
 
+            val nameByExerciseId = allExercises.associate { it.id to it.name }
+            val exerciseIdsForMuscle = nameByExerciseId.keys
+            val sessionIds = logs.map { it.sessionId }.toSet()
+            val setsBySession = app.database.workoutSetDao().getAll()
+                .filter { it.sessionId in sessionIds && it.exerciseId in exerciseIdsForMuscle }
+                .groupBy { it.sessionId }
+
             val events = logs.asReversed().map { log ->
+                val names = setsBySession[log.sessionId].orEmpty()
+                    .map { it.exerciseId }
+                    .distinct()
+                    .mapNotNull { nameByExerciseId[it] }
+                    .sorted()
                 BaselineEvent(
                     sessionId = log.sessionId,
                     timestamp = log.timestamp,
@@ -103,6 +116,7 @@ class MuscleBaselineDetailViewModel(
                     feedbacks = parseFeedbacks(log.feedbacks),
                     sessionReps = log.sessionReps,
                     minReductionFraction = log.minReductionFraction,
+                    exerciseNames = names,
                 )
             }
 

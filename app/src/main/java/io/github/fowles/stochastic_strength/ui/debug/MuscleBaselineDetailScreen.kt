@@ -303,6 +303,13 @@ private fun BaselineEventRow(event: BaselineEvent, weightUnit: WeightUnit) {
                 WeightFormatter.format(event.newBaseline, weightUnit),
             style = MaterialTheme.typography.bodyLarge,
         )
+        if (event.exerciseNames.isNotEmpty()) {
+            Text(
+                text = "Exercises: " + event.exerciseNames.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (event.feedbacks.isNotEmpty()) {
             val repsSuffix = event.sessionReps?.let { " · reps: $it" } ?: ""
             Text(
