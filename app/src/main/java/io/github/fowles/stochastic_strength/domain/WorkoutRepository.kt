@@ -115,7 +115,7 @@ class WorkoutRepository(
                 )
             )
         }
-        recomputeCoefficients(asOf = triggerTime)
+        recomputeDerivedState(asOf = triggerTime, sessionId = sessionId)
     }
 
     private suspend fun sessionTriggerTime(sessionId: Long, sets: List<WorkoutSet>): Long {
@@ -181,6 +181,18 @@ class WorkoutRepository(
             ExerciseCoefficientSnapshot(ex, seed, current)
         }
         return BaselineNormalizationInput(sets = sets, exercises = snapshots, baselines = baselines)
+    }
+
+    suspend fun recomputeDerivedState(asOf: Long? = null, sessionId: Long? = null) {
+        recomputeCoefficients(asOf = asOf)
+        val resolvedSessionId = sessionId
+            ?: db.workoutSessionDao().getAll()
+                .maxByOrNull { it.endTime ?: it.startTime }?.id
+            ?: return
+        applyBaselineNormalization(
+            asOf = asOf ?: System.currentTimeMillis(),
+            sessionId = resolvedSessionId,
+        )
     }
 
     suspend fun recomputeCoefficients(asOf: Long? = null) {
