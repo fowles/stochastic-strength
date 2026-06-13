@@ -28,7 +28,9 @@ import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
 import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
+import com.patrykandpatrick.vico.core.cartesian.marker.LineCartesianLayerMarkerTarget
 import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
@@ -59,6 +61,22 @@ internal fun timestampToLocalEpochDay(timestampMs: Long, zone: ZoneId): Long =
  */
 internal fun epochDayLabel(epochDay: Long, sdf: SimpleDateFormat): String =
     sdf.format(Date(LocalDate.ofEpochDay(epochDay).atStartOfDay(sdf.timeZone.toZoneId()).toInstant().toEpochMilli()))
+
+/**
+ * Builds the floating marker label shown when the user holds a point.
+ * Combines the x-axis label with each line-series y value at that point.
+ */
+internal fun formatLineMarkerLabel(
+    targets: List<CartesianMarker.Target>,
+    xLabel: (Double) -> String,
+    yLabel: (Double) -> String,
+): CharSequence {
+    val target = targets.firstOrNull() ?: return ""
+    val x = xLabel(target.x)
+    val ys = (target as? LineCartesianLayerMarkerTarget)?.points?.map { yLabel(it.entry.y) }
+        ?: return x
+    return if (ys.isEmpty()) x else "$x • ${ys.joinToString(" / ")}"
+}
 
 @Composable
 internal fun DebugLineChart(
@@ -127,7 +145,7 @@ internal fun DebugLineChart(
         autoScrollCondition = AutoScrollCondition.OnModelGrowth,
     )
 
-    val marker = rememberMarker()
+    val marker = rememberMarker(yFormatter)
 
     CartesianChartHost(
         chart = rememberCartesianChart(
@@ -150,7 +168,7 @@ internal fun DebugLineChart(
 }
 
 @Composable
-private fun rememberMarker(): DefaultCartesianMarker {
+private fun rememberMarker(yFormatter: (Float) -> String): DefaultCartesianMarker {
     val labelBackground = rememberShapeComponent(
         fill = fill(MaterialTheme.colorScheme.surface),
         shape = CorneredShape.Pill,
@@ -168,14 +186,18 @@ private fun rememberMarker(): DefaultCartesianMarker {
             timeZone = TimeZone.getDefault()
         }
     }
-    val dateFormatter = remember(sdf) {
+    val valueFormatter = remember(sdf, yFormatter) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
-            epochDayLabel(targets.firstOrNull()?.x?.toLong() ?: 0L, sdf)
+            formatLineMarkerLabel(
+                targets = targets,
+                xLabel = { x -> epochDayLabel(x.toLong(), sdf) },
+                yLabel = { y -> yFormatter(y.toFloat()) },
+            )
         }
     }
     return rememberDefaultCartesianMarker(
         label = label,
-        valueFormatter = dateFormatter,
+        valueFormatter = valueFormatter,
         guideline = guideline,
         indicatorSize = 0.dp,
     )
