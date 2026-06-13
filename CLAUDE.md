@@ -36,25 +36,24 @@ Unit tests live in `src/test/` and run on the JVM. Instrumented tests live in `s
 ### Layers
 
 ```
-data/       Room entities, DAOs, AppDatabase, type converters, seed data (ExerciseLibrary)
-domain/     Pure business logic: WorkoutGenerator, ProgressionEngine, WorkoutRepository, WeightFormatter
-ui/         Composable screens + ViewModels; one sub-package per screen (home/, workout/, summary/)
-location/   GPS lookup and KnownLocation resolution
+data/           Room entities, DAOs, AppDatabase, type converters, seed data (ExerciseLibrary)
+domain/         Pure business logic: WorkoutPlanner, ProgressionEngine, WorkoutRepository, coefficient heuristics
+domain/strava/  Strava OAuth + JSON export
+ui/             Composable screens + ViewModels; one sub-package per screen (home/, workout/, history/, debug/, etc.)
+ui/components/  Shared composables (SectionHeader, StrengthGrid, LoadingBox, formatDateTime)
+location/       GPS lookup and KnownLocation resolution
+notification/   Workout foreground notification service
 ```
 
-There is no DI framework. `StochasticStrengthApp` (the `Application` class) owns `AppDatabase` as a singleton. ViewModels obtain it via `application as StochasticStrengthApp`.
+There is no DI framework. `StochasticStrengthApp` (the `Application` class) owns `AppDatabase`, `workoutRepository`, `stravaExporter`, and `workoutSessionBus` as singletons. ViewModels obtain them via `application as StochasticStrengthApp`.
 
-### Navigation flow
+### Navigation
 
-`AppNavigation.kt` wires three screens with string-based routes:
-
-```
-home → workout → summary/{sessionId} → home
-```
+`AppNavigation.kt` wires the app's screens with string-based routes. The primary flow is `home → workout → summary/{sessionId} → home`; secondary screens (history, locations, exercises, about, debug detail screens) are reachable from home.
 
 ### Workout state machine
 
-`WorkoutState` is a sealed interface with four states managed by `WorkoutViewModel`:
+`WorkoutState` is a sealed interface with five states. State is owned by `WorkoutSessionController` (in `ui/workout/`); `WorkoutViewModel` is a thin delegation layer.
 
 ```
 Loading → PlanPreview → ActiveSet ⇄ Resting → Done
@@ -68,14 +67,14 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
 
 ### Progression system
 
-After every session, `WorkoutRepository.applySessionProgression` updates the per-muscle baseline weight (`MuscleGroupStrength`) via `ProgressionEngine.applyBaselineFeedback`. Multiple exercises in the same muscle group use conservative aggregation (worst feedback wins). It also flags any exercise that caused pain (`hurtFlag = true`).
+After every session, `WorkoutRepository.applySessionProgression` updates the per-muscle baseline weight (`MuscleGroupStrength`) via `ProgressionEngine.computeNextBaseline`. Multiple exercises in the same muscle group use conservative aggregation (worst feedback wins). It also flags any exercise that caused pain (`hurtFlag = true`), writes a `BaselineChangeLog` row per affected muscle, and triggers `recomputeCoefficients` to run every registered `CoefficientHeuristic` (currently `EstCoefConsensusHeuristic`).
 
-Session weight is derived as: `baselineWeight × ExerciseCoefficients[name]`, then scaled to the session's rep target (5, 8, or 10 reps, chosen randomly) using the Epley 1RM formula. All exercises use a fixed `PlannedExercise.DEFAULT_SETS` (3) sets.
+Session weight is derived as: `baselineWeight × coefficient[exercise]`, then scaled to the session's rep target (5, 8, or 10 reps, chosen randomly) using the load-aware 1RM formula from https://arxiv.org/pdf/2603.17495 (see `DefaultProgressionEngine`). Coefficients come from `UserCoefficientSource` (latest heuristic value if any, else the seed in `ExerciseCoefficients`). All exercises use a fixed `PlannedExercise.DEFAULT_SETS` (3) sets.
 
 ### Location & equipment filtering
 
-On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation`. `WorkoutRepository.generateWorkoutForLocation` filters `Exercise` rows to those whose `equipment` appears in `LocationEquipment` for that location. If location is unknown, all equipment is assumed available.
+On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation`. `WorkoutRepository.buildPlanner` filters out exercises listed in `LocationExcludedExercise` for that location. If location is unknown, no exclusions are applied.
 
 ### Database
 
-Room database (`AppDatabase`, version 5). Schema migrations live in `AppDatabase.Companion`. `fallbackToDestructiveMigration(true)` is set as a safety net. When adding a new entity or column, add a numbered `Migration` object before bumping the version.
+Room database (`AppDatabase`, version 11). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
