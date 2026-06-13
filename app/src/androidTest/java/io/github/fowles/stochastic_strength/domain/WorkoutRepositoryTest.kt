@@ -801,6 +801,77 @@ class WorkoutRepositoryTest {
     }
 
     @Test
+    fun applySessionProgression_repeatedDriftEventuallyTriggersNormalization() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Incline Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val benchId = db.exerciseDao().getActive().first { it.name == "Barbell Bench Press" }.id
+        val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+
+        // Pre-seed inflated coefficients so the SeedNormalizer immediately sees drift exceeding the
+        // 2 kg threshold. This simulates the state after many real sessions of accumulated drift,
+        // which would otherwise take a very long sequence of sessions to produce in a test.
+        val now = System.currentTimeMillis()
+        val day = 24 * 60 * 60_000L
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = benchId, coefficient = 1.20f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = inclineId, coefficient = 1.05f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+
+        val repo = WorkoutRepository(db,
+            heuristics = listOf(EstCoefConsensusHeuristic()),
+            normalizers = listOf(SeedNormalizer()),
+        )
+
+        // Run 10 sessions in which both chest exercises are completed. Target weights are asymmetric
+        // so H2 consensus suppression does not fire: bench at 80 kg drives its coefficient down from
+        // 1.20 (estCoef ≈ 1.00), while incline at 105 kg keeps its coefficient roughly stable at
+        // 1.05 (estCoef ≈ 1.05). Opposite directions prevent same-sign H2 suppression.
+        // BaselineChangeLog PROGRESSION rows are inserted per session so the heuristic finds baselines.
+        // The SeedNormalizer fires on the first session: m ≈ 0.90, newBaseline ≈ 111 → 11 kg > 2 kg.
+        var startTime = now - 10 * day
+        repeat(10) {
+            val sessionId = db.workoutSessionDao().insert(
+                WorkoutSession(startTime = startTime, endTime = startTime + 500L)
+            )
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = benchId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, actualReps = 3,
+                feedback = SetFeedback.TOO_HARD, completedAt = startTime + 100L,
+            ))
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = inclineId, setNumber = 1,
+                targetWeight = 105f, targetReps = 5, actualReps = 5,
+                feedback = SetFeedback.RIR_2_4, completedAt = startTime + 200L,
+            ))
+            // Heuristic looks up baselines from PROGRESSION rows keyed by (sessionId, muscleGroup).
+            db.baselineChangeLogDao().insert(BaselineChangeLog(
+                sessionId = sessionId, muscleGroup = MuscleGroup.CHEST,
+                previousBaseline = 100f, newBaseline = 102f,
+                changeReason = BaselineChangeReason.PROGRESSION, timestamp = startTime + 200L,
+            ))
+            repo.applySessionProgression(sessionId)
+            startTime += day
+        }
+
+        val normRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertTrue(
+            "expected at least one NORMALIZATION baseline row after 10 drifty sessions, got ${normRows.size}",
+            normRows.isNotEmpty(),
+        )
+    }
+
+    @Test
     fun recomputeDerivedState_realStack_writesBothCoefficientHeuristicAndNormalizationLogs() = runBlocking {
         db.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
