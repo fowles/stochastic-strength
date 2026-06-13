@@ -217,13 +217,14 @@ class WorkoutRepository(
     }
 
     suspend fun recomputeDerivedState(asOf: Long? = null, sessionId: Long? = null) {
-        recomputeCoefficients(asOf = asOf)
+        val resolvedAsOf = asOf ?: System.currentTimeMillis()
+        recomputeCoefficients(asOf = resolvedAsOf)
         val resolvedSessionId = sessionId
             ?: db.workoutSessionDao().getAll()
                 .maxByOrNull { it.endTime ?: it.startTime }?.id
             ?: return
         applyBaselineNormalization(
-            asOf = asOf ?: System.currentTimeMillis(),
+            asOf = resolvedAsOf,
             sessionId = resolvedSessionId,
         )
     }
