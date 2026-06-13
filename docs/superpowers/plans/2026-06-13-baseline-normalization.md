@@ -38,7 +38,7 @@
 
 `BaselineChangeReason` is stored as `enum.name` via the existing `Converters` type adapter, so adding a value does not require a Room migration. No schema bump.
 
-- [ ] **Step 1: Add the enum value**
+- [x] **Step 1: Add the enum value**
 
 Replace the file contents with:
 
@@ -52,12 +52,12 @@ enum class BaselineChangeReason {
 }
 ```
 
-- [ ] **Step 2: Build to verify the project still compiles**
+- [x] **Step 2: Build to verify the project still compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineChangeReason.kt
@@ -74,7 +74,7 @@ git commit -m "feat(data): add BaselineChangeReason.NORMALIZATION"
 
 The threshold is the absolute baseline movement (in the user's stored unit) below which a normalization proposal is dropped. 2 kg / 5 lb chosen to match the smallest common plate increment.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/BaselineNormalizationThresholdTest.kt`:
 
@@ -99,12 +99,12 @@ class BaselineNormalizationThresholdTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.BaselineNormalizationThresholdTest"`
 Expected: FAIL with "Unresolved reference: BaselineNormalizationThreshold".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/BaselineNormalizationThreshold.kt`:
 
@@ -121,12 +121,12 @@ object BaselineNormalizationThreshold {
 }
 ```
 
-- [ ] **Step 4: Run to verify the tests pass**
+- [x] **Step 4: Run to verify the tests pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.BaselineNormalizationThresholdTest"`
 Expected: PASS, 2 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/BaselineNormalizationThreshold.kt \
@@ -143,7 +143,7 @@ git commit -m "feat(domain): add BaselineNormalizationThreshold"
 
 Interface-only task: introduces the contract used by the runner (Task 8) and the `SeedNormalizer` implementation (Tasks 4–6). Mirrors `CoefficientHeuristic.kt` in shape.
 
-- [ ] **Step 1: Create the file**
+- [x] **Step 1: Create the file**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/BaselineNormalizer.kt`:
 
@@ -178,12 +178,12 @@ interface BaselineNormalizer {
 }
 ```
 
-- [ ] **Step 2: Build to verify compile**
+- [x] **Step 2: Build to verify compile**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/BaselineNormalizer.kt
@@ -200,7 +200,7 @@ git commit -m "feat(domain): add BaselineNormalizer interface"
 
 Starts the SeedNormalizer with the trivial cases — anything that should produce no proposal. Establishes the file, the test fixture helpers, and the "return empty" early exits.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/SeedNormalizerTest.kt`:
 
@@ -295,12 +295,12 @@ class SeedNormalizerTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SeedNormalizerTest"`
 Expected: FAIL with "Unresolved reference: SeedNormalizer".
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/SeedNormalizer.kt`:
 
@@ -325,12 +325,12 @@ class SeedNormalizer : BaselineNormalizer {
 }
 ```
 
-- [ ] **Step 4: Run to verify the tests pass**
+- [x] **Step 4: Run to verify the tests pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SeedNormalizerTest"`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/SeedNormalizer.kt \
@@ -348,7 +348,7 @@ git commit -m "feat(domain): scaffold SeedNormalizer with no-op cases"
 
 Drives the actual `m = Σ(c·s) / Σ(c²)` math via tests that pin direction (drift up → m<1, drift down → m>1), the no-drift case, and a hand-computed optimal answer. Also asserts independence between muscle groups.
 
-- [ ] **Step 1: Append the failing tests**
+- [x] **Step 1: Append the failing tests**
 
 Append to `SeedNormalizerTest.kt`, inside the class:
 
@@ -437,12 +437,12 @@ Append to `SeedNormalizerTest.kt`, inside the class:
     }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SeedNormalizerTest"`
 Expected: 5 of the new tests FAIL (the existing 4 still pass).
 
-- [ ] **Step 3: Replace `compute` with the real implementation**
+- [x] **Step 3: Replace `compute` with the real implementation**
 
 Replace the `compute` body in `SeedNormalizer.kt` with:
 
@@ -468,12 +468,12 @@ Replace the `compute` body in `SeedNormalizer.kt` with:
     }
 ```
 
-- [ ] **Step 4: Run to verify all tests pass**
+- [x] **Step 4: Run to verify all tests pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SeedNormalizerTest"`
 Expected: PASS, 9 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/SeedNormalizer.kt \
@@ -491,7 +491,7 @@ git commit -m "feat(domain): compute least-squares scale in SeedNormalizer"
 
 Adds the metadata string so downstream `CoefficientChangeLog` / `BaselineChangeLog` rows are auditable: `n=<count>, m=<scale>, rmse_before=<…>, rmse_after=<…>`.
 
-- [ ] **Step 1: Append the failing test**
+- [x] **Step 1: Append the failing test**
 
 Append to `SeedNormalizerTest.kt`, inside the class:
 
@@ -531,12 +531,12 @@ Append to `SeedNormalizerTest.kt`, inside the class:
     }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SeedNormalizerTest"`
 Expected: 2 new tests FAIL (existing 9 still pass).
 
-- [ ] **Step 3: Update `compute` to emit metadata**
+- [x] **Step 3: Update `compute` to emit metadata**
 
 Replace `SeedNormalizer.compute` with:
 
@@ -578,12 +578,12 @@ Replace `SeedNormalizer.compute` with:
     private fun formatFloat(v: Float): String = "%.4f".format(v)
 ```
 
-- [ ] **Step 4: Run all unit tests**
+- [x] **Step 4: Run all unit tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SeedNormalizerTest"`
 Expected: PASS, 11 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/SeedNormalizer.kt \
@@ -600,7 +600,7 @@ git commit -m "feat(domain): emit n/m/rmse metadata from SeedNormalizer"
 
 Adds the constructor parameter so the new normalizers list reaches the repo, and adds the `buildNormalizationInput` builder. No behavior change yet — Task 8 wires it into `applyBaselineNormalization`.
 
-- [ ] **Step 1: Add the `normalizers` parameter**
+- [x] **Step 1: Add the `normalizers` parameter**
 
 In `WorkoutRepository.kt`, change the constructor signature:
 
@@ -614,7 +614,7 @@ class WorkoutRepository(
 ) {
 ```
 
-- [ ] **Step 2: Add the `buildNormalizationInput` helper**
+- [x] **Step 2: Add the `buildNormalizationInput` helper**
 
 In the same file, add this method near `buildCoefficientInput` (just below it is a natural spot):
 
@@ -635,17 +635,17 @@ In the same file, add this method near `buildCoefficientInput` (just below it is
     }
 ```
 
-- [ ] **Step 3: Build to verify compile**
+- [x] **Step 3: Build to verify compile**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL. (Existing test callers omit `normalizers`; the default `listOf()` keeps them compiling.)
 
-- [ ] **Step 4: Run the existing unit test suite to confirm nothing regressed**
+- [x] **Step 4: Run the existing unit test suite to confirm nothing regressed**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL — every existing test still passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt
@@ -662,7 +662,7 @@ git commit -m "feat(domain): add normalizers and buildNormalizationInput to Work
 
 Implements the runner that turns proposals into log writes. Threshold-gated, unit-aware rounding, derived `mEffective` so the session-weight invariant holds exactly.
 
-- [ ] **Step 1: Add the failing instrumented tests**
+- [x] **Step 1: Add the failing instrumented tests**
 
 Append the following test methods to `WorkoutRepositoryTest`. The fake normalizer pattern mirrors the existing `CoefficientHeuristic` fakes already in this file.
 
@@ -825,12 +825,12 @@ import io.github.fowles.stochastic_strength.domain.BaselineNormalizer
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 ```
 
-- [ ] **Step 2: Run the instrumented suite to confirm the tests fail with the expected error**
+- [x] **Step 2: Run the instrumented suite to confirm the tests fail with the expected error**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest"`
 Expected: The five new tests FAIL with "Unresolved reference: applyBaselineNormalization".
 
-- [ ] **Step 3: Implement `applyBaselineNormalization` in `WorkoutRepository`**
+- [x] **Step 3: Implement `applyBaselineNormalization` in `WorkoutRepository`**
 
 Add this method to `WorkoutRepository.kt`, after `recomputeCoefficients`:
 
@@ -892,12 +892,12 @@ Add this method to `WorkoutRepository.kt`, after `recomputeCoefficients`:
     }
 ```
 
-- [ ] **Step 4: Run the instrumented suite to verify pass**
+- [x] **Step 4: Run the instrumented suite to verify pass**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest"`
 Expected: BUILD SUCCESSFUL — all previously passing tests still pass; the five new tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -915,7 +915,7 @@ git commit -m "feat(domain): add applyBaselineNormalization runner"
 
 Introduces the single public entry point that both production callers will use. This is the regression guard against the "backfill forgot to run one of the passes" bug class.
 
-- [ ] **Step 1: Add the failing tests**
+- [x] **Step 1: Add the failing tests**
 
 Append to `WorkoutRepositoryTest`:
 
@@ -1008,12 +1008,12 @@ Append to `WorkoutRepositoryTest`:
     }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest"`
 Expected: New tests FAIL with "Unresolved reference: recomputeDerivedState" (and `applySessionProgression_triggersNormalizationViaDerivedState` fails because nothing wires normalization in yet).
 
-- [ ] **Step 3: Add `recomputeDerivedState` and route `applySessionProgression` through it**
+- [x] **Step 3: Add `recomputeDerivedState` and route `applySessionProgression` through it**
 
 Add to `WorkoutRepository.kt` (place just below `recomputeCoefficients`):
 
@@ -1037,12 +1037,12 @@ Replace the trailing `recomputeCoefficients(asOf = triggerTime)` line inside `ap
         recomputeDerivedState(asOf = triggerTime, sessionId = sessionId)
 ```
 
-- [ ] **Step 4: Run the instrumented suite**
+- [x] **Step 4: Run the instrumented suite**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest"`
 Expected: BUILD SUCCESSFUL — all old tests still pass; four new tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -1059,7 +1059,7 @@ git commit -m "feat(domain): add recomputeDerivedState entry point"
 
 A focused regression test pinning the intended behavior that manual baseline overrides do **not** trigger normalization. Production code already has this property because `applyManualBaselineOverrides` never calls `recomputeDerivedState` — this test guards against a future refactor accidentally adding such a call.
 
-- [ ] **Step 1: Add the test**
+- [x] **Step 1: Add the test**
 
 Append to `WorkoutRepositoryTest`:
 
@@ -1082,12 +1082,12 @@ Append to `WorkoutRepositoryTest`:
     }
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.applyManualBaselineOverrides_doesNotTriggerNormalization"`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt
@@ -1104,7 +1104,7 @@ git commit -m "test(domain): pin manual override does not trigger normalization"
 
 Production wiring. Also adds the targeted "backfill runs both passes" regression test using the real `SeedNormalizer` and `EstCoefConsensusHeuristic`. This is the explicit guard the user called out — if either pass gets accidentally skipped in the backfill flow, this test fails.
 
-- [ ] **Step 1: Update `StochasticStrengthApp`**
+- [x] **Step 1: Update `StochasticStrengthApp`**
 
 Modify `StochasticStrengthApp.kt`. Add the import:
 
@@ -1138,12 +1138,12 @@ Change the backfill call site:
 
 (Only the `recomputeDerivedState()` call changes — replacing the previous `recomputeCoefficients()`.)
 
-- [ ] **Step 2: Build to verify compile**
+- [x] **Step 2: Build to verify compile**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Add the backfill regression test**
+- [x] **Step 3: Add the backfill regression test**
 
 Append to `WorkoutRepositoryTest`. This uses the *real* `SeedNormalizer` and `EstCoefConsensusHeuristic` and constructs a CHEST muscle group where two exercises have drifted above seed.
 
@@ -1205,17 +1205,17 @@ Append to `WorkoutRepositoryTest`. This uses the *real* `SeedNormalizer` and `Es
     }
 ```
 
-- [ ] **Step 4: Run the instrumented test**
+- [x] **Step 4: Run the instrumented test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.recomputeDerivedState_realStack_writesBothCoefficientHeuristicAndNormalizationLogs"`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full instrumented suite to check for regressions**
+- [x] **Step 5: Run the full instrumented suite to check for regressions**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: BUILD SUCCESSFUL — every test passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt \
@@ -1232,7 +1232,7 @@ git commit -m "feat(app): wire SeedNormalizer and route backfill through recompu
 
 A higher-fidelity check that the full pipeline converges in the natural way: drift accumulates, and after enough sessions one NORMALIZATION row eventually appears. Catches subtle wiring bugs (wrong order, wrong sign) that the per-method tests might miss.
 
-- [ ] **Step 1: Add the test**
+- [x] **Step 1: Add the test**
 
 Append to `WorkoutRepositoryTest`:
 
@@ -1287,22 +1287,22 @@ Append to `WorkoutRepositoryTest`:
     }
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest.applySessionProgression_repeatedDriftEventuallyTriggersNormalization"`
 Expected: PASS.
 
-- [ ] **Step 3: Run the full instrumented suite one more time**
+- [x] **Step 3: Run the full instrumented suite one more time**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Run the full JVM unit-test suite**
+- [x] **Step 4: Run the full JVM unit-test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt
