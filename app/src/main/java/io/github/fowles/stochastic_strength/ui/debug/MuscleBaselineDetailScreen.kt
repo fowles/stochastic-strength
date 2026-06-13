@@ -1,13 +1,20 @@
 package io.github.fowles.stochastic_strength.ui.debug
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -81,6 +88,16 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
                 }
             }
 
+            item { SectionHeader("Coefficient vs seed") }
+
+            item {
+                if (state.coefficientDeviations.isEmpty()) {
+                    EmptyDeviationsPlaceholder()
+                } else {
+                    CoefficientDeviationList(state.coefficientDeviations)
+                }
+            }
+
             item { SectionHeader("Change events") }
 
             if (state.events.isEmpty()) {
@@ -115,6 +132,107 @@ private fun SectionHeader(title: String) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
     )
+}
+
+@Composable
+private fun CoefficientDeviationList(rows: List<CoefficientDeviationRow>) {
+    val maxAbs = rows.maxOf { kotlin.math.abs(it.deviation) }.coerceAtLeast(1e-6f)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        rows.forEach { row -> DeviationRow(row, maxAbs) }
+    }
+}
+
+@Composable
+private fun DeviationRow(row: CoefficientDeviationRow, maxAbs: Float) {
+    val positiveColor = MaterialTheme.colorScheme.primary
+    val negativeColor = MaterialTheme.colorScheme.error
+    val guidelineColor = MaterialTheme.colorScheme.outlineVariant
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = row.name,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.width(140.dp),
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(16.dp)
+                .padding(horizontal = 4.dp),
+        ) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Left half — holds negative bars, anchored to the right edge (center guideline).
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    if (row.deviation < 0f) {
+                        val fraction = ((-row.deviation) / maxAbs).coerceIn(0f, 1f)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxWidth(fraction)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(negativeColor),
+                        )
+                    }
+                }
+                // Right half — holds positive bars, anchored to the left edge (center guideline).
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    if (row.deviation > 0f) {
+                        val fraction = (row.deviation / maxAbs).coerceIn(0f, 1f)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .fillMaxWidth(fraction)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(positiveColor),
+                        )
+                    }
+                }
+            }
+            // Center guideline drawn on top of the bars so they appear to start flush against it.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(guidelineColor),
+            )
+        }
+        Text(
+            text = formatDeviation(row.deviation),
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(56.dp),
+        )
+    }
+}
+
+private fun formatDeviation(deviation: Float): String {
+    val pct = (deviation * 100f).toInt()
+    return if (pct >= 0) "+$pct%" else "$pct%"
+}
+
+@Composable
+private fun EmptyDeviationsPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable
