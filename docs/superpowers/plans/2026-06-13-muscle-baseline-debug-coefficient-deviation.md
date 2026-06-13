@@ -356,16 +356,15 @@ Add these imports near the top of `MuscleBaselineDetailScreen.kt` if not already
 
 ```kotlin
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.foundation.shape.RoundedCornerShape
 ```
+
+`fillMaxSize`, `Row`, `Box`, and `Alignment` should already be imported from earlier in the file.
 
 Compile errors after this step will tell you which are already imported — remove duplicates.
 
@@ -416,7 +415,37 @@ private fun DeviationRow(row: CoefficientDeviationRow, maxAbs: Float) {
                 .height(16.dp)
                 .padding(horizontal = 4.dp),
         ) {
-            // Center guideline.
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Left half — holds negative bars, anchored to the right edge (center guideline).
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    if (row.deviation < 0f) {
+                        val fraction = ((-row.deviation) / maxAbs).coerceIn(0f, 1f)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxWidth(fraction)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(negativeColor),
+                        )
+                    }
+                }
+                // Right half — holds positive bars, anchored to the left edge (center guideline).
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    if (row.deviation > 0f) {
+                        val fraction = (row.deviation / maxAbs).coerceIn(0f, 1f)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .fillMaxWidth(fraction)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(positiveColor),
+                        )
+                    }
+                }
+            }
+            // Center guideline drawn on top of the bars so they appear to start flush against it.
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -424,40 +453,6 @@ private fun DeviationRow(row: CoefficientDeviationRow, maxAbs: Float) {
                     .fillMaxHeight()
                     .background(guidelineColor),
             )
-            val fraction = (row.deviation / maxAbs).coerceIn(-1f, 1f)
-            if (fraction > 0f) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .fillMaxWidth(0.5f + fraction * 0.5f)
-                        .height(10.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .fillMaxWidth(fraction)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(positiveColor),
-                    )
-                }
-            } else if (fraction < 0f) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .fillMaxWidth(0.5f + (-fraction) * 0.5f)
-                        .height(10.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .fillMaxWidth(-fraction)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(negativeColor),
-                    )
-                }
-            }
         }
         Text(
             text = formatDeviation(row.deviation),
@@ -474,9 +469,7 @@ private fun formatDeviation(deviation: Float): String {
 }
 ```
 
-The nested `Box` trick (outer half-width + inner fraction-of-half) draws a bar that *starts* at the chart center and grows outward. The outer Box is anchored at start (for positive) or end (for negative), and the inner colored bar sits at the far edge so it lines up flush against the center guideline.
-
-Drop the import `androidx.compose.ui.layout.Layout` if you added it — it's not needed.
+The bar area is a Row of two equal-weight halves: the left half hosts negative bars anchored to its right edge (which is the visual center), and the right half hosts positive bars anchored to its left edge. `fillMaxWidth(fraction)` on the colored Box scales relative to its half, so the bar width equals `fraction × (parent / 2)` — exactly the geometry we want. The 1.dp center guideline overlays the Row via `align(Alignment.Center)` so it sits flush against whichever bar is showing.
 
 - [ ] **Step 5: Add the empty-state placeholder**
 
