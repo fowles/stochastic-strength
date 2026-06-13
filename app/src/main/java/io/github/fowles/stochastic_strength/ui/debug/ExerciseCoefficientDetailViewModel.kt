@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,10 +27,9 @@ data class CoefficientEvent(
 data class ExerciseCoefficientDetailState(
     val loading: Boolean = true,
     val exercise: Exercise? = null,
-    val currentCoefficient: Float = 0f,
-    val seedCoefficient: Float? = null,
     val events: List<CoefficientEvent> = emptyList(),
     val chartPoints: List<DebugChartPoint> = emptyList(),
+    val coefficientDeviations: List<CoefficientDeviationRow> = emptyList(),
 )
 
 class ExerciseCoefficientDetailViewModel(
@@ -48,9 +48,7 @@ class ExerciseCoefficientDetailViewModel(
                 _state.value = ExerciseCoefficientDetailState(loading = false)
                 return@launch
             }
-            val seed = repository.getSeedCoefficient(exercise)
             val logs = repository.getCoefficientEvents(exerciseId)
-            val currentCoefficient = logs.lastOrNull()?.coefficient ?: seed ?: 0f
 
             val events = logs.asReversed().map { log ->
                 CoefficientEvent(
@@ -70,13 +68,29 @@ class ExerciseCoefficientDetailViewModel(
                 logs.forEach { add(DebugChartPoint(it.computedAt, it.coefficient)) }
             }
 
+            val muscleExercises = app.database.exerciseDao().getAll()
+                .filter { it.primaryMuscle == exercise.primaryMuscle }
+            val latestUserCoefficients = app.database.coefficientChangeLogDao()
+                .getLatestPerExercise()
+                .associate { it.exerciseId to it.coefficient }
+            val deviations = computeCoefficientDeviations(
+                exercises = muscleExercises.map { it.id to it.name },
+                seedByName = ExerciseCoefficients.byName,
+                currentByExerciseId = latestUserCoefficients,
+            )
+            val currentRow = deviations.firstOrNull { it.name == exercise.name }
+            val coefficientDeviations = if (currentRow == null) {
+                deviations
+            } else {
+                listOf(currentRow) + deviations.filter { it.name != exercise.name }
+            }
+
             _state.value = ExerciseCoefficientDetailState(
                 loading = false,
                 exercise = exercise,
-                currentCoefficient = currentCoefficient,
-                seedCoefficient = seed,
                 events = events,
                 chartPoints = chartPoints,
+                coefficientDeviations = coefficientDeviations,
             )
         }
     }
