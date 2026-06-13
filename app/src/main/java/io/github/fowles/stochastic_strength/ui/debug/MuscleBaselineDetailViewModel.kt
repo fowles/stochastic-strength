@@ -60,7 +60,6 @@ internal fun computeCoefficientDeviations(
 data class MuscleBaselineDetailState(
     val loading: Boolean = true,
     val muscleGroup: MuscleGroup,
-    val currentBaseline: Float = 0f,
     val weightUnit: WeightUnit = WeightUnit.KG,
     val events: List<BaselineEvent> = emptyList(),
     val chartPoints: List<DebugChartPoint> = emptyList(),
@@ -81,9 +80,6 @@ class MuscleBaselineDetailViewModel(
         viewModelScope.launch {
             val profile = app.database.userProfileDao().getProfile()
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
-            val currentBaseline = repository.getMuscleGroupStrengths()
-                .firstOrNull { it.muscleGroup == muscleGroup }
-                ?.baselineWeight ?: 0f
             val logs = repository.getBaselineEvents(muscleGroup)
 
             val allExercises = app.database.exerciseDao().getAll()
@@ -119,7 +115,6 @@ class MuscleBaselineDetailViewModel(
             _state.value = MuscleBaselineDetailState(
                 loading = false,
                 muscleGroup = muscleGroup,
-                currentBaseline = currentBaseline,
                 weightUnit = weightUnit,
                 events = events,
                 chartPoints = chartPoints,
