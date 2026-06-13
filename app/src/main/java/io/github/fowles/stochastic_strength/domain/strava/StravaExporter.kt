@@ -79,9 +79,7 @@ class StravaExporter(
             ?: throw IOException("Session $sessionId not found")
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
-        val exerciseById = exerciseIds
-            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
-            .toMap()
+        val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
         val nameById = exerciseById.mapValues { (_, ex) -> ex.name }
 
         val durationMs = (session.endTime ?: session.startTime) - session.startTime

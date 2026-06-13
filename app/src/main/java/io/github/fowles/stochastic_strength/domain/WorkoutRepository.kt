@@ -70,9 +70,7 @@ class WorkoutRepository(
         val profile = db.userProfileDao().getProfile()
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
 
-        val exerciseById = exerciseIds
-            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
-            .toMap()
+        val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
 
         for (exerciseId in exerciseIds) {
             val feedbacks = sets
@@ -258,8 +256,9 @@ class WorkoutRepository(
 
     suspend fun getSessionExerciseNames(sessionId: Long): List<String> {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
-        return sets.map { it.exerciseId }.distinct()
-            .mapNotNull { db.exerciseDao().getById(it)?.name }
+        val orderedIds = sets.map { it.exerciseId }.distinct()
+        val nameById = db.exerciseDao().getByIds(orderedIds).associate { it.id to it.name }
+        return orderedIds.mapNotNull { nameById[it] }
     }
 
     suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
@@ -269,9 +268,7 @@ class WorkoutRepository(
         val rows = db.coefficientChangeLogDao().getMostRecent(limit)
         if (rows.isEmpty()) return emptyList()
         val exerciseIds = rows.map { it.exerciseId }.distinct()
-        val exercisesById = exerciseIds
-            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
-            .toMap()
+        val exercisesById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
         return rows.mapNotNull { log ->
             val exercise = exercisesById[log.exerciseId] ?: return@mapNotNull null
             CoefficientRow(
