@@ -6,6 +6,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -66,22 +67,22 @@ class WorkoutRepositoryTest {
     // fun applySessionProgression_logs_PROGRESSION_row() = runBlocking { ... }
 
     @Test
-    fun applyManualBaselineOverrides_logs_OVERRIDE_row() = runBlocking {
-        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.BACK, 80f))
+    fun applyManualBaselineOverrides_writesBaselineOverrideRow() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
 
         repository.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.BACK to 90f))
 
-        val logs = db.baselineHistoryDao().getForSession(sessionId)
-        assertEquals(1, logs.size)
-        with(logs[0]) {
+        val overrides = db.baselineOverrideDao().getForSession(sessionId)
+        assertEquals(1, overrides.size)
+        with(overrides[0]) {
             assertEquals(MuscleGroup.BACK, muscleGroup)
-            assertEquals(80f, previousBaseline)
-            assertEquals(90f, newBaseline)
-            assertEquals(BaselineChangeReason.OVERRIDE, changeReason)
+            assertEquals(90f, baselineWeight)
             assertEquals(sessionId, this.sessionId)
-            assertNull(feedbacks)
+            assertEquals(1000L, asOf)
         }
+        // Must NOT write to muscle_group_strength or baseline_history — those are derived.
+        assertTrue(db.muscleGroupStrengthDao().getAll().isEmpty())
+        assertTrue(db.baselineHistoryDao().getAll().isEmpty())
     }
 
     // TODO Task 18 (Phase 5): applySessionProgression no longer sets hurtFlag — verify
@@ -300,8 +301,7 @@ class WorkoutRepositoryTest {
     // @Test fun applySessionProgression_triggersNormalizationViaDerivedState() ...
 
     @Test
-    fun applyManualBaselineOverrides_doesNotTriggerNormalization() = runBlocking {
-        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+    fun applyManualBaselineOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
         val normalizer = fakeNormalizer("test", listOf(
             BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
@@ -310,10 +310,10 @@ class WorkoutRepositoryTest {
 
         repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 
-        // Only the OVERRIDE row should exist — no NORMALIZATION row.
+        // Only the baseline_override input row should exist — no derived writes.
         val rows = db.baselineHistoryDao().getAll()
-        assertEquals(1, rows.size)
-        assertEquals(BaselineChangeReason.OVERRIDE, rows[0].changeReason)
+        assertTrue("expected no baseline_history rows; normalization must not trigger", rows.isEmpty())
+        assertTrue(db.muscleGroupStrengthDao().getAll().isEmpty())
     }
 
     // TODO Task 22 (Phase 6): re-enable once live session-end calls snapshot-aware progression.

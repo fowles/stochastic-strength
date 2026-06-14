@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
@@ -132,17 +133,16 @@ class WorkoutRepository(
     }
 
     suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
+        if (overrides.isEmpty()) return
+        val session = db.workoutSessionDao().getById(sessionId)
+        val asOf = session?.startTime ?: System.currentTimeMillis()
         for ((muscleGroup, newBaseline) in overrides) {
-            val previous = db.muscleGroupStrengthDao().get(muscleGroup)?.baselineWeight ?: 0f
-            db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscleGroup = muscleGroup, baselineWeight = newBaseline))
-            db.baselineHistoryDao().insert(
-                BaselineHistory(
+            db.baselineOverrideDao().insert(
+                BaselineOverride(
                     sessionId = sessionId,
                     muscleGroup = muscleGroup,
-                    previousBaseline = previous,
-                    newBaseline = newBaseline,
-                    changeReason = BaselineChangeReason.OVERRIDE,
-                    timestamp = System.currentTimeMillis(),
+                    baselineWeight = newBaseline,
+                    asOf = asOf,
                 )
             )
         }
