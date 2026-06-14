@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class BaselineEvent(
-    val sessionId: Long,
+    val sessionId: Long?,
     val timestamp: Long,
     val previousBaseline: Float,
     val newBaseline: Float,
@@ -85,7 +85,7 @@ class MuscleBaselineDetailViewModel(
 
             val allExercises = app.database.exerciseDao().getAll()
                 .filter { it.primaryMuscle == muscleGroup }
-            val latestUserCoefficients = app.database.coefficientChangeLogDao()
+            val latestUserCoefficients = app.database.coefficientHistoryDao()
                 .getLatestPerExercise()
                 .associate { it.exerciseId to it.coefficient }
             val coefficientDeviations = computeCoefficientDeviations(
@@ -96,7 +96,7 @@ class MuscleBaselineDetailViewModel(
 
             val nameByExerciseId = allExercises.associate { it.id to it.name }
             val exerciseIdsForMuscle = nameByExerciseId.keys
-            val sessionIds = logs.map { it.sessionId }.toSet()
+            val sessionIds = logs.mapNotNull { it.sessionId }.toSet()
             val setsBySession = app.database.workoutSetDao().getAll()
                 .filter { it.sessionId in sessionIds && it.exerciseId in exerciseIdsForMuscle }
                 .groupBy { it.sessionId }

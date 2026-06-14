@@ -7,18 +7,22 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import io.github.fowles.stochastic_strength.data.dao.BaselineChangeLogDao
-import io.github.fowles.stochastic_strength.data.dao.CoefficientChangeLogDao
+import io.github.fowles.stochastic_strength.data.dao.BaselineHistoryDao
+import io.github.fowles.stochastic_strength.data.dao.BaselineOverrideDao
+import io.github.fowles.stochastic_strength.data.dao.CoefficientHistoryDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseDao
+import io.github.fowles.stochastic_strength.data.dao.ExerciseHurtStateDao
 import io.github.fowles.stochastic_strength.data.dao.KnownLocationDao
 import io.github.fowles.stochastic_strength.data.dao.LocationExcludedExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.MuscleGroupStrengthDao
 import io.github.fowles.stochastic_strength.data.dao.UserProfileDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSessionDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSetDao
-import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
-import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
+import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
@@ -36,8 +40,10 @@ import kotlinx.coroutines.CoroutineScope
         WorkoutSet::class,
         UserProfile::class,
         MuscleGroupStrength::class,
-        BaselineChangeLog::class,
-        CoefficientChangeLog::class,
+        BaselineHistory::class,
+        CoefficientHistory::class,
+        BaselineOverride::class,
+        ExerciseHurtState::class,
     ],
     version = 12,
     exportSchema = true,
@@ -51,8 +57,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutSetDao(): WorkoutSetDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun muscleGroupStrengthDao(): MuscleGroupStrengthDao
-    abstract fun baselineChangeLogDao(): BaselineChangeLogDao
-    abstract fun coefficientChangeLogDao(): CoefficientChangeLogDao
+    abstract fun baselineHistoryDao(): BaselineHistoryDao
+    abstract fun coefficientHistoryDao(): CoefficientHistoryDao
+    abstract fun baselineOverrideDao(): BaselineOverrideDao
+    abstract fun exerciseHurtStateDao(): ExerciseHurtStateDao
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2, 3) {
@@ -142,13 +150,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Replaces the single-purpose `actualRepsBackfilled` flag with a monotonically increasing
-        // `derivedStateVersion` counter so future re-derivations catch users on any upgrade path.
-        // Existing rows reset to version 0 — DerivedStateBackfill replays each pending step (the
-        // ActualRepsBackfill is idempotent, recomputeDerivedState recomputes from current state).
-        // Recreate-table is required because Android 13's bundled SQLite (3.32) predates DROP COLUMN.
+        // Reshapes v11 → v12:
+        //   - user_profile: drop actualRepsBackfilled (and prior derivedStateVersion column that was
+        //     added in an old v12 migration); replace with the clean 5-column schema.
+        //   - baseline_override: new input table (user-authored initial baselines + manual overrides).
+        //   - exercise_hurt_state: new input table (hurt flag lifted out of exercises).
+        //   - exercises: drop hurtFlag (recreate-table, since SQLite 3.32 lacks DROP COLUMN).
+        //   - baseline_change_log → baseline_history: rename derived-state table.
+        //   - coefficient_change_log → coefficient_history: rename derived-state table.
+        //   - Migrate MANUAL_OVERRIDE rows from baseline_change_log to baseline_override.
+        //   - Synthesize initial baseline rows per muscle into baseline_override.
         internal val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. user_profile: drop actualRepsBackfilled, recreate-table.
                 db.execSQL("""
                     CREATE TABLE `user_profile_new` (
                         `id` INTEGER NOT NULL,
@@ -156,16 +170,93 @@ abstract class AppDatabase : RoomDatabase() {
                         `strengthLevel` TEXT NOT NULL,
                         `weightUnit` TEXT NOT NULL,
                         `preferredExerciseCount` INTEGER,
-                        `derivedStateVersion` INTEGER NOT NULL DEFAULT 0,
                         PRIMARY KEY(`id`)
                     )
                 """.trimIndent())
                 db.execSQL("""
                     INSERT INTO user_profile_new (id, sex, strengthLevel, weightUnit, preferredExerciseCount)
-                    SELECT id, sex, strengthLevel, weightUnit, preferredExerciseCount FROM user_profile
+                        SELECT id, sex, strengthLevel, weightUnit, preferredExerciseCount FROM user_profile
                 """.trimIndent())
                 db.execSQL("DROP TABLE user_profile")
                 db.execSQL("ALTER TABLE user_profile_new RENAME TO user_profile")
+
+                // 2. baseline_override (new input table).
+                db.execSQL("""
+                    CREATE TABLE `baseline_override` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `sessionId` INTEGER,
+                        `muscleGroup` TEXT NOT NULL,
+                        `baselineWeight` REAL NOT NULL,
+                        `asOf` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                // 3. Move MANUAL_OVERRIDE rows from baseline_change_log to baseline_override.
+                db.execSQL("""
+                    INSERT INTO baseline_override (sessionId, muscleGroup, baselineWeight, asOf)
+                        SELECT sessionId, muscleGroup, newBaseline, timestamp
+                        FROM baseline_change_log
+                        WHERE changeReason = 'MANUAL_OVERRIDE'
+                """.trimIndent())
+
+                // 4. Synthesize initial baselines per muscle.
+                db.execSQL("""
+                    INSERT INTO baseline_override (sessionId, muscleGroup, baselineWeight, asOf)
+                        SELECT NULL, b1.muscleGroup, b1.previousBaseline, 0
+                        FROM baseline_change_log b1
+                        WHERE b1.id = (
+                            SELECT MIN(b2.id) FROM baseline_change_log b2
+                            WHERE b2.muscleGroup = b1.muscleGroup
+                        )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO baseline_override (sessionId, muscleGroup, baselineWeight, asOf)
+                        SELECT NULL, muscleGroup, baselineWeight, 0
+                        FROM muscle_group_strength
+                        WHERE muscleGroup NOT IN (SELECT DISTINCT muscleGroup FROM baseline_change_log)
+                """.trimIndent())
+
+                // 5. exercise_hurt_state (new input table).
+                db.execSQL("""
+                    CREATE TABLE `exercise_hurt_state` (
+                        `exerciseId` INTEGER PRIMARY KEY NOT NULL,
+                        `isHurt` INTEGER NOT NULL,
+                        `asOf` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO exercise_hurt_state (exerciseId, isHurt, asOf)
+                        SELECT id, hurtFlag, 0 FROM exercises WHERE hurtFlag = 1
+                """.trimIndent())
+
+                // 6. exercises: drop hurtFlag (recreate-table).
+                // Column list from v11 11.json: id, name, primaryMuscle, secondaryMuscles, equipment,
+                // isDisliked, hurtFlag, isUnilateral, isTimed
+                db.execSQL("""
+                    CREATE TABLE `exercises_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `primaryMuscle` TEXT NOT NULL,
+                        `secondaryMuscles` TEXT NOT NULL,
+                        `equipment` TEXT NOT NULL,
+                        `isDisliked` INTEGER NOT NULL,
+                        `isUnilateral` INTEGER NOT NULL,
+                        `isTimed` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO exercises_new (id, name, primaryMuscle, secondaryMuscles, equipment, isDisliked, isUnilateral, isTimed)
+                        SELECT id, name, primaryMuscle, secondaryMuscles, equipment, isDisliked, isUnilateral, isTimed FROM exercises
+                """.trimIndent())
+                db.execSQL("DROP TABLE exercises")
+                db.execSQL("ALTER TABLE exercises_new RENAME TO exercises")
+
+                // 7. Remove migrated MANUAL_OVERRIDE rows from the history table.
+                db.execSQL("DELETE FROM baseline_change_log WHERE changeReason = 'MANUAL_OVERRIDE'")
+
+                // 8. Rename derived-state tables.
+                db.execSQL("ALTER TABLE baseline_change_log RENAME TO baseline_history")
+                db.execSQL("ALTER TABLE coefficient_change_log RENAME TO coefficient_history")
             }
         }
 

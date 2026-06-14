@@ -2,15 +2,14 @@ package io.github.fowles.stochastic_strength.domain
 
 import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
-import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
+import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
-import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
@@ -31,7 +30,7 @@ class WorkoutRepository(
         else emptySet()
 
     private suspend fun effectiveCoefficientSource(): UserCoefficientSource {
-        val latest = db.coefficientChangeLogDao().getLatestPerExercise()
+        val latest = db.coefficientHistoryDao().getLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
         return UserCoefficientSource(latest, coefficientSource)
     }
@@ -73,16 +72,7 @@ class WorkoutRepository(
 
         val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
 
-        for (exerciseId in exerciseIds) {
-            val feedbacks = sets
-                .filter { it.exerciseId == exerciseId }
-                .mapNotNull { it.feedback }
-            if (SetFeedback.HURT in feedbacks) {
-                exerciseById[exerciseId]?.let { exercise ->
-                    db.exerciseDao().update(exercise.copy(hurtFlag = true))
-                }
-            }
-        }
+        // hurtFlag side effect REMOVED — moved to live recording in Phase 5 (Task 18).
 
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
@@ -101,8 +91,8 @@ class WorkoutRepository(
             val newBaseline = progressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
             val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
             db.muscleGroupStrengthDao().upsert(current.copy(baselineWeight = roundedNewBaseline))
-            db.baselineChangeLogDao().insert(
-                BaselineChangeLog(
+            db.baselineHistoryDao().insert(
+                BaselineHistory(
                     sessionId = sessionId,
                     muscleGroup = muscleGroup,
                     previousBaseline = current.baselineWeight,
@@ -128,13 +118,13 @@ class WorkoutRepository(
         for ((muscleGroup, newBaseline) in overrides) {
             val previous = db.muscleGroupStrengthDao().get(muscleGroup)?.baselineWeight ?: 0f
             db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscleGroup = muscleGroup, baselineWeight = newBaseline))
-            db.baselineChangeLogDao().insert(
-                BaselineChangeLog(
+            db.baselineHistoryDao().insert(
+                BaselineHistory(
                     sessionId = sessionId,
                     muscleGroup = muscleGroup,
                     previousBaseline = previous,
                     newBaseline = newBaseline,
-                    changeReason = BaselineChangeReason.MANUAL_OVERRIDE,
+                    changeReason = BaselineChangeReason.OVERRIDE,
                     timestamp = System.currentTimeMillis(),
                 )
             )
@@ -148,11 +138,12 @@ class WorkoutRepository(
         val activeExercises = db.exerciseDao().getActive()
         val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
         val sessionTimes = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
-        val baselines = db.baselineChangeLogDao().getAll()
+        val baselines = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.PROGRESSION }
-            .associate { (it.sessionId to it.muscleGroup) to it.previousBaseline }
+            .mapNotNull { row -> row.sessionId?.let { (it to row.muscleGroup) to row.previousBaseline } }
+            .toMap()
         val sets = db.workoutSetDao().getAll()
-        val latestUserCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
+        val latestUserCoefficients = db.coefficientHistoryDao().getLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
         val currentCoefficients = activeExercises.associate { exercise ->
             exercise.id to (latestUserCoefficients[exercise.id]
@@ -173,7 +164,7 @@ class WorkoutRepository(
         val sets = db.workoutSetDao().getAll()
         val baselines = db.muscleGroupStrengthDao().getAll()
             .associate { it.muscleGroup to it.baselineWeight }
-        val latestCoefs = db.coefficientChangeLogDao().getLatestPerExercise()
+        val latestCoefs = db.coefficientHistoryDao().getLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
         val snapshots = allExercises.map { ex ->
             val seed = coefficientSource.get(ex) ?: 0f
@@ -198,12 +189,12 @@ class WorkoutRepository(
             ?: input.sets.mapNotNull { it.completedAt }.maxOrNull()
             ?: System.currentTimeMillis()
         db.withTransaction {
-            val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+            val latestByExercise = db.coefficientHistoryDao().getLatestPerExercise()
                 .associateBy { it.exerciseId }
             for ((exerciseId, candidates) in candidatesByExercise) {
                 val (winnerName, winner) = mergeHeuristicResults(candidates) ?: continue
-                db.coefficientChangeLogDao().insert(
-                    CoefficientChangeLog(
+                db.coefficientHistoryDao().insert(
+                    CoefficientHistory(
                         exerciseId = exerciseId,
                         previousCoefficient = latestByExercise[exerciseId]?.coefficient,
                         coefficient = winner.coefficient,
@@ -241,7 +232,7 @@ class WorkoutRepository(
         if (proposals.isEmpty()) return
 
         db.withTransaction {
-            val latestCoefByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+            val latestCoefByExercise = db.coefficientHistoryDao().getLatestPerExercise()
                 .associateBy { it.exerciseId }
             for (proposal in proposals) {
                 val oldBaseline = input.baselines[proposal.muscleGroup] ?: continue
@@ -255,8 +246,8 @@ class WorkoutRepository(
                 db.muscleGroupStrengthDao().upsert(
                     MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = newBaseline)
                 )
-                db.baselineChangeLogDao().insert(
-                    BaselineChangeLog(
+                db.baselineHistoryDao().insert(
+                    BaselineHistory(
                         sessionId = sessionId,
                         muscleGroup = proposal.muscleGroup,
                         previousBaseline = oldBaseline,
@@ -271,8 +262,8 @@ class WorkoutRepository(
                 }
                 for (snap in inGroup) {
                     val newCoef = snap.currentCoefficient * mEffective
-                    db.coefficientChangeLogDao().insert(
-                        CoefficientChangeLog(
+                    db.coefficientHistoryDao().insert(
+                        CoefficientHistory(
                             exerciseId = snap.exercise.id,
                             previousCoefficient = latestCoefByExercise[snap.exercise.id]?.coefficient
                                 ?: snap.currentCoefficient,
@@ -352,7 +343,7 @@ class WorkoutRepository(
         db.muscleGroupStrengthDao().getAll()
 
     suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
-        val rows = db.coefficientChangeLogDao().getMostRecent(limit)
+        val rows = db.coefficientHistoryDao().getMostRecent(limit)
         if (rows.isEmpty()) return emptyList()
         val exerciseIds = rows.map { it.exerciseId }.distinct()
         val exercisesById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
@@ -374,7 +365,7 @@ class WorkoutRepository(
 
     suspend fun getAllCoefficientRows(): List<CoefficientRow> {
         val allExercises = db.exerciseDao().getAll()
-        val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+        val latestByExercise = db.coefficientHistoryDao().getLatestPerExercise()
             .associateBy { it.exerciseId }
         return allExercises
             .map { exercise ->
@@ -393,11 +384,11 @@ class WorkoutRepository(
             .sortedBy { it.exerciseName }
     }
 
-    suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineChangeLog> =
-        db.baselineChangeLogDao().getForMuscleGroup(muscleGroup)
+    suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineHistory> =
+        db.baselineHistoryDao().getForMuscle(muscleGroup)
 
-    suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientChangeLog> =
-        db.coefficientChangeLogDao().getForExercise(exerciseId)
+    suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
+        db.coefficientHistoryDao().getForExercise(exerciseId)
 
     fun getSeedCoefficient(exercise: Exercise): Float? =
         coefficientSource.get(exercise)

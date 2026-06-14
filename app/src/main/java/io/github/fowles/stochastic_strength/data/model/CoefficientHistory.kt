@@ -5,10 +5,10 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "coefficient_change_log",
+    tableName = "coefficient_history",
     indices = [Index("exerciseId")],
 )
-data class CoefficientChangeLog(
+data class CoefficientHistory(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val exerciseId: Long,
     val previousCoefficient: Float? = null,

@@ -158,7 +158,8 @@ private fun ExerciseRow(exercise: Exercise, onClick: () -> Unit) {
             )
             Spacer(Modifier.width(4.dp))
         }
-        if (exercise.hurtFlag) {
+        // TEMP: replaced by exercise_hurt_state wiring in Phase 5
+        if (false) {
             StatusBadge(
                 label = "Hurt",
                 containerColor = MaterialTheme.colorScheme.errorContainer,

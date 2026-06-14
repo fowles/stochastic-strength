@@ -16,8 +16,6 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -45,13 +43,12 @@ class DerivedStateBackfillTest {
     @After
     fun tearDown() = db.close()
 
-    private suspend fun seedProfile(derivedStateVersion: Int) {
+    private suspend fun seedProfile() {
         db.userProfileDao().insert(
             UserProfile(
                 sex = Sex.MALE,
                 strengthLevel = StrengthLevel.MEDIUM,
                 weightUnit = WeightUnit.KG,
-                derivedStateVersion = derivedStateVersion,
             )
         )
     }
@@ -69,9 +66,26 @@ class DerivedStateBackfillTest {
         return exerciseId to sessionId
     }
 
+    // TODO Task 21 (Phase 6): Tests for derivedStateVersion/CURRENT_VERSION are rewritten here.
+    // The below tests are commented out because UserProfile.derivedStateVersion is dropped in Phase 3.
+    // Phase 6 rewrites DerivedStateBackfill to use replay; tests will be updated accordingly.
+
+    // @Test
+    // fun run_atVersion0_bumpsToCurrentAndExecutesActualRepsBackfill() ...
+
+    // @Test
+    // fun run_atCurrentVersion_isNoOpAndDoesNotRewriteActualReps() ...
+
     @Test
-    fun run_atVersion0_bumpsToCurrentAndExecutesActualRepsBackfill() = runBlocking {
-        seedProfile(derivedStateVersion = 0)
+    fun run_noProfile_isNoOp() = runBlocking {
+        // No profile inserted — runner returns without throwing.
+        DerivedStateBackfill(db, repository).run()
+        assertNull(db.userProfileDao().getProfile())
+    }
+
+    @Test
+    fun run_withProfile_executesActualRepsBackfill() = runBlocking {
+        seedProfile()
         val (exerciseId, sessionId) = seedExerciseAndSession()
         // A RIR set with null actualReps is the canary: ActualRepsBackfill assigns targetReps to it.
         val setId = db.workoutSetDao().insert(WorkoutSet(
@@ -87,40 +101,8 @@ class DerivedStateBackfillTest {
 
         DerivedStateBackfill(db, repository).run()
 
-        val profile = db.userProfileDao().getProfile()
-        assertNotNull(profile)
-        assertEquals(DerivedStateBackfill.CURRENT_VERSION, profile!!.derivedStateVersion)
         val refreshed = db.workoutSetDao().getAll().first { it.id == setId }
-        assertEquals(5, refreshed.actualReps)
-    }
-
-    @Test
-    fun run_atCurrentVersion_isNoOpAndDoesNotRewriteActualReps() = runBlocking {
-        seedProfile(derivedStateVersion = DerivedStateBackfill.CURRENT_VERSION)
-        val (exerciseId, sessionId) = seedExerciseAndSession()
-        val setId = db.workoutSetDao().insert(WorkoutSet(
-            sessionId = sessionId,
-            exerciseId = exerciseId,
-            setNumber = 1,
-            targetWeight = 80f,
-            targetReps = 5,
-            actualReps = null,
-            feedback = SetFeedback.RIR_2_4,
-            completedAt = 1_700_000_000_000L,
-        ))
-
-        DerivedStateBackfill(db, repository).run()
-
-        val profile = db.userProfileDao().getProfile()
-        assertEquals(DerivedStateBackfill.CURRENT_VERSION, profile!!.derivedStateVersion)
-        // Backfill did not run, so the set is untouched.
-        assertNull(db.workoutSetDao().getAll().first { it.id == setId }.actualReps)
-    }
-
-    @Test
-    fun run_noProfile_isNoOp() = runBlocking {
-        // No profile inserted — runner returns without throwing.
-        DerivedStateBackfill(db, repository).run()
-        assertNull(db.userProfileDao().getProfile())
+        // ActualRepsBackfill should have set actualReps = targetReps = 5
+        assert(refreshed.actualReps == 5) { "ActualRepsBackfill should have set actualReps; got ${refreshed.actualReps}" }
     }
 }

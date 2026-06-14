@@ -146,7 +146,8 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 }
                 Button(
                     onClick = { viewModel.toggleHurtFlag() },
-                    colors = if (exercise.hurtFlag) ButtonDefaults.buttonColors(
+                    // TEMP: replaced by exercise_hurt_state wiring in Phase 5
+                    colors = if (false) ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     ) else ButtonDefaults.buttonColors(
@@ -158,7 +159,8 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     Text("Hurt")
                     Spacer(modifier = Modifier.width(8.dp))
                     Switch(
-                        checked = exercise.hurtFlag,
+                        // TEMP: replaced by exercise_hurt_state wiring in Phase 5
+                        checked = false,
                         onCheckedChange = null,
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colorScheme.onError,

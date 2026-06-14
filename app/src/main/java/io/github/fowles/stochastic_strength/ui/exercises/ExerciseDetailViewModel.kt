@@ -128,12 +128,8 @@ class ExerciseDetailViewModel(
     }
 
     fun toggleHurtFlag() {
-        val exercise = _state.value.exercise ?: return
-        viewModelScope.launch {
-            val updated = exercise.copy(hurtFlag = !exercise.hurtFlag)
-            repository.updateExercise(updated)
-            _state.value = _state.value.copy(exercise = updated)
-        }
+        // TEMP: replaced by exercise_hurt_state wiring in Phase 5 (Task 19)
+        // No-op until ExerciseHurtState is wired into the UI layer.
     }
 
     companion object {

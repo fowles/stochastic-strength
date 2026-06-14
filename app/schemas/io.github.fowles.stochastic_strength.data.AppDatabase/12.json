@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 12,
-    "identityHash": "de7fb8f0ceacc923f1259367ed0f400d",
+    "identityHash": "f418e7a6d574e32f43ffb5384c271060",
     "entities": [
       {
         "tableName": "exercises",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `primaryMuscle` TEXT NOT NULL, `secondaryMuscles` TEXT NOT NULL, `equipment` TEXT NOT NULL, `isDisliked` INTEGER NOT NULL, `hurtFlag` INTEGER NOT NULL, `isUnilateral` INTEGER NOT NULL, `isTimed` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `primaryMuscle` TEXT NOT NULL, `secondaryMuscles` TEXT NOT NULL, `equipment` TEXT NOT NULL, `isDisliked` INTEGER NOT NULL, `isUnilateral` INTEGER NOT NULL, `isTimed` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -41,12 +41,6 @@
           {
             "fieldPath": "isDisliked",
             "columnName": "isDisliked",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "hurtFlag",
-            "columnName": "hurtFlag",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -240,7 +234,7 @@
       },
       {
         "tableName": "user_profile",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `sex` TEXT NOT NULL, `strengthLevel` TEXT NOT NULL, `weightUnit` TEXT NOT NULL, `preferredExerciseCount` INTEGER, `derivedStateVersion` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `sex` TEXT NOT NULL, `strengthLevel` TEXT NOT NULL, `weightUnit` TEXT NOT NULL, `preferredExerciseCount` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -270,12 +264,6 @@
             "fieldPath": "preferredExerciseCount",
             "columnName": "preferredExerciseCount",
             "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "derivedStateVersion",
-            "columnName": "derivedStateVersion",
-            "affinity": "INTEGER",
-            "notNull": true
           }
         ],
         "primaryKey": {
@@ -310,8 +298,8 @@
         }
       },
       {
-        "tableName": "baseline_change_log",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, `muscleGroup` TEXT NOT NULL, `previousBaseline` REAL NOT NULL, `newBaseline` REAL NOT NULL, `changeReason` TEXT NOT NULL, `feedbacks` TEXT, `sessionReps` INTEGER, `minReductionFraction` REAL, `timestamp` INTEGER NOT NULL)",
+        "tableName": "baseline_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER, `muscleGroup` TEXT NOT NULL, `previousBaseline` REAL NOT NULL, `newBaseline` REAL NOT NULL, `changeReason` TEXT NOT NULL, `feedbacks` TEXT, `sessionReps` INTEGER, `minReductionFraction` REAL, `timestamp` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -322,8 +310,7 @@
           {
             "fieldPath": "sessionId",
             "columnName": "sessionId",
-            "affinity": "INTEGER",
-            "notNull": true
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "muscleGroup",
@@ -379,7 +366,7 @@
         }
       },
       {
-        "tableName": "coefficient_change_log",
+        "tableName": "coefficient_history",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `exerciseId` INTEGER NOT NULL, `previousCoefficient` REAL, `coefficient` REAL NOT NULL, `heuristicName` TEXT NOT NULL, `heuristicMetadata` TEXT, `computedAt` INTEGER NOT NULL)",
         "fields": [
           {
@@ -431,20 +418,91 @@
         },
         "indices": [
           {
-            "name": "index_coefficient_change_log_exerciseId",
+            "name": "index_coefficient_history_exerciseId",
             "unique": false,
             "columnNames": [
               "exerciseId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_coefficient_change_log_exerciseId` ON `${TABLE_NAME}` (`exerciseId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_coefficient_history_exerciseId` ON `${TABLE_NAME}` (`exerciseId`)"
           }
         ]
+      },
+      {
+        "tableName": "baseline_override",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER, `muscleGroup` TEXT NOT NULL, `baselineWeight` REAL NOT NULL, `asOf` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "muscleGroup",
+            "columnName": "muscleGroup",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baselineWeight",
+            "columnName": "baselineWeight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "asOf",
+            "columnName": "asOf",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "exercise_hurt_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exerciseId` INTEGER NOT NULL, `isHurt` INTEGER NOT NULL, `asOf` INTEGER NOT NULL, PRIMARY KEY(`exerciseId`))",
+        "fields": [
+          {
+            "fieldPath": "exerciseId",
+            "columnName": "exerciseId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isHurt",
+            "columnName": "isHurt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "asOf",
+            "columnName": "asOf",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "exerciseId"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'de7fb8f0ceacc923f1259367ed0f400d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f418e7a6d574e32f43ffb5384c271060')"
     ]
   }
 }

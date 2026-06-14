@@ -4,7 +4,7 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
@@ -19,7 +19,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
+import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.domain.BaselineNormalizationInput
 import io.github.fowles.stochastic_strength.domain.BaselineNormalizationProposal
 import io.github.fowles.stochastic_strength.domain.BaselineNormalizer
@@ -88,7 +88,7 @@ class WorkoutRepositoryTest {
 
         repository.applySessionProgression(sessionId)
 
-        val logs = db.baselineChangeLogDao().getForSession(sessionId)
+        val logs = db.baselineHistoryDao().getForSession(sessionId)
         assertEquals(1, logs.size)
         with(logs[0]) {
             assertEquals(MuscleGroup.CHEST, muscleGroup)
@@ -102,47 +102,28 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun applyManualBaselineOverrides_logs_MANUAL_OVERRIDE_row() = runBlocking {
+    fun applyManualBaselineOverrides_logs_OVERRIDE_row() = runBlocking {
         db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.BACK, 80f))
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
 
         repository.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.BACK to 90f))
 
-        val logs = db.baselineChangeLogDao().getForSession(sessionId)
+        val logs = db.baselineHistoryDao().getForSession(sessionId)
         assertEquals(1, logs.size)
         with(logs[0]) {
             assertEquals(MuscleGroup.BACK, muscleGroup)
             assertEquals(80f, previousBaseline)
             assertEquals(90f, newBaseline)
-            assertEquals(BaselineChangeReason.MANUAL_OVERRIDE, changeReason)
+            assertEquals(BaselineChangeReason.OVERRIDE, changeReason)
             assertEquals(sessionId, this.sessionId)
             assertNull(feedbacks)
         }
     }
 
-    @Test
-    fun applySessionProgression_setsHurtFlagWhenFeedbackIsHurt() = runBlocking {
-        db.userProfileDao().insert(
-            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
-        )
-        db.exerciseDao().insertAll(listOf(
-            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
-        ))
-        val exerciseId = db.exerciseDao().getActive().first().id
-        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
-        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
-        db.workoutSetDao().insert(
-            WorkoutSet(
-                sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
-                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.HURT,
-            )
-        )
-
-        repository.applySessionProgression(sessionId)
-
-        val exercise = db.exerciseDao().getById(exerciseId)
-        assertTrue("hurtFlag must be set when any set has HURT feedback", exercise!!.hurtFlag)
-    }
+    // TODO Task 18 (Phase 5): applySessionProgression no longer sets hurtFlag — verify
+    // via exercise_hurt_state table instead. Commented out until Phase 5 wires the live path.
+    // @Test
+    // fun applySessionProgression_setsHurtFlagWhenFeedbackIsHurt() ...
 
     @Test
     fun applySessionProgression_aggregatesExercisesInSameMuscleGroupIntoOneLogEntry() = runBlocking {
@@ -169,7 +150,7 @@ class WorkoutRepositoryTest {
 
         repository.applySessionProgression(sessionId)
 
-        val logs = db.baselineChangeLogDao().getForSession(sessionId)
+        val logs = db.baselineHistoryDao().getForSession(sessionId)
         assertEquals("two exercises in same muscle group should produce one log entry", 1, logs.size)
         assertEquals(MuscleGroup.CHEST, logs[0].muscleGroup)
         assertTrue("combined good feedback should increase baseline", logs[0].newBaseline > 100f)
@@ -201,7 +182,7 @@ class WorkoutRepositoryTest {
             "10% reduction cap should hold baseline at or below 90 kg, got ${strength.baselineWeight}",
             strength.baselineWeight <= 90.5f
         )
-        val log = db.baselineChangeLogDao().getForSession(sessionId).single()
+        val log = db.baselineHistoryDao().getForSession(sessionId).single()
         assertEquals(0.10f, log.minReductionFraction!!, 0.001f)
     }
 
@@ -232,8 +213,8 @@ class WorkoutRepositoryTest {
             targetReps = 5,
             feedback = SetFeedback.TOO_HARD,
         ))
-        db.baselineChangeLogDao().insert(
-            BaselineChangeLog(
+        db.baselineHistoryDao().insert(
+            BaselineHistory(
                 sessionId = sessionId,
                 muscleGroup = MuscleGroup.CHEST,
                 previousBaseline = 100f,
@@ -279,8 +260,8 @@ class WorkoutRepositoryTest {
             targetReps = 5,
             feedback = SetFeedback.RIR_2_4,
         ))
-        db.baselineChangeLogDao().insert(
-            BaselineChangeLog(
+        db.baselineHistoryDao().insert(
+            BaselineHistory(
                 sessionId = sessionId,
                 muscleGroup = MuscleGroup.CHEST,
                 previousBaseline = 100f,
@@ -305,7 +286,7 @@ class WorkoutRepositoryTest {
 
         repo.recomputeCoefficients()
 
-        val logs = db.coefficientChangeLogDao().getLatestPerExercise()
+        val logs = db.coefficientHistoryDao().getLatestPerExercise()
         assertEquals(1, logs.size)
         assertEquals(exerciseId, logs.first().exerciseId)
         assertEquals(0.9f, logs.first().coefficient, 0.001f)
@@ -333,7 +314,7 @@ class WorkoutRepositoryTest {
         }
         WorkoutRepository(db, heuristics = listOf(heuristic2)).recomputeCoefficients()
 
-        val latest = db.coefficientChangeLogDao().getLatestPerExercise()
+        val latest = db.coefficientHistoryDao().getLatestPerExercise()
         assertEquals(1, latest.size)
         assertEquals(0.95f, latest.first().coefficient, 0.001f)
         assertEquals(0.9f, latest.first().previousCoefficient!!, 0.001f)
@@ -372,7 +353,7 @@ class WorkoutRepositoryTest {
 
         repo.applySessionProgression(sessionId)
 
-        val logs = db.coefficientChangeLogDao().getLatestPerExercise()
+        val logs = db.coefficientHistoryDao().getLatestPerExercise()
         assertEquals(1, logs.size)
         assertEquals(exerciseId, logs.first().exerciseId)
         assertEquals(0.85f, logs.first().coefficient, 0.001f)
@@ -397,7 +378,7 @@ class WorkoutRepositoryTest {
 
         repo.recomputeCoefficients()
 
-        val logs = db.coefficientChangeLogDao().getLatestPerExercise()
+        val logs = db.coefficientHistoryDao().getLatestPerExercise()
         assertEquals(1, logs.size)
         assertEquals(exerciseId, logs.first().exerciseId)
         assertEquals(0.75f, logs.first().coefficient, 0.001f)
@@ -432,7 +413,7 @@ class WorkoutRepositoryTest {
 
         repository.applySessionProgression(sessionId)
 
-        val log = db.baselineChangeLogDao().getForSession(sessionId).single()
+        val log = db.baselineHistoryDao().getForSession(sessionId).single()
         assertEquals(lastSetMs, log.timestamp)
     }
 
@@ -457,7 +438,7 @@ class WorkoutRepositoryTest {
 
         repository.applySessionProgression(sessionId)
 
-        val log = db.baselineChangeLogDao().getForSession(sessionId).single()
+        val log = db.baselineHistoryDao().getForSession(sessionId).single()
         assertEquals(endMs, log.timestamp)
     }
 
@@ -491,7 +472,7 @@ class WorkoutRepositoryTest {
 
         repo.applySessionProgression(sessionId)
 
-        val log = db.coefficientChangeLogDao().getLatestPerExercise().single()
+        val log = db.coefficientHistoryDao().getLatestPerExercise().single()
         assertEquals(lastSetMs, log.computedAt)
     }
 
@@ -524,7 +505,7 @@ class WorkoutRepositoryTest {
 
         repo.recomputeCoefficients()
 
-        val log = db.coefficientChangeLogDao().getLatestPerExercise().single()
+        val log = db.coefficientHistoryDao().getLatestPerExercise().single()
         assertEquals(lastSetMs, log.computedAt)
     }
 
@@ -561,7 +542,7 @@ class WorkoutRepositoryTest {
 
         repo.applyBaselineNormalization(asOf = 1_000L, sessionId = 1L)
 
-        val baselineRows = db.baselineChangeLogDao().getAll()
+        val baselineRows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertEquals(0, baselineRows.size)
     }
@@ -578,7 +559,7 @@ class WorkoutRepositoryTest {
 
         repo.applyBaselineNormalization(asOf = 2_000L, sessionId = sessionId)
 
-        val baselineRows = db.baselineChangeLogDao().getAll()
+        val baselineRows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertEquals(0, baselineRows.size)
         // baseline unchanged
@@ -606,7 +587,7 @@ class WorkoutRepositoryTest {
 
         repo.applyBaselineNormalization(asOf = 3_000L, sessionId = sessionId)
 
-        val baselineRows = db.baselineChangeLogDao().getAll()
+        val baselineRows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertEquals(1, baselineRows.size)
         with(baselineRows[0]) {
@@ -616,7 +597,7 @@ class WorkoutRepositoryTest {
             assertEquals(sessionId, this.sessionId)
             assertEquals(3_000L, timestamp)
         }
-        val coefRows = db.coefficientChangeLogDao().getAll()
+        val coefRows = db.coefficientHistoryDao().getAll()
             .filter { it.heuristicName == "baseline_normalization" }
         // Both chest exercises (bench + incline) have defined seed coefficients, so both get scaled.
         assertEquals(2, coefRows.size)
@@ -653,7 +634,7 @@ class WorkoutRepositoryTest {
         repo.applyBaselineNormalization(asOf = 4_000L, sessionId = sessionId)
 
         val newBaseline = db.muscleGroupStrengthDao().get(MuscleGroup.CHEST)!!.baselineWeight
-        val coefs = db.coefficientChangeLogDao().getLatestPerExercise().associateBy { it.exerciseId }
+        val coefs = db.coefficientHistoryDao().getLatestPerExercise().associateBy { it.exerciseId }
         val benchWeightAfter = newBaseline * coefs.getValue(benchId).coefficient
         val inclineWeightAfter = newBaseline * coefs.getValue(inclineId).coefficient
         // Session weights are preserved exactly (mEffective is derived from the rounded baseline).
@@ -689,7 +670,7 @@ class WorkoutRepositoryTest {
         WorkoutRepository(db, normalizers = listOf(normalizer))
             .applyBaselineNormalization(asOf = 5_000L, sessionId = sessionId)
 
-        val coefRows = db.coefficientChangeLogDao().getAll()
+        val coefRows = db.coefficientHistoryDao().getAll()
             .filter { it.heuristicName == "baseline_normalization" }
         assertEquals(2, coefRows.size)
         assertTrue(coefRows.any { it.exerciseId == benchId })
@@ -716,10 +697,10 @@ class WorkoutRepositoryTest {
 
         repo.recomputeDerivedState(asOf = 6_000L, sessionId = sessionId)
 
-        val heuristicRows = db.coefficientChangeLogDao().getAll()
+        val heuristicRows = db.coefficientHistoryDao().getAll()
             .filter { it.heuristicName == "test-heuristic" }
         assertEquals(1, heuristicRows.size)
-        val normRows = db.baselineChangeLogDao().getAll()
+        val normRows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertEquals(1, normRows.size)
     }
@@ -734,7 +715,7 @@ class WorkoutRepositoryTest {
 
         repo.recomputeDerivedState(asOf = 7_000L, sessionId = null)
 
-        val rows = db.baselineChangeLogDao().getAll()
+        val rows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertEquals(1, rows.size)
         assertEquals(latestSessionId, rows[0].sessionId)
@@ -750,7 +731,7 @@ class WorkoutRepositoryTest {
 
         repo.recomputeDerivedState(asOf = 8_000L, sessionId = null)
 
-        val rows = db.baselineChangeLogDao().getAll()
+        val rows = db.baselineHistoryDao().getAll()
         assertEquals(0, rows.size)
     }
 
@@ -777,7 +758,7 @@ class WorkoutRepositoryTest {
 
         repo.applySessionProgression(sessionId)
 
-        val rows = db.baselineChangeLogDao().getAll()
+        val rows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertEquals(1, rows.size)
         assertEquals(sessionId, rows[0].sessionId)
@@ -794,10 +775,10 @@ class WorkoutRepositoryTest {
 
         repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 
-        // Only the MANUAL_OVERRIDE row should exist — no NORMALIZATION row.
-        val rows = db.baselineChangeLogDao().getAll()
+        // Only the OVERRIDE row should exist — no NORMALIZATION row.
+        val rows = db.baselineHistoryDao().getAll()
         assertEquals(1, rows.size)
-        assertEquals(BaselineChangeReason.MANUAL_OVERRIDE, rows[0].changeReason)
+        assertEquals(BaselineChangeReason.OVERRIDE, rows[0].changeReason)
     }
 
     @Test
@@ -819,11 +800,11 @@ class WorkoutRepositoryTest {
         // must not crash or violate invariants once the first normalization has fired.
         val now = System.currentTimeMillis()
         val day = 24 * 60 * 60_000L
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = benchId, coefficient = 1.20f, heuristicName = "preseed",
             heuristicMetadata = null, computedAt = now - 30 * day,
         ))
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = inclineId, coefficient = 1.05f, heuristicName = "preseed",
             heuristicMetadata = null, computedAt = now - 30 * day,
         ))
@@ -837,7 +818,7 @@ class WorkoutRepositoryTest {
         // so H2 consensus suppression does not fire: bench at 80 kg drives its coefficient down from
         // 1.20 (estCoef ≈ 1.00), while incline at 105 kg keeps its coefficient roughly stable at
         // 1.05 (estCoef ≈ 1.05). Opposite directions prevent same-sign H2 suppression.
-        // BaselineChangeLog PROGRESSION rows are inserted per session so the heuristic finds baselines.
+        // BaselineHistory PROGRESSION rows are inserted per session so the heuristic finds baselines.
         // The SeedNormalizer fires on the first session: m ≈ 0.90, newBaseline ≈ 111 → 11 kg > 2 kg.
         var startTime = now - 10 * day
         repeat(10) {
@@ -858,7 +839,7 @@ class WorkoutRepositoryTest {
             startTime += day
         }
 
-        val normRows = db.baselineChangeLogDao().getAll()
+        val normRows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertTrue(
             "expected at least one NORMALIZATION baseline row after 10 drifty sessions, got ${normRows.size}",
@@ -889,11 +870,11 @@ class WorkoutRepositoryTest {
         // Pre-seed inflated current coefficients (well above seed) by writing logs directly. This simulates
         // the state that arises from drift accumulated over many real sessions, which would otherwise take
         // a long sequence of sessions to produce in a test.
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = benchId, coefficient = 1.20f, heuristicName = "preseed",
             heuristicMetadata = null, computedAt = now - 30 * day,
         ))
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = inclineId, coefficient = 1.05f, heuristicName = "preseed",
             heuristicMetadata = null, computedAt = now - 30 * day,
         ))
@@ -918,9 +899,9 @@ class WorkoutRepositoryTest {
                 targetWeight = 105f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
                 completedAt = start + 30 * 60_000L,
             ))
-            // The est-coef heuristic looks up baselines via BaselineChangeLog(PROGRESSION) keyed by
+            // The est-coef heuristic looks up baselines via BaselineHistory(PROGRESSION) keyed by
             // (sessionId, muscleGroup). Without this row the heuristic finds no baseline and emits nothing.
-            db.baselineChangeLogDao().insert(BaselineChangeLog(
+            db.baselineHistoryDao().insert(BaselineHistory(
                 sessionId = sessionId, muscleGroup = MuscleGroup.CHEST,
                 previousBaseline = 100f, newBaseline = 102f,
                 changeReason = BaselineChangeReason.PROGRESSION, timestamp = start + 30 * 60_000L,
@@ -936,11 +917,11 @@ class WorkoutRepositoryTest {
 
         // Both kinds of writes must show up — this is the regression guard for "backfill ran one pass but
         // not the other".
-        val coefHeuristicRows = db.coefficientChangeLogDao().getAll()
+        val coefHeuristicRows = db.coefficientHistoryDao().getAll()
             .filter { it.heuristicName == "est-coef-consensus" }
         assertTrue("expected at least one est-coef-consensus row, got 0",
             coefHeuristicRows.isNotEmpty())
-        val normRows = db.baselineChangeLogDao().getAll()
+        val normRows = db.baselineHistoryDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
         assertTrue("expected at least one NORMALIZATION row, got 0",
             normRows.isNotEmpty())
