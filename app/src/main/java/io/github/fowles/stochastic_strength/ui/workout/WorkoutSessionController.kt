@@ -315,14 +315,10 @@ class WorkoutSessionController(
     fun completeWorkout() {
         val done = _state.value as? WorkoutState.Done ?: return
         scope.launch {
-            // TODO Task 22 (Phase 6): pass exerciseReductions via the snapshot-aware
-            // applySessionProgression(sessionId, snapshot, asOf, reductions) path.
-            // For now, replay wipes and rebuilds without per-session reductions.
-            @Suppress("UNUSED_VARIABLE")
             val reductions = done.plan.exercises
                 .filter { it.originalSessionWeight > 0f && it.sessionWeight < it.originalSessionWeight }
                 .associate { it.exercise.id to (it.originalSessionWeight - it.sessionWeight) / it.originalSessionWeight }
-            repository.replayDerivedState()
+            repository.finishSession(done.sessionId, reductions)
             _navigationEvent.send(NavigationEvent.WorkoutCompleted)
         }
     }

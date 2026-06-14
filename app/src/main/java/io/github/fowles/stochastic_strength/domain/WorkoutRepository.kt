@@ -89,6 +89,10 @@ class WorkoutRepository(
 
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
+        val effectiveReductions = exerciseReductions.takeIf { it.isNotEmpty() }
+            ?: pendingReductions?.let { (id, r) -> if (id == sessionId) r else null }
+            ?: emptyMap()
+
         val exercisesByMuscle = exerciseById.values
             .filter { (snapshot.currentCoefficients[it.id] ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
@@ -100,7 +104,7 @@ class WorkoutRepository(
             if (allFeedbacks.isEmpty()) continue
 
             val current = snapshot.currentBaselines[muscleGroup] ?: continue
-            val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
+            val minReduction = muscleExercises.mapNotNull { effectiveReductions[it.id] }.maxOrNull() ?: 0f
             val newBaseline = progressionEngine.computeNextBaseline(current, allFeedbacks, minReduction, sessionReps)
             val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
             db.muscleGroupStrengthDao().upsert(
@@ -342,6 +346,23 @@ class WorkoutRepository(
                 )
                 snapshot.currentCoefficients[snap.exercise.id] = newCoef
             }
+        }
+    }
+
+    // Task 22: single-use stash so finishSession can route reductions to applySessionProgression
+    // without changing the replay loop's call-site signature.
+    private var pendingReductions: Pair<Long, Map<Long, Float>>? = null
+
+    /**
+     * Stashes [exerciseReductions] for the upcoming session, then triggers a full replay so that
+     * [applySessionProgression] picks them up when it reaches [sessionId].
+     */
+    suspend fun finishSession(sessionId: Long, exerciseReductions: Map<Long, Float>) {
+        pendingReductions = sessionId to exerciseReductions
+        try {
+            replayDerivedState()
+        } finally {
+            pendingReductions = null
         }
     }
 

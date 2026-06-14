@@ -205,6 +205,44 @@ class ReplayDerivedStateTest {
         }
     }
 
+    @Test
+    fun finishSession_passesReductionsThroughToProgression() = runBlocking {
+        // Seed: one CHEST exercise, initial baseline 100f, one completed session with
+        // RIR_2_4 feedback (which would normally advance the baseline).
+        db.userProfileDao().insert(UserProfile(
+            sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
+        db.exerciseDao().insert(Exercise(
+            id = BENCH_EXERCISE_ID, name = "Bench", primaryMuscle = MuscleGroup.CHEST,
+            equipment = Equipment.BARBELL))
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST,
+            baselineWeight = 100f, asOf = 0))
+
+        val sessionId = SESSION_1_ID
+        db.workoutSessionDao().insert(WorkoutSession(
+            id = sessionId, startTime = SESSION_1_START, endTime = SESSION_1_START + 1000))
+        repeat(3) { i ->
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = BENCH_EXERCISE_ID, setNumber = i + 1,
+                targetWeight = 100f, targetReps = 5, actualReps = 5,
+                feedback = SetFeedback.RIR_2_4, completedAt = SESSION_1_START + i * 100L))
+        }
+
+        // finishSession with a large reduction: 20% drop on the exercise.
+        val largeReduction = mapOf(BENCH_EXERCISE_ID to 0.20f)
+        repository.finishSession(sessionId, largeReduction)
+
+        val progressionRow = db.baselineHistoryDao().getAll()
+            .firstOrNull { it.changeReason == BaselineChangeReason.PROGRESSION && it.muscleGroup == MuscleGroup.CHEST }
+        assertNotNull("expected a PROGRESSION row for CHEST", progressionRow)
+        // With a 20% reduction cap applied, the new baseline should be at most 80f (= 100 * (1 - 0.20)).
+        // Without the reduction, RIR_2_4 would yield a higher baseline. Verify reduction was honored.
+        assertTrue(
+            "expected new baseline <= 80f due to reduction, got ${progressionRow!!.newBaseline}",
+            progressionRow.newBaseline <= 80f,
+        )
+    }
+
     companion object {
         private const val BENCH_EXERCISE_ID = 100L
         private const val SESSION_1_ID = 1L
