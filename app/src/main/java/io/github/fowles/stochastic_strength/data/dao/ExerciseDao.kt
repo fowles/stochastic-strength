@@ -31,6 +31,9 @@ interface ExerciseDao {
     suspend fun getNames(): List<String>
 
     @Insert
+    suspend fun insert(exercise: Exercise): Long
+
+    @Insert
     suspend fun insertAll(exercises: List<Exercise>)
 
     @Update

@@ -20,4 +20,7 @@ interface MuscleGroupStrengthDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(strengths: List<MuscleGroupStrength>)
+
+    @Query("DELETE FROM muscle_group_strength")
+    suspend fun deleteAll()
 }

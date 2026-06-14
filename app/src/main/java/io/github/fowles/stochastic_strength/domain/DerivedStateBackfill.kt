@@ -16,9 +16,9 @@ class DerivedStateBackfill(
 ) {
     suspend fun run() {
         val profile = database.userProfileDao().getProfile() ?: return
-        // TODO Task 21: replace with ActualRepsBackfill + replayDerivedState()
-        // No-op stub — Phase 6 rewrites this to use the replay-based pipeline.
+        // TODO Task 21 (Phase 6): add ActualRepsBackfill before replay, then simplify this stub.
+        // Switched to replayDerivedState() so the backfill uses the snapshot-aware pipeline.
         ActualRepsBackfill(database, profile.weightUnit).run()
-        repository.recomputeDerivedState()
+        repository.replayDerivedState()
     }
 }
