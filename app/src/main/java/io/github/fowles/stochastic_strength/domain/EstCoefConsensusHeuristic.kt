@@ -5,7 +5,6 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlin.math.ln
 
 class EstCoefConsensusHeuristic(
-    private val now: () -> Long = System::currentTimeMillis,
     private val tauHalfMs: Long = 14L * 24 * 60 * 60 * 1000,
     private val minEvidenceWeight: Float = 1.5f,
     private val minOutlierSessions: Int = 2,
@@ -149,7 +148,7 @@ class EstCoefConsensusHeuristic(
 
     internal fun computeH1(signals: List<SessionSignal>): H1Proposal? {
         if (signals.isEmpty()) return null
-        val nowT = now()
+        val nowT = signals.maxOf { it.sessionTime }
         val ln2OverHalf = ln(2.0) / tauHalfMs
         val weighted = signals.map { s ->
             val recency = kotlin.math.exp(-(nowT - s.sessionTime).coerceAtLeast(0L) * ln2OverHalf).toFloat()

@@ -183,21 +183,21 @@ class EstCoefConsensusHeuristicTest {
 
     @Test
     fun computeH1_empty_returnsNull() {
-        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        val h = EstCoefConsensusHeuristic()
         assertNull(h.computeH1(emptyList()))
     }
 
     @Test
     fun computeH1_belowMinEvidenceAndNoDefinite_returnsNull() {
         // One RIR_2_4-like session, recency ~1.0, confidence 0.7 -> weight 0.7 < min_evidence_weight = 1.5.
-        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        val h = EstCoefConsensusHeuristic()
         val signals = listOf(sessionSignal(1L, 1000L, 1.25f, 0.7f, hasDefinite = false))
         assertNull(h.computeH1(signals))
     }
 
     @Test
     fun computeH1_singleDefinitePointBypassesMinEvidence() {
-        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        val h = EstCoefConsensusHeuristic()
         val signals = listOf(sessionSignal(1L, 1000L, 1.25f, 0.95f, hasDefinite = true))
         val proposal = h.computeH1(signals)!!
         assertEquals(1.25f, proposal.proposal, 0.001f)
@@ -208,7 +208,7 @@ class EstCoefConsensusHeuristicTest {
     @Test
     fun computeH1_weightedMedianIgnoresSingleOutlier() {
         // Three near-1.0 + one freak — median picks the cluster.
-        val h = EstCoefConsensusHeuristic(now = { 1000L })
+        val h = EstCoefConsensusHeuristic()
         val signals = listOf(
             sessionSignal(1L, 1000L, 1.00f, 0.7f),
             sessionSignal(2L, 1000L, 1.00f, 0.7f),
@@ -227,7 +227,7 @@ class EstCoefConsensusHeuristicTest {
         // Recent low-confidence (0.4) at full recency, old high-confidence (0.85) at 28d (recency = 0.25).
         val tauHalfMs = 14L * 24 * 60 * 60 * 1000
         val nowT = 100_000_000L
-        val h = EstCoefConsensusHeuristic(now = { nowT })
+        val h = EstCoefConsensusHeuristic()
         val signals = listOf(
             sessionSignal(1L, nowT, 1.10f, 0.4f),          // weight ≈ 1.0 × 0.4 = 0.40
             sessionSignal(2L, nowT - 2 * tauHalfMs, 1.30f, 0.85f), // weight ≈ 0.25 × 0.85 = 0.2125
@@ -414,12 +414,50 @@ class EstCoefConsensusHeuristicTest {
             ),
             currentCoefficients = mapOf(1L to 1.00f),
         )
-        val h = EstCoefConsensusHeuristic(now = { nowT })
+        val h = EstCoefConsensusHeuristic()
         val results = h.compute(input)
         assertEquals(1, results.size)
         val res = results.single()
         assertEquals(1L, res.exerciseId)
         assertTrue("expected nudge up, got ${res.coefficient}", res.coefficient in 1.02f..1.06f)
+    }
+
+    @Test
+    fun `compute uses max sessionTime from input as now, not wall clock`() {
+        // Three sessions at newT, newT-5d, newT-10d (all RIR_2_4, conf=0.7, no definite).
+        // If the heuristic correctly uses max sessionTime (= newT) as now:
+        //   recencies ≈ 1.0, 0.78, 0.61 → weights ≈ 0.70 + 0.55 + 0.43 ≈ 1.68 > minEvidenceWeight=1.5 → results non-empty.
+        // If it incorrectly uses wall clock (≈ years past newT), all recencies ≈ 0 → weights ≈ 0 → empty.
+        val newT = 1_700_000_000_000L
+        val midT = newT - 5L * 24 * 60 * 60 * 1000
+        val oldT = newT - 10L * 24 * 60 * 60 * 1000
+
+        val sets = listOf(
+            WorkoutSet(id = 1, sessionId = 1, exerciseId = 100, setNumber = 1,
+                targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+                completedAt = oldT),
+            WorkoutSet(id = 2, sessionId = 2, exerciseId = 100, setNumber = 1,
+                targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+                completedAt = midT),
+            WorkoutSet(id = 3, sessionId = 3, exerciseId = 100, setNumber = 1,
+                targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+                completedAt = newT),
+        )
+        val input = CoefficientComputationInput(
+            sets = sets,
+            sessionTimes = mapOf(1L to oldT, 2L to midT, 3L to newT),
+            exerciseMuscle = mapOf(100L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST),
+            baselines = mapOf(
+                (1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 100f,
+                (2L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 100f,
+                (3L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 100f,
+            ),
+            currentCoefficients = mapOf(100L to 1.0f),
+        )
+
+        val results = EstCoefConsensusHeuristic().compute(input)
+
+        assertTrue("expected at least one result; was empty (heuristic likely using wall clock)", results.isNotEmpty())
     }
 
     @Test
@@ -436,7 +474,7 @@ class EstCoefConsensusHeuristicTest {
             baselines = mapOf((1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f),
             currentCoefficients = mapOf(99L to 0f),
         )
-        val h = EstCoefConsensusHeuristic(now = { nowT })
+        val h = EstCoefConsensusHeuristic()
         assertTrue(h.compute(input).isEmpty())
     }
 }
