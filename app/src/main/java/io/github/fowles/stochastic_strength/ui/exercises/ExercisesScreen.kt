@@ -45,6 +45,7 @@ fun ExercisesScreen(
     viewModel: ExercisesViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val hurtMap by viewModel.hurtMap.collectAsState()
 
     val grouped = remember(state.exercises, state.selectedFilter, state.selectedEquipmentFilter) {
         state.exercises
@@ -124,7 +125,11 @@ fun ExercisesScreen(
                         }
                     }
                     items(exercises, key = { it.id }) { exercise ->
-                        ExerciseRow(exercise = exercise, onClick = { onExerciseTap(exercise.id) })
+                        ExerciseRow(
+                            exercise = exercise,
+                            isHurt = hurtMap[exercise.id] ?: false,
+                            onClick = { onExerciseTap(exercise.id) },
+                        )
                         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                     }
                 }
@@ -134,7 +139,7 @@ fun ExercisesScreen(
 }
 
 @Composable
-private fun ExerciseRow(exercise: Exercise, onClick: () -> Unit) {
+private fun ExerciseRow(exercise: Exercise, isHurt: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -158,8 +163,7 @@ private fun ExerciseRow(exercise: Exercise, onClick: () -> Unit) {
             )
             Spacer(Modifier.width(4.dp))
         }
-        // TEMP: replaced by exercise_hurt_state wiring in Phase 5
-        if (false) {
+        if (isHurt) {
             StatusBadge(
                 label = "Hurt",
                 containerColor = MaterialTheme.colorScheme.errorContainer,

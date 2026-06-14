@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
@@ -25,6 +26,7 @@ data class ExerciseSetEntry(val exerciseName: String, val set: WorkoutSet, val i
 
 data class ExerciseDetailState(
     val exercise: Exercise? = null,
+    val isHurt: Boolean = false,
     val primaryPoints: List<ChartPoint> = emptyList(),
     val shadowPoints: List<ChartPoint> = emptyList(),
     val weightUnit: WeightUnit = WeightUnit.KG,
@@ -48,7 +50,8 @@ class ExerciseDetailViewModel(
             val profile = app.database.userProfileDao().getProfile()
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
             val exercise = repository.getExerciseById(exerciseId) ?: return@launch
-            _state.value = ExerciseDetailState(exercise = exercise, weightUnit = weightUnit)
+            val isHurt = app.database.exerciseHurtStateDao().get(exerciseId)?.isHurt ?: false
+            _state.value = ExerciseDetailState(exercise = exercise, isHurt = isHurt, weightUnit = weightUnit)
             loadChartData(exercise)
         }
     }
@@ -128,8 +131,18 @@ class ExerciseDetailViewModel(
     }
 
     fun toggleHurtFlag() {
-        // TEMP: replaced by exercise_hurt_state wiring in Phase 5 (Task 19)
-        // No-op until ExerciseHurtState is wired into the UI layer.
+        val exercise = _state.value.exercise ?: return
+        viewModelScope.launch {
+            val newIsHurt = !_state.value.isHurt
+            app.database.exerciseHurtStateDao().upsert(
+                ExerciseHurtState(
+                    exerciseId = exercise.id,
+                    isHurt = newIsHurt,
+                    asOf = System.currentTimeMillis(),
+                )
+            )
+            _state.value = _state.value.copy(isHurt = newIsHurt)
+        }
     }
 
     companion object {
