@@ -125,11 +125,12 @@ class ReplayDerivedStateTest {
     // ----- helpers below: seed minimal but realistic histories -----
 
     private fun BaselineHistory.toComparable() = listOf(
-        sessionId, muscleGroup, previousBaseline, newBaseline, changeReason, timestamp,
+        sessionId, muscleGroup, previousBaseline, newBaseline, changeReason,
+        feedbacks, sessionReps, minReductionFraction, timestamp,
     )
 
     private fun CoefficientHistory.toComparable() = listOf(
-        exerciseId, previousCoefficient, coefficient, heuristicName, computedAt,
+        exerciseId, previousCoefficient, coefficient, heuristicName, heuristicMetadata, computedAt,
     )
 
     private suspend fun seedSmallHistory() {
