@@ -4,6 +4,8 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -16,7 +18,9 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,15 +70,31 @@ class DerivedStateBackfillTest {
         return exerciseId to sessionId
     }
 
-    // TODO Task 21 (Phase 6): Tests for derivedStateVersion/CURRENT_VERSION are rewritten here.
-    // The below tests are commented out because UserProfile.derivedStateVersion is dropped in Phase 3.
-    // Phase 6 rewrites DerivedStateBackfill to use replay; tests will be updated accordingly.
+    private suspend fun seedFullReplayData() {
+        // exercise + initial baseline_override + completed session with sets
+        // so that replay produces baseline_history rows.
+        val exerciseId = 100L
+        db.exerciseDao().insert(Exercise(
+            id = exerciseId, name = "Bench", primaryMuscle = MuscleGroup.CHEST,
+            equipment = Equipment.BARBELL))
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST,
+            baselineWeight = 80f, asOf = 0))
+        val sessionStart = 1_700_000_000_000L
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(
+            startTime = sessionStart, endTime = sessionStart + 1000))
+        repeat(3) { i ->
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = exerciseId, setNumber = i + 1,
+                targetWeight = 80f, targetReps = 5, actualReps = 5,
+                feedback = SetFeedback.RIR_2_4, completedAt = sessionStart + i * 100L))
+        }
+    }
 
-    // @Test
-    // fun run_atVersion0_bumpsToCurrentAndExecutesActualRepsBackfill() ...
-
-    // @Test
-    // fun run_atCurrentVersion_isNoOpAndDoesNotRewriteActualReps() ...
+    private fun BaselineHistory.toComparable() = listOf(
+        sessionId, muscleGroup, previousBaseline, newBaseline, changeReason,
+        feedbacks, sessionReps, minReductionFraction, timestamp,
+    )
 
     @Test
     fun run_noProfile_isNoOp() = runBlocking {
@@ -104,5 +124,27 @@ class DerivedStateBackfillTest {
         val refreshed = db.workoutSetDao().getAll().first { it.id == setId }
         // ActualRepsBackfill should have set actualReps = targetReps = 5
         assert(refreshed.actualReps == 5) { "ActualRepsBackfill should have set actualReps; got ${refreshed.actualReps}" }
+    }
+
+    @Test
+    fun run_runsActualRepsBackfillAndReplay() = runBlocking {
+        seedProfile()
+        seedFullReplayData()
+
+        DerivedStateBackfill(db, repository).run()
+
+        val baselines = db.baselineHistoryDao().getAll()
+        assertTrue("expected replay to produce baseline_history rows", baselines.isNotEmpty())
+    }
+
+    @Test
+    fun run_isIdempotent() = runBlocking {
+        seedProfile()
+        seedFullReplayData()
+        DerivedStateBackfill(db, repository).run()
+        val baselines1 = db.baselineHistoryDao().getAll().map { it.toComparable() }
+        DerivedStateBackfill(db, repository).run()
+        val baselines2 = db.baselineHistoryDao().getAll().map { it.toComparable() }
+        assertEquals(baselines1, baselines2)
     }
 }
