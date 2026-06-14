@@ -88,9 +88,8 @@ class WorkoutRepository(
 
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
-        val effectiveCoefficients = effectiveCoefficientSource()
         val exercisesByMuscle = exerciseById.values
-            .filter { (effectiveCoefficients.get(it) ?: 0f) > 0f }
+            .filter { (snapshot.currentCoefficients[it.id] ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
         val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
         for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
@@ -223,6 +222,15 @@ class WorkoutRepository(
         }
     }
 
+    /**
+     * TRANSIENT: replaced by [replayDerivedState] in Task 23 (Phase 7). Do not add new callers.
+     *
+     * Builds a transient [ReplaySnapshot] from the current DB state and delegates to the snapshot-aware
+     * helpers. This preserves behavior for the two pre-existing tests that exercise the legacy
+     * `recomputeDerivedState` entry point. Unlike [replayDerivedState], this does NOT wipe and reseed
+     * derived tables — it appends to existing history. Suitable only as a test scaffold during the
+     * Phase 4 → Phase 7 transition.
+     */
     suspend fun recomputeDerivedState(asOf: Long? = null, sessionId: Long? = null) {
         val resolvedAsOf = asOf ?: System.currentTimeMillis()
         // Build a transient snapshot from current DB state to drive the snapshot-aware helpers.
