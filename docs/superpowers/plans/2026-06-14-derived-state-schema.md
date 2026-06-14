@@ -1632,7 +1632,7 @@ jj new
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/exercises/ExerciseDetailViewModel.kt`
 
-- [ ] **Step 1: Update `toggleHurtFlag`**
+- [x] **Step 1: Update `toggleHurtFlag`**
 
 Replace the current body (which mutates `Exercise.hurtFlag`) with one that reads/writes `ExerciseHurtState`. The ViewModel will likely need access to the DAO via the repository or directly via `app.database`.
 
@@ -1668,7 +1668,7 @@ private suspend fun loadExercise(id: Long) {
 
 Inspect the existing ViewModel to find the right place for these wiring changes; the names of the load function may differ.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: PASS.
@@ -1679,7 +1679,7 @@ Expected: PASS.
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/exercises/ExerciseDetailScreen.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/exercises/ExercisesScreen.kt`
 
-- [ ] **Step 1: ExerciseDetailScreen**
+- [x] **Step 1: ExerciseDetailScreen**
 
 Replace `exercise.hurtFlag` reads with the `isHurt` state field passed in from the ViewModel. Three call sites:
 - The button colors `if (exercise.hurtFlag) ...` → `if (state.isHurt) ...`
@@ -1688,18 +1688,18 @@ Replace `exercise.hurtFlag` reads with the `isHurt` state field passed in from t
 
 Remove any `// TEMP:` stubs from Task 7.
 
-- [ ] **Step 2: ExercisesScreen**
+- [x] **Step 2: ExercisesScreen**
 
 The list shows a hurt indicator per exercise. Replace `if (exercise.hurtFlag)` with a lookup against a `Map<Long, Boolean>` (exerciseId → isHurt) that the screen-level ViewModel provides. Easiest path: add a method on the screen's ViewModel that exposes a `Flow<Map<Long, Boolean>>` by `observeAll()` on `ExerciseHurtStateDao`, mapping each row.
 
 Inspect the screen's ViewModel for the existing pattern; mimic it. If no ViewModel exists for `ExercisesScreen`, use the existing `database.exerciseHurtStateDao().getAll()` from wherever exercises are currently loaded.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: PASS.
 
-- [ ] **Step 4: Commit Phase 5 UI**
+- [x] **Step 4: Commit Phase 5 UI**
 
 ```bash
 jj describe -m "refactor(ui): read hurt state from exercise_hurt_state table"
