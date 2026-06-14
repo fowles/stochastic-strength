@@ -71,8 +71,7 @@ class WorkoutRepository(
 
     // Task 14: Refactored applySessionProgression — reads current baseline from snapshot, not DB.
     // Calls recomputeCoefficients(snapshot, asOf) and applyBaselineNormalization(snapshot, asOf, sessionId).
-    // No longer calls recomputeDerivedState.
-    // No longer mutates hurtFlag (moved to live recording, Phase 5 Task 18).
+    // Does not mutate hurtFlag (moved to live recording, Phase 5 Task 18).
     suspend fun applySessionProgression(
         sessionId: Long,
         snapshot: ReplaySnapshot,
@@ -152,49 +151,6 @@ class WorkoutRepository(
         }
     }
 
-    internal suspend fun buildCoefficientInput(): CoefficientComputationInput {
-        // History pulls from all exercises (training signal lives there even for disliked ones),
-        // but currentCoefficients only covers active exercises since disliked ones aren't planned.
-        val allExercises = db.exerciseDao().getAll()
-        val activeExercises = db.exerciseDao().getActive()
-        val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
-        val sessionTimes = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
-        val baselines = db.baselineHistoryDao().getAll()
-            .filter { it.changeReason == BaselineChangeReason.PROGRESSION }
-            .mapNotNull { row -> row.sessionId?.let { (it to row.muscleGroup) to row.previousBaseline } }
-            .toMap()
-        val sets = db.workoutSetDao().getAll()
-        val latestUserCoefficients = db.coefficientHistoryDao().getLatestPerExercise()
-            .associate { it.exerciseId to it.coefficient }
-        val currentCoefficients = activeExercises.associate { exercise ->
-            exercise.id to (latestUserCoefficients[exercise.id]
-                ?: coefficientSource.get(exercise)
-                ?: 0f)
-        }
-        return CoefficientComputationInput(
-            sets = sets,
-            sessionTimes = sessionTimes,
-            exerciseMuscle = exerciseMuscle,
-            baselines = baselines,
-            currentCoefficients = currentCoefficients,
-        )
-    }
-
-    internal suspend fun buildNormalizationInput(): BaselineNormalizationInput {
-        val allExercises = db.exerciseDao().getAll()
-        val sets = db.workoutSetDao().getAll()
-        val baselines = db.muscleGroupStrengthDao().getAll()
-            .associate { it.muscleGroup to it.baselineWeight }
-        val latestCoefs = db.coefficientHistoryDao().getLatestPerExercise()
-            .associate { it.exerciseId to it.coefficient }
-        val snapshots = allExercises.map { ex ->
-            val seed = coefficientSource.get(ex) ?: 0f
-            val current = latestCoefs[ex.id] ?: seed
-            ExerciseCoefficientSnapshot(ex, seed, current)
-        }
-        return BaselineNormalizationInput(sets = sets, exercises = snapshots, baselines = baselines)
-    }
-
     // Task 12: Refactored recomputeCoefficients — snapshot-aware, no internal transaction.
     // Caller (replay) holds the wrapping transaction.
     internal suspend fun recomputeCoefficients(snapshot: ReplaySnapshot, asOf: Long) {
@@ -224,67 +180,6 @@ class WorkoutRepository(
             )
             snapshot.currentCoefficients[exerciseId] = winner.coefficient
         }
-    }
-
-    /**
-     * TRANSIENT: replaced by [replayDerivedState] in Task 23 (Phase 7). Do not add new callers.
-     *
-     * Builds a transient [ReplaySnapshot] from the current DB state and delegates to the snapshot-aware
-     * helpers. This preserves behavior for the two pre-existing tests that exercise the legacy
-     * `recomputeDerivedState` entry point. Unlike [replayDerivedState], this does NOT wipe and reseed
-     * derived tables — it appends to existing history. Suitable only as a test scaffold during the
-     * Phase 4 → Phase 7 transition.
-     */
-    suspend fun recomputeDerivedState(asOf: Long? = null, sessionId: Long? = null) {
-        val resolvedAsOf = asOf ?: System.currentTimeMillis()
-        // Build a transient snapshot from current DB state to drive the snapshot-aware helpers.
-        // seedCoefficients uses the exercise-library seeds (not the historical user values) so that
-        // SeedNormalizer can detect drift between current and seed correctly.
-        val allExercises = db.exerciseDao().getAll()
-        val activeExercises = db.exerciseDao().getActive()
-        val allSets = db.workoutSetDao().getAll()
-        val allSessionTimes = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
-        val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
-        val latestUserCoefficients = db.coefficientHistoryDao().getLatestPerExercise()
-            .associate { it.exerciseId to it.coefficient }
-        // seedCoefficients = exercise-library seed (for normalization drift detection)
-        val seedCoefficients = activeExercises.associate { ex ->
-            ex.id to (coefficientSource.get(ex) ?: 0f)
-        }
-        val transientSnapshot = ReplaySnapshot(
-            allSets = allSets,
-            allSessionTimes = allSessionTimes,
-            exerciseMuscle = exerciseMuscle,
-            seedCoefficients = seedCoefficients,
-            allExercises = allExercises,
-        )
-        // Override currentCoefficients to the actual latest user coefficients (not just seeds)
-        activeExercises.forEach { ex ->
-            val latest = latestUserCoefficients[ex.id]
-            if (latest != null) transientSnapshot.currentCoefficients[ex.id] = latest
-        }
-        // Seed currentBaselines from DB so normalization sees current values
-        db.muscleGroupStrengthDao().getAll().forEach { s ->
-            transientSnapshot.currentBaselines[s.muscleGroup] = s.baselineWeight
-        }
-        // Seed progressionBaselines from history for coefficient input
-        db.baselineHistoryDao().getAll()
-            .filter { it.changeReason == BaselineChangeReason.PROGRESSION }
-            .forEach { row ->
-                val sid = row.sessionId ?: return@forEach
-                transientSnapshot.progressionBaselines[sid to row.muscleGroup] = row.previousBaseline
-            }
-
-        recomputeCoefficients(transientSnapshot, resolvedAsOf)
-        val resolvedSessionId = sessionId
-            ?: db.workoutSessionDao().getAll()
-                .maxByOrNull { it.endTime ?: it.startTime }?.id
-            ?: return
-        applyBaselineNormalization(
-            snapshot = transientSnapshot,
-            asOf = resolvedAsOf,
-            sessionId = resolvedSessionId,
-        )
     }
 
     // Task 13: Refactored applyBaselineNormalization — snapshot-aware, no internal transaction.
