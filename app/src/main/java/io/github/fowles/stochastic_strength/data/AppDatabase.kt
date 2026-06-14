@@ -254,9 +254,51 @@ abstract class AppDatabase : RoomDatabase() {
                 // 7. Remove migrated MANUAL_OVERRIDE rows from the history table.
                 db.execSQL("DELETE FROM baseline_change_log WHERE changeReason = 'MANUAL_OVERRIDE'")
 
-                // 8. Rename derived-state tables.
-                db.execSQL("ALTER TABLE baseline_change_log RENAME TO baseline_history")
-                db.execSQL("ALTER TABLE coefficient_change_log RENAME TO coefficient_history")
+                // 8. Recreate derived-state tables with correct schema.
+                // baseline_change_log had sessionId NOT NULL; baseline_history needs it nullable.
+                // A simple RENAME would preserve the NOT NULL constraint, so we must recreate.
+                db.execSQL("""
+                    CREATE TABLE `baseline_history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `sessionId` INTEGER,
+                        `muscleGroup` TEXT NOT NULL,
+                        `previousBaseline` REAL NOT NULL,
+                        `newBaseline` REAL NOT NULL,
+                        `changeReason` TEXT NOT NULL,
+                        `feedbacks` TEXT,
+                        `sessionReps` INTEGER,
+                        `minReductionFraction` REAL,
+                        `timestamp` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO baseline_history (id, sessionId, muscleGroup, previousBaseline, newBaseline, changeReason, feedbacks, sessionReps, minReductionFraction, timestamp)
+                        SELECT id, sessionId, muscleGroup, previousBaseline, newBaseline, changeReason, feedbacks, sessionReps, minReductionFraction, timestamp
+                        FROM baseline_change_log
+                """.trimIndent())
+                db.execSQL("DROP TABLE baseline_change_log")
+
+                // coefficient_change_log → coefficient_history: RENAME would leave the old index
+                // name (index_coefficient_change_log_exerciseId); Room v12 expects
+                // index_coefficient_history_exerciseId. Recreate to get the right index name.
+                db.execSQL("""
+                    CREATE TABLE `coefficient_history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `exerciseId` INTEGER NOT NULL,
+                        `previousCoefficient` REAL,
+                        `coefficient` REAL NOT NULL,
+                        `heuristicName` TEXT NOT NULL,
+                        `heuristicMetadata` TEXT,
+                        `computedAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_coefficient_history_exerciseId` ON `coefficient_history` (`exerciseId`)")
+                db.execSQL("""
+                    INSERT INTO coefficient_history (id, exerciseId, previousCoefficient, coefficient, heuristicName, heuristicMetadata, computedAt)
+                        SELECT id, exerciseId, previousCoefficient, coefficient, heuristicName, heuristicMetadata, computedAt
+                        FROM coefficient_change_log
+                """.trimIndent())
+                db.execSQL("DROP TABLE coefficient_change_log")
             }
         }
 
