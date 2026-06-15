@@ -128,6 +128,18 @@ class EstBaselineConsensusHeuristicTest {
     }
 
     @Test
+    fun minReductionFraction_capsResult() {
+        // Strong up signal would propose 102.5, but minReductionFractions[CHEST] = 0.05 caps at 95.
+        val s = set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS)
+        val result = heuristic.compute(input(
+            sets = listOf(s),
+            minReductionFractions = mapOf(MuscleGroup.CHEST to 0.05f),
+        ))
+        val proposal = result.single()
+        assertEquals(95f, proposal.newBaseline, 0.0001f)
+    }
+
+    @Test
     fun noOpSuppression_whenTargetIsCloseToBOld() {
         // RIR_2_4 at 80×8 with coef = 0.7 → impliedBaseline = est1RM / 0.7. Align bOld to the grid.
         // raw step is tiny, within cap, rounds back to bOld → no proposal emitted.

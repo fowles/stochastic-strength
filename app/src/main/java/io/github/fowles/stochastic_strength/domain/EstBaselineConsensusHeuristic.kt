@@ -58,6 +58,12 @@ class EstBaselineConsensusHeuristic(
                 bNew = if (rawLog > 0f) bOld + step else bOld - step
             }
 
+            val minRed = input.minReductionFractions[muscle] ?: 0f
+            if (minRed > 0f) {
+                val cap = WeightFormatter.round(bOld * (1f - minRed), unit)
+                if (bNew > cap) bNew = cap
+            }
+
             if (bNew == bOld) continue
             out.add(BaselineProposal(muscle, bNew, "target=${"%.2f".format(Locale.ROOT, bTarget)},conf=${"%.2f".format(Locale.ROOT, agg.confidence)}"))
         }
