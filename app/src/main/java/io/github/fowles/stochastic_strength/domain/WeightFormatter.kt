@@ -42,6 +42,10 @@ object WeightFormatter {
         }
     }
 
+    /** Smallest rounded increment for the user's weight unit, in kg. */
+    fun minIncrement(unit: WeightUnit): Float =
+        if (unit == WeightUnit.KG) 2.5f else 5f / 2.20462f
+
     fun platesPerSide(weightKg: Float, unit: WeightUnit): String? {
         return when (unit) {
             WeightUnit.KG -> {
