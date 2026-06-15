@@ -197,4 +197,93 @@ class EstBaselineConsensusHeuristicTest {
             proposal.metadata?.contains("safety=oscillating") == true,
         )
     }
+
+    @Test
+    fun safetyConsistentUp_doublesUpCap() {
+        val sets = listOf(set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS))
+        val now = 10_000_000L
+        val recent = history(asOf = now, deltas = listOf(+2f, +2f, +2f))
+        val result = heuristic.compute(input(
+            sets = sets,
+            recentHistory = mapOf(MuscleGroup.CHEST to recent),
+            currentCoefficients = mapOf(1L to 0.5f),
+            asOf = now,
+        ))
+        val proposal = result.single()
+        assertTrue(
+            "metadata should mark safety=consistent_up, was: ${proposal.metadata}",
+            proposal.metadata?.contains("safety=consistent_up") == true,
+        )
+        // Doubled cap = 0.0494. raw = 0.3 * 0.4 * ln(234.6/100) ≈ 0.1024 → clamps to 0.0494.
+        // B_new = 100 * exp(0.0494) ≈ 105.07 → rounds to 105.
+        assertEquals(105f, proposal.newBaseline, 0.0001f)
+    }
+
+    @Test
+    fun safetyOscillation_doesNotAffectDownCap() {
+        // Oscillation with strong down signal: should still get 10% down cap.
+        // TOO_HARD with actualReps=1 at 80×8 → est1RM = toOneRepMax(80, 1) = 80.
+        // raw = 0.3 * 0.95 * ln(80/100) ≈ -0.0636. downCap (unchanged) = 0.0953 → no bind.
+        // B_new = 100 * exp(-0.0636) ≈ 93.84. 93.84 / 2.5 ≈ 37.535 → roundToInt(37.535) = 38 → 95.0.
+        val s = set(targetWeight = 80f, targetReps = 8, actualReps = 1, feedback = SetFeedback.TOO_HARD)
+        val now = 10_000_000L
+        val recent = history(asOf = now, deltas = listOf(+5f, -5f, +5f, -5f))
+        val result = heuristic.compute(input(
+            sets = listOf(s),
+            recentHistory = mapOf(MuscleGroup.CHEST to recent),
+            asOf = now,
+        ))
+        val proposal = result.single()
+        assertTrue(
+            "metadata should mark safety=oscillating, was: ${proposal.metadata}",
+            proposal.metadata?.contains("safety=oscillating") == true,
+        )
+        assertEquals(95f, proposal.newBaseline, 0.0001f)
+    }
+
+    @Test
+    fun safetyIgnoresHistoryOlderThanWindow() {
+        // 4 alternating-sign entries timestamped 20 days ago — outside the 14-day window.
+        val now = 10_000_000L
+        val ms = 24L * 60 * 60 * 1000
+        val recent = history(asOf = now - 20 * ms, deltas = listOf(+5f, -5f, +5f, -5f))
+        val sets = listOf(set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS))
+        val result = heuristic.compute(input(
+            sets = sets,
+            recentHistory = mapOf(MuscleGroup.CHEST to recent),
+            asOf = now,
+        ))
+        val proposal = result.single()
+        assertTrue(
+            "metadata should mark safety=default, was: ${proposal.metadata}",
+            proposal.metadata?.contains("safety=default") == true,
+        )
+    }
+
+    @Test
+    fun safetyIgnoresInitialRowsInWindow() {
+        val now = 10_000_000L
+        val initial = BaselineHistory(
+            sessionId = null,
+            muscleGroup = MuscleGroup.CHEST,
+            previousBaseline = 0f,
+            newBaseline = 100f,
+            changeReason = io.github.fowles.stochastic_strength.data.model.BaselineChangeReason.INITIAL,
+            timestamp = now - 1000L,
+        )
+        val progress = history(asOf = now, deltas = listOf(+5f, +5f))
+        val sets = listOf(set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS))
+        val result = heuristic.compute(input(
+            sets = sets,
+            recentHistory = mapOf(MuscleGroup.CHEST to listOf(initial) + progress),
+            currentCoefficients = mapOf(1L to 0.5f),
+            asOf = now,
+        ))
+        val proposal = result.single()
+        // Only 2 PROGRESSION rows in signs → consistentLength = 3 → no doubling. Should be safety=default.
+        assertTrue(
+            "metadata should mark safety=default, was: ${proposal.metadata}",
+            proposal.metadata?.contains("safety=default") == true,
+        )
+    }
 }
