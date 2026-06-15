@@ -102,4 +102,46 @@ class EstBaselineConsensusHeuristicTest {
         assertEquals(85f, proposal.newBaseline, 0.0001f)
         assertEquals("hurt", proposal.metadata)
     }
+
+    @Test
+    fun floorFires_whenCapBindsAndRoundingZeros() {
+        // B_old = 20 kg, confident large-up signal. Up cap ≈ 2.5% → raw post-cap = 0.5 kg → rounds to 0
+        // → floor fires → B_new = 22.5.
+        val s = set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS)
+        val result = heuristic.compute(input(
+            sets = listOf(s),
+            currentBaselines = mapOf(MuscleGroup.CHEST to 20f),
+        ))
+        val proposal = result.single()
+        assertEquals(22.5f, proposal.newBaseline, 0.0001f)
+    }
+
+    @Test
+    fun floorDoesNotFire_whenRawIsSmallEnoughToBeInCap() {
+        // RIR_2_4 at 80×8 → est1RM = toOneRepMax(80, 11). Choose values so raw < up cap.
+        // raw = 0.3 * 0.7 * ln(est1RM/100) ≈ 0.0211 (below upCap 0.0247) → not bound.
+        // B_new = 100 * exp(0.0211) ≈ 102.13 → rounds to 102.5. Floor must NOT fire.
+        val s = set(targetWeight = 80f, targetReps = 8, feedback = SetFeedback.RIR_2_4)
+        val result = heuristic.compute(input(sets = listOf(s)))
+        val proposal = result.single()
+        assertEquals(102.5f, proposal.newBaseline, 0.0001f)
+    }
+
+    @Test
+    fun noOpSuppression_whenTargetIsCloseToBOld() {
+        // RIR_2_4 at 80×8 with coef = 0.7 → impliedBaseline = est1RM / 0.7. Align bOld to the grid.
+        // raw step is tiny, within cap, rounds back to bOld → no proposal emitted.
+        val sets = listOf(
+            set(targetWeight = 80f, targetReps = 8, feedback = SetFeedback.RIR_2_4),
+        )
+        val est1Rm = DefaultProgressionEngine.toOneRepMax(80f, 11)
+        val implied = est1Rm / 0.7f
+        val rounded = (implied / 2.5f).toInt() * 2.5f
+        val result = heuristic.compute(input(
+            sets = sets,
+            currentCoefficients = mapOf(1L to 0.7f),
+            currentBaselines = mapOf(MuscleGroup.CHEST to rounded),
+        ))
+        assertTrue("expected no proposal, got: $result", result.isEmpty())
+    }
 }

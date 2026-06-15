@@ -48,7 +48,15 @@ class EstBaselineConsensusHeuristic(
             val upCap = stepUpMaxLog
             val downCap = stepDownMaxLog
             val clamped = rawLog.coerceIn(-downCap, upCap)
-            val bNew = WeightFormatter.round((bOld * kotlin.math.exp(clamped.toDouble()).toFloat()), unit)
+            val bRaw = bOld * kotlin.math.exp(clamped.toDouble()).toFloat()
+            var bNew = WeightFormatter.round(bRaw, unit)
+
+            val effectiveCap = if (rawLog >= 0f) upCap else downCap
+            val capBound = kotlin.math.abs(rawLog) > effectiveCap
+            if (capBound && bNew == bOld) {
+                val step = WeightFormatter.minIncrement(unit)
+                bNew = if (rawLog > 0f) bOld + step else bOld - step
+            }
 
             if (bNew == bOld) continue
             out.add(BaselineProposal(muscle, bNew, "target=${"%.2f".format(Locale.ROOT, bTarget)},conf=${"%.2f".format(Locale.ROOT, agg.confidence)}"))
