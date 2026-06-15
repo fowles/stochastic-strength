@@ -50,7 +50,7 @@
 
 ### Step 1: Add columns to the entity
 
-- [ ] **Step 1: Write the failing migration test**
+- [x] **Step 1: Write the failing migration test**
 
 Create `app/src/androidTest/java/io/github/fowles/stochastic_strength/data/Migration12To13Test.kt`:
 
@@ -112,12 +112,12 @@ class Migration12To13Test {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.data.Migration12To13Test"`
 Expected: FAIL — `AppDatabase.MIGRATION_12_13` does not exist.
 
-- [ ] **Step 3: Add the columns to `BaselineHistory`**
+- [x] **Step 3: Add the columns to `BaselineHistory`**
 
 Modify `app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineHistory.kt`:
 
@@ -144,7 +144,7 @@ data class BaselineHistory(
 )
 ```
 
-- [ ] **Step 4: Bump DB version and add migration**
+- [x] **Step 4: Bump DB version and add migration**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt`:
 
@@ -163,17 +163,17 @@ internal val MIGRATION_12_13 = object : Migration(12, 13) {
 
 Add `MIGRATION_12_13` to the `addMigrations(...)` list in `buildDatabase`.
 
-- [ ] **Step 5: Run the migration test**
+- [x] **Step 5: Run the migration test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.data.Migration12To13Test"`
 Expected: PASS.
 
-- [ ] **Step 6: Verify the rest of the app still builds**
+- [x] **Step 6: Verify the rest of the app still builds**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineHistory.kt \
@@ -191,7 +191,7 @@ git commit -m "feat(data): add heuristic metadata columns to baseline_history (v
 
 There's no behavior to test yet — this task only introduces types. We verify by compilation.
 
-- [ ] **Step 1: Create the interface file**
+- [x] **Step 1: Create the interface file**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -223,12 +223,12 @@ interface BaselineHeuristic {
 }
 ```
 
-- [ ] **Step 2: Confirm it compiles**
+- [x] **Step 2: Confirm it compiles**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/BaselineHeuristic.kt
@@ -243,7 +243,7 @@ git commit -m "feat(domain): add BaselineHeuristic interface"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WeightFormatter.kt`
 - Test: `app/src/test/java/io/github/fowles/stochastic_strength/domain/WeightFormatterMinIncrementTest.kt`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/WeightFormatterMinIncrementTest.kt`:
 
@@ -268,12 +268,12 @@ class WeightFormatterMinIncrementTest {
 }
 ```
 
-- [ ] **Step 2: Run test, verify it fails**
+- [x] **Step 2: Run test, verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WeightFormatterMinIncrementTest"`
 Expected: FAIL — `WeightFormatter.minIncrement` not defined.
 
-- [ ] **Step 3: Add the helper**
+- [x] **Step 3: Add the helper**
 
 Append to `app/src/main/java/io/github/fowles/stochastic_strength/domain/WeightFormatter.kt`, inside `object WeightFormatter`, after `round(...)`:
 
@@ -283,12 +283,12 @@ fun minIncrement(unit: WeightUnit): Float =
     if (unit == WeightUnit.KG) 2.5f else 5f / 2.20462f
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WeightFormatterMinIncrementTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WeightFormatter.kt \
@@ -306,7 +306,7 @@ This is the first task building the default heuristic. We TDD one behavior at a 
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt`
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt`:
 
@@ -376,12 +376,12 @@ class EstBaselineConsensusHeuristicTest {
 }
 ```
 
-- [ ] **Step 2: Run, verify fails**
+- [x] **Step 2: Run, verify fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: FAIL — `EstBaselineConsensusHeuristic` not defined.
 
-- [ ] **Step 3: Implement the skeleton + HURT short-circuit**
+- [x] **Step 3: Implement the skeleton + HURT short-circuit**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt`:
 
@@ -429,12 +429,12 @@ class EstBaselineConsensusHeuristic(
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt \
@@ -450,7 +450,7 @@ git commit -m "feat(domain): EstBaselineConsensusHeuristic skeleton with HURT sh
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt`
 
-- [ ] **Step 1: Add a test for a basic up-step**
+- [x] **Step 1: Add a test for a basic up-step**
 
 Append to `EstBaselineConsensusHeuristicTest`:
 
@@ -468,12 +468,12 @@ fun rir5Plus_singleSet_proposesUpStep() {
 }
 ```
 
-- [ ] **Step 2: Run, verify fails**
+- [x] **Step 2: Run, verify fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest.rir5Plus_singleSet_proposesUpStep"`
 Expected: FAIL — heuristic returns empty list (no non-HURT path yet).
 
-- [ ] **Step 3: Implement the non-HURT path (no safety layer, no floor yet)**
+- [x] **Step 3: Implement the non-HURT path (no safety layer, no floor yet)**
 
 In `EstBaselineConsensusHeuristic.kt`, expand `compute` to include the full non-HURT pipeline (safety layer + floor are added in later tasks):
 
@@ -541,12 +541,12 @@ private fun aggregateImplied(perSet: List<PerSet>): Aggregate? {
 
 If `setSignal` is currently `internal` on `EstCoefConsensusHeuristic`, no change is needed — both files are in the same module. (It's already declared `internal` per the existing code.)
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: PASS for all current tests.
 
-- [ ] **Step 5: Add tests for upper-bound dropping and cap binding**
+- [x] **Step 5: Add tests for upper-bound dropping and cap binding**
 
 Append to the test class:
 
@@ -582,12 +582,12 @@ fun strongDownSignal_capsAt10Percent() {
 }
 ```
 
-- [ ] **Step 6: Run all tests, verify they pass**
+- [x] **Step 6: Run all tests, verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt \
@@ -603,7 +603,7 @@ git commit -m "feat(domain): EstBaselineConsensusHeuristic non-HURT pipeline + c
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt`
 
-- [ ] **Step 1: Write failing test for floor firing**
+- [x] **Step 1: Write failing test for floor firing**
 
 Append:
 
@@ -654,12 +654,12 @@ fun noOpSuppression_whenTargetIsCloseToBOld() {
 }
 ```
 
-- [ ] **Step 2: Run, verify the first test fails**
+- [x] **Step 2: Run, verify the first test fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest.floorFires_whenCapBindsAndRoundingZeros"`
 Expected: FAIL — heuristic returns no proposal (rounding zeroed the cap).
 
-- [ ] **Step 3: Add the floor logic**
+- [x] **Step 3: Add the floor logic**
 
 In `EstBaselineConsensusHeuristic.compute`, after the line `val clamped = rawLog.coerceIn(-downCap, upCap)` and the existing `val bNew = WeightFormatter.round(...)`, replace the no-op-then-emit block with:
 
@@ -678,12 +678,12 @@ if (bNew == bOld) continue
 out.add(BaselineProposal(muscle, bNew, "target=${"%.2f".format(bTarget)},conf=${"%.2f".format(agg.confidence)}"))
 ```
 
-- [ ] **Step 4: Run all tests in the class**
+- [x] **Step 4: Run all tests in the class**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt \
@@ -699,7 +699,7 @@ git commit -m "feat(domain): baseline heuristic floor when cap binds + no-op sup
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append:
 
@@ -717,12 +717,12 @@ fun minReductionFraction_capsResult() {
 }
 ```
 
-- [ ] **Step 2: Run, verify fails**
+- [x] **Step 2: Run, verify fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest.minReductionFraction_capsResult"`
 Expected: FAIL — heuristic ignores `minReductionFractions`.
 
-- [ ] **Step 3: Add the cap**
+- [x] **Step 3: Add the cap**
 
 In `EstBaselineConsensusHeuristic.compute`, after the floor block and before the `if (bNew == bOld) continue` check, insert:
 
@@ -734,12 +734,12 @@ if (minRed > 0f) {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt \
@@ -755,7 +755,7 @@ git commit -m "feat(domain): baseline heuristic respects minReductionFraction ca
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append:
 
@@ -804,12 +804,12 @@ fun safetyOscillation_marksMetadata() {
 }
 ```
 
-- [ ] **Step 2: Run, verify fails**
+- [x] **Step 2: Run, verify fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest.safetyOscillation_halvesUpCap"`
 Expected: FAIL — no safety metadata yet.
 
-- [ ] **Step 3: Add safety detection helper + apply it to upCap**
+- [x] **Step 3: Add safety detection helper + apply it to upCap**
 
 In `EstBaselineConsensusHeuristic`, add this helper inside the class (after `aggregateImplied`):
 
@@ -876,17 +876,17 @@ out.add(BaselineProposal(
 ))
 ```
 
-- [ ] **Step 4: Run the oscillation test**
+- [x] **Step 4: Run the oscillation test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest.safetyOscillation_halvesUpCap"`
 Expected: PASS.
 
-- [ ] **Step 5: Run all heuristic tests, fix any regressions**
+- [x] **Step 5: Run all heuristic tests, fix any regressions**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: PASS. If earlier tests broke because the metadata string changed, update those tests to use `assertTrue(metadata.contains("safety=default"))` or similar.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt \
@@ -903,7 +903,7 @@ git commit -m "feat(domain): baseline heuristic safety layer — oscillation hal
 
 The implementation already handles these; we just need tests.
 
-- [ ] **Step 1: Write the consistent-up test**
+- [x] **Step 1: Write the consistent-up test**
 
 ```kotlin
 @Test
@@ -928,7 +928,7 @@ fun safetyConsistentUp_doublesUpCap() {
 }
 ```
 
-- [ ] **Step 2: Write the down-cap-immutable test**
+- [x] **Step 2: Write the down-cap-immutable test**
 
 ```kotlin
 @Test
@@ -954,7 +954,7 @@ fun safetyOscillation_doesNotAffectDownCap() {
 }
 ```
 
-- [ ] **Step 3: Write window-expiry test**
+- [x] **Step 3: Write window-expiry test**
 
 ```kotlin
 @Test
@@ -977,7 +977,7 @@ fun safetyIgnoresHistoryOlderThanWindow() {
 }
 ```
 
-- [ ] **Step 4: Write INITIAL-skipped test**
+- [x] **Step 4: Write INITIAL-skipped test**
 
 ```kotlin
 @Test
@@ -1009,12 +1009,12 @@ fun safetyIgnoresInitialRowsInWindow() {
 }
 ```
 
-- [ ] **Step 5: Run all tests**
+- [x] **Step 5: Run all tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristicTest"`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt
@@ -1030,7 +1030,7 @@ git commit -m "test(domain): baseline heuristic safety layer additional cases"
 
 No new test needed — this is a passive container appended to by `applySessionProgression` (Task 11).
 
-- [ ] **Step 1: Add the field**
+- [x] **Step 1: Add the field**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshot.kt`, add inside the class body (after the existing `progressionBaselines` line):
 
@@ -1040,12 +1040,12 @@ val baselineHistoryByMuscle:
         mutableMapOf()
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshot.kt
@@ -1061,7 +1061,7 @@ git commit -m "feat(domain): ReplaySnapshot.baselineHistoryByMuscle for safety l
 
 This task makes the repo use the new heuristic. Repository tests will break here; we fix them in Task 12. The unit tests in Tasks 4–9 already cover the heuristic itself.
 
-- [ ] **Step 1: Add the constructor parameter**
+- [x] **Step 1: Add the constructor parameter**
 
 In `WorkoutRepository`, change the constructor:
 
@@ -1077,7 +1077,7 @@ class WorkoutRepository(
 
 (`baselineHeuristic` is required — no default — to force every call site to be deliberate.)
 
-- [ ] **Step 2: Rewrite `applySessionProgression`**
+- [x] **Step 2: Rewrite `applySessionProgression`**
 
 Replace the body of `applySessionProgression` with:
 
@@ -1150,7 +1150,7 @@ private suspend fun applySessionProgression(
 }
 ```
 
-- [ ] **Step 3: Also append OVERRIDE and INITIAL rows to `baselineHistoryByMuscle` in `replayDerivedState`**
+- [x] **Step 3: Also append OVERRIDE and INITIAL rows to `baselineHistoryByMuscle` in `replayDerivedState`**
 
 In `replayDerivedState`, where each OVERRIDE row is inserted (the `db.baselineHistoryDao().insert(BaselineHistory(...changeReason = BaselineChangeReason.OVERRIDE...))` call), also append to the snapshot map. Wrap the insert with:
 
@@ -1197,12 +1197,12 @@ db.baselineHistoryDao().insert(row)
 snapshot.baselineHistoryByMuscle.getOrPut(proposal.muscleGroup) { mutableListOf() }.add(row)
 ```
 
-- [ ] **Step 4: Compile to find call-site breakage**
+- [x] **Step 4: Compile to find call-site breakage**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: errors at every `WorkoutRepository(...)` constructor call without a `baselineHeuristic` argument. AndroidTest call sites are fixed in Task 12; main-source call sites are fixed in Step 5 below.
 
-- [ ] **Step 5: Wire `EstBaselineConsensusHeuristic` into every main-source call site**
+- [x] **Step 5: Wire `EstBaselineConsensusHeuristic` into every main-source call site**
 
 Locate them:
 
@@ -1231,12 +1231,12 @@ import io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristic
 
 If `grep` surfaces any other main-source `WorkoutRepository(...)` call sites, update them the same way.
 
-- [ ] **Step 6: Build the app to confirm main-source compiles**
+- [x] **Step 6: Build the app to confirm main-source compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL. (AndroidTest sources may still have compile errors — those are fixed in Task 12.)
 
-- [ ] **Step 7: Commit (with androidTest still broken — fix in Task 12)**
+- [x] **Step 7: Commit (with androidTest still broken — fix in Task 12)**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -1255,7 +1255,7 @@ git commit -m "feat(domain): WorkoutRepository drives BaselineHeuristic in apply
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/LiveInputWritesTest.kt`
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/DerivedStateBackfillTest.kt`
 
-- [ ] **Step 1: Create the fake**
+- [x] **Step 1: Create the fake**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -1281,7 +1281,7 @@ class FakeBaselineHeuristic(private val factor: Float = 1.05f) : BaselineHeurist
 }
 ```
 
-- [ ] **Step 2: Inject the fake at each test's setUp**
+- [x] **Step 2: Inject the fake at each test's setUp**
 
 For each file:
 - `WorkoutRepositoryTest`: change `WorkoutRepository(db)` to `WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())`. Same for the inline `WorkoutRepository(db, normalizer = normalizer)` instantiation (line ~76).
@@ -1291,7 +1291,7 @@ For each file:
 
 For each file, locate calls with: `grep -n "WorkoutRepository(" app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/*.kt`.
 
-- [ ] **Step 3: Update assertions that depended on bracket-heuristic numbers**
+- [x] **Step 3: Update assertions that depended on bracket-heuristic numbers**
 
 In `WorkoutRepositoryTest` and `ReplayDerivedStateTest`, scan for any assertion of an exact baseline weight (e.g., `assertEquals(62.5f, ...)`). With the 1.05× fake, exact predictable values are easy to compute. Update each one. For instrumented-only suite numbers we'll get from the run; **be prepared for these to take 2–3 fix passes**. The skeleton is:
 
@@ -1299,12 +1299,12 @@ In `WorkoutRepositoryTest` and `ReplayDerivedStateTest`, scan for any assertion 
 grep -n "newBaseline\|baselineWeight" app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryTest.kt
 ```
 
-- [ ] **Step 4: Run the instrumented test suite**
+- [x] **Step 4: Run the instrumented test suite**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS (after iterating on number changes).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/FakeBaselineHeuristic.kt \
@@ -1324,12 +1324,12 @@ git commit -m "test(domain): inject FakeBaselineHeuristic in repository tests"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/DefaultProgressionEngine.kt`
 - Delete: `app/src/test/java/io/github/fowles/stochastic_strength/domain/ProgressionEngineTest.kt`
 
-- [ ] **Step 1: Confirm no remaining call sites**
+- [x] **Step 1: Confirm no remaining call sites**
 
 Run: `grep -rn "computeNextBaseline\|scoreFromFeedbacks\|applyScoreBaseline" app/src/main app/src/test app/src/androidTest`
 Expected: no matches in `app/src/main`. Any matches in test files were addressed in earlier tasks.
 
-- [ ] **Step 2: Remove `computeNextBaseline` from the interface**
+- [x] **Step 2: Remove `computeNextBaseline` from the interface**
 
 In `ProgressionEngine.kt`, delete the `computeNextBaseline` method declaration. Final interface:
 
@@ -1344,7 +1344,7 @@ interface ProgressionEngine {
 }
 ```
 
-- [ ] **Step 3: Remove bracket helpers from `DefaultProgressionEngine`**
+- [x] **Step 3: Remove bracket helpers from `DefaultProgressionEngine`**
 
 Delete from `DefaultProgressionEngine.kt`:
 - `computeNextBaseline`
@@ -1358,7 +1358,7 @@ Delete from `DefaultProgressionEngine.kt`:
 
 Leave `repOptions`, `REP_OPTIONS`, `toOneRepMax`, `fromOneRepMax`, `scaleReps`, `rawToOneRepMax`, `rawFromOneRepMax`, `roundInternal`. After deletion, `roundInternal` is only used by the 1RM helpers — keep it.
 
-- [ ] **Step 4: Delete `ProgressionEngineTest.kt`**
+- [x] **Step 4: Delete `ProgressionEngineTest.kt`**
 
 ```bash
 git rm app/src/test/java/io/github/fowles/stochastic_strength/domain/ProgressionEngineTest.kt
@@ -1366,7 +1366,7 @@ git rm app/src/test/java/io/github/fowles/stochastic_strength/domain/Progression
 
 The class tested `computeNextBaseline` and the score helpers, all gone. (1RM math has separate coverage in `EstCoefConsensusHeuristicTest` and other tests.)
 
-- [ ] **Step 5: Build and test**
+- [x] **Step 5: Build and test**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL / PASS.
@@ -1374,7 +1374,7 @@ Expected: BUILD SUCCESSFUL / PASS.
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/ProgressionEngine.kt \
@@ -1388,22 +1388,22 @@ git commit -m "refactor(domain): drop bracket-score computeNextBaseline and help
 
 **Files:** none modified.
 
-- [ ] **Step 1: Run the full unit-test suite**
+- [x] **Step 1: Run the full unit-test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 2: Run the instrumented suite**
+- [x] **Step 2: Run the instrumented suite**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS.
 
-- [ ] **Step 3: Run lint**
+- [x] **Step 3: Run lint**
 
 Run: `./gradlew :app:lint`
 Expected: BUILD SUCCESSFUL (or only pre-existing warnings).
 
-- [ ] **Step 4: Sanity-check the live app**
+- [x] **Step 4: Sanity-check the live app**
 
 Launch the debug build on the emulator. Walk through a workout end-to-end with a mix of `RIR_2_4`, `RIR_5_PLUS`, and `TOO_HARD` feedback. Confirm:
 - Workout summary shows a baseline change (or non-change with a sensible reason).
