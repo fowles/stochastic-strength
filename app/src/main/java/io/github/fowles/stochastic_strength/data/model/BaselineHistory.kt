@@ -15,4 +15,6 @@ data class BaselineHistory(
     val sessionReps: Int? = null,
     val minReductionFraction: Float? = null,
     val timestamp: Long,
+    val heuristicName: String? = null,
+    val heuristicMetadata: String? = null,
 )
