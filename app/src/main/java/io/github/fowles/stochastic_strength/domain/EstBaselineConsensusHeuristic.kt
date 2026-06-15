@@ -16,7 +16,6 @@ class EstBaselineConsensusHeuristic(
 
     override val name: String = "est-baseline-consensus"
 
-    @Suppress("unused")
     private val coefHeuristic = EstCoefConsensusHeuristic()
 
     override fun compute(input: BaselineComputationInput): List<BaselineProposal> {
@@ -29,12 +28,54 @@ class EstBaselineConsensusHeuristic(
 
             if (muscleSets.any { it.feedback == SetFeedback.HURT }) {
                 val bNew = WeightFormatter.round(bOld * hurtFactor, unit)
-                if (bNew != bOld) {
-                    out.add(BaselineProposal(muscle, bNew, "hurt"))
-                }
+                if (bNew != bOld) out.add(BaselineProposal(muscle, bNew, "hurt"))
                 continue
             }
+
+            val perSet = muscleSets.mapNotNull { wsSet ->
+                val sig = coefHeuristic.setSignal(wsSet) ?: return@mapNotNull null
+                val coef = input.currentCoefficients[wsSet.exerciseId] ?: return@mapNotNull null
+                if (coef <= 0f) return@mapNotNull null
+                PerSet(sig, sig.est1RM / coef)
+            }
+            if (perSet.isEmpty()) continue
+
+            val agg = aggregateImplied(perSet) ?: continue
+            val bTarget = agg.value
+            val rawLog = alpha * agg.confidence *
+                kotlin.math.ln((bTarget / bOld).toDouble()).toFloat()
+            val upCap = stepUpMaxLog
+            val downCap = stepDownMaxLog
+            val clamped = rawLog.coerceIn(-downCap, upCap)
+            val bNew = WeightFormatter.round((bOld * kotlin.math.exp(clamped.toDouble()).toFloat()), unit)
+
+            if (bNew == bOld) continue
+            out.add(BaselineProposal(muscle, bNew, "target=${"%.2f".format(bTarget)},conf=${"%.2f".format(agg.confidence)}"))
         }
         return out
+    }
+
+    private data class PerSet(val signal: EstCoefConsensusHeuristic.SetSignal, val implied: Float)
+    private data class Aggregate(val value: Float, val confidence: Float)
+
+    private fun aggregateImplied(perSet: List<PerSet>): Aggregate? {
+        if (perSet.isEmpty()) return null
+        val nonUpper = perSet.filter { !it.signal.isUpperBound }
+        val included = if (nonUpper.isEmpty()) {
+            perSet
+        } else {
+            val nonUpperTotalConf = nonUpper.sumOf { it.signal.confidence.toDouble() }.toFloat()
+            if (nonUpperTotalConf <= 0f) return null
+            val nonUpperMean = nonUpper.sumOf { (it.implied * it.signal.confidence).toDouble() }
+                .toFloat() / nonUpperTotalConf
+            perSet.filter { p -> !p.signal.isUpperBound || nonUpperMean > p.implied }
+        }
+        if (included.isEmpty()) return null
+        val totalConf = included.sumOf { it.signal.confidence.toDouble() }.toFloat()
+        if (totalConf <= 0f) return null
+        val weightedValue = included.sumOf { (it.implied * it.signal.confidence).toDouble() }
+            .toFloat() / totalConf
+        val avgConf = totalConf / included.size
+        return Aggregate(weightedValue, avgConf)
     }
 }
