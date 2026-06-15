@@ -156,4 +156,45 @@ class EstBaselineConsensusHeuristicTest {
         ))
         assertTrue("expected no proposal, got: $result", result.isEmpty())
     }
+
+    private fun history(
+        asOf: Long,
+        deltas: List<Float>,  // signed deltas applied to previousBaseline=100; INITIAL skipped
+        muscle: MuscleGroup = MuscleGroup.CHEST,
+        changeReasons: List<io.github.fowles.stochastic_strength.data.model.BaselineChangeReason> =
+            List(deltas.size) { io.github.fowles.stochastic_strength.data.model.BaselineChangeReason.PROGRESSION },
+    ): List<BaselineHistory> {
+        var prev = 100f
+        return deltas.mapIndexed { i, d ->
+            val next = prev + d
+            val row = BaselineHistory(
+                sessionId = (i + 1).toLong(),
+                muscleGroup = muscle,
+                previousBaseline = prev,
+                newBaseline = next,
+                changeReason = changeReasons[i],
+                timestamp = asOf - (deltas.size - i) * 1000L,
+            )
+            prev = next
+            row
+        }
+    }
+
+    @Test
+    fun safetyOscillation_marksMetadata() {
+        // 4-entry history with 2 sign flips. We assert the metadata label is "oscillating".
+        val sets = listOf(set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS))
+        val now = 10_000_000L
+        val recent = history(asOf = now, deltas = listOf(+5f, -5f, +5f, -5f))
+        val result = heuristic.compute(input(
+            sets = sets,
+            recentHistory = mapOf(MuscleGroup.CHEST to recent),
+            asOf = now,
+        ))
+        val proposal = result.single()
+        assertTrue(
+            "metadata should mark safety=oscillating, was: ${proposal.metadata}",
+            proposal.metadata?.contains("safety=oscillating") == true,
+        )
+    }
 }

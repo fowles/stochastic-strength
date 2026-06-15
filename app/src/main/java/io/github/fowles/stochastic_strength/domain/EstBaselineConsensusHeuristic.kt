@@ -45,7 +45,12 @@ class EstBaselineConsensusHeuristic(
             val bTarget = agg.value
             val rawLog = alpha * agg.confidence *
                 kotlin.math.ln((bTarget / bOld).toDouble()).toFloat()
-            val upCap = stepUpMaxLog
+            val safety = classifySafety(input.recentHistory[muscle], input.asOf)
+            val upCap = when (safety) {
+                Safety.OSCILLATING -> stepUpMaxLog * 0.5f
+                Safety.CONSISTENT_UP -> stepUpMaxLog * 2.0f
+                else -> stepUpMaxLog
+            }
             val downCap = stepDownMaxLog
             val clamped = rawLog.coerceIn(-downCap, upCap)
             val bRaw = bOld * kotlin.math.exp(clamped.toDouble()).toFloat()
@@ -65,9 +70,52 @@ class EstBaselineConsensusHeuristic(
             }
 
             if (bNew == bOld) continue
-            out.add(BaselineProposal(muscle, bNew, "target=${"%.2f".format(Locale.ROOT, bTarget)},conf=${"%.2f".format(Locale.ROOT, agg.confidence)}"))
+            val safetyLabel = when (safety) {
+                Safety.DEFAULT -> "default"
+                Safety.OSCILLATING -> "oscillating"
+                Safety.CONSISTENT_UP -> "consistent_up"
+                Safety.MIXED -> "mixed"
+            }
+            out.add(BaselineProposal(
+                muscle,
+                bNew,
+                "target=${"%.2f".format(Locale.ROOT, bTarget)},conf=${"%.2f".format(Locale.ROOT, agg.confidence)},safety=$safetyLabel",
+            ))
         }
         return out
+    }
+
+    private enum class Safety { DEFAULT, OSCILLATING, CONSISTENT_UP, MIXED }
+
+    private fun classifySafety(
+        history: List<io.github.fowles.stochastic_strength.data.model.BaselineHistory>?,
+        asOf: Long,
+    ): Safety {
+        if (history == null) return Safety.DEFAULT
+        val window = history.filter {
+            it.timestamp >= asOf - safetyWindowMs &&
+                it.changeReason != io.github.fowles.stochastic_strength.data.model.BaselineChangeReason.INITIAL
+        }
+        val signs = window.mapNotNull {
+            val d = it.newBaseline - it.previousBaseline
+            when {
+                d > 0f -> +1
+                d < 0f -> -1
+                else -> null
+            }
+        }
+        if (signs.isEmpty()) return Safety.DEFAULT
+        var flips = 0
+        for (i in 1 until signs.size) if (signs[i] != signs[i - 1]) flips++
+        val oscillating = flips >= safetyOscillateFlips
+        val consistentUp = signs.size >= safetyConsistentLength &&
+            signs.takeLast(safetyConsistentLength).all { it > 0 }
+        return when {
+            oscillating && consistentUp -> Safety.MIXED
+            oscillating -> Safety.OSCILLATING
+            consistentUp -> Safety.CONSISTENT_UP
+            else -> Safety.DEFAULT
+        }
     }
 
     private data class PerSet(val signal: EstCoefConsensusHeuristic.SetSignal, val implied: Float)
