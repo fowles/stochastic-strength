@@ -323,11 +323,21 @@ class WorkoutRepository(
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit))
-        val strengths = MuscleGroup.entries.mapNotNull { muscle ->
+        for (muscle in MuscleGroup.entries) {
             val baseline = StartingWeights.baseline(sex, strengthLevel, muscle)
-            if (baseline > 0f) MuscleGroupStrength(muscleGroup = muscle, baselineWeight = baseline) else null
+            if (baseline > 0f) {
+                db.baselineOverrideDao().deleteInitialFor(muscle)
+                db.baselineOverrideDao().insert(
+                    BaselineOverride(
+                        sessionId = null,
+                        muscleGroup = muscle,
+                        baselineWeight = baseline,
+                        asOf = 0L,
+                    )
+                )
+            }
         }
-        db.muscleGroupStrengthDao().upsertAll(strengths)
+        replayDerivedState()
     }
 
     // Locations

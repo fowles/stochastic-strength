@@ -81,8 +81,6 @@ object DebugSeeder {
             }
 
         }
-        // TODO Task 22 (Phase 6): replace with per-session applySessionProgression via the
-        // snapshot-aware pipeline. For now, a single replay pass rebuilds all derived state.
         repository.replayDerivedState()
     }
 }

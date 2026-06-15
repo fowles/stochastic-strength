@@ -4,16 +4,20 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.MuscleGroup
-import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
-import io.github.fowles.stochastic_strength.domain.BaselineNormalizationInput
-import io.github.fowles.stochastic_strength.domain.BaselineNormalizationProposal
-import io.github.fowles.stochastic_strength.domain.BaselineNormalizer
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.Sex
+import io.github.fowles.stochastic_strength.data.model.StrengthLevel
+import io.github.fowles.stochastic_strength.data.model.UserProfile
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSession
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,11 +48,6 @@ class WorkoutRepositoryTest {
         db.close()
     }
 
-    // TODO Task 22 (Phase 6): re-enable when applySessionProgression is called via finishSession
-    // which builds the snapshot and asOf from live session context. Old signature removed in Phase 4.
-    // @Test
-    // fun applySessionProgression_logs_PROGRESSION_row() = runBlocking { ... }
-
     @Test
     fun applyManualBaselineOverrides_writesBaselineOverrideRow() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
@@ -68,36 +67,62 @@ class WorkoutRepositoryTest {
         assertTrue(db.baselineHistoryDao().getAll().isEmpty())
     }
 
-    // TODO Task 18 (Phase 5): applySessionProgression no longer sets hurtFlag — verify
-    // via exercise_hurt_state table instead. Commented out until Phase 5 wires the live path.
-    // @Test
-    // fun applySessionProgression_setsHurtFlagWhenFeedbackIsHurt() ...
+    @Test
+    fun applyManualBaselineOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
 
-    // TODO Task 22 (Phase 6): re-enable when live session-end path uses replayDerivedState.
-    // Old applySessionProgression(sessionId) signature removed in Phase 4.
-    // @Test
-    // fun applySessionProgression_aggregatesExercisesInSameMuscleGroupIntoOneLogEntry() ...
-    // @Test
-    // fun applySessionProgression_capsBaselineWhenExerciseReductionProvided() ...
+        repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 
-    // TODO Task 23 (Phase 7): re-enable these tests once recomputeCoefficients is re-exposed
-    // or replaced with a testable standalone entry point. Signature changed in Phase 4 to
-    // recomputeCoefficients(snapshot, asOf) — old no-arg form removed.
-    // @Test fun recomputeCoefficients_writes_log_row_with_null_previousCoefficient_on_first_run() ...
-    // @Test fun recomputeCoefficients_second_run_populates_previousCoefficient() ...
-    // @Test fun recomputeCoefficients_firstHeuristicWinsWhenBothEmitResultForSameExercise() ...
+        // Only the baseline_override input row should exist — no derived writes.
+        val rows = db.baselineHistoryDao().getAll()
+        assertTrue("expected no baseline_history rows; normalization must not trigger", rows.isEmpty())
+        assertTrue(db.muscleGroupStrengthDao().getAll().isEmpty())
+    }
 
-    // TODO Task 22 (Phase 6): re-enable when live session-end path calls snapshot-aware progression.
-    // @Test fun applySessionProgression_triggers_coefficient_recompute() ...
+    @Test
+    fun finishSession_aggregatesExercisesInSameMuscleGroupIntoOneLogEntry() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Machine Chest Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.MACHINE),
+        ))
+        val exercises = db.exerciseDao().getActive()
+        val ex1 = exercises.first { it.name == "Barbell Bench Press" }
+        val ex2 = exercises.first { it.name == "Machine Chest Press" }
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST,
+            baselineWeight = 100f, asOf = 0L,
+        ))
+        val sessionId = db.workoutSessionDao().insert(
+            WorkoutSession(startTime = 1000L, endTime = 2000L)
+        )
+        db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = ex1.id, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS,
+                completedAt = 1500L)
+        )
+        db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = ex2.id, setNumber = 1,
+                targetWeight = 60f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS,
+                completedAt = 1600L)
+        )
 
-    // TODO Task 22 (Phase 6): re-enable timestamp-checks after live session-end path is wired.
-    // applySessionProgression now takes explicit asOf; old timestamp-derivation removed.
-    // @Test fun applySessionProgression_baselineLogTimestampMatchesLatestSetCompletedAt() ...
-    // @Test fun applySessionProgression_baselineLogFallsBackToSessionEndTime_whenSetsLackCompletedAt() ...
-    // @Test fun applySessionProgression_coefficientLogUsesSessionTriggerTime() ...
+        repository.finishSession(sessionId, exerciseReductions = emptyMap())
 
-    // TODO Task 23 (Phase 7): re-enable once standalone recomputeCoefficients is re-exposed.
-    // @Test fun recomputeCoefficients_standaloneUsesLatestSetCompletedAt() ...
+        val logs = db.baselineHistoryDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.PROGRESSION && it.sessionId == sessionId }
+        assertEquals("two exercises in same muscle group should produce one log entry", 1, logs.size)
+        assertEquals(MuscleGroup.CHEST, logs[0].muscleGroup)
+        assertTrue("combined good feedback should increase baseline", logs[0].newBaseline > 100f)
+        // Both exercise feedbacks must appear in the log
+        assertEquals("RIR_5_PLUS,RIR_5_PLUS", logs[0].feedbacks)
+    }
 
     @Test
     fun buildPlanner_excludesExercisesMarkedForLocation() = runBlocking {
@@ -125,36 +150,23 @@ class WorkoutRepositoryTest {
             override fun compute(input: BaselineNormalizationInput) = proposals
         }
 
-    // TODO Task 23 (Phase 7): re-enable applyBaselineNormalization tests once the function is
-    // re-exposed with a testable entry point (currently requires a ReplaySnapshot parameter).
-    // Signature changed in Phase 4 to applyBaselineNormalization(snapshot, asOf, sessionId).
-    // @Test fun applyBaselineNormalization_writesNothing_whenNoNormalizersRegistered() ...
-    // @Test fun applyBaselineNormalization_writesNothing_whenBelowThreshold() ...
-    // @Test fun applyBaselineNormalization_writesBaselineAndCoefficientLogs_whenAboveThreshold() ...
-    // @Test fun applyBaselineNormalization_preservesSessionWeightWithinRoundingTolerance() ...
-    // @Test fun applyBaselineNormalization_scalesUnobservedExercisesInGroup() ...
-
-    // TODO Task 22 (Phase 6): re-enable once live session-end calls snapshot-aware progression.
-    // applySessionProgression(sessionId) old signature removed in Phase 4.
-    // @Test fun applySessionProgression_triggersNormalizationViaDerivedState() ...
-
     @Test
-    fun applyManualBaselineOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
-        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
-        val normalizer = fakeNormalizer("test", listOf(
-            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
-        ))
-        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+    fun seedInitialWeights_writesBaselineOverrideInitialsAndPopulatesMuscleGroupStrength() = runBlocking {
+        repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
 
-        repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
+        // baseline_override initials must be written for every muscle with a positive starting weight.
+        val initials = db.baselineOverrideDao().getInitials()
+        assertTrue("expected at least one baseline_override initial", initials.isNotEmpty())
+        assertTrue("all initials must be sessionId=null", initials.all { it.sessionId == null })
 
-        // Only the baseline_override input row should exist — no derived writes.
-        val rows = db.baselineHistoryDao().getAll()
-        assertTrue("expected no baseline_history rows; normalization must not trigger", rows.isEmpty())
-        assertTrue(db.muscleGroupStrengthDao().getAll().isEmpty())
+        // replay must have populated derived muscle_group_strength for those same muscles.
+        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        for (initial in initials) {
+            assertEquals(
+                "muscle_group_strength must match the initial for ${initial.muscleGroup}",
+                initial.baselineWeight,
+                strengths[initial.muscleGroup]?.baselineWeight,
+            )
+        }
     }
-
-    // TODO Task 22 (Phase 6): re-enable once live session-end calls snapshot-aware progression.
-    // applySessionProgression(sessionId) old signature removed in Phase 4.
-    // @Test fun applySessionProgression_withDriftedCoefficients_writesNormalizationRow() ...
 }

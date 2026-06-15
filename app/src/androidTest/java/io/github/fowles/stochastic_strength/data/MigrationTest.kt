@@ -256,16 +256,10 @@ class MigrationTest {
             assertEquals(Sex.MALE, profile!!.sex)
             assertEquals(WeightUnit.KG, profile.weightUnit)
             assertEquals(5, profile.preferredExerciseCount)
-            // derivedStateVersion is dropped in Phase 3 — no longer asserted here.
-            // TODO Task 21 (Phase 6): add assertions for new replay-based behavior if needed.
         } finally {
             db.close()
         }
     }
-
-    // TODO Task 21 (Phase 6): The old migrate11To12_dropsActualRepsBackfilledAndAddsDerivedStateVersionAtZero
-    // test is replaced because derivedStateVersion is removed from UserProfile in Phase 3.
-    // The new migration tests below cover the Phase 3 schema changes.
 
     /**
      * Creates a v11 database manually and runs [AppDatabase.MIGRATION_11_12] directly, returning
