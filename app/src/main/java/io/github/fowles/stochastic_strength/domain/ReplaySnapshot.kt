@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
@@ -22,6 +23,7 @@ class ReplaySnapshot(
     val currentCoefficients: MutableMap<Long, Float> = seedCoefficients.toMutableMap()
     val currentBaselines: MutableMap<MuscleGroup, Float> = mutableMapOf()
     val progressionBaselines: MutableMap<Pair<Long, MuscleGroup>, Float> = mutableMapOf()
+    val baselineHistoryByMuscle: MutableMap<MuscleGroup, MutableList<BaselineHistory>> = mutableMapOf()
 
     fun filteredCoefficientInput(asOf: Long): CoefficientComputationInput {
         val sessionTimes = allSessionTimes.filterValues { it <= asOf }
