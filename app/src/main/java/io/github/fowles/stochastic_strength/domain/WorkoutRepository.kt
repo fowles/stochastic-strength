@@ -74,8 +74,33 @@ class WorkoutRepository(
         asOf: Long,
         exerciseReductions: Map<Long, Float>,
     ) {
+        val input = buildBaselineComputationInput(sessionId, snapshot, asOf, exerciseReductions)
+            ?: return
+        val setsByMuscle = input.sets.groupBy { input.exerciseMuscle[it.exerciseId] }
+        for (proposal in baselineHeuristic.compute(input)) {
+            applyBaselineProposal(
+                proposal = proposal,
+                sessionId = sessionId,
+                snapshot = snapshot,
+                weightUnit = input.weightUnit,
+                sessionReps = input.sessionReps,
+                minReductionsByMuscle = input.minReductionFractions,
+                setsByMuscle = setsByMuscle,
+                asOf = asOf,
+            )
+        }
+        recomputeCoefficients(snapshot, asOf)
+        applyBaselineNormalization(snapshot, asOf, sessionId)
+    }
+
+    private suspend fun buildBaselineComputationInput(
+        sessionId: Long,
+        snapshot: ReplaySnapshot,
+        asOf: Long,
+        exerciseReductions: Map<Long, Float>,
+    ): BaselineComputationInput? {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
-        if (sets.isEmpty()) return
+        if (sets.isEmpty()) return null
 
         val exerciseIds = sets.map { it.exerciseId }.distinct()
         val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
@@ -89,7 +114,7 @@ class WorkoutRepository(
                 }
                 .filterValues { it > 0f }
 
-        val input = BaselineComputationInput(
+        return BaselineComputationInput(
             sets = sets,
             exerciseMuscle = exerciseById.mapValues { it.value.primaryMuscle },
             currentCoefficients = snapshot.currentCoefficients.toMap(),
@@ -98,39 +123,45 @@ class WorkoutRepository(
             sessionReps = sessionReps,
             minReductionFractions = minReductionsByMuscle,
             asOf = asOf,
+            weightUnit = weightUnit,
         )
-        val proposals = baselineHeuristic.compute(input)
+    }
 
-        val setsByMuscle = sets.groupBy { exerciseById[it.exerciseId]?.primaryMuscle }
-        for (proposal in proposals) {
-            val current = snapshot.currentBaselines[proposal.muscleGroup] ?: continue
-            val rounded = WeightFormatter.round(proposal.newBaseline, weightUnit)
-            db.muscleGroupStrengthDao().upsert(
-                MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = rounded)
-            )
-            snapshot.progressionBaselines[sessionId to proposal.muscleGroup] = current
-            snapshot.currentBaselines[proposal.muscleGroup] = rounded
-            val muscleFeedbacks = setsByMuscle[proposal.muscleGroup].orEmpty()
-                .mapNotNull { it.feedback }
-            val historyRow = BaselineHistory(
-                sessionId = sessionId,
-                muscleGroup = proposal.muscleGroup,
-                previousBaseline = current,
-                newBaseline = rounded,
-                changeReason = BaselineChangeReason.PROGRESSION,
-                feedbacks = muscleFeedbacks.joinToString(",") { it.name }.ifEmpty { null },
-                sessionReps = sessionReps,
-                minReductionFraction = minReductionsByMuscle[proposal.muscleGroup],
-                timestamp = asOf,
-                heuristicName = baselineHeuristic.name,
-                heuristicMetadata = proposal.metadata,
-            )
-            db.baselineHistoryDao().insert(historyRow)
-            snapshot.baselineHistoryByMuscle.getOrPut(proposal.muscleGroup) { mutableListOf() }
-                .add(historyRow)
-        }
-        recomputeCoefficients(snapshot, asOf)
-        applyBaselineNormalization(snapshot, asOf, sessionId)
+    private suspend fun applyBaselineProposal(
+        proposal: BaselineProposal,
+        sessionId: Long,
+        snapshot: ReplaySnapshot,
+        weightUnit: WeightUnit,
+        sessionReps: Int,
+        minReductionsByMuscle: Map<MuscleGroup, Float>,
+        setsByMuscle: Map<MuscleGroup?, List<WorkoutSet>>,
+        asOf: Long,
+    ) {
+        val current = snapshot.currentBaselines[proposal.muscleGroup] ?: return
+        val rounded = WeightFormatter.round(proposal.newBaseline, weightUnit)
+        db.muscleGroupStrengthDao().upsert(
+            MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = rounded)
+        )
+        snapshot.progressionBaselines[sessionId to proposal.muscleGroup] = current
+        snapshot.currentBaselines[proposal.muscleGroup] = rounded
+        val muscleFeedbacks = setsByMuscle[proposal.muscleGroup].orEmpty()
+            .mapNotNull { it.feedback }
+        val historyRow = BaselineHistory(
+            sessionId = sessionId,
+            muscleGroup = proposal.muscleGroup,
+            previousBaseline = current,
+            newBaseline = rounded,
+            changeReason = BaselineChangeReason.PROGRESSION,
+            feedbacks = muscleFeedbacks.joinToString(",") { it.name }.ifEmpty { null },
+            sessionReps = sessionReps,
+            minReductionFraction = minReductionsByMuscle[proposal.muscleGroup],
+            timestamp = asOf,
+            heuristicName = baselineHeuristic.name,
+            heuristicMetadata = proposal.metadata,
+        )
+        db.baselineHistoryDao().insert(historyRow)
+        snapshot.baselineHistoryByMuscle.getOrPut(proposal.muscleGroup) { mutableListOf() }
+            .add(historyRow)
     }
 
     suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {

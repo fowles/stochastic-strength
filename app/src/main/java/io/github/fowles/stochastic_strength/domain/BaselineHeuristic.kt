@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 
 data class BaselineComputationInput(
@@ -13,6 +14,7 @@ data class BaselineComputationInput(
     val sessionReps: Int,
     val minReductionFractions: Map<MuscleGroup, Float>,
     val asOf: Long,
+    val weightUnit: WeightUnit,
 )
 
 data class BaselineProposal(

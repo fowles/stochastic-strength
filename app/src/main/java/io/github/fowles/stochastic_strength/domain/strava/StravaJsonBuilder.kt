@@ -31,7 +31,7 @@ class StravaJsonBuilder {
             if (set.durationSeconds != null) {
                 setObj.put("duration", set.durationSeconds)
             } else {
-                setObj.put("repetitions", set.targetReps)
+                setObj.put("repetitions", set.actualReps ?: set.targetReps)
             }
             if (set.targetWeight > 0f) setObj.put("weight", set.targetWeight.toDouble())
             set.completedAt?.let {

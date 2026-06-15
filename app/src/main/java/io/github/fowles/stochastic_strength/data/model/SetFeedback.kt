@@ -10,4 +10,7 @@ enum class SetFeedback {
         RIR_2_4   -> "2–4 more"
         RIR_5_PLUS -> "5+ more"
     }
+
+    fun displayLabel(actualReps: Int?): String =
+        if (this == TOO_HARD && actualReps != null) "Too Heavy ($actualReps)" else displayLabel
 }

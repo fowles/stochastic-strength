@@ -127,14 +127,16 @@ class StravaExporter(
 
         for ((id, exercise) in exerciseById) {
             val exerciseSets = setsByExercise[id] ?: continue
-            val first = exerciseSets.first()
-            val weightSuffix = if (first.targetWeight > 0f)
-                " @ ${WeightFormatter.format(first.targetWeight, weightUnit)}"
-            else ""
-            sb.append("${exercise.name} — ${exerciseSets.size} sets × ${formatQuantity(first.targetReps, exercise.isTimed)}$weightSuffix\n")
-            sb.append("  ")
-            sb.append(exerciseSets.joinToString(" ") { feedbackEmoji(it.feedback) })
-            sb.append("\n\n")
+            sb.append(exercise.name).append('\n')
+            for (set in exerciseSets) {
+                val quantity = if (set.durationSeconds != null) "${set.durationSeconds}s"
+                    else formatQuantity(set.actualReps ?: set.targetReps, exercise.isTimed)
+                val weightSuffix = if (set.targetWeight > 0f)
+                    " @ ${WeightFormatter.format(set.targetWeight, weightUnit)}"
+                else ""
+                sb.append("$quantity$weightSuffix - ${feedbackEmoji(set.feedback)}\n")
+            }
+            sb.append('\n')
         }
 
         val totalSec = durationMs / 1000

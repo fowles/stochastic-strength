@@ -163,6 +163,13 @@ private fun BaselineEventRow(event: BaselineEvent, weightUnit: WeightUnit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (event.heuristicMetadata != null) {
+            Text(
+                text = event.heuristicMetadata,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (event.minReductionFraction != null) {
             Text(
                 text = "Reduction floor: %.0f%%".format(event.minReductionFraction * 100f),

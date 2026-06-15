@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.domain
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,6 +38,7 @@ class EstBaselineConsensusHeuristicTest {
         minReductionFractions: Map<MuscleGroup, Float> = emptyMap(),
         sessionReps: Int = 5,
         asOf: Long = 1_000_000L,
+        weightUnit: WeightUnit = WeightUnit.KG,
     ) = BaselineComputationInput(
         sets = sets,
         exerciseMuscle = exerciseMuscle,
@@ -46,6 +48,7 @@ class EstBaselineConsensusHeuristicTest {
         sessionReps = sessionReps,
         minReductionFractions = minReductionFractions,
         asOf = asOf,
+        weightUnit = weightUnit,
     )
 
     @Test
@@ -258,6 +261,66 @@ class EstBaselineConsensusHeuristicTest {
             "metadata should mark safety=default, was: ${proposal.metadata}",
             proposal.metadata?.contains("safety=default") == true,
         )
+    }
+
+    @Test
+    fun downCapBinds_whenRawLogStepExceedsDownCap() {
+        // TOO_HARD with actualReps=1 at 40×8 → est1RM = toOneRepMax(40, 1) = 40 (reps=1 short-circuit),
+        // confidence = 0.95, isUpperBound = false, isDefinite = true.
+        // bOld = 200 (unrealistically high), coef = 1.0 → impliedBaseline = 40 / 1.0 = 40.
+        // rawLog = 0.3 * 0.95 * ln(40/200) = 0.285 * ln(0.2) ≈ 0.285 * (-1.6094) ≈ -0.4587.
+        // |rawLog| ≈ 0.4587 > downCap = ln(1.10) ≈ 0.0953 → down cap binds → clamped = -0.0953.
+        // bRaw = 200 * exp(-ln(1.10)) = 200 / 1.10 ≈ 181.818.
+        // bNew = round(181.818, KG) = (181.818 / 2.5).roundToInt() * 2.5 = 73 * 2.5 = 182.5.
+        // capBound = true, but bNew (182.5) != bOld (200) → floor does not fire.
+        val s = set(targetWeight = 40f, targetReps = 8, actualReps = 1, feedback = SetFeedback.TOO_HARD)
+        val result = heuristic.compute(input(
+            sets = listOf(s),
+            currentBaselines = mapOf(MuscleGroup.CHEST to 200f),
+        ))
+        val proposal = result.single()
+        assertEquals(182.5f, proposal.newBaseline, 0.0001f)
+    }
+
+    @Test
+    fun multiExercise_confidenceWeightedAggregateArithmetic() {
+        // Two exercises in CHEST, each one RIR_2_4 set at *_×5, with *different* coefficients.
+        // RIR_2_4 → est1RM = toOneRepMax(weight, targetReps + 3 = 8), confidence = 0.7, non-upper-bound.
+        //
+        // Exercise 1 (id=1L, coef=1.0): 80×5 → est1RM = toOneRepMax(80, 8) = 104.0
+        //   → impliedBaseline_1 = 104.0 / 1.0 = 104.0
+        // Exercise 2 (id=2L, coef=0.5): 50×5 → est1RM = toOneRepMax(50, 8) = 67.0
+        //   → impliedBaseline_2 = 67.0 / 0.5 = 134.0
+        //
+        // Both non-upper-bound → both included. Confidence-weighted aggregate:
+        //   totalConf  = 0.7 + 0.7 = 1.4
+        //   weighted   = (104.0 * 0.7 + 134.0 * 0.7) / 1.4 = (72.8 + 93.8) / 1.4 = 166.6 / 1.4 = 119.0
+        //   avgConf    = 1.4 / 2 = 0.7
+        //
+        // rawLog  = 0.3 * 0.7 * ln(119.0 / 100.0) = 0.21 * ln(1.19) ≈ 0.21 * 0.17395 ≈ 0.03653
+        // upCap   = ln(1.025) ≈ 0.02469 → rawLog > upCap → clamped = 0.02469.
+        // bRaw    = 100 * exp(0.02469) = 100 * 1.025 = 102.5 → rounds to 102.5.
+        val sets = listOf(
+            set(exerciseId = 1L, targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
+            set(exerciseId = 2L, targetWeight = 50f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
+        )
+        val result = heuristic.compute(input(
+            sets = sets,
+            currentCoefficients = mapOf(1L to 1.0f, 2L to 0.5f),
+            exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
+        ))
+        assertEquals(1, result.size)
+        val proposal = result.single()
+        // Verify the aggregate target was 119.0 (encoded in metadata) and the avgConf was 0.7.
+        assertTrue(
+            "metadata should include target=119.00, was: ${proposal.metadata}",
+            proposal.metadata?.contains("target=119.00") == true,
+        )
+        assertTrue(
+            "metadata should include conf=0.70, was: ${proposal.metadata}",
+            proposal.metadata?.contains("conf=0.70") == true,
+        )
+        assertEquals(102.5f, proposal.newBaseline, 0.0001f)
     }
 
     @Test

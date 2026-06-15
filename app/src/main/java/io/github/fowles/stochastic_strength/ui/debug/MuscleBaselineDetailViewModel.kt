@@ -29,12 +29,23 @@ data class BaselineEvent(
     val sessionReps: Int?,
     val minReductionFraction: Float?,
     val exerciseNames: List<String>,
+    val heuristicMetadata: String? = null,
 )
 
 data class CoefficientDeviationRow(
     val name: String,
     val deviation: Float,
 )
+
+/**
+ * Parses a comma-separated CSV of [SetFeedback] tokens. Whitespace around
+ * tokens is trimmed; unknown tokens are silently dropped. A null or empty
+ * input yields an empty list.
+ */
+internal fun parseFeedbacks(csv: String?): List<SetFeedback> =
+    csv?.split(',')
+        ?.mapNotNull { token -> runCatching { SetFeedback.valueOf(token.trim()) }.getOrNull() }
+        ?: emptyList()
 
 /**
  * Returns the per-exercise drift of `current` coefficient vs `seed`,
@@ -117,6 +128,7 @@ class MuscleBaselineDetailViewModel(
                     sessionReps = log.sessionReps,
                     minReductionFraction = log.minReductionFraction,
                     exerciseNames = names,
+                    heuristicMetadata = log.heuristicMetadata,
                 )
             }
 
@@ -136,11 +148,6 @@ class MuscleBaselineDetailViewModel(
             )
         }
     }
-
-    private fun parseFeedbacks(csv: String?): List<SetFeedback> =
-        csv?.split(',')
-            ?.mapNotNull { token -> runCatching { SetFeedback.valueOf(token.trim()) }.getOrNull() }
-            ?: emptyList()
 
     companion object {
         fun factory(muscleGroup: MuscleGroup): ViewModelProvider.Factory =
