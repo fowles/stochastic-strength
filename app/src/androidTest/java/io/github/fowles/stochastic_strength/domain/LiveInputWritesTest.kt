@@ -29,15 +29,6 @@ class LiveInputWritesTest {
     private lateinit var db: AppDatabase
     private lateinit var repository: WorkoutRepository
 
-    // Coefficient source that gives the Bench exercise a non-zero seed so it passes
-    // the `(coefficient > 0f)` filter inside applySessionProgression and recomputeCoefficients.
-    private val testCoefficientSource = object : CoefficientSource {
-        override fun get(exercise: Exercise): Float? = when (exercise.id) {
-            BENCH_EXERCISE_ID -> 1.0f
-            else -> null
-        }
-    }
-
     @Before
     fun setUp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -46,9 +37,8 @@ class LiveInputWritesTest {
             .build()
         repository = WorkoutRepository(
             db,
-            coefficientSource = testCoefficientSource,
-            heuristics = listOf(EstCoefConsensusHeuristic()),
-            normalizers = listOf(SeedNormalizer()),
+            heuristic = EstCoefConsensusHeuristic(),
+            normalizer = SeedNormalizer(),
         )
         runBlocking {
             db.userProfileDao().insert(
@@ -96,7 +86,7 @@ class LiveInputWritesTest {
         db.exerciseDao().insert(
             Exercise(
                 id = BENCH_EXERCISE_ID,
-                name = "Bench",
+                name = "Barbell Bench Press",
                 primaryMuscle = MuscleGroup.CHEST,
                 equipment = Equipment.BARBELL,
             )

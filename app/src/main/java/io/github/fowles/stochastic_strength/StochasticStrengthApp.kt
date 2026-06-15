@@ -32,8 +32,8 @@ class StochasticStrengthApp : Application() {
     val workoutRepository: WorkoutRepository by lazy {
         WorkoutRepository(
             database,
-            heuristics = listOf(EstCoefConsensusHeuristic()),
-            normalizers = listOf(SeedNormalizer()),
+            heuristic = EstCoefConsensusHeuristic(),
+            normalizer = SeedNormalizer(),
         )
     }
 

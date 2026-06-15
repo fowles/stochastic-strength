@@ -14,9 +14,6 @@ interface ExerciseHurtStateDao {
     suspend fun get(exerciseId: Long): ExerciseHurtState?
 
     @Query("SELECT * FROM exercise_hurt_state")
-    suspend fun getAll(): List<ExerciseHurtState>
-
-    @Query("SELECT * FROM exercise_hurt_state")
     fun observeAll(): Flow<List<ExerciseHurtState>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

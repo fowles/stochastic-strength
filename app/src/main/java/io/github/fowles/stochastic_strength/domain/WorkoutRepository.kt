@@ -23,12 +23,10 @@ import kotlinx.coroutines.sync.withLock
 
 class WorkoutRepository(
     private val db: AppDatabase,
-    private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
-    private val heuristics: List<CoefficientHeuristic> = listOf(),
-    private val normalizers: List<BaselineNormalizer> = listOf(),
+    private val heuristic: CoefficientHeuristic? = null,
+    private val normalizer: BaselineNormalizer? = null,
 ) {
-    // Task 11: mutex to prevent concurrent replay runs
     private val replayMutex = Mutex()
 
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
@@ -38,7 +36,7 @@ class WorkoutRepository(
     private suspend fun effectiveCoefficientSource(): UserCoefficientSource {
         val latest = db.coefficientHistoryDao().getLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
-        return UserCoefficientSource(latest, coefficientSource)
+        return UserCoefficientSource(latest)
     }
 
     suspend fun buildPlanner(
@@ -69,14 +67,11 @@ class WorkoutRepository(
         )
     }
 
-    // Task 14: Refactored applySessionProgression — reads current baseline from snapshot, not DB.
-    // Calls recomputeCoefficients(snapshot, asOf) and applyBaselineNormalization(snapshot, asOf, sessionId).
-    // Does not mutate hurtFlag (moved to live recording, Phase 5 Task 18).
-    suspend fun applySessionProgression(
+    private suspend fun applySessionProgression(
         sessionId: Long,
         snapshot: ReplaySnapshot,
         asOf: Long,
-        exerciseReductions: Map<Long, Float> = emptyMap(),
+        exerciseReductions: Map<Long, Float>,
     ) {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
         if (sets.isEmpty()) return
@@ -84,13 +79,7 @@ class WorkoutRepository(
         val exerciseIds = sets.map { it.exerciseId }.distinct()
         val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
 
-        // (hurtFlag side effect REMOVED — moved to live recording in Phase 5, Task 18.)
-
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
-
-        val effectiveReductions = exerciseReductions.takeIf { it.isNotEmpty() }
-            ?: pendingReductions?.let { (id, r) -> if (id == sessionId) r else null }
-            ?: emptyMap()
 
         val exercisesByMuscle = exerciseById.values
             .filter { (snapshot.currentCoefficients[it.id] ?: 0f) > 0f }
@@ -103,7 +92,7 @@ class WorkoutRepository(
             if (allFeedbacks.isEmpty()) continue
 
             val current = snapshot.currentBaselines[muscleGroup] ?: continue
-            val minReduction = muscleExercises.mapNotNull { effectiveReductions[it.id] }.maxOrNull() ?: 0f
+            val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
             val newBaseline = progressionEngine.computeNextBaseline(current, allFeedbacks, minReduction, sessionReps)
             val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
             db.muscleGroupStrengthDao().upsert(
@@ -129,12 +118,6 @@ class WorkoutRepository(
         applyBaselineNormalization(snapshot, asOf, sessionId)
     }
 
-    private suspend fun sessionTriggerTime(sessionId: Long, sets: List<WorkoutSet>): Long {
-        sets.mapNotNull { it.completedAt }.maxOrNull()?.let { return it }
-        val session = db.workoutSessionDao().getById(sessionId)
-        return session?.endTime ?: session?.startTime ?: System.currentTimeMillis()
-    }
-
     suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
         if (overrides.isEmpty()) return
         val session = db.workoutSessionDao().getById(sessionId)
@@ -151,50 +134,39 @@ class WorkoutRepository(
         }
     }
 
-    // Task 12: Refactored recomputeCoefficients — snapshot-aware, no internal transaction.
-    // Caller (replay) holds the wrapping transaction.
-    internal suspend fun recomputeCoefficients(snapshot: ReplaySnapshot, asOf: Long) {
-        if (heuristics.isEmpty()) return
-        val input = snapshot.filteredCoefficientInput(asOf)
-        val candidatesByExercise = mutableMapOf<Long, MutableList<Pair<String, CoefficientResult>>>()
-        for (heuristic in heuristics) {
-            for (result in heuristic.compute(input)) {
-                candidatesByExercise.getOrPut(result.exerciseId) { mutableListOf() }
-                    .add(heuristic.name to result)
-            }
-        }
+    private suspend fun recomputeCoefficients(snapshot: ReplaySnapshot, asOf: Long) {
+        val heuristic = heuristic ?: return
+        val results = heuristic.compute(snapshot.filteredCoefficientInput(asOf))
+        if (results.isEmpty()) return
         val latestByExercise = db.coefficientHistoryDao().getLatestPerExercise()
             .associateBy { it.exerciseId }
-        for ((exerciseId, candidates) in candidatesByExercise) {
-            val (winnerName, winner) = mergeHeuristicResults(candidates) ?: continue
+        for (result in results) {
             db.coefficientHistoryDao().insert(
                 CoefficientHistory(
-                    exerciseId = exerciseId,
-                    previousCoefficient = latestByExercise[exerciseId]?.coefficient
-                        ?: snapshot.seedCoefficients[exerciseId],
-                    coefficient = winner.coefficient,
-                    heuristicName = winnerName,
-                    heuristicMetadata = winner.metadata,
+                    exerciseId = result.exerciseId,
+                    previousCoefficient = latestByExercise[result.exerciseId]?.coefficient
+                        ?: snapshot.seedCoefficients[result.exerciseId],
+                    coefficient = result.coefficient,
+                    heuristicName = heuristic.name,
+                    heuristicMetadata = result.metadata,
                     computedAt = asOf,
                 )
             )
-            snapshot.currentCoefficients[exerciseId] = winner.coefficient
+            snapshot.currentCoefficients[result.exerciseId] = result.coefficient
         }
     }
 
-    // Task 13: Refactored applyBaselineNormalization — snapshot-aware, no internal transaction.
-    // Caller (replay) holds the wrapping transaction.
-    internal suspend fun applyBaselineNormalization(
+    private suspend fun applyBaselineNormalization(
         snapshot: ReplaySnapshot,
         asOf: Long,
         sessionId: Long,
     ) {
-        if (normalizers.isEmpty()) return
+        val normalizer = normalizer ?: return
         val input = snapshot.filteredNormalizationInput(asOf)
         val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
         val threshold = BaselineNormalizationThreshold.forUnit(weightUnit)
 
-        val proposals = normalizers.flatMap { it.compute(input) }
+        val proposals = normalizer.compute(input)
         if (proposals.isEmpty()) return
 
         val latestCoefByExercise = db.coefficientHistoryDao().getLatestPerExercise()
@@ -244,31 +216,24 @@ class WorkoutRepository(
         }
     }
 
-    // Task 22: single-use stash so finishSession can route reductions to applySessionProgression
-    // without changing the replay loop's call-site signature.
-    private var pendingReductions: Pair<Long, Map<Long, Float>>? = null
-
     /**
-     * Stashes [exerciseReductions] for the upcoming session, then triggers a full replay so that
-     * [applySessionProgression] picks them up when it reaches [sessionId].
+     * Replays all sessions, applying [exerciseReductions] (sessionId → per-exercise reduction
+     * fractions) for any matching session. Used by the workout-end path to thread the user's
+     * mid-session weight reductions into the progression calculation.
      */
     suspend fun finishSession(sessionId: Long, exerciseReductions: Map<Long, Float>) {
-        pendingReductions = sessionId to exerciseReductions
-        try {
-            replayDerivedState()
-        } finally {
-            pendingReductions = null
-        }
+        replayDerivedState(mapOf(sessionId to exerciseReductions))
     }
 
-    // Task 15: Top-level wipe-and-replay. Acquires replayMutex and wraps everything in one transaction.
-    suspend fun replayDerivedState() = replayMutex.withLock {
+    suspend fun replayDerivedState(
+        reductionsBySession: Map<Long, Map<Long, Float>> = emptyMap(),
+    ) = replayMutex.withLock {
         db.withTransaction {
             db.baselineHistoryDao().deleteAll()
             db.coefficientHistoryDao().deleteAll()
             db.muscleGroupStrengthDao().deleteAll()
 
-            val snapshot = ReplaySnapshot.loadStaticFromDb(db, coefficientSource)
+            val snapshot = ReplaySnapshot.loadStaticFromDb(db)
             val initials = db.baselineOverrideDao().getInitials()
             val overridesBySession = db.baselineOverrideDao().getNonInitials()
                 .groupBy { it.sessionId!! }
@@ -312,14 +277,15 @@ class WorkoutRepository(
                         )
                     )
                 }
-                applySessionProgression(session.id, snapshot, asOf = session.endTime!!)
+                applySessionProgression(
+                    session.id,
+                    snapshot,
+                    asOf = session.endTime!!,
+                    exerciseReductions = reductionsBySession[session.id] ?: emptyMap(),
+                )
             }
         }
     }
-
-    private fun mergeHeuristicResults(
-        candidates: List<Pair<String, CoefficientResult>>,
-    ): Pair<String, CoefficientResult>? = candidates.firstOrNull()
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit))
@@ -419,7 +385,7 @@ class WorkoutRepository(
         return allExercises
             .map { exercise ->
                 val log = latestByExercise[exercise.id]
-                val seed = coefficientSource.get(exercise) ?: 0f
+                val seed = ExerciseCoefficients.get(exercise) ?: 0f
                 CoefficientRow(
                     exerciseId = exercise.id,
                     exerciseName = exercise.name,
@@ -440,6 +406,6 @@ class WorkoutRepository(
         db.coefficientHistoryDao().getForExercise(exerciseId)
 
     fun getSeedCoefficient(exercise: Exercise): Float? =
-        coefficientSource.get(exercise)
+        ExerciseCoefficients.get(exercise)
 
 }

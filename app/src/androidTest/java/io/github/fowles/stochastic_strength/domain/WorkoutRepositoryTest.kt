@@ -73,7 +73,7 @@ class WorkoutRepositoryTest {
         val normalizer = fakeNormalizer("test", listOf(
             BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
         ))
-        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+        val repo = WorkoutRepository(db, normalizer = normalizer)
 
         repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 

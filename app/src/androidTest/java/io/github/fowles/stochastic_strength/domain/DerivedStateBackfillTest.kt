@@ -39,8 +39,8 @@ class DerivedStateBackfillTest {
             .build()
         repository = WorkoutRepository(
             db,
-            heuristics = listOf(EstCoefConsensusHeuristic()),
-            normalizers = listOf(SeedNormalizer()),
+            heuristic = EstCoefConsensusHeuristic(),
+            normalizer = SeedNormalizer(),
         )
     }
 
