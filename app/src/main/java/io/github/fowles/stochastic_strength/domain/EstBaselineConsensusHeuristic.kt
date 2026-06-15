@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import java.util.Locale
 
 class EstBaselineConsensusHeuristic(
     private val alpha: Float = 0.3f,
@@ -50,7 +51,7 @@ class EstBaselineConsensusHeuristic(
             val bNew = WeightFormatter.round((bOld * kotlin.math.exp(clamped.toDouble()).toFloat()), unit)
 
             if (bNew == bOld) continue
-            out.add(BaselineProposal(muscle, bNew, "target=${"%.2f".format(bTarget)},conf=${"%.2f".format(agg.confidence)}"))
+            out.add(BaselineProposal(muscle, bNew, "target=${"%.2f".format(Locale.ROOT, bTarget)},conf=${"%.2f".format(Locale.ROOT, agg.confidence)}"))
         }
         return out
     }
