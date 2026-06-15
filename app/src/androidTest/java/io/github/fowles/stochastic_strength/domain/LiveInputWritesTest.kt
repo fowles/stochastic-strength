@@ -39,6 +39,7 @@ class LiveInputWritesTest {
             db,
             heuristic = EstCoefConsensusHeuristic(),
             normalizer = SeedNormalizer(),
+            baselineHeuristic = FakeBaselineHeuristic(),
         )
         runBlocking {
             db.userProfileDao().insert(

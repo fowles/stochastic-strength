@@ -40,7 +40,7 @@ class WorkoutRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(db)
+        repository = WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())
     }
 
     @After
@@ -73,7 +73,7 @@ class WorkoutRepositoryTest {
         val normalizer = fakeNormalizer("test", listOf(
             BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
         ))
-        val repo = WorkoutRepository(db, normalizer = normalizer)
+        val repo = WorkoutRepository(db, normalizer = normalizer, baselineHeuristic = FakeBaselineHeuristic())
 
         repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 

@@ -42,6 +42,7 @@ class ReplayDerivedStateTest {
             db,
             heuristic = EstCoefConsensusHeuristic(),
             normalizer = SeedNormalizer(),
+            baselineHeuristic = FakeBaselineHeuristic(),
         )
     }
 

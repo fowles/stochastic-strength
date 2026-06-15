@@ -41,6 +41,7 @@ class DerivedStateBackfillTest {
             db,
             heuristic = EstCoefConsensusHeuristic(),
             normalizer = SeedNormalizer(),
+            baselineHeuristic = FakeBaselineHeuristic(),
         )
     }
 
