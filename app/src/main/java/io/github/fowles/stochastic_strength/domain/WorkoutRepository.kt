@@ -26,6 +26,7 @@ class WorkoutRepository(
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val heuristic: CoefficientHeuristic? = null,
     private val normalizer: BaselineNormalizer? = null,
+    private val baselineHeuristic: BaselineHeuristic,
 ) {
     private val replayMutex = Mutex()
 
@@ -78,41 +79,55 @@ class WorkoutRepository(
 
         val exerciseIds = sets.map { it.exerciseId }.distinct()
         val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
-
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
-
-        val exercisesByMuscle = exerciseById.values
-            .filter { (snapshot.currentCoefficients[it.id] ?: 0f) > 0f }
-            .groupBy { it.primaryMuscle }
         val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
-        for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
-            val allFeedbacks = muscleExercises.flatMap { exercise ->
-                sets.filter { it.exerciseId == exercise.id }.mapNotNull { it.feedback }
-            }
-            if (allFeedbacks.isEmpty()) continue
 
-            val current = snapshot.currentBaselines[muscleGroup] ?: continue
-            val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
-            val newBaseline = progressionEngine.computeNextBaseline(current, allFeedbacks, minReduction, sessionReps)
-            val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
+        val minReductionsByMuscle: Map<MuscleGroup, Float> =
+            exerciseById.values.groupBy { it.primaryMuscle }
+                .mapValues { (_, exs) ->
+                    exs.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
+                }
+                .filterValues { it > 0f }
+
+        val input = BaselineComputationInput(
+            sets = sets,
+            exerciseMuscle = exerciseById.mapValues { it.value.primaryMuscle },
+            currentCoefficients = snapshot.currentCoefficients.toMap(),
+            currentBaselines = snapshot.currentBaselines.toMap(),
+            recentHistory = snapshot.baselineHistoryByMuscle.mapValues { it.value.toList() },
+            sessionReps = sessionReps,
+            minReductionFractions = minReductionsByMuscle,
+            asOf = asOf,
+        )
+        val proposals = baselineHeuristic.compute(input)
+
+        val setsByMuscle = sets.groupBy { exerciseById[it.exerciseId]?.primaryMuscle }
+        for (proposal in proposals) {
+            val current = snapshot.currentBaselines[proposal.muscleGroup] ?: continue
+            val rounded = WeightFormatter.round(proposal.newBaseline, weightUnit)
             db.muscleGroupStrengthDao().upsert(
-                MuscleGroupStrength(muscleGroup = muscleGroup, baselineWeight = roundedNewBaseline)
+                MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = rounded)
             )
-            snapshot.progressionBaselines[sessionId to muscleGroup] = current
-            snapshot.currentBaselines[muscleGroup] = roundedNewBaseline
-            db.baselineHistoryDao().insert(
-                BaselineHistory(
-                    sessionId = sessionId,
-                    muscleGroup = muscleGroup,
-                    previousBaseline = current,
-                    newBaseline = roundedNewBaseline,
-                    changeReason = BaselineChangeReason.PROGRESSION,
-                    feedbacks = allFeedbacks.joinToString(",") { it.name },
-                    sessionReps = sessionReps,
-                    minReductionFraction = if (minReduction > 0f) minReduction else null,
-                    timestamp = asOf,
-                )
+            snapshot.progressionBaselines[sessionId to proposal.muscleGroup] = current
+            snapshot.currentBaselines[proposal.muscleGroup] = rounded
+            val muscleFeedbacks = setsByMuscle[proposal.muscleGroup].orEmpty()
+                .mapNotNull { it.feedback }
+            val historyRow = BaselineHistory(
+                sessionId = sessionId,
+                muscleGroup = proposal.muscleGroup,
+                previousBaseline = current,
+                newBaseline = rounded,
+                changeReason = BaselineChangeReason.PROGRESSION,
+                feedbacks = muscleFeedbacks.joinToString(",") { it.name }.ifEmpty { null },
+                sessionReps = sessionReps,
+                minReductionFraction = minReductionsByMuscle[proposal.muscleGroup],
+                timestamp = asOf,
+                heuristicName = baselineHeuristic.name,
+                heuristicMetadata = proposal.metadata,
             )
+            db.baselineHistoryDao().insert(historyRow)
+            snapshot.baselineHistoryByMuscle.getOrPut(proposal.muscleGroup) { mutableListOf() }
+                .add(historyRow)
         }
         recomputeCoefficients(snapshot, asOf)
         applyBaselineNormalization(snapshot, asOf, sessionId)
@@ -184,16 +199,16 @@ class WorkoutRepository(
                 MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = newBaseline)
             )
             snapshot.currentBaselines[proposal.muscleGroup] = newBaseline
-            db.baselineHistoryDao().insert(
-                BaselineHistory(
-                    sessionId = sessionId,
-                    muscleGroup = proposal.muscleGroup,
-                    previousBaseline = oldBaseline,
-                    newBaseline = newBaseline,
-                    changeReason = BaselineChangeReason.NORMALIZATION,
-                    timestamp = asOf,
-                )
+            val row = BaselineHistory(
+                sessionId = sessionId,
+                muscleGroup = proposal.muscleGroup,
+                previousBaseline = oldBaseline,
+                newBaseline = newBaseline,
+                changeReason = BaselineChangeReason.NORMALIZATION,
+                timestamp = asOf,
             )
+            db.baselineHistoryDao().insert(row)
+            snapshot.baselineHistoryByMuscle.getOrPut(proposal.muscleGroup) { mutableListOf() }.add(row)
 
             val inGroup = input.exercises.filter {
                 it.exercise.primaryMuscle == proposal.muscleGroup && it.currentCoefficient > 0f
@@ -243,16 +258,16 @@ class WorkoutRepository(
                 db.muscleGroupStrengthDao().upsert(
                     MuscleGroupStrength(muscleGroup = init.muscleGroup, baselineWeight = init.baselineWeight)
                 )
-                db.baselineHistoryDao().insert(
-                    BaselineHistory(
-                        sessionId = null,
-                        muscleGroup = init.muscleGroup,
-                        previousBaseline = 0f,
-                        newBaseline = init.baselineWeight,
-                        changeReason = BaselineChangeReason.INITIAL,
-                        timestamp = init.asOf,
-                    )
+                val row = BaselineHistory(
+                    sessionId = null,
+                    muscleGroup = init.muscleGroup,
+                    previousBaseline = 0f,
+                    newBaseline = init.baselineWeight,
+                    changeReason = BaselineChangeReason.INITIAL,
+                    timestamp = init.asOf,
                 )
+                db.baselineHistoryDao().insert(row)
+                snapshot.baselineHistoryByMuscle.getOrPut(init.muscleGroup) { mutableListOf() }.add(row)
             }
 
             val sessions = db.workoutSessionDao().getAll()
@@ -266,16 +281,16 @@ class WorkoutRepository(
                     db.muscleGroupStrengthDao().upsert(
                         MuscleGroupStrength(muscleGroup = o.muscleGroup, baselineWeight = o.baselineWeight)
                     )
-                    db.baselineHistoryDao().insert(
-                        BaselineHistory(
-                            sessionId = session.id,
-                            muscleGroup = o.muscleGroup,
-                            previousBaseline = prev,
-                            newBaseline = o.baselineWeight,
-                            changeReason = BaselineChangeReason.OVERRIDE,
-                            timestamp = o.asOf,
-                        )
+                    val row = BaselineHistory(
+                        sessionId = session.id,
+                        muscleGroup = o.muscleGroup,
+                        previousBaseline = prev,
+                        newBaseline = o.baselineWeight,
+                        changeReason = BaselineChangeReason.OVERRIDE,
+                        timestamp = o.asOf,
                     )
+                    db.baselineHistoryDao().insert(row)
+                    snapshot.baselineHistoryByMuscle.getOrPut(o.muscleGroup) { mutableListOf() }.add(row)
                 }
                 applySessionProgression(
                     session.id,
