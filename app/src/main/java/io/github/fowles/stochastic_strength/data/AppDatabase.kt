@@ -7,25 +7,19 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import io.github.fowles.stochastic_strength.data.dao.BaselineHistoryDao
 import io.github.fowles.stochastic_strength.data.dao.BaselineOverrideDao
-import io.github.fowles.stochastic_strength.data.dao.CoefficientHistoryDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseHurtStateDao
 import io.github.fowles.stochastic_strength.data.dao.KnownLocationDao
 import io.github.fowles.stochastic_strength.data.dao.LocationExcludedExerciseDao
-import io.github.fowles.stochastic_strength.data.dao.MuscleGroupStrengthDao
 import io.github.fowles.stochastic_strength.data.dao.UserProfileDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSessionDao
 import io.github.fowles.stochastic_strength.data.dao.WorkoutSetDao
-import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.BaselineOverride
-import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
@@ -39,13 +33,10 @@ import kotlinx.coroutines.CoroutineScope
         WorkoutSession::class,
         WorkoutSet::class,
         UserProfile::class,
-        MuscleGroupStrength::class,
-        BaselineHistory::class,
-        CoefficientHistory::class,
         BaselineOverride::class,
         ExerciseHurtState::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -56,9 +47,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutSessionDao(): WorkoutSessionDao
     abstract fun workoutSetDao(): WorkoutSetDao
     abstract fun userProfileDao(): UserProfileDao
-    abstract fun muscleGroupStrengthDao(): MuscleGroupStrengthDao
-    abstract fun baselineHistoryDao(): BaselineHistoryDao
-    abstract fun coefficientHistoryDao(): CoefficientHistoryDao
     abstract fun baselineOverrideDao(): BaselineOverrideDao
     abstract fun exerciseHurtStateDao(): ExerciseHurtStateDao
 
@@ -309,6 +297,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS muscle_group_strength")
+                db.execSQL("DROP TABLE IF EXISTS baseline_history")
+                db.execSQL("DROP TABLE IF EXISTS coefficient_history")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
@@ -330,7 +326,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
-                    MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+                    MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
                 )
                 .build()
     }

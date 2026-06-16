@@ -1,11 +1,7 @@
 package io.github.fowles.stochastic_strength.data.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-
-@Entity(tableName = "baseline_history")
 data class BaselineHistory(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val id: Long = 0,
     val sessionId: Long?,
     val muscleGroup: MuscleGroup,
     val previousBaseline: Float,
