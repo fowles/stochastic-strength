@@ -60,11 +60,10 @@ class ExercisePacingEstimator(
                 if (prev.feedback == SetFeedback.HURT || curr.feedback == SetFeedback.HURT) continue
                 val prevAt = prev.completedAt ?: continue
                 val currAt = curr.completedAt ?: continue
-                val deltaSec = ((currAt - prevAt) / 1000L).toInt()
-                val workTimeSec = deltaSec - DurationCalculator.REST_SECONDS
+                val workTimeSec = (currAt - prevAt) / 1000.0 - DurationCalculator.REST_SECONDS
                 val reps = curr.actualReps ?: curr.targetReps
                 if (reps <= 0) continue
-                val perRep = workTimeSec.toFloat() / (reps * sides)
+                val perRep = (workTimeSec / (reps * sides)).toFloat()
                 if (perRep !in MIN_SECONDS_PER_REP..MAX_SECONDS_PER_REP) continue
                 samples.add(perRep)
             }
