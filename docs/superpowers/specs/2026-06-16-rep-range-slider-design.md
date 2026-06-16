@@ -101,17 +101,17 @@ fun generateWorkout(repMin: Int, repMax: Int): WorkoutPlan =
 
 fun repriceForReps(plan: WorkoutPlan, repMin: Int, repMax: Int): WorkoutPlan {
     val sessionReps = RepRangePicker.pick(repMin, repMax, random)
-    val newExercises = plan.exercises.map { withWeight(stripWeight(it), sessionReps) }
+    val newExercises = plan.exercises.map { withWeight(it, sessionReps) }
     return plan.copy(exercises = newExercises, sessionReps = sessionReps)
 }
 ```
 
-`withWeight` already handles the timed-exercise branch and the bodyweight
-branch correctly. `stripWeight` is just a thin helper that re-bases the
-`PlannedExercise` (drops `sessionWeight`, `warmupSets`) so `withWeight` can
-recompute deterministically from `exercise` + `sessionReps`. (Reusing the
-existing private `withWeight` is the right move — it's the one source of
-truth for session-weight derivation.)
+`withWeight` already overwrites `sessionWeight`, `sessionReps`, and
+`warmupSets` on the returned `PlannedExercise`, and already handles the
+timed-exercise and bodyweight branches correctly — so each row is
+recomputed deterministically from `exercise` + the new `sessionReps`.
+Reusing the existing private `withWeight` keeps it as the single source of
+truth for session-weight derivation.
 
 The existing default-argument form of `generateWorkout()` (which calls
 `progressionEngine.repOptions.random(random)`) is removed; callers always
