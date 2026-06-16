@@ -38,6 +38,13 @@ interface WorkoutSetDao {
     """)
     suspend fun getRecentSetsForExercises(exerciseIds: List<Long>, limit: Int): List<WorkoutSet>
 
+    @Query("""
+        SELECT * FROM workout_sets
+        WHERE sessionId IN (:sessionIds)
+          AND completedAt IS NOT NULL
+    """)
+    suspend fun getSetsForSessions(sessionIds: List<Long>): List<WorkoutSet>
+
     @Query("SELECT * FROM workout_sets LIMIT 1")
     suspend fun getFirst(): List<WorkoutSet>
 
