@@ -8,12 +8,17 @@ data class PlannedExercise(
     val originalSessionWeight: Float = sessionWeight,
     val sessionReps: Int = 10,
     val warmupSets: List<WarmupSet> = emptyList(),
+    val estimatedSecondsOverride: Int? = null,
 ) {
     val secondsPerSet: Int = when {
         exercise.isTimed -> SECONDS_PER_TIMED_SET
         exercise.isUnilateral -> SECONDS_PER_UNILATERAL_SET
         else -> SECONDS_PER_SET
     }
+
+    val estimatedSeconds: Int
+        get() = estimatedSecondsOverride
+            ?: (DEFAULT_SETS * secondsPerSet + warmupSets.size * SECONDS_PER_WARMUP_SET)
 
     companion object {
         const val DEFAULT_SETS = 3
