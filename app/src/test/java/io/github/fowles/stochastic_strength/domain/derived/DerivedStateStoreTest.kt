@@ -108,6 +108,17 @@ class DerivedStateStoreTest {
         assertEquals(listOf(30L, 20L), mostRecent.map { it.computedAt })
     }
 
+    @Test fun allCoefficientHistoryReturnsInsertionOrder() = runTest {
+        val store = DerivedStateStore()
+        store.rebuild { mut ->
+            mut.insertCoefficientHistory(coefRow(exerciseId = 1L, value = 1.0f, ts = 30L))
+            mut.insertCoefficientHistory(coefRow(exerciseId = 2L, value = 2.0f, ts = 10L))
+            mut.insertCoefficientHistory(coefRow(exerciseId = 3L, value = 3.0f, ts = 20L))
+        }
+        val all = store.snapshot().allCoefficientHistory()
+        assertEquals(listOf(1L, 2L, 3L), all.map { it.exerciseId })
+    }
+
     @Test fun snapshotIsImmutableAfterReturn() = runTest {
         val store = DerivedStateStore()
         store.rebuild { mut ->

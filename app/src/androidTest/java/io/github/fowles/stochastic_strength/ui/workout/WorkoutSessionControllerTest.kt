@@ -51,15 +51,12 @@ class WorkoutSessionControllerTest {
                 Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
                 Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
             ))
-            db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
-            db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-
             bus = WorkoutSessionBus()
             scope = CoroutineScope(Dispatchers.Default)
             repository = WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())
-            // Sync the store from DAO data seeded above so buildPlanner reads correct strengths.
-            repository.derivedState.rebuild { scratch ->
-                db.muscleGroupStrengthDao().getAll().forEach { scratch.upsertMuscleGroupStrength(it) }
+            repository.derivedState.rebuild { mut ->
+                mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+                mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
             }
             controller = WorkoutSessionController(db, repository, bus, scope)
             controller.initializeSession(

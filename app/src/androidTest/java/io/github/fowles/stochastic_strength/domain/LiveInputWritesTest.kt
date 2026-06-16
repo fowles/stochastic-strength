@@ -69,12 +69,13 @@ class LiveInputWritesTest {
 
         // Must NOT have written muscle_group_strength or baseline_history.
         // (The session has no endTime, so replay would skip it; nothing should be derived from it.)
-        val strengths = db.muscleGroupStrengthDao().getAll()
+        val snap = repository.derivedState.snapshot()
+        val strengths = snap.allMuscleGroupStrengths()
         assertTrue(
             "expected no muscle_group_strength row from manual override write; got $strengths",
             strengths.none { it.muscleGroup == MuscleGroup.CHEST },
         )
-        val history = db.baselineHistoryDao().getAll()
+        val history = snap.allBaselineHistory()
         assertTrue(
             "expected no baseline_history row from manual override write; got $history",
             history.isEmpty(),

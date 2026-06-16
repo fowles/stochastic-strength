@@ -38,15 +38,6 @@ class WorkoutRepositoryDebugTest {
         db.close()
     }
 
-    /** Sync the in-memory store from the current DAO contents (mirrors what replayDerivedState does). */
-    private suspend fun syncStore() {
-        repository.derivedState.rebuild { scratch ->
-            db.muscleGroupStrengthDao().getAll().forEach { scratch.upsertMuscleGroupStrength(it) }
-            db.baselineHistoryDao().getAll().forEach { scratch.insertBaselineHistory(it) }
-            db.coefficientHistoryDao().getAll().forEach { scratch.insertCoefficientHistory(it) }
-        }
-    }
-
     @Test
     fun getAllCoefficientRows_returns_seed_for_exercises_with_no_log() = runBlocking {
         db.exerciseDao().insertAll(listOf(
@@ -72,17 +63,16 @@ class WorkoutRepositoryDebugTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
         ))
         val exerciseId = db.exerciseDao().getAll().single().id
-        db.coefficientHistoryDao().insert(
-            CoefficientHistory(
+        repository.derivedState.rebuild { mut ->
+            mut.insertCoefficientHistory(CoefficientHistory(
                 exerciseId = exerciseId,
                 previousCoefficient = 1.0f,
                 coefficient = 0.85f,
                 heuristicName = "test-heuristic",
                 heuristicMetadata = "metadata-string",
                 computedAt = 5000L,
-            )
-        )
-        syncStore()
+            ))
+        }
 
         val row = repository.getAllCoefficientRows().single()
 
@@ -117,19 +107,20 @@ class WorkoutRepositoryDebugTest {
         val bench = exercises.first { it.name == "Barbell Bench Press" }
         val squat = exercises.first { it.name == "Squat" }
         val dead = exercises.first { it.name == "Deadlift" }
-        db.coefficientHistoryDao().insert(CoefficientHistory(
-            exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.95f,
-            heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
-        ))
-        db.coefficientHistoryDao().insert(CoefficientHistory(
-            exerciseId = squat.id, previousCoefficient = 1.0f, coefficient = 0.90f,
-            heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
-        ))
-        db.coefficientHistoryDao().insert(CoefficientHistory(
-            exerciseId = dead.id, previousCoefficient = 1.0f, coefficient = 0.92f,
-            heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
-        ))
-        syncStore()
+        repository.derivedState.rebuild { mut ->
+            mut.insertCoefficientHistory(CoefficientHistory(
+                exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.95f,
+                heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
+            ))
+            mut.insertCoefficientHistory(CoefficientHistory(
+                exerciseId = squat.id, previousCoefficient = 1.0f, coefficient = 0.90f,
+                heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
+            ))
+            mut.insertCoefficientHistory(CoefficientHistory(
+                exerciseId = dead.id, previousCoefficient = 1.0f, coefficient = 0.92f,
+                heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
+            ))
+        }
 
         val recent = repository.getRecentCoefficientChanges(limit = 2)
 
@@ -145,11 +136,12 @@ class WorkoutRepositoryDebugTest {
         ))
         val bench = db.exerciseDao().getAll().single()
         val longMeta = "x".repeat(200) + "\n" + "y".repeat(50)
-        db.coefficientHistoryDao().insert(CoefficientHistory(
-            exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.9f,
-            heuristicName = "h", heuristicMetadata = longMeta, computedAt = 1000L,
-        ))
-        syncStore()
+        repository.derivedState.rebuild { mut ->
+            mut.insertCoefficientHistory(CoefficientHistory(
+                exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.9f,
+                heuristicName = "h", heuristicMetadata = longMeta, computedAt = 1000L,
+            ))
+        }
 
         val row = repository.getRecentCoefficientChanges(limit = 2).single()
 
@@ -159,25 +151,26 @@ class WorkoutRepositoryDebugTest {
 
     @Test
     fun getBaselineEvents_filters_by_muscle_group_and_orders_ascending() = runBlocking {
-        db.baselineHistoryDao().insert(BaselineHistory(
-            sessionId = 1L, muscleGroup = MuscleGroup.CHEST,
-            previousBaseline = 100f, newBaseline = 102f,
-            changeReason = BaselineChangeReason.PROGRESSION,
-            timestamp = 3000L,
-        ))
-        db.baselineHistoryDao().insert(BaselineHistory(
-            sessionId = 2L, muscleGroup = MuscleGroup.BACK,
-            previousBaseline = 80f, newBaseline = 82f,
-            changeReason = BaselineChangeReason.PROGRESSION,
-            timestamp = 4000L,
-        ))
-        db.baselineHistoryDao().insert(BaselineHistory(
-            sessionId = 3L, muscleGroup = MuscleGroup.CHEST,
-            previousBaseline = 102f, newBaseline = 104f,
-            changeReason = BaselineChangeReason.PROGRESSION,
-            timestamp = 5000L,
-        ))
-        syncStore()
+        repository.derivedState.rebuild { mut ->
+            mut.insertBaselineHistory(BaselineHistory(
+                sessionId = 1L, muscleGroup = MuscleGroup.CHEST,
+                previousBaseline = 100f, newBaseline = 102f,
+                changeReason = BaselineChangeReason.PROGRESSION,
+                timestamp = 3000L,
+            ))
+            mut.insertBaselineHistory(BaselineHistory(
+                sessionId = 2L, muscleGroup = MuscleGroup.BACK,
+                previousBaseline = 80f, newBaseline = 82f,
+                changeReason = BaselineChangeReason.PROGRESSION,
+                timestamp = 4000L,
+            ))
+            mut.insertBaselineHistory(BaselineHistory(
+                sessionId = 3L, muscleGroup = MuscleGroup.CHEST,
+                previousBaseline = 102f, newBaseline = 104f,
+                changeReason = BaselineChangeReason.PROGRESSION,
+                timestamp = 5000L,
+            ))
+        }
 
         val events = repository.getBaselineEvents(MuscleGroup.CHEST)
 
@@ -194,19 +187,20 @@ class WorkoutRepositoryDebugTest {
         val exercises = db.exerciseDao().getAll()
         val bench = exercises.first { it.name == "Barbell Bench Press" }
         val squat = exercises.first { it.name == "Squat" }
-        db.coefficientHistoryDao().insert(CoefficientHistory(
-            exerciseId = bench.id, previousCoefficient = null, coefficient = 0.95f,
-            heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
-        ))
-        db.coefficientHistoryDao().insert(CoefficientHistory(
-            exerciseId = bench.id, previousCoefficient = 0.95f, coefficient = 0.92f,
-            heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
-        ))
-        db.coefficientHistoryDao().insert(CoefficientHistory(
-            exerciseId = squat.id, previousCoefficient = null, coefficient = 0.9f,
-            heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
-        ))
-        syncStore()
+        repository.derivedState.rebuild { mut ->
+            mut.insertCoefficientHistory(CoefficientHistory(
+                exerciseId = bench.id, previousCoefficient = null, coefficient = 0.95f,
+                heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
+            ))
+            mut.insertCoefficientHistory(CoefficientHistory(
+                exerciseId = bench.id, previousCoefficient = 0.95f, coefficient = 0.92f,
+                heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
+            ))
+            mut.insertCoefficientHistory(CoefficientHistory(
+                exerciseId = squat.id, previousCoefficient = null, coefficient = 0.9f,
+                heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
+            ))
+        }
 
         val events = repository.getCoefficientEvents(bench.id)
 

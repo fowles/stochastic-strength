@@ -54,14 +54,16 @@ class ReplayDerivedStateTest {
         seedSmallHistory()
 
         repository.replayDerivedState()
-        val baselines1 = db.baselineHistoryDao().getAll().map { it.toComparable() }
-        val coefs1 = db.coefficientHistoryDao().getAll().map { it.toComparable() }
-        val strengths1 = db.muscleGroupStrengthDao().getAll().map { it.muscleGroup to it.baselineWeight }
+        val snap1 = repository.derivedState.snapshot()
+        val baselines1 = snap1.allBaselineHistory().map { it.toComparable() }
+        val coefs1 = snap1.allCoefficientHistory().map { it.toComparable() }
+        val strengths1 = snap1.allMuscleGroupStrengths().map { it.muscleGroup to it.baselineWeight }
 
         repository.replayDerivedState()
-        val baselines2 = db.baselineHistoryDao().getAll().map { it.toComparable() }
-        val coefs2 = db.coefficientHistoryDao().getAll().map { it.toComparable() }
-        val strengths2 = db.muscleGroupStrengthDao().getAll().map { it.muscleGroup to it.baselineWeight }
+        val snap2 = repository.derivedState.snapshot()
+        val baselines2 = snap2.allBaselineHistory().map { it.toComparable() }
+        val coefs2 = snap2.allCoefficientHistory().map { it.toComparable() }
+        val strengths2 = snap2.allMuscleGroupStrengths().map { it.muscleGroup to it.baselineWeight }
 
         assertEquals(baselines1, baselines2)
         assertEquals(coefs1, coefs2)
@@ -81,13 +83,14 @@ class ReplayDerivedStateTest {
         repository.replayDerivedState()
 
         // The OVERRIDE row for session 2 should record the override.
-        val overrides = db.baselineHistoryDao().getAll()
+        val allHistory = repository.derivedState.snapshot().allBaselineHistory()
+        val overrides = allHistory
             .filter { it.changeReason == BaselineChangeReason.OVERRIDE && it.muscleGroup == MuscleGroup.CHEST }
         assertEquals(1, overrides.size)
         assertEquals(999f, overrides[0].newBaseline)
 
         // The PROGRESSION row for session 2 should see previousBaseline = 999f.
-        val progressionForSession2 = db.baselineHistoryDao().getAll()
+        val progressionForSession2 = allHistory
             .firstOrNull {
                 it.changeReason == BaselineChangeReason.PROGRESSION &&
                     it.sessionId == SESSION_2_ID && it.muscleGroup == MuscleGroup.CHEST
@@ -102,7 +105,7 @@ class ReplayDerivedStateTest {
 
         repository.replayDerivedState()
 
-        val coefs = db.coefficientHistoryDao().getForExercise(BENCH_EXERCISE_ID)
+        val coefs = repository.derivedState.snapshot().coefficientHistoryForExercise(BENCH_EXERCISE_ID)
         // Two-phase: should NOT be monotonically rising (phase 1 had TOO_HARD, phase 2 had confident RIR).
         // We assert there is at least one row whose coefficient is below the previous row's coefficient.
         val droppedAtLeastOnce = coefs.zipWithNext().any { (a, b) -> b.coefficient < a.coefficient }
@@ -222,7 +225,7 @@ class ReplayDerivedStateTest {
         val largeReduction = mapOf(BENCH_EXERCISE_ID to 0.20f)
         repository.finishSession(sessionId, largeReduction)
 
-        val progressionRow = db.baselineHistoryDao().getAll()
+        val progressionRow = repository.derivedState.snapshot().allBaselineHistory()
             .firstOrNull { it.changeReason == BaselineChangeReason.PROGRESSION && it.muscleGroup == MuscleGroup.CHEST }
         assertNotNull("expected a PROGRESSION row for CHEST", progressionRow)
         // With a 20% reduction cap applied, the new baseline should be at most 80f (= 100 * (1 - 0.20)).

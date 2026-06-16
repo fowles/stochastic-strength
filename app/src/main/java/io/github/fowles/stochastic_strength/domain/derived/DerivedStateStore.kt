@@ -60,6 +60,8 @@ class DerivedStateStore {
                 .groupBy { it.exerciseId }
                 .mapNotNull { (_, rows) -> rows.maxByOrNull { it.computedAt } }
 
+        fun allCoefficientHistory(): List<CoefficientHistory> = coefficientHistory
+
         fun coefficientHistoryMostRecent(limit: Int): List<CoefficientHistory> =
             coefficientHistory.sortedByDescending { it.computedAt }.take(limit)
 

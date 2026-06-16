@@ -134,7 +134,7 @@ class DerivedStateBackfillTest {
 
         DerivedStateBackfill(db, repository).run()
 
-        val baselines = db.baselineHistoryDao().getAll()
+        val baselines = repository.derivedState.snapshot().allBaselineHistory()
         assertTrue("expected replay to produce baseline_history rows", baselines.isNotEmpty())
     }
 
@@ -143,9 +143,9 @@ class DerivedStateBackfillTest {
         seedProfile()
         seedFullReplayData()
         DerivedStateBackfill(db, repository).run()
-        val baselines1 = db.baselineHistoryDao().getAll().map { it.toComparable() }
+        val baselines1 = repository.derivedState.snapshot().allBaselineHistory().map { it.toComparable() }
         DerivedStateBackfill(db, repository).run()
-        val baselines2 = db.baselineHistoryDao().getAll().map { it.toComparable() }
+        val baselines2 = repository.derivedState.snapshot().allBaselineHistory().map { it.toComparable() }
         assertEquals(baselines1, baselines2)
     }
 }
