@@ -35,6 +35,7 @@ class WorkoutSessionControllerTest {
     private lateinit var bus: WorkoutSessionBus
     private lateinit var scope: CoroutineScope
     private lateinit var controller: WorkoutSessionController
+    private lateinit var repository: WorkoutRepository
 
     @Before
     fun setUp() {
@@ -55,7 +56,12 @@ class WorkoutSessionControllerTest {
 
             bus = WorkoutSessionBus()
             scope = CoroutineScope(Dispatchers.Default)
-            controller = WorkoutSessionController(db, WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic()), bus, scope)
+            repository = WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())
+            // Sync the store from DAO data seeded above so buildPlanner reads correct strengths.
+            repository.derivedState.rebuild { scratch ->
+                db.muscleGroupStrengthDao().getAll().forEach { scratch.upsertMuscleGroupStrength(it) }
+            }
+            controller = WorkoutSessionController(db, repository, bus, scope)
             controller.initializeSession(
                 locationId = null,
                 locationName = null,

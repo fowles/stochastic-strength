@@ -37,8 +37,8 @@ class WorkoutRepository(
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
         else emptySet()
 
-    private suspend fun effectiveCoefficientSource(): UserCoefficientSource {
-        val latest = db.coefficientHistoryDao().getLatestPerExercise()
+    private fun effectiveCoefficientSource(): UserCoefficientSource {
+        val latest = derivedState.snapshot().coefficientHistoryLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
         return UserCoefficientSource(latest)
     }
@@ -50,7 +50,7 @@ class WorkoutRepository(
     ): WorkoutPlanner {
         val excluded = excludedExerciseIds(locationId)
         val available = db.exerciseDao().getActive().filter { it.id !in excluded }
-        val dbStrengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        val dbStrengths = derivedState.snapshot().allMuscleGroupStrengths().associateBy { it.muscleGroup }
         val strengths = if (strengthOverrides.isEmpty()) dbStrengths else
             dbStrengths + strengthOverrides.mapValues { (muscle, baseline) ->
                 MuscleGroupStrength(muscleGroup = muscle, baselineWeight = baseline)
@@ -202,7 +202,7 @@ class WorkoutRepository(
         val heuristic = heuristic ?: return
         val results = heuristic.compute(snapshot.filteredCoefficientInput(asOf))
         if (results.isEmpty()) return
-        val latestByExercise = db.coefficientHistoryDao().getLatestPerExercise()
+        val latestByExercise = scratch.coefficientHistoryLatestPerExercise()
             .associateBy { it.exerciseId }
         for (result in results) {
             val row = CoefficientHistory(
@@ -234,7 +234,7 @@ class WorkoutRepository(
         val proposals = normalizer.compute(input)
         if (proposals.isEmpty()) return
 
-        val latestCoefByExercise = db.coefficientHistoryDao().getLatestPerExercise()
+        val latestCoefByExercise = scratch.coefficientHistoryLatestPerExercise()
             .associateBy { it.exerciseId }
         for (proposal in proposals) {
             val oldBaseline = snapshot.currentBaselines[proposal.muscleGroup] ?: continue
@@ -432,10 +432,10 @@ class WorkoutRepository(
     }
 
     suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
-        db.muscleGroupStrengthDao().getAll()
+        derivedState.snapshot().allMuscleGroupStrengths()
 
     suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
-        val rows = db.coefficientHistoryDao().getMostRecent(limit)
+        val rows = derivedState.snapshot().coefficientHistoryMostRecent(limit)
         if (rows.isEmpty()) return emptyList()
         val exerciseIds = rows.map { it.exerciseId }.distinct()
         val exercisesById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
@@ -457,7 +457,7 @@ class WorkoutRepository(
 
     suspend fun getAllCoefficientRows(): List<CoefficientRow> {
         val allExercises = db.exerciseDao().getAll()
-        val latestByExercise = db.coefficientHistoryDao().getLatestPerExercise()
+        val latestByExercise = derivedState.snapshot().coefficientHistoryLatestPerExercise()
             .associateBy { it.exerciseId }
         return allExercises
             .map { exercise ->
@@ -477,10 +477,10 @@ class WorkoutRepository(
     }
 
     suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineHistory> =
-        db.baselineHistoryDao().getForMuscle(muscleGroup)
+        derivedState.snapshot().baselineHistoryForMuscle(muscleGroup)
 
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
-        db.coefficientHistoryDao().getForExercise(exerciseId)
+        derivedState.snapshot().coefficientHistoryForExercise(exerciseId)
 
     fun getSeedCoefficient(exercise: Exercise): Float? =
         ExerciseCoefficients.get(exercise)

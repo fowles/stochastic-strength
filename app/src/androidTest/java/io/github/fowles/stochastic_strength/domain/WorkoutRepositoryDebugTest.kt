@@ -38,6 +38,15 @@ class WorkoutRepositoryDebugTest {
         db.close()
     }
 
+    /** Sync the in-memory store from the current DAO contents (mirrors what replayDerivedState does). */
+    private suspend fun syncStore() {
+        repository.derivedState.rebuild { scratch ->
+            db.muscleGroupStrengthDao().getAll().forEach { scratch.upsertMuscleGroupStrength(it) }
+            db.baselineHistoryDao().getAll().forEach { scratch.insertBaselineHistory(it) }
+            db.coefficientHistoryDao().getAll().forEach { scratch.insertCoefficientHistory(it) }
+        }
+    }
+
     @Test
     fun getAllCoefficientRows_returns_seed_for_exercises_with_no_log() = runBlocking {
         db.exerciseDao().insertAll(listOf(
@@ -73,6 +82,7 @@ class WorkoutRepositoryDebugTest {
                 computedAt = 5000L,
             )
         )
+        syncStore()
 
         val row = repository.getAllCoefficientRows().single()
 
@@ -119,6 +129,7 @@ class WorkoutRepositoryDebugTest {
             exerciseId = dead.id, previousCoefficient = 1.0f, coefficient = 0.92f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
         ))
+        syncStore()
 
         val recent = repository.getRecentCoefficientChanges(limit = 2)
 
@@ -138,6 +149,7 @@ class WorkoutRepositoryDebugTest {
             exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.9f,
             heuristicName = "h", heuristicMetadata = longMeta, computedAt = 1000L,
         ))
+        syncStore()
 
         val row = repository.getRecentCoefficientChanges(limit = 2).single()
 
@@ -165,6 +177,7 @@ class WorkoutRepositoryDebugTest {
             changeReason = BaselineChangeReason.PROGRESSION,
             timestamp = 5000L,
         ))
+        syncStore()
 
         val events = repository.getBaselineEvents(MuscleGroup.CHEST)
 
@@ -193,6 +206,7 @@ class WorkoutRepositoryDebugTest {
             exerciseId = squat.id, previousCoefficient = null, coefficient = 0.9f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
         ))
+        syncStore()
 
         val events = repository.getCoefficientEvents(bench.id)
 
