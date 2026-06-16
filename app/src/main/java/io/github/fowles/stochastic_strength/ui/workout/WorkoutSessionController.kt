@@ -76,7 +76,7 @@ class WorkoutSessionController(
         this.sessionLocationId = locationId
         val p = repository.buildPlanner(locationId, weightUnit)
         planner = p
-        val plan = p.generateWorkout()
+        val plan = p.generateWorkout(sessionReps = 5)
         setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
         adjustExerciseCount(preferredExerciseCount)
     }

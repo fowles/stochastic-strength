@@ -43,7 +43,7 @@ object DebugSeeder {
             val endMs = startMs + rng.nextLong(45 * 60_000L, 75 * 60_000L)
 
             val planner = repository.buildPlanner(locationId = null, weightUnit = weightUnit)
-            val plan = planner.generateWorkout()
+            val plan = planner.generateWorkout(sessionReps = 5)
             if (plan.exercises.isEmpty()) continue
 
             val sessionId = db.workoutSessionDao().insert(
