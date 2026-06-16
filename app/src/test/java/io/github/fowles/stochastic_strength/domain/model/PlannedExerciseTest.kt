@@ -55,4 +55,18 @@ class PlannedExerciseTest {
         )
         assertEquals(800, pe.estimatedSeconds)
     }
+
+    @Test
+    fun `estimatedSeconds for timed exercise uses 90s per set`() {
+        val pe = PlannedExercise(exercise = exercise(isTimed = true))
+        // 3 × 90 + 0 warmups = 270
+        assertEquals(270, pe.estimatedSeconds)
+    }
+
+    @Test
+    fun `estimatedSeconds for unilateral exercise uses 180s per set`() {
+        val pe = PlannedExercise(exercise = exercise(isUnilateral = true))
+        // 3 × 180 + 0 warmups = 540
+        assertEquals(540, pe.estimatedSeconds)
+    }
 }
