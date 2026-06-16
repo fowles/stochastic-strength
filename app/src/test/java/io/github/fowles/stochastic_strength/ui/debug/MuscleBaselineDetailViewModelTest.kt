@@ -1,42 +1,190 @@
 package io.github.fowles.stochastic_strength.ui.debug
 
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MuscleBaselineDetailViewModelTest {
 
-    // ---- parseFeedbacks ---------------------------------------------------
+    // ---- formatBaselineSetLine -------------------------------------------
+
+    private fun set(
+        feedback: SetFeedback? = null,
+        targetReps: Int = 10,
+        actualReps: Int? = null,
+        targetWeight: Float = 25f,
+        exerciseId: Long = 1L,
+        setNumber: Int = 1,
+    ) = WorkoutSet(
+        id = 0,
+        sessionId = 1L,
+        exerciseId = exerciseId,
+        setNumber = setNumber,
+        targetWeight = targetWeight,
+        targetReps = targetReps,
+        actualReps = actualReps,
+        feedback = feedback,
+    )
 
     @Test
-    fun `parseFeedbacks returns empty list for null input`() {
-        assertEquals(emptyList<SetFeedback>(), parseFeedbacks(null))
+    fun `formatBaselineSetLine returns null when set has no feedback`() {
+        assertNull(formatBaselineSetLine(set(feedback = null), WeightUnit.KG))
     }
 
     @Test
-    fun `parseFeedbacks returns empty list for empty string`() {
-        assertEquals(emptyList<SetFeedback>(), parseFeedbacks(""))
-    }
-
-    @Test
-    fun `parseFeedbacks parses a single valid token`() {
-        assertEquals(listOf(SetFeedback.RIR_2_4), parseFeedbacks("RIR_2_4"))
-    }
-
-    @Test
-    fun `parseFeedbacks parses two valid tokens in order`() {
-        assertEquals(
-            listOf(SetFeedback.RIR_2_4, SetFeedback.HURT),
-            parseFeedbacks("RIR_2_4,HURT"),
+    fun `formatBaselineSetLine renders RIR_0_1 as target plus one with tilde`() {
+        val out = formatBaselineSetLine(
+            set(feedback = SetFeedback.RIR_0_1, targetReps = 10, targetWeight = 24.9477f),
+            WeightUnit.LBS,
         )
+        assertEquals("~11@55lbs", out)
     }
 
     @Test
-    fun `parseFeedbacks drops unknown tokens`() {
-        assertEquals(
-            listOf(SetFeedback.RIR_2_4, SetFeedback.HURT),
-            parseFeedbacks("RIR_2_4,BOGUS,HURT"),
+    fun `formatBaselineSetLine renders RIR_2_4 as target plus three`() {
+        val out = formatBaselineSetLine(
+            set(feedback = SetFeedback.RIR_2_4, targetReps = 8, targetWeight = 30f),
+            WeightUnit.KG,
         )
+        assertEquals("~11@30.0kg", out)
+    }
+
+    @Test
+    fun `formatBaselineSetLine renders RIR_5_PLUS as target plus seven`() {
+        val out = formatBaselineSetLine(
+            set(feedback = SetFeedback.RIR_5_PLUS, targetReps = 5, targetWeight = 20f),
+            WeightUnit.KG,
+        )
+        assertEquals("~12@20.0kg", out)
+    }
+
+    @Test
+    fun `formatBaselineSetLine renders TOO_HARD as actual reps without tilde`() {
+        val out = formatBaselineSetLine(
+            set(
+                feedback = SetFeedback.TOO_HARD,
+                targetReps = 10,
+                actualReps = 8,
+                targetWeight = 24.9477f,
+            ),
+            WeightUnit.LBS,
+        )
+        assertEquals("8@55lbs", out)
+    }
+
+    @Test
+    fun `formatBaselineSetLine renders TOO_HARD without actual reps as question mark`() {
+        val out = formatBaselineSetLine(
+            set(feedback = SetFeedback.TOO_HARD, targetWeight = 20f),
+            WeightUnit.KG,
+        )
+        assertEquals("?@20.0kg", out)
+    }
+
+    @Test
+    fun `formatBaselineSetLine renders HURT with hurt literal`() {
+        val out = formatBaselineSetLine(
+            set(feedback = SetFeedback.HURT, targetWeight = 20f),
+            WeightUnit.KG,
+        )
+        assertEquals("hurt@20.0kg", out)
+    }
+
+    // ---- buildExerciseBlocks --------------------------------------------
+
+    @Test
+    fun `buildExerciseBlocks returns empty list when sets list is empty`() {
+        val out = buildExerciseBlocks(
+            sets = emptyList(),
+            nameByExerciseId = mapOf(1L to "A"),
+            weightUnit = WeightUnit.KG,
+        )
+        assertEquals(emptyList<BaselineEventExercise>(), out)
+    }
+
+    @Test
+    fun `buildExerciseBlocks groups sets by exercise and orders by setNumber`() {
+        val s1 = set(
+            feedback = SetFeedback.RIR_0_1,
+            targetReps = 10,
+            targetWeight = 24.9477f,
+            exerciseId = 7L,
+            setNumber = 1,
+        )
+        val s2 = s1.copy(setNumber = 2)
+        val s3 = s1.copy(
+            feedback = SetFeedback.TOO_HARD,
+            actualReps = 8,
+            setNumber = 3,
+        )
+
+        val out = buildExerciseBlocks(
+            sets = listOf(s3, s1, s2),
+            nameByExerciseId = mapOf(7L to "Cable Chest Fly"),
+            weightUnit = WeightUnit.LBS,
+        )
+
+        assertEquals(1, out.size)
+        assertEquals("Cable Chest Fly", out[0].name)
+        assertEquals(listOf("~11@55lbs", "~11@55lbs", "8@55lbs"), out[0].setLines)
+    }
+
+    @Test
+    fun `buildExerciseBlocks emits one block per exercise in first-seen order`() {
+        val a1 = set(feedback = SetFeedback.RIR_0_1, targetReps = 10, targetWeight = 20f, exerciseId = 1L, setNumber = 1)
+        val b1 = set(feedback = SetFeedback.RIR_2_4, targetReps = 8, targetWeight = 30f, exerciseId = 2L, setNumber = 1)
+        val a2 = a1.copy(setNumber = 2)
+
+        val out = buildExerciseBlocks(
+            sets = listOf(a1, b1, a2),
+            nameByExerciseId = mapOf(1L to "Pec Deck", 2L to "Cable Fly"),
+            weightUnit = WeightUnit.KG,
+        )
+
+        assertEquals(listOf("Pec Deck", "Cable Fly"), out.map { it.name })
+        assertEquals(listOf("~11@20.0kg", "~11@20.0kg"), out[0].setLines)
+        assertEquals(listOf("~11@30.0kg"), out[1].setLines)
+    }
+
+    @Test
+    fun `buildExerciseBlocks drops exercises with no displayable sets`() {
+        val warmup = set(feedback = null, exerciseId = 1L, setNumber = 1)
+        val working = set(
+            feedback = SetFeedback.RIR_0_1,
+            targetReps = 10,
+            targetWeight = 20f,
+            exerciseId = 2L,
+            setNumber = 1,
+        )
+
+        val out = buildExerciseBlocks(
+            sets = listOf(warmup, working),
+            nameByExerciseId = mapOf(1L to "Warmup-Only", 2L to "Real"),
+            weightUnit = WeightUnit.KG,
+        )
+
+        assertEquals(listOf("Real"), out.map { it.name })
+    }
+
+    @Test
+    fun `buildExerciseBlocks drops sets whose exerciseId is not in name map`() {
+        val s = set(
+            feedback = SetFeedback.RIR_0_1,
+            targetReps = 10,
+            targetWeight = 20f,
+            exerciseId = 99L,
+        )
+
+        val out = buildExerciseBlocks(
+            sets = listOf(s),
+            nameByExerciseId = emptyMap(),
+            weightUnit = WeightUnit.KG,
+        )
+
+        assertEquals(emptyList<BaselineEventExercise>(), out)
     }
 
     // ---- computeCoefficientDeviations ------------------------------------

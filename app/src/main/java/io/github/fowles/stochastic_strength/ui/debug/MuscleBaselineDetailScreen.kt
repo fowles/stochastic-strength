@@ -148,17 +148,14 @@ private fun BaselineEventRow(event: BaselineEvent, weightUnit: WeightUnit) {
                 WeightFormatter.format(event.newBaseline, weightUnit),
             style = MaterialTheme.typography.bodyLarge,
         )
-        if (event.exerciseNames.isNotEmpty()) {
+        event.exercises.forEach { exercise ->
             Text(
-                text = "Exercises: " + event.exerciseNames.joinToString(", "),
+                text = "Exercise: " + exercise.name,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        if (event.feedbacks.isNotEmpty()) {
-            val repsSuffix = event.sessionReps?.let { " · reps: $it" } ?: ""
             Text(
-                text = "Feedbacks: " + event.feedbacks.joinToString(", ") { it.name } + repsSuffix,
+                text = "Feedback: " + exercise.setLines.joinToString(", "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
