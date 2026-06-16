@@ -56,6 +56,12 @@ class WorkoutRepository(
             db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
                 .groupBy { it.exerciseId }
         else emptyMap()
+        val recentSessions = db.workoutSessionDao().getRecentCompletedSessions(limit = 50)
+        val recentSets = if (recentSessions.isNotEmpty())
+            db.workoutSetDao().getSetsForSessions(recentSessions.map { it.id })
+                .groupBy { it.sessionId }
+        else emptyMap()
+        val durationEstimator = ExerciseDurationEstimator.build(recentSessions, recentSets)
         val effectiveCoefficients = effectiveCoefficientSource()
         return WorkoutPlanner(
             availableExercises = available,
@@ -65,6 +71,7 @@ class WorkoutRepository(
             locationId = locationId,
             coefficientSource = effectiveCoefficients,
             progressionEngine = progressionEngine,
+            durationEstimator = durationEstimator,
         )
     }
 

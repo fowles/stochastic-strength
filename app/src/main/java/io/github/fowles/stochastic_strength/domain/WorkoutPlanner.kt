@@ -24,6 +24,7 @@ class WorkoutPlanner(
     private val nowMs: Long = System.currentTimeMillis(),
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
+    private val durationEstimator: ExerciseDurationEstimator = ExerciseDurationEstimator.EMPTY,
 ) {
     // Muscle groups where a weighted exercise hit RIR 0-1 within the past two days.
     private val recentlyFailedMuscles: Set<MuscleGroup> by lazy {
@@ -109,12 +110,19 @@ class WorkoutPlanner(
     }
 
     private fun withWeight(pe: PlannedExercise, sessionReps: Int): PlannedExercise {
-        if (pe.exercise.isTimed) return pe.copy(sessionWeight = 0f, sessionReps = 60, warmupSets = emptyList())
+        val learned = durationEstimator.secondsFor(pe.exercise.id)
+        if (pe.exercise.isTimed) return pe.copy(
+            sessionWeight = 0f,
+            sessionReps = 60,
+            warmupSets = emptyList(),
+            estimatedSecondsOverride = learned,
+        )
         val weight = weightForExercise(pe.exercise, sessionReps)
         return pe.copy(
             sessionWeight = weight,
             sessionReps = sessionReps,
             warmupSets = computeWarmupSets(weight),
+            estimatedSecondsOverride = learned,
         )
     }
 
