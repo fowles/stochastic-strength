@@ -54,10 +54,8 @@ class ExerciseDurationEstimator(
             sessionStartTime: Long,
         ): Int? {
             if (exerciseSets.any { it.feedback == SetFeedback.HURT }) return null
-            if (exerciseSets.any { it.completedAt == null }) return null
 
-            val completedTimes = exerciseSets.mapNotNull { it.completedAt }
-            if (completedTimes.isEmpty()) return null
+            val completedTimes = exerciseSets.map { it.completedAt ?: return null }
 
             val firstCompleted = completedTimes.min()
             val lastCompleted = completedTimes.max()
