@@ -17,12 +17,14 @@ import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class WorkoutRepository(
     private val db: AppDatabase,
+    val derivedState: DerivedStateStore = DerivedStateStore(),
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val heuristic: CoefficientHeuristic? = null,
     private val normalizer: BaselineNormalizer? = null,
