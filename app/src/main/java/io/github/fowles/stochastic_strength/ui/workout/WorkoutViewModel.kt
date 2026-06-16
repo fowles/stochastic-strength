@@ -52,15 +52,26 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val stravaState: StateFlow<StravaExportState> = stravaController.state
 
     private var preferredExerciseCount: Int = WorkoutGenerator.DEFAULT_EXERCISE_COUNT
+    private var preferredRepMin: Int = DEFAULT_REP_MIN
+    private var preferredRepMax: Int = DEFAULT_REP_MAX
 
     init {
         viewModelScope.launch {
             val profile = app.database.userProfileDao().getProfile()
             _weightUnit.value = profile?.weightUnit ?: WeightUnit.KG
             preferredExerciseCount = profile?.preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT
+            preferredRepMin = profile?.preferredRepMin ?: DEFAULT_REP_MIN
+            preferredRepMax = profile?.preferredRepMax ?: DEFAULT_REP_MAX
             val locationId = resolveLocation()
             val locationName = locationId?.let { app.database.knownLocationDao().getById(it)?.name }
-            controller.initializeSession(locationId, locationName, preferredExerciseCount, _weightUnit.value)
+            controller.initializeSession(
+                locationId = locationId,
+                locationName = locationName,
+                preferredExerciseCount = preferredExerciseCount,
+                preferredRepMin = preferredRepMin,
+                preferredRepMax = preferredRepMax,
+                weightUnit = _weightUnit.value,
+            )
         }
         viewModelScope.launch {
             app.workoutSessionBus.commandFlow.collect { command ->
@@ -100,6 +111,20 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             viewModelScope.launch {
                 val profile = app.database.userProfileDao().getProfile() ?: return@launch
                 app.database.userProfileDao().insert(profile.copy(preferredExerciseCount = targetCount))
+            }
+        }
+    }
+
+    fun setRepRange(repMin: Int, repMax: Int) {
+        controller.setRepRange(repMin, repMax)
+        if (repMin != preferredRepMin || repMax != preferredRepMax) {
+            preferredRepMin = repMin
+            preferredRepMax = repMax
+            viewModelScope.launch {
+                val profile = app.database.userProfileDao().getProfile() ?: return@launch
+                app.database.userProfileDao().insert(
+                    profile.copy(preferredRepMin = repMin, preferredRepMax = repMax)
+                )
             }
         }
     }
@@ -178,5 +203,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 1.0f, 80)
             .compose()
         vibrator.vibrate(effect)
+    }
+
+    companion object {
+        const val DEFAULT_REP_MIN = 5
+        const val DEFAULT_REP_MAX = 10
     }
 }

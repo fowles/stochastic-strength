@@ -24,6 +24,8 @@ sealed interface WorkoutState {
     data class PlanPreview(
         val plan: WorkoutPlan,
         val locationName: String? = null,
+        val repMin: Int = 5,
+        val repMax: Int = 10,
     ) : WorkoutState
 
     data class Resting(

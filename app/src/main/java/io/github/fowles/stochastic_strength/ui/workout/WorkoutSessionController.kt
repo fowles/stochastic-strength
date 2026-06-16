@@ -50,6 +50,8 @@ class WorkoutSessionController(
     private var planner: WorkoutPlanner? = null
     private var sessionStartTime = 0L
     private var sessionLocationId: Long? = null
+    private var preferredRepMin: Int = 5
+    private var preferredRepMax: Int = 10
 
     private var restTimerJob: Job? = null
     private var timedSetTimerJob: Job? = null
@@ -70,14 +72,23 @@ class WorkoutSessionController(
         locationId: Long?,
         locationName: String?,
         preferredExerciseCount: Int,
+        preferredRepMin: Int,
+        preferredRepMax: Int,
         weightUnit: WeightUnit,
     ) {
         this.weightUnit = weightUnit
         this.sessionLocationId = locationId
+        this.preferredRepMin = preferredRepMin
+        this.preferredRepMax = preferredRepMax
         val p = repository.buildPlanner(locationId, weightUnit)
         planner = p
-        val plan = p.generateWorkout(sessionReps = 5)
-        setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
+        val plan = p.generateWorkout(repMin = preferredRepMin, repMax = preferredRepMax)
+        setState(WorkoutState.PlanPreview(
+            plan = plan,
+            locationName = locationName,
+            repMin = preferredRepMin,
+            repMax = preferredRepMax,
+        ))
         adjustExerciseCount(preferredExerciseCount)
     }
 
@@ -157,6 +168,16 @@ class WorkoutSessionController(
                 }
             }
         }
+    }
+
+    fun setRepRange(repMin: Int, repMax: Int) {
+        addExerciseJob?.cancel()
+        preferredRepMin = repMin
+        preferredRepMax = repMax
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val p = planner ?: return
+        val newPlan = p.repriceForReps(preview.plan, repMin, repMax)
+        setState(preview.copy(plan = newPlan, repMin = repMin, repMax = repMax))
     }
 
     fun adjustExerciseWeight(index: Int, delta: Float) {
