@@ -36,7 +36,7 @@ import kotlinx.coroutines.CoroutineScope
         BaselineOverride::class,
         ExerciseHurtState::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -305,6 +305,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN preferredRepMin INTEGER")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN preferredRepMax INTEGER")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
@@ -327,6 +334,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
                     MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+                    MIGRATION_14_15,
                 )
                 .build()
     }

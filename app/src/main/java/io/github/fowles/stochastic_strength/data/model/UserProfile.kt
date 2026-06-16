@@ -10,4 +10,6 @@ data class UserProfile(
     val strengthLevel: StrengthLevel,
     val weightUnit: WeightUnit,
     val preferredExerciseCount: Int? = null,
+    val preferredRepMin: Int? = null,
+    val preferredRepMax: Int? = null,
 )
