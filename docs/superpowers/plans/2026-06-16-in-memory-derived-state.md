@@ -61,7 +61,7 @@
 
 ### Step 1.1: Write failing tests for the store
 
-- [ ] **Create the test file**
+- [x] **Create the test file**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.derived
@@ -217,7 +217,7 @@ class DerivedStateStoreTest {
 }
 ```
 
-- [ ] **Run the tests to confirm they fail to compile** (class does not yet exist)
+- [x] **Run the tests to confirm they fail to compile** (class does not yet exist)
 
 ```
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.derived.DerivedStateStoreTest"
@@ -227,7 +227,7 @@ Expected: compilation failure on `DerivedStateStore`.
 
 ### Step 1.2: Implement `DerivedStateStore`
 
-- [ ] **Create the file**
+- [x] **Create the file**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.derived
@@ -347,7 +347,7 @@ class MutableDerivedState internal constructor() {
 }
 ```
 
-- [ ] **Run the tests to confirm they pass**
+- [x] **Run the tests to confirm they pass**
 
 ```
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.derived.DerivedStateStoreTest"
@@ -357,7 +357,7 @@ Expected: 9 tests, all pass.
 
 ### Step 1.3: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/derived/DerivedStateStore.kt \
@@ -375,7 +375,7 @@ git commit -m "feat(domain): add DerivedStateStore for in-memory derived project
 
 ### Step 2.1: Add constructor dependency
 
-- [ ] **Edit `WorkoutRepository.kt`**
+- [x] **Edit `WorkoutRepository.kt`**
 
 Add the import:
 ```kotlin
@@ -398,7 +398,7 @@ Note: `derivedState` is `val` (public) so tests and debug ViewModels can read sn
 
 ### Step 2.2: Wire the singleton in the Application class
 
-- [ ] **Edit `StochasticStrengthApp.kt`**
+- [x] **Edit `StochasticStrengthApp.kt`**
 
 Add import:
 ```kotlin
@@ -421,7 +421,7 @@ val workoutRepository: WorkoutRepository by lazy {
 
 ### Step 2.3: Build + run existing tests
 
-- [ ] **Build**
+- [x] **Build**
 
 ```
 ./gradlew :app:assembleDebug
@@ -429,7 +429,7 @@ val workoutRepository: WorkoutRepository by lazy {
 
 Expected: success.
 
-- [ ] **Run unit tests**
+- [x] **Run unit tests**
 
 ```
 ./gradlew :app:testDebugUnitTest
@@ -437,7 +437,7 @@ Expected: success.
 
 Expected: success.
 
-- [ ] **Run instrumented tests**
+- [x] **Run instrumented tests**
 
 ```
 ./gradlew :app:connectedAndroidTest
@@ -447,7 +447,7 @@ Expected: success. Behavior is unchanged because nothing reads from or writes to
 
 ### Step 2.4: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -466,7 +466,7 @@ git commit -m "feat(domain): plumb DerivedStateStore through WorkoutRepository"
 
 ### Step 3.1: Restructure `replayDerivedState` to nest inside `derivedState.rebuild`
 
-- [ ] **Edit `replayDerivedState`** (currently lines 281-341)
+- [x] **Edit `replayDerivedState`** (currently lines 281-341)
 
 Replace the body so the entire existing logic runs inside `derivedState.rebuild { scratch -> ... }`. The `scratch` parameter is a `MutableDerivedState` available to every write helper called downstream. Pattern:
 
@@ -549,7 +549,7 @@ Note: `applySessionProgression` now takes a `scratch: MutableDerivedState` param
 
 ### Step 3.2: Thread `scratch` through `applySessionProgression`, `applyBaselineProposal`, `recomputeCoefficients`, `applyBaselineNormalization`
 
-- [ ] **Update `applySessionProgression` signature** (currently lines 78-101)
+- [x] **Update `applySessionProgression` signature** (currently lines 78-101)
 
 Add the parameter:
 ```kotlin
@@ -581,7 +581,7 @@ private suspend fun applySessionProgression(
 }
 ```
 
-- [ ] **Update `applyBaselineProposal`** (currently lines 137-172)
+- [x] **Update `applyBaselineProposal`** (currently lines 137-172)
 
 Add the parameter and the in-memory writes. Replace the body of the function to include both `db.*` writes and `scratch.*` writes for the muscle strength upsert and history insert:
 
@@ -626,7 +626,7 @@ private suspend fun applyBaselineProposal(
 }
 ```
 
-- [ ] **Update `recomputeCoefficients`** (currently lines 190-210)
+- [x] **Update `recomputeCoefficients`** (currently lines 190-210)
 
 ```kotlin
 private suspend fun recomputeCoefficients(
@@ -656,7 +656,7 @@ private suspend fun recomputeCoefficients(
 }
 ```
 
-- [ ] **Update `applyBaselineNormalization`** (currently lines 212-270)
+- [x] **Update `applyBaselineNormalization`** (currently lines 212-270)
 
 ```kotlin
 private suspend fun applyBaselineNormalization(
@@ -726,7 +726,7 @@ Note: add `import io.github.fowles.stochastic_strength.domain.derived.MutableDer
 
 ### Step 3.3: Build + verify tests
 
-- [ ] **Build + unit tests**
+- [x] **Build + unit tests**
 
 ```
 ./gradlew :app:assembleDebug :app:testDebugUnitTest
@@ -734,7 +734,7 @@ Note: add `import io.github.fowles.stochastic_strength.domain.derived.MutableDer
 
 Expected: success.
 
-- [ ] **Instrumented tests**
+- [x] **Instrumented tests**
 
 ```
 ./gradlew :app:connectedAndroidTest
@@ -744,7 +744,7 @@ Expected: success. All existing assertions still pass — DAOs remain authoritat
 
 ### Step 3.4: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt
@@ -762,7 +762,7 @@ git commit -m "feat(domain): dual-write derived state to DerivedStateStore"
 
 ### Step 4.1: Switch reads
 
-- [ ] **`effectiveCoefficientSource`** (currently lines 37-41)
+- [x] **`effectiveCoefficientSource`** (currently lines 37-41)
 
 ```kotlin
 private fun effectiveCoefficientSource(): UserCoefficientSource {
@@ -774,7 +774,7 @@ private fun effectiveCoefficientSource(): UserCoefficientSource {
 
 Note: removed `suspend`.
 
-- [ ] **`buildPlanner`** (currently line 50)
+- [x] **`buildPlanner`** (currently line 50)
 
 Change:
 ```kotlin
@@ -785,7 +785,7 @@ to:
 val dbStrengths = derivedState.snapshot().allMuscleGroupStrengths().associateBy { it.muscleGroup }
 ```
 
-- [ ] **`recomputeCoefficients`** (line 194 inside it)
+- [x] **`recomputeCoefficients`** (line 194 inside it)
 
 Change:
 ```kotlin
@@ -798,18 +798,18 @@ val latestByExercise = scratch.coefficientHistoryLatestPerExercise()
     .associateBy { it.exerciseId }
 ```
 
-- [ ] **`applyBaselineNormalization`** (line 225 inside it)
+- [x] **`applyBaselineNormalization`** (line 225 inside it)
 
 Same substitution: read latest from `scratch.coefficientHistoryLatestPerExercise()`.
 
-- [ ] **`getMuscleGroupStrengths`** (line 411)
+- [x] **`getMuscleGroupStrengths`** (line 411)
 
 ```kotlin
 suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
     derivedState.snapshot().allMuscleGroupStrengths()
 ```
 
-- [ ] **`getRecentCoefficientChanges`** (line 414)
+- [x] **`getRecentCoefficientChanges`** (line 414)
 
 ```kotlin
 suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
@@ -818,21 +818,21 @@ suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
 }
 ```
 
-- [ ] **`getAllCoefficientRows`** (line 436)
+- [x] **`getAllCoefficientRows`** (line 436)
 
 ```kotlin
 val latestByExercise = derivedState.snapshot().coefficientHistoryLatestPerExercise()
     .associateBy { it.exerciseId }
 ```
 
-- [ ] **`getBaselineEvents`** (line 456)
+- [x] **`getBaselineEvents`** (line 456)
 
 ```kotlin
 suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineHistory> =
     derivedState.snapshot().baselineHistoryForMuscle(muscleGroup)
 ```
 
-- [ ] **`getCoefficientEvents`** (line 459)
+- [x] **`getCoefficientEvents`** (line 459)
 
 ```kotlin
 suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
@@ -841,7 +841,7 @@ suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
 
 ### Step 4.2: Build + verify tests
 
-- [ ] **Build, unit tests, instrumented tests**
+- [x] **Build, unit tests, instrumented tests**
 
 ```
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:connectedAndroidTest
@@ -851,7 +851,7 @@ Expected: success. Tests still read from DAOs and still pass because writes stil
 
 ### Step 4.3: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt
@@ -869,7 +869,7 @@ git commit -m "refactor(domain): WorkoutRepository reads from DerivedStateStore"
 
 ### Step 5.1: Expose a public accessor on `WorkoutRepository`
 
-- [ ] **Add a method**
+- [x] **Add a method**
 
 After `getCoefficientEvents` in `WorkoutRepository.kt`:
 
@@ -881,7 +881,7 @@ suspend fun getLatestCoefficientPerExercise(): Map<Long, Float> =
 
 ### Step 5.2: Use it from `MuscleBaselineDetailViewModel`
 
-- [ ] **Edit `MuscleBaselineDetailViewModel.kt`** (lines 145-147)
+- [x] **Edit `MuscleBaselineDetailViewModel.kt`** (lines 145-147)
 
 Replace:
 ```kotlin
@@ -896,7 +896,7 @@ val latestUserCoefficients = repository.getLatestCoefficientPerExercise()
 
 ### Step 5.3: Use it from `ExerciseCoefficientDetailViewModel`
 
-- [ ] **Edit `ExerciseCoefficientDetailViewModel.kt`** (lines 73-75)
+- [x] **Edit `ExerciseCoefficientDetailViewModel.kt`** (lines 73-75)
 
 Replace:
 ```kotlin
@@ -911,7 +911,7 @@ val latestUserCoefficients = repository.getLatestCoefficientPerExercise()
 
 ### Step 5.4: Build + verify tests
 
-- [ ] **Build + tests**
+- [x] **Build + tests**
 
 ```
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:connectedAndroidTest
@@ -921,7 +921,7 @@ Expected: success.
 
 ### Step 5.5: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailViewModel.kt \
@@ -948,7 +948,7 @@ git commit -m "refactor(ui): debug VMs read derived state via repository"
 
 For each test file:
 
-- [ ] **Replace DAO reads**
+- [x] **Replace DAO reads**
 
 | Old | New |
 |-----|-----|
@@ -972,7 +972,7 @@ fun allCoefficientHistory(): List<CoefficientHistory> = coefficientHistory
 ```
 Add this helper to `DerivedStateStore.kt` and a corresponding store unit test.
 
-- [ ] **Replace DAO writes (test setup)**
+- [x] **Replace DAO writes (test setup)**
 
 `WorkoutRepositoryDebugTest` and `WorkoutSessionControllerTest` write rows directly to set up test state. These writes belong inside a `rebuild` block. Pattern:
 
@@ -994,31 +994,31 @@ In practice: each writer-style setup in these test files is preparing state for 
 
 ### Step 6.2: Edit `ReplayDerivedStateTest.kt`
 
-- [ ] **Apply substitution pattern** to lines 57-59, 62-64, 84, 90, 105, 225
+- [x] **Apply substitution pattern** to lines 57-59, 62-64, 84, 90, 105, 225
 
 Use `repository.derivedState.snapshot()` accessors instead of DAO calls. For the `coefs1`/`coefs2` lists that test idempotency by reading `db.coefficientHistoryDao().getAll()`, use a new `Snapshot.allCoefficientHistory()` helper (add it in step 6.1).
 
 ### Step 6.3: Edit `LiveInputWritesTest.kt`
 
-- [ ] **Apply substitution pattern** to lines 72, 77
+- [x] **Apply substitution pattern** to lines 72, 77
 
 ### Step 6.4: Edit `WorkoutRepositoryTest.kt`
 
-- [ ] **Apply substitution pattern** to lines 66, 67, 81, 83, 118, 163
+- [x] **Apply substitution pattern** to lines 66, 67, 81, 83, 118, 163
 
 ### Step 6.5: Edit `WorkoutRepositoryDebugTest.kt`
 
-- [ ] **Apply substitution pattern** including the seed-data writes at lines 66, 110, 114, 118, 137, 150, 156, 162, 184, 188, 192
+- [x] **Apply substitution pattern** including the seed-data writes at lines 66, 110, 114, 118, 137, 150, 156, 162, 184, 188, 192
 
 Setup writes become `repository.derivedState.rebuild { mut -> mut.insert*(...) }` blocks. Reads become `repository.derivedState.snapshot().*` calls.
 
 ### Step 6.6: Edit `DerivedStateBackfillTest.kt`
 
-- [ ] **Apply substitution pattern** to lines 137, 146, 148
+- [x] **Apply substitution pattern** to lines 137, 146, 148
 
 ### Step 6.7: Edit `WorkoutSessionControllerTest.kt`
 
-- [ ] **Apply substitution pattern** to lines 53, 54
+- [x] **Apply substitution pattern** to lines 53, 54
 
 These are setup writes:
 ```kotlin
@@ -1035,7 +1035,7 @@ repository.derivedState.rebuild { mut ->
 
 ### Step 6.8: Build + run instrumented tests
 
-- [ ] **Run all instrumented tests**
+- [x] **Run all instrumented tests**
 
 ```
 ./gradlew :app:connectedAndroidTest
@@ -1045,7 +1045,7 @@ Expected: success. All tests now assert against the store.
 
 ### Step 6.9: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/androidTest/ app/src/main/java/io/github/fowles/stochastic_strength/domain/derived/DerivedStateStore.kt
@@ -1063,7 +1063,7 @@ git commit -m "test: assert derived state through DerivedStateStore"
 
 ### Step 7.1: Delete the DAO writes
 
-- [ ] **In `applyBaselineProposal`**
+- [x] **In `applyBaselineProposal`**
 
 Delete:
 ```kotlin
@@ -1071,14 +1071,14 @@ db.muscleGroupStrengthDao().upsert(strength)
 db.baselineHistoryDao().insert(historyRow)
 ```
 
-- [ ] **In `recomputeCoefficients`**
+- [x] **In `recomputeCoefficients`**
 
 Delete:
 ```kotlin
 db.coefficientHistoryDao().insert(row)
 ```
 
-- [ ] **In `applyBaselineNormalization`**
+- [x] **In `applyBaselineNormalization`**
 
 Delete:
 ```kotlin
@@ -1087,7 +1087,7 @@ db.baselineHistoryDao().insert(row)
 db.coefficientHistoryDao().insert(coefRow)
 ```
 
-- [ ] **In `replayDerivedState`**
+- [x] **In `replayDerivedState`**
 
 Delete the three `deleteAll` calls (the store's `rebuild` already discards previous state):
 ```kotlin
@@ -1100,7 +1100,7 @@ Also delete the `db.muscleGroupStrengthDao().upsert(...)` and `db.baselineHistor
 
 ### Step 7.2: Build + verify
 
-- [ ] **Build, unit, instrumented**
+- [x] **Build, unit, instrumented**
 
 ```
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:connectedAndroidTest
@@ -1110,7 +1110,7 @@ Expected: success.
 
 ### Step 7.3: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt
@@ -1132,7 +1132,7 @@ git commit -m "refactor(domain): remove Room writes for derived state"
 
 ### Step 8.1: Strip `@Entity` from the three models
 
-- [ ] **`BaselineHistory.kt`**
+- [x] **`BaselineHistory.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.data.model
@@ -1153,7 +1153,7 @@ data class BaselineHistory(
 )
 ```
 
-- [ ] **`CoefficientHistory.kt`**
+- [x] **`CoefficientHistory.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.data.model
@@ -1169,7 +1169,7 @@ data class CoefficientHistory(
 )
 ```
 
-- [ ] **`MuscleGroupStrength.kt`**
+- [x] **`MuscleGroupStrength.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.data.model
@@ -1182,7 +1182,7 @@ data class MuscleGroupStrength(
 
 ### Step 8.2: Delete the three DAO files
 
-- [ ] **Delete the files**
+- [x] **Delete the files**
 
 ```
 rm app/src/main/java/io/github/fowles/stochastic_strength/data/dao/BaselineHistoryDao.kt
@@ -1192,18 +1192,18 @@ rm app/src/main/java/io/github/fowles/stochastic_strength/data/dao/MuscleGroupSt
 
 ### Step 8.3: Update `AppDatabase.kt`
 
-- [ ] **Remove imports** for the three deleted DAOs and the three soon-to-be-non-`@Entity` model classes' DAO + entity registrations.
+- [x] **Remove imports** for the three deleted DAOs and the three soon-to-be-non-`@Entity` model classes' DAO + entity registrations.
 
-- [ ] **Update the `@Database(entities = ...)` list** — remove `MuscleGroupStrength::class`, `BaselineHistory::class`, `CoefficientHistory::class`.
+- [x] **Update the `@Database(entities = ...)` list** — remove `MuscleGroupStrength::class`, `BaselineHistory::class`, `CoefficientHistory::class`.
 
-- [ ] **Bump version** to 14:
+- [x] **Bump version** to 14:
 ```kotlin
 version = 14,
 ```
 
-- [ ] **Remove abstract DAO accessors** for `muscleGroupStrengthDao()`, `baselineHistoryDao()`, `coefficientHistoryDao()`.
+- [x] **Remove abstract DAO accessors** for `muscleGroupStrengthDao()`, `baselineHistoryDao()`, `coefficientHistoryDao()`.
 
-- [ ] **Add `MIGRATION_13_14`** inside the companion object, before `MIGRATION_12_13` won't compile since order doesn't matter for `addMigrations`. Place after `MIGRATION_12_13`:
+- [x] **Add `MIGRATION_13_14`** inside the companion object, before `MIGRATION_12_13` won't compile since order doesn't matter for `addMigrations`. Place after `MIGRATION_12_13`:
 
 ```kotlin
 internal val MIGRATION_13_14 = object : Migration(13, 14) {
@@ -1215,7 +1215,7 @@ internal val MIGRATION_13_14 = object : Migration(13, 14) {
 }
 ```
 
-- [ ] **Register the migration** in `buildDatabase`:
+- [x] **Register the migration** in `buildDatabase`:
 
 ```kotlin
 .addMigrations(
@@ -1227,7 +1227,7 @@ internal val MIGRATION_13_14 = object : Migration(13, 14) {
 
 ### Step 8.4: Build + verify
 
-- [ ] **Build**
+- [x] **Build**
 
 ```
 ./gradlew :app:assembleDebug
@@ -1235,7 +1235,7 @@ internal val MIGRATION_13_14 = object : Migration(13, 14) {
 
 Expected: success. If something still references one of the deleted DAOs, fix the reference (likely a missed import).
 
-- [ ] **Unit tests**
+- [x] **Unit tests**
 
 ```
 ./gradlew :app:testDebugUnitTest
@@ -1243,7 +1243,7 @@ Expected: success. If something still references one of the deleted DAOs, fix th
 
 Expected: success.
 
-- [ ] **Instrumented tests**
+- [x] **Instrumented tests**
 
 ```
 ./gradlew :app:connectedAndroidTest
@@ -1253,7 +1253,7 @@ Expected: success. Room schema validation is the highest-risk failure here; if i
 
 ### Step 8.5: Commit
 
-- [ ] **Commit**
+- [x] **Commit**
 
 ```
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt \
@@ -1274,7 +1274,7 @@ git commit -m "refactor(data): drop derived-state tables; schema v13→v14"
 
 ### Step 9.1: Full test sweep
 
-- [ ] **All tests**
+- [x] **All tests**
 
 ```
 ./gradlew :app:testDebugUnitTest :app:connectedAndroidTest :app:lint
@@ -1284,13 +1284,13 @@ Expected: success.
 
 ### Step 9.2: Manual smoke test
 
-- [ ] **Cold start the app** on the connected emulator.
+- [x] **Cold start the app** on the connected emulator.
 
-- [ ] **Open the debug muscle baseline detail screen** — confirm chart points and event list render.
+- [x] **Open the debug muscle baseline detail screen** — confirm chart points and event list render.
 
-- [ ] **Open the debug exercise coefficient detail screen** — confirm chart points and event list render.
+- [x] **Open the debug exercise coefficient detail screen** — confirm chart points and event list render.
 
-- [ ] **Finish a workout session** — confirm progression applies and the summary screen renders the updated baselines.
+- [x] **Finish a workout session** — confirm progression applies and the summary screen renders the updated baselines.
 
 ### Step 9.3: Done — no separate commit; the work is integrated.
 
