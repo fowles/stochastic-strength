@@ -16,7 +16,19 @@ class WorkoutPlanTest {
     )
 
     @Test
-    fun `estimatedDurationSeconds sums formula when no exercises have overrides`() {
+    fun estimatedDurationSeconds_sumsEstimatedSecondsAcrossExercises() {
+        val plan = WorkoutPlan(
+            exercises = listOf(
+                PlannedExercise(exercise = ex(1L), estimatedSeconds = 500),
+                PlannedExercise(exercise = ex(2L), estimatedSeconds = 700),
+            ),
+            locationId = null,
+        )
+        assertEquals(1200, plan.estimatedDurationSeconds)
+    }
+
+    @Test
+    fun estimatedDurationSeconds_isZeroWhenAllExercisesAreZero() {
         val plan = WorkoutPlan(
             exercises = listOf(
                 PlannedExercise(exercise = ex(1L)),
@@ -24,32 +36,6 @@ class WorkoutPlanTest {
             ),
             locationId = null,
         )
-        // each: 3 × 135 + 0 = 405. Total 810.
-        assertEquals(810, plan.estimatedDurationSeconds)
-    }
-
-    @Test
-    fun `estimatedDurationSeconds sums override and formula across exercises`() {
-        val plan = WorkoutPlan(
-            exercises = listOf(
-                PlannedExercise(exercise = ex(1L), estimatedSecondsOverride = 500),
-                PlannedExercise(exercise = ex(2L)),
-            ),
-            locationId = null,
-        )
-        // 500 + (3 × 135) = 905.
-        assertEquals(905, plan.estimatedDurationSeconds)
-    }
-
-    @Test
-    fun `estimatedDurationSeconds with all overrides simply sums them`() {
-        val plan = WorkoutPlan(
-            exercises = listOf(
-                PlannedExercise(exercise = ex(1L), estimatedSecondsOverride = 500),
-                PlannedExercise(exercise = ex(2L), estimatedSecondsOverride = 700),
-            ),
-            locationId = null,
-        )
-        assertEquals(1200, plan.estimatedDurationSeconds)
+        assertEquals(0, plan.estimatedDurationSeconds)
     }
 }

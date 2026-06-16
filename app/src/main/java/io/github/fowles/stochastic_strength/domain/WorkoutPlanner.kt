@@ -24,7 +24,7 @@ class WorkoutPlanner(
     private val nowMs: Long = System.currentTimeMillis(),
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
-    private val durationEstimator: ExerciseDurationEstimator = ExerciseDurationEstimator.EMPTY,
+    private val pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
 ) {
     // Muscle groups where a weighted exercise hit RIR 0-1 within the past two days.
     private val recentlyFailedMuscles: Set<MuscleGroup> by lazy {
@@ -93,9 +93,18 @@ class WorkoutPlanner(
             progressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
             weightUnit,
         )
+        val warmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight)
+        val perRep = pacingEstimator.secondsPerRep(pe.exercise.id)
         return pe.copy(
             sessionWeight = newWeight,
-            warmupSets = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight),
+            warmupSets = warmups,
+            estimatedSeconds = DurationCalculator.estimate(
+                exercise = pe.exercise,
+                sessionReps = pe.sessionReps,
+                numSets = PlannedExercise.DEFAULT_SETS,
+                warmupSets = warmups,
+                secondsPerRep = perRep,
+            ),
         )
     }
 
@@ -119,19 +128,35 @@ class WorkoutPlanner(
     }
 
     private fun withWeight(pe: PlannedExercise, sessionReps: Int): PlannedExercise {
-        val learned = durationEstimator.secondsFor(pe.exercise.id)
-        if (pe.exercise.isTimed) return pe.copy(
-            sessionWeight = 0f,
-            sessionReps = 60,
-            warmupSets = emptyList(),
-            estimatedSecondsOverride = learned,
-        )
+        val perRep = pacingEstimator.secondsPerRep(pe.exercise.id)
+        if (pe.exercise.isTimed) {
+            val timedReps = 60
+            return pe.copy(
+                sessionWeight = 0f,
+                sessionReps = timedReps,
+                warmupSets = emptyList(),
+                estimatedSeconds = DurationCalculator.estimate(
+                    exercise = pe.exercise,
+                    sessionReps = timedReps,
+                    numSets = PlannedExercise.DEFAULT_SETS,
+                    warmupSets = emptyList(),
+                    secondsPerRep = perRep,
+                ),
+            )
+        }
         val weight = weightForExercise(pe.exercise, sessionReps)
+        val warmups = computeWarmupSets(weight)
         return pe.copy(
             sessionWeight = weight,
             sessionReps = sessionReps,
-            warmupSets = computeWarmupSets(weight),
-            estimatedSecondsOverride = learned,
+            warmupSets = warmups,
+            estimatedSeconds = DurationCalculator.estimate(
+                exercise = pe.exercise,
+                sessionReps = sessionReps,
+                numSets = PlannedExercise.DEFAULT_SETS,
+                warmupSets = warmups,
+                secondsPerRep = perRep,
+            ),
         )
     }
 

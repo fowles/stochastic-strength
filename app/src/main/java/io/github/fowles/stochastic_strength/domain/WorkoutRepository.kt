@@ -74,7 +74,7 @@ class WorkoutRepository(
             locationId = locationId,
             coefficientSource = effectiveCoefficients,
             progressionEngine = progressionEngine,
-            durationEstimator = durationEstimator,
+            pacingEstimator = ExercisePacingEstimator.EMPTY, // TODO Task 4: replace with real estimator
         )
     }
 

@@ -35,7 +35,7 @@ class WorkoutPlannerTest {
         random: Random = Random(0),
         recentHistory: Map<Long, List<WorkoutSet>> = emptyMap(),
         nowMs: Long = System.currentTimeMillis(),
-        durationEstimator: ExerciseDurationEstimator = ExerciseDurationEstimator.EMPTY,
+        pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
     ) = WorkoutPlanner(
         availableExercises = exercises,
         strengths = strengths,
@@ -44,7 +44,7 @@ class WorkoutPlannerTest {
         locationId = null,
         random = random,
         nowMs = nowMs,
-        durationEstimator = durationEstimator,
+        pacingEstimator = pacingEstimator,
     )
 
     private fun nearFailureSet(exerciseId: Long, completedAt: Long, feedback: SetFeedback = SetFeedback.RIR_0_1) = WorkoutSet(
@@ -494,31 +494,77 @@ class WorkoutPlannerTest {
     }
 
     @Test
-    fun `generated plan stamps duration override from estimator onto planned exercise`() {
+    fun `generated plan stamps estimated seconds using learned secondsPerRep`() {
         val ex = exercise(id = 1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
-        val estimator = ExerciseDurationEstimator(mapOf(1L to 612))
+        val estimator = ExercisePacingEstimator(mapOf(1L to 5.0f))
         val p = planner(
             exercises = listOf(ex),
             strengths = strengthsFor(MuscleGroup.CHEST to 100f),
-            durationEstimator = estimator,
+            pacingEstimator = estimator,
         )
 
         val plan = p.generateWorkout(sessionReps = 8)
+        val planned = plan.exercises.single()
 
-        assertEquals(612, plan.exercises.single().estimatedSecondsOverride)
+        // Expected via DurationCalculator: barbell, 3 sets, 8 reps, perRep = 5.0, warmups
+        // depend on weight from baseline 100kg + coeff 1.0 + reps 8.
+        val expected = DurationCalculator.estimate(
+            exercise = ex,
+            sessionReps = 8,
+            numSets = PlannedExercise.DEFAULT_SETS,
+            warmupSets = planned.warmupSets,
+            secondsPerRep = 5.0f,
+        )
+        assertEquals(expected, planned.estimatedSeconds)
     }
 
     @Test
-    fun `generated plan leaves override null when estimator has no value for exercise`() {
+    fun `generated plan uses default secondsPerRep when estimator has no value`() {
         val ex = exercise(id = 1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
         val p = planner(
             exercises = listOf(ex),
             strengths = strengthsFor(MuscleGroup.CHEST to 100f),
-            // default durationEstimator is EMPTY
         )
 
         val plan = p.generateWorkout(sessionReps = 8)
+        val planned = plan.exercises.single()
 
-        assertEquals(null, plan.exercises.single().estimatedSecondsOverride)
+        val expected = DurationCalculator.estimate(
+            exercise = ex,
+            sessionReps = 8,
+            numSets = PlannedExercise.DEFAULT_SETS,
+            warmupSets = planned.warmupSets,
+            secondsPerRep = null,
+        )
+        assertEquals(expected, planned.estimatedSeconds)
+    }
+
+    @Test
+    fun `repriceForReps recomputes estimated seconds at the new rep target`() {
+        val ex = exercise(id = 1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
+        val p = planner(
+            exercises = listOf(ex),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+        )
+
+        val planA = p.generateWorkout(sessionReps = 5)
+        val planB = p.repriceForReps(planA, repMin = 15, repMax = 15)
+
+        val a = planA.exercises.single()
+        val b = planB.exercises.single()
+        assertEquals(15, b.sessionReps)
+
+        val expectedB = DurationCalculator.estimate(
+            exercise = ex,
+            sessionReps = 15,
+            numSets = PlannedExercise.DEFAULT_SETS,
+            warmupSets = b.warmupSets,
+            secondsPerRep = null,
+        )
+        assertEquals(expectedB, b.estimatedSeconds)
+        assertTrue(
+            "estimates should differ across rep targets",
+            a.estimatedSeconds != b.estimatedSeconds,
+        )
     }
 }
