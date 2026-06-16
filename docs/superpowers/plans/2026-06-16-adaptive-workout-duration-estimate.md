@@ -34,7 +34,7 @@
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimator.kt`
 - Test: `app/src/test/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimatorTest.kt`
 
-- [ ] **Step 1.1: Write the failing test file**
+- [x] **Step 1.1: Write the failing test file**
 
 ```kotlin
 // app/src/test/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimatorTest.kt
@@ -238,13 +238,13 @@ class ExerciseDurationEstimatorTest {
 }
 ```
 
-- [ ] **Step 1.2: Run the test — verify compile failure**
+- [x] **Step 1.2: Run the test — verify compile failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ExerciseDurationEstimatorTest"`
 
 Expected: Compile error — `ExerciseDurationEstimator` does not exist.
 
-- [ ] **Step 1.3: Create the implementation**
+- [x] **Step 1.3: Create the implementation**
 
 ```kotlin
 // app/src/main/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimator.kt
@@ -325,13 +325,13 @@ class ExerciseDurationEstimator(
 }
 ```
 
-- [ ] **Step 1.4: Run the test — verify all pass**
+- [x] **Step 1.4: Run the test — verify all pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ExerciseDurationEstimatorTest"`
 
 Expected: All 10 tests pass.
 
-- [ ] **Step 1.5: Commit**
+- [x] **Step 1.5: Commit**
 
 ```bash
 git add \
@@ -352,7 +352,7 @@ recent appearances per exercise."
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/model/PlannedExercise.kt`
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/model/PlannedExerciseTest.kt`
 
-- [ ] **Step 2.1: Write the failing test**
+- [x] **Step 2.1: Write the failing test**
 
 ```kotlin
 // app/src/test/java/io/github/fowles/stochastic_strength/domain/model/PlannedExerciseTest.kt
@@ -416,13 +416,13 @@ class PlannedExerciseTest {
 }
 ```
 
-- [ ] **Step 2.2: Run the test — verify compile failure**
+- [x] **Step 2.2: Run the test — verify compile failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.model.PlannedExerciseTest"`
 
 Expected: Compile errors — `estimatedSecondsOverride` parameter and `estimatedSeconds` property do not exist.
 
-- [ ] **Step 2.3: Update `PlannedExercise`**
+- [x] **Step 2.3: Update `PlannedExercise`**
 
 Replace the entire body of `app/src/main/java/io/github/fowles/stochastic_strength/domain/model/PlannedExercise.kt` with:
 
@@ -459,13 +459,13 @@ data class PlannedExercise(
 }
 ```
 
-- [ ] **Step 2.4: Run the test — verify all pass**
+- [x] **Step 2.4: Run the test — verify all pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.model.PlannedExerciseTest"`
 
 Expected: All 4 tests pass.
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
 git add \
@@ -486,7 +486,7 @@ behavior."
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/model/WorkoutPlan.kt`
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/model/WorkoutPlanTest.kt`
 
-- [ ] **Step 3.1: Write the failing test**
+- [x] **Step 3.1: Write the failing test**
 
 ```kotlin
 // app/src/test/java/io/github/fowles/stochastic_strength/domain/model/WorkoutPlanTest.kt
@@ -547,13 +547,13 @@ class WorkoutPlanTest {
 }
 ```
 
-- [ ] **Step 3.2: Run the test — verify failure**
+- [x] **Step 3.2: Run the test — verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.model.WorkoutPlanTest"`
 
 Expected: Tests 2 and 3 fail — `estimatedDurationSeconds` currently uses `DEFAULT_SETS * secondsPerSet + warmups * SECONDS_PER_WARMUP_SET` directly and ignores the override. Test 1 may pass coincidentally.
 
-- [ ] **Step 3.3: Update `WorkoutPlan`**
+- [x] **Step 3.3: Update `WorkoutPlan`**
 
 Replace the entire body of `app/src/main/java/io/github/fowles/stochastic_strength/domain/model/WorkoutPlan.kt` with:
 
@@ -574,13 +574,13 @@ data class WorkoutPlan(
 }
 ```
 
-- [ ] **Step 3.4: Run the test — verify all pass**
+- [x] **Step 3.4: Run the test — verify all pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.model.WorkoutPlanTest"`
 
 Expected: All 3 tests pass.
 
-- [ ] **Step 3.5: Commit**
+- [x] **Step 3.5: Commit**
 
 ```bash
 git add \
@@ -602,7 +602,7 @@ planned exercise flows through to the plan-level total."
 
 No new unit test needed — Room generates the implementation; we'll verify the queries through Task 5's integration with the planner.
 
-- [ ] **Step 4.1: Add query to `WorkoutSessionDao`**
+- [x] **Step 4.1: Add query to `WorkoutSessionDao`**
 
 Add this method inside the `WorkoutSessionDao` interface (between any two existing methods):
 
@@ -616,7 +616,7 @@ Add this method inside the `WorkoutSessionDao` interface (between any two existi
     suspend fun getRecentCompletedSessions(limit: Int): List<WorkoutSession>
 ```
 
-- [ ] **Step 4.2: Add query to `WorkoutSetDao`**
+- [x] **Step 4.2: Add query to `WorkoutSetDao`**
 
 Add this method inside the `WorkoutSetDao` interface:
 
@@ -629,13 +629,13 @@ Add this method inside the `WorkoutSetDao` interface:
     suspend fun getSetsForSessions(sessionIds: List<Long>): List<WorkoutSet>
 ```
 
-- [ ] **Step 4.3: Verify Room compiles the project**
+- [x] **Step 4.3: Verify Room compiles the project**
 
 Run: `./gradlew :app:assembleDebug`
 
 Expected: Build succeeds. (Room annotation processing validates the queries at compile time.)
 
-- [ ] **Step 4.4: Commit**
+- [x] **Step 4.4: Commit**
 
 ```bash
 git add \
@@ -656,7 +656,7 @@ WorkoutSetDao.getSetsForSessions feed the duration estimator."
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 5.1: Add the new constructor parameter to `WorkoutPlanner`**
+- [x] **Step 5.1: Add the new constructor parameter to `WorkoutPlanner`**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner.kt`, update the class constructor (currently lines 17–27):
 
@@ -675,7 +675,7 @@ class WorkoutPlanner(
 ) {
 ```
 
-- [ ] **Step 5.2: Use the estimator inside `withWeight`**
+- [x] **Step 5.2: Use the estimator inside `withWeight`**
 
 Replace the existing `withWeight` (currently lines 111–119) with:
 
@@ -700,7 +700,7 @@ Replace the existing `withWeight` (currently lines 111–119) with:
 
 Note: the original `withWeight` early-returns on `isTimed` before warmup logic — we preserve that and stamp the override in both branches.
 
-- [ ] **Step 5.3: Update the test helper in `WorkoutPlannerTest`**
+- [x] **Step 5.3: Update the test helper in `WorkoutPlannerTest`**
 
 In `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt`, update the `planner(...)` helper (currently lines 32–46) to take an optional estimator:
 
@@ -724,7 +724,7 @@ In `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner
     )
 ```
 
-- [ ] **Step 5.4: Add a new test for the wiring**
+- [x] **Step 5.4: Add a new test for the wiring**
 
 Append this test to `WorkoutPlannerTest`. The single-exercise pool keeps generation deterministic — this matches the pattern of `generateWorkout_producesCorrectWeightForKnownCoefficient`.
 
@@ -765,13 +765,13 @@ Add the import at the top of the test file if not already present:
 import io.github.fowles.stochastic_strength.domain.ExerciseDurationEstimator
 ```
 
-- [ ] **Step 5.5: Run the planner tests**
+- [x] **Step 5.5: Run the planner tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"`
 
 Expected: All existing tests still pass + the two new tests pass.
 
-- [ ] **Step 5.6: Wire it in `WorkoutRepository.buildPlanner`**
+- [x] **Step 5.6: Wire it in `WorkoutRepository.buildPlanner`**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`, update `buildPlanner` (currently lines 43–69) to:
 
@@ -812,19 +812,19 @@ In `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutReposit
     }
 ```
 
-- [ ] **Step 5.7: Run the full unit test suite**
+- [x] **Step 5.7: Run the full unit test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 
 Expected: All tests pass (no regressions).
 
-- [ ] **Step 5.8: Build the debug APK to make sure Room is happy**
+- [x] **Step 5.8: Build the debug APK to make sure Room is happy**
 
 Run: `./gradlew :app:assembleDebug`
 
 Expected: Build succeeds.
 
-- [ ] **Step 5.9: Commit**
+- [x] **Step 5.9: Commit**
 
 ```bash
 git add \
@@ -845,19 +845,19 @@ estimatedSecondsOverride, so plan-preview's total reflects history."
 
 **Files:** none modified.
 
-- [ ] **Step 6.1: Run the instrumented test suite (if an emulator/device is connected)**
+- [x] **Step 6.1: Run the instrumented test suite (if an emulator/device is connected)**
 
 Run: `./gradlew :app:connectedAndroidTest`
 
 Expected: All tests pass. (Per memory, an emulator is typically running — try it directly. Skip this step only if it fails to find a device.)
 
-- [ ] **Step 6.2: Run lint**
+- [x] **Step 6.2: Run lint**
 
 Run: `./gradlew :app:lint`
 
 Expected: No new warnings or errors introduced by these changes.
 
-- [ ] **Step 6.3: Manual smoke (launch the app via the /run skill or by direct install)**
+- [x] **Step 6.3: Manual smoke (launch the app via the /run skill or by direct install)**
 
 After installing the debug APK on a device with existing workout history:
 
@@ -869,7 +869,7 @@ After installing the debug APK on a device with existing workout history:
 
 There's no UI label that breaks down per-exercise time, so verification of an individual exercise's learned value (if you want one) is via a unit test or temporary log statement — not part of this plan.
 
-- [ ] **Step 6.4: No commit needed for verification.** If lint or the instrumented tests surfaced anything fixable, fix it inline and add a separate commit.
+- [x] **Step 6.4: No commit needed for verification.** If lint or the instrumented tests surfaced anything fixable, fix it inline and add a separate commit.
 
 ---
 
