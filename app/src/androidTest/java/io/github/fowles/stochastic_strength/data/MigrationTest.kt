@@ -144,6 +144,7 @@ class MigrationTest {
                 AppDatabase.MIGRATION_11_12,
                 AppDatabase.MIGRATION_12_13,
                 AppDatabase.MIGRATION_13_14,
+                AppDatabase.MIGRATION_14_15,
             )
             .allowMainThreadQueries()
             .build()
@@ -248,7 +249,7 @@ class MigrationTest {
 
         // Walk all migrations forward to the current entity version.
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName10)
-            .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14)
+            .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
             .allowMainThreadQueries()
             .build()
 
@@ -607,7 +608,7 @@ class MigrationTest {
         helper.close()
 
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName11)
-            .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14)
+            .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
             .allowMainThreadQueries()
             .build()
 
