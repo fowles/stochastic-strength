@@ -31,7 +31,7 @@ A second slider row sits directly below the existing "Shorter / Longer"
 (exercise count) row in `PlanPreviewContent.kt`:
 
 ```
-Shorter    ───●─────────●───   Longer       (existing Slider, int exercise count)
+Shorter    ─────────────●───   Longer       (existing Slider, int exercise count)
 Fewer reps ───●──────●──────   More reps    (new RangeSlider, ints in [1, 20])
 ```
 
