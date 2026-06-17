@@ -71,13 +71,13 @@ class LastSetAutoregulationHeuristic(
      * HURT returns null here; it is handled at the muscle level in compute().
      */
     internal fun exerciseTargetPct(exerciseSets: List<WorkoutSet>): Float? {
-        val working = exerciseSets.sortedBy { it.setNumber }
-        if (working.isEmpty()) return null
-        val fullWeight = working.first().targetWeight
+        val bySetNumber = exerciseSets.sortedBy { it.setNumber } // All persisted sets are working sets — warmups advance UI state only and are never inserted.
+        if (bySetNumber.isEmpty()) return null
+        val fullWeight = bySetNumber.first().targetWeight
         val eps = 0.001f
-        val reduced = working.any { it.targetWeight < fullWeight - eps }
+        val reduced = bySetNumber.any { it.targetWeight < fullWeight - eps }
         if (reduced) return null // down-story handled by the reduction clamp
-        val governing = working.lastOrNull { it.targetWeight >= fullWeight - eps } ?: return null
+        val governing = bySetNumber.lastOrNull { it.targetWeight >= fullWeight - eps } ?: return null
         return when (governing.feedback) {
             null -> null
             SetFeedback.HURT -> null

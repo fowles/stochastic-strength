@@ -95,7 +95,7 @@ class LastSetAutoregulationHeuristicTest {
     }
 
     @Test
-    fun reducedExercise_contributesNoUpSignal() {
+    fun reducedExercise_contributesNoSignal() {
         // Set 1 at full 100 failed, sets 2-3 dropped to 90 and hit target with reserve.
         val sets = listOf(
             set(setNumber = 1, targetWeight = 100f, targetReps = 10, actualReps = 7, feedback = SetFeedback.TOO_HARD),
