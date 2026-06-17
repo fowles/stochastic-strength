@@ -68,9 +68,11 @@ class FatigueNoDownwardBiasReplayTest {
     fun cleanFatigueSessions_neverDriveBaselineDown() = runBlocking {
         db.userProfileDao().insert(UserProfile(
             sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
+        // BENCH_EXERCISE_NAME must map to BENCH_SEED_COEFFICIENT in ExerciseCoefficients.byName
+        // (seed coefficient is read by ReplaySnapshot.loadStaticFromDb via ExerciseCoefficients.get).
         db.exerciseDao().insert(Exercise(
             id = BENCH_EXERCISE_ID,
-            name = "Barbell Bench Press",
+            name = BENCH_EXERCISE_NAME,
             primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL,
         ))
@@ -137,5 +139,24 @@ class FatigueNoDownwardBiasReplayTest {
         private const val TARGET_REPS = 10
         private const val BASE_TIME = 1_700_000_000_000L
         private const val DAY_MS = 24L * 60 * 60 * 1000
+
+        /**
+         * The name used when inserting the test exercise. This must match an entry in
+         * [ExerciseCoefficients.byName] whose value is exactly [BENCH_SEED_COEFFICIENT].
+         *
+         * [ReplaySnapshot.loadStaticFromDb] derives each exercise's seed coefficient via
+         * `ExerciseCoefficients.get(exercise)` which looks up by [Exercise.name]. If this name
+         * is removed or its coefficient changes in [ExerciseCoefficients], the seed coefficient
+         * assumed by this test will silently diverge, potentially altering the 1RM estimate used
+         * by [EstCoefConsensusHeuristic] and producing unexpected coefficient proposals.
+         *
+         * If [ExerciseCoefficients.byName]["Barbell Bench Press"] ever changes from 1.0f, update
+         * [BENCH_EXERCISE_NAME] and [BENCH_SEED_COEFFICIENT] together.
+         */
+        private const val BENCH_EXERCISE_NAME = "Barbell Bench Press"
+        // ExerciseCoefficients.byName[BENCH_EXERCISE_NAME] == 1.0f (verified at authorship).
+        // Sets are planned at targetWeight = SEED_BASELINE * BENCH_SEED_COEFFICIENT = 100f * 1.0f = 100f,
+        // so the implied 1RM == SEED_BASELINE and the heuristic produces coefficient ≈ 1.0, neutral.
+        private const val BENCH_SEED_COEFFICIENT = 1.0f
     }
 }
