@@ -66,8 +66,8 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -205,9 +205,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     SelectedDayDetail(
                         day = day,
                         exercise = exercise,
-                        primarySets = state.allSets.filter {
-                            it.completedAt != null && it.completedAt / 86_400_000L == day
-                        },
+                        primarySets = state.primarySetsByDay[day] ?: emptyList(),
                         shadowSets = state.shadowSetsByDay[day] ?: emptyList(),
                         weightUnit = state.weightUnit,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -301,9 +299,9 @@ private fun ExerciseChart(
         CartesianValueFormatter { _, value, _ -> WeightFormatter.format(value.toFloat(), weightUnit) }
     }
     val dateFormatter = remember {
-        val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
+        val fmt = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
         CartesianValueFormatter { _, value, _ ->
-            sdf.format(Date(value.toLong() * 86_400_000L))
+            LocalDate.ofEpochDay(value.toLong()).format(fmt)
         }
     }
 
@@ -359,12 +357,12 @@ private fun rememberSelectionMarker(weightUnit: WeightUnit): DefaultCartesianMar
         background = labelBackground,
     )
     val guideline = rememberAxisGuidelineComponent()
-    val sdf = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
-    val valueFormatter = remember(sdf, weightUnit) {
+    val fmt = remember { DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()) }
+    val valueFormatter = remember(fmt, weightUnit) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
             formatLineMarkerLabel(
                 targets = targets,
-                xLabel = { x -> sdf.format(Date(x.toLong() * 86_400_000L)) },
+                xLabel = { x -> LocalDate.ofEpochDay(x.toLong()).format(fmt) },
                 yLabel = { y -> WeightFormatter.format(y.toFloat(), weightUnit) },
             )
         }
@@ -386,10 +384,10 @@ private fun SelectedDayDetail(
     weightUnit: WeightUnit,
     modifier: Modifier = Modifier,
 ) {
-    val sdf = remember { SimpleDateFormat("EEEE, MMM d", Locale.getDefault()) }
+    val fmt = remember { DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault()) }
     Column(modifier = modifier) {
         Text(
-            text = sdf.format(Date(day * 86_400_000L)),
+            text = LocalDate.ofEpochDay(day).format(fmt),
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(bottom = 4.dp),
         )
