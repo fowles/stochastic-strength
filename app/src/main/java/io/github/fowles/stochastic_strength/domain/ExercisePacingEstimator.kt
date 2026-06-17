@@ -5,7 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 
-class ExercisePacingEstimator(
+class ExercisePacingEstimator internal constructor(
     private val secondsPerRepByExerciseId: Map<Long, Float>,
 ) {
     fun secondsPerRep(exerciseId: Long): Float? = secondsPerRepByExerciseId[exerciseId]
@@ -34,6 +34,7 @@ class ExercisePacingEstimator(
                     if (existing != null && existing.size >= MAX_APPEARANCES) continue
 
                     val exercise = exercisesById[exerciseId] ?: continue
+                    if (exercise.isTimed) continue
                     val sides = if (exercise.isUnilateral) 2 else 1
 
                     val appearanceAvg = appearanceAverage(
