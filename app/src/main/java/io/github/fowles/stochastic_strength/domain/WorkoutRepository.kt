@@ -65,6 +65,8 @@ class WorkoutRepository(
                 .groupBy { it.sessionId }
         else emptyMap()
         val effectiveCoefficients = effectiveCoefficientSource()
+        val exercisesById = available.associateBy { it.id }
+        val pacingEstimator = ExercisePacingEstimator.build(recentSessions, recentSets, exercisesById)
         return WorkoutPlanner(
             availableExercises = available,
             strengths = strengths,
@@ -73,7 +75,7 @@ class WorkoutRepository(
             locationId = locationId,
             coefficientSource = effectiveCoefficients,
             progressionEngine = progressionEngine,
-            pacingEstimator = ExercisePacingEstimator.EMPTY, // TODO Task 4: replace with real estimator
+            pacingEstimator = pacingEstimator,
         )
     }
 
