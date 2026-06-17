@@ -52,7 +52,6 @@ import com.patrykandpatrick.vico.core.cartesian.Scroll
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
@@ -60,7 +59,6 @@ import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
 import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
 import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.core.common.Fill
-import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -74,6 +72,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.ui.ExerciseSetSection
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
+import io.github.fowles.stochastic_strength.ui.components.paddedChartRangeProvider
 import io.github.fowles.stochastic_strength.ui.debug.components.formatLineMarkerLabel
 import io.github.fowles.stochastic_strength.ui.toSummarySet
 import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
@@ -282,18 +281,7 @@ private fun ExerciseChart(
         })
     }
 
-    val rangeProvider = remember {
-        object : CartesianLayerRangeProvider {
-            override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
-                val padding = if (minY == maxY) maxOf(minY * 0.10, 2.5) else (maxY - minY) * 0.15
-                return minY - padding
-            }
-            override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
-                val padding = if (minY == maxY) maxOf(maxY * 0.10, 2.5) else (maxY - minY) * 0.15
-                return maxY + padding
-            }
-        }
-    }
+    val rangeProvider = remember { paddedChartRangeProvider() }
 
     val weightFormatter = remember(weightUnit) {
         CartesianValueFormatter { _, value, _ -> WeightFormatter.format(value.toFloat(), weightUnit) }
