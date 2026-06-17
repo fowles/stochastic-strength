@@ -2,8 +2,12 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LastSetAutoregulationHeuristicTest {
@@ -25,6 +29,24 @@ class LastSetAutoregulationHeuristicTest {
         targetReps = targetReps,
         actualReps = actualReps,
         feedback = feedback,
+    )
+
+    private fun input(
+        sets: List<WorkoutSet>,
+        currentBaselines: Map<MuscleGroup, Float> = mapOf(MuscleGroup.CHEST to 100f),
+        exerciseMuscle: Map<Long, MuscleGroup> = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
+        minReductionFractions: Map<MuscleGroup, Float> = emptyMap(),
+        weightUnit: WeightUnit = WeightUnit.KG,
+    ) = BaselineComputationInput(
+        sets = sets,
+        exerciseMuscle = exerciseMuscle,
+        currentCoefficients = mapOf(1L to 1.0f, 2L to 1.0f),
+        currentBaselines = currentBaselines,
+        recentHistory = emptyMap<MuscleGroup, List<BaselineHistory>>(),
+        sessionReps = 10,
+        minReductionFractions = minReductionFractions,
+        asOf = 1_000_000L,
+        weightUnit = weightUnit,
     )
 
     @Test
@@ -81,5 +103,72 @@ class LastSetAutoregulationHeuristicTest {
             set(setNumber = 3, targetWeight = 90f, feedback = SetFeedback.RIR_0_1),
         )
         assertNull(heuristic.exerciseTargetPct(sets))
+    }
+
+    @Test
+    fun rir01_creepsOneIncrement_atHeavyBaseline() {
+        // 5% of 100 kg = 5 kg → floor to 2.5 kg increments → 2 steps = 5 kg. B_new = 105.
+        val s = set(targetWeight = 100f, feedback = SetFeedback.RIR_0_1)
+        val r = heuristic.compute(input(listOf(s)))
+        assertEquals(1, r.size)
+        assertEquals(105f, r.single().newBaseline, 1e-4f)
+    }
+
+    @Test
+    fun rir01_holds_atLightBaseline_belowFloor() {
+        // 5% of 40 kg = 2.0 kg < 2.5 kg increment → floor to 0 → no proposal.
+        val s = set(targetWeight = 40f, feedback = SetFeedback.RIR_0_1)
+        val r = heuristic.compute(input(listOf(s), currentBaselines = mapOf(MuscleGroup.CHEST to 40f)))
+        assertTrue(r.isEmpty())
+    }
+
+    @Test
+    fun fatigueAcrossSets_doesNotPunish_holds() {
+        // target 10 → 13,11,9 across 3 sets at full weight, no drop. Last set TOO_HARD/9
+        // is a near-miss (within 1) → hold → no proposal. (The original bug: this used to drop.)
+        val sets = listOf(
+            set(setNumber = 1, targetReps = 10, feedback = SetFeedback.RIR_2_4),
+            set(setNumber = 2, targetReps = 10, feedback = SetFeedback.RIR_0_1),
+            set(setNumber = 3, targetReps = 10, actualReps = 9, feedback = SetFeedback.TOO_HARD),
+        )
+        val r = heuristic.compute(input(sets))
+        assertTrue(r.isEmpty())
+    }
+
+    @Test
+    fun hurt_overridesAndBacksOff() {
+        val sets = listOf(
+            set(setNumber = 1, feedback = SetFeedback.RIR_5_PLUS),
+            set(setNumber = 2, feedback = SetFeedback.HURT),
+        )
+        // round(100 * 0.85) = round(85) = 85.
+        val r = heuristic.compute(input(sets))
+        assertEquals(85f, r.single().newBaseline, 1e-4f)
+    }
+
+    @Test
+    fun reductionClamp_winsOverUpSignal() {
+        // Clean RIR_5_PLUS (would be +15%) but the muscle was dropped 10% mid-session.
+        // cap = round(100 * 0.90) = 90 → B_new clamped to 90.
+        val s = set(targetWeight = 100f, feedback = SetFeedback.RIR_5_PLUS)
+        val r = heuristic.compute(input(listOf(s), minReductionFractions = mapOf(MuscleGroup.CHEST to 0.10f)))
+        assertEquals(90f, r.single().newBaseline, 1e-4f)
+    }
+
+    @Test
+    fun twoExercises_averageTheirPercentages() {
+        // Ex1 RIR_5_PLUS (+15%), Ex2 RIR_0_1 (+5%) → avg 10% of 100 = 10 kg → floor 2.5 → 10 kg. B_new=110.
+        val sets = listOf(
+            set(exerciseId = 1L, feedback = SetFeedback.RIR_5_PLUS),
+            set(exerciseId = 2L, feedback = SetFeedback.RIR_0_1),
+        )
+        val r = heuristic.compute(input(sets))
+        assertEquals(110f, r.single().newBaseline, 1e-4f)
+    }
+
+    @Test
+    fun noSignal_noProposal() {
+        val s = set(feedback = null)
+        assertTrue(heuristic.compute(input(listOf(s))).isEmpty())
     }
 }

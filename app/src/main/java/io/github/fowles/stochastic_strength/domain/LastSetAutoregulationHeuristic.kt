@@ -22,7 +22,48 @@ class LastSetAutoregulationHeuristic(
 
     override val name: String = "last-set-autoregulation"
 
-    override fun compute(input: BaselineComputationInput): List<BaselineProposal> = emptyList()
+    override fun compute(input: BaselineComputationInput): List<BaselineProposal> {
+        val out = mutableListOf<BaselineProposal>()
+        val setsByMuscle = input.sets.groupBy { input.exerciseMuscle[it.exerciseId] }
+        val increment = WeightFormatter.minIncrement(input.weightUnit)
+        for ((muscle, muscleSets) in setsByMuscle) {
+            if (muscle == null) continue
+            val bOld = input.currentBaselines[muscle] ?: continue
+            if (bOld <= 0f) continue
+
+            // Pain overrides everything.
+            if (muscleSets.any { it.feedback == SetFeedback.HURT }) {
+                val bNew = WeightFormatter.round(bOld * hurtFactor, input.weightUnit)
+                if (bNew != bOld) out.add(BaselineProposal(muscle, bNew, "hurt"))
+                continue
+            }
+
+            val pcts = muscleSets.groupBy { it.exerciseId }
+                .values
+                .mapNotNull { exerciseTargetPct(it) }
+            val avgPct = if (pcts.isEmpty()) 0f else pcts.sum() / pcts.size
+
+            // Floor the raw move to whole increments, toward zero, sign preserved.
+            val rawMove = bOld * avgPct
+            val steps = (kotlin.math.abs(rawMove) / increment).toInt()
+            val flooredMove = if (rawMove >= 0f) steps * increment else -steps * increment
+            var bNew = bOld + flooredMove
+
+            // Reduction clamp: authoritative downward gate for mid-session drops.
+            val minRed = input.minReductionFractions[muscle] ?: 0f
+            if (minRed > 0f) {
+                val cap = WeightFormatter.round(bOld * (1f - minRed), input.weightUnit)
+                if (bNew > cap) bNew = cap
+            }
+
+            bNew = WeightFormatter.round(bNew, input.weightUnit)
+            if (bNew == bOld) continue
+
+            val meta = if (pcts.isEmpty()) "clamp" else "n=${pcts.size},avgPct=${"%.3f".format(java.util.Locale.ROOT, avgPct)}"
+            out.add(BaselineProposal(muscle, bNew, meta))
+        }
+        return out
+    }
 
     /**
      * Signed target fraction for the exercise's governing set, or null if the exercise
