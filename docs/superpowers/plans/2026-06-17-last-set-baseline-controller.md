@@ -1,6 +1,6 @@
 # Last-Set Autoregulation Baseline Controller Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the implied-1RM/confidence baseline heuristic with a last-set RIR autoregulation controller that removes the high-rep fatigue downward bias while preserving the existing mid-session reduction behavior.
 
@@ -29,7 +29,7 @@
 - Consumes: `BaselineHeuristic`, `BaselineProposal`, `BaselineComputationInput` (in `domain/BaselineHeuristic.kt`); `WorkoutSet` (`data/model/WorkoutSet.kt`, fields: `exerciseId`, `setNumber`, `targetWeight`, `targetReps`, `actualReps`, `feedback`); `SetFeedback` (`TOO_HARD, HURT, RIR_0_1, RIR_2_4, RIR_5_PLUS`).
 - Produces: `class LastSetAutoregulationHeuristic(bigUpPct, moderateUpPct, tinyUpPct, smallDownPct, hurtFactor, nearMissReps) : BaselineHeuristic` with `override val name = "last-set-autoregulation"`. Internal helper `fun exerciseTargetPct(exerciseSets: List<WorkoutSet>): Float?` — returns the signed target fraction (e.g. `0.05f`, `-0.05f`, `0f`) for the exercise's governing set, or `null` if the exercise contributes no signal (reduced mid-session, no working sets, or no usable feedback). HURT is *not* handled here (returns `null`); it is handled at the muscle level in Task 2.
 
-- [ ] **Step 1: Write the failing test for the signal table**
+- [x] **Step 1: Write the failing test for the signal table**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -119,12 +119,12 @@ class LastSetAutoregulationHeuristicTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.LastSetAutoregulationHeuristicTest"`
 Expected: FAIL — `LastSetAutoregulationHeuristic` is unresolved / does not compile.
 
-- [ ] **Step 3: Write the class with signal extraction (compute() stubbed)**
+- [x] **Step 3: Write the class with signal extraction (compute() stubbed)**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -185,12 +185,12 @@ class LastSetAutoregulationHeuristic(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.LastSetAutoregulationHeuristicTest"`
 Expected: PASS (all signal-extraction tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/LastSetAutoregulationHeuristic.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/LastSetAutoregulationHeuristicTest.kt
@@ -211,7 +211,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Consumes: `exerciseTargetPct` (Task 1); `WeightFormatter.round(kg, unit)`, `WeightFormatter.minIncrement(unit)`; `BaselineComputationInput` fields `sets`, `exerciseMuscle`, `currentBaselines`, `minReductionFractions`, `weightUnit`; `MuscleGroup`; `WeightUnit`.
 - Produces: `compute(input): List<BaselineProposal>` — one `BaselineProposal(muscleGroup, newBaseline, metadata)` per muscle whose baseline changes.
 
-- [ ] **Step 1: Write the failing tests for compute()**
+- [x] **Step 1: Write the failing tests for compute()**
 
 Add to `LastSetAutoregulationHeuristicTest`:
 
@@ -307,12 +307,12 @@ fun noSignal_noProposal() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.LastSetAutoregulationHeuristicTest"`
 Expected: FAIL — `compute` returns `emptyList()`, so the non-empty assertions fail.
 
-- [ ] **Step 3: Implement compute()**
+- [x] **Step 3: Implement compute()**
 
 Replace the stubbed `compute` in `LastSetAutoregulationHeuristic.kt`:
 
@@ -363,12 +363,12 @@ Replace the stubbed `compute` in `LastSetAutoregulationHeuristic.kt`:
 
 `WeightFormatter` lives in the same `domain` package as this file, so no import is needed.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.LastSetAutoregulationHeuristicTest"`
 Expected: PASS (all signal + compute tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/LastSetAutoregulationHeuristic.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/LastSetAutoregulationHeuristicTest.kt
@@ -390,30 +390,30 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Consumes: `LastSetAutoregulationHeuristic` (Tasks 1-2); `WorkoutRepository(... baselineHeuristic: BaselineHeuristic ...)` constructor (unchanged).
 - Produces: the running app uses `LastSetAutoregulationHeuristic` as its `BaselineHeuristic`. No interface changes.
 
-- [ ] **Step 1: Confirm `EstBaselineConsensusHeuristic` has no other references**
+- [x] **Step 1: Confirm `EstBaselineConsensusHeuristic` has no other references**
 
 Run: `grep -rn "EstBaselineConsensusHeuristic" app/src`
 Expected: only `StochasticStrengthApp.kt`, `EstBaselineConsensusHeuristic.kt`, and `EstBaselineConsensusHeuristicTest.kt`. If any other file references it, stop and report — that consumer must be migrated first.
 
-- [ ] **Step 2: Swap the heuristic in `StochasticStrengthApp`**
+- [x] **Step 2: Swap the heuristic in `StochasticStrengthApp`**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt`:
 - Replace the import `import io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristic` with `import io.github.fowles.stochastic_strength.domain.LastSetAutoregulationHeuristic`.
 - Change line 41 `baselineHeuristic = EstBaselineConsensusHeuristic(),` to `baselineHeuristic = LastSetAutoregulationHeuristic(),`.
 
-- [ ] **Step 3: Delete the old heuristic and its test**
+- [x] **Step 3: Delete the old heuristic and its test**
 
 ```bash
 git rm app/src/main/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristic.kt
 git rm app/src/test/java/io/github/fowles/stochastic_strength/domain/EstBaselineConsensusHeuristicTest.kt
 ```
 
-- [ ] **Step 4: Build and run the full unit suite**
+- [x] **Step 4: Build and run the full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS, with no remaining references to `EstBaselineConsensusHeuristic`. (`EstCoefConsensusHeuristic` and its test remain — they are a different class; do not touch them.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -434,11 +434,11 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Consumes: `WorkoutRepository` replay entry point used by existing instrumented tests (e.g. `WorkoutRepositoryTest` / `ReplayDerivedStateTest` — follow their setup pattern for building a DB, seeding baselines, inserting sessions/sets, and reading resulting `MuscleGroupStrength`/`BaselineHistory`).
 - Produces: a regression test proving that a sequence of clean high-rep sessions (no drops, no pain, last sets at/above target) never drives a muscle's baseline *down* via the `EstCoeff` → `SeedNormalizer` path.
 
-- [ ] **Step 1: Read the existing instrumented test setup**
+- [x] **Step 1: Read the existing instrumented test setup**
 
 Read `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/ReplayDerivedStateTest.kt` and `WorkoutRepositoryTest.kt` to copy the exact in-memory `AppDatabase` construction, baseline seeding, and session/set insertion helpers. Reuse them; do not invent a new harness.
 
-- [ ] **Step 2: Write the regression test (expected to PASS already)**
+- [x] **Step 2: Write the regression test (expected to PASS already)**
 
 Create `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/FatigueNoDownwardBiasReplayTest.kt`. Using the copied harness: seed one muscle baseline (e.g. CHEST at 100 kg) with one exercise (coef 1.0). Insert 3 sessions, each 3 working sets at the same full weight, last set a near-miss `TOO_HARD` with `actualReps = targetReps - 1` (the fatigue pattern), no reductions, no HURT. Run the replay/recompute. Assert the resulting CHEST baseline is `>= 100f` (never below the seed) — i.e. fatigue never drags it down through normalization.
 
@@ -454,21 +454,21 @@ fun cleanFatigueSessions_neverDriveBaselineDown() = runBlocking {
 }
 ```
 
-- [ ] **Step 3: Run the test**
+- [x] **Step 3: Run the test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.FatigueNoDownwardBiasReplayTest"`
 Expected: PASS. If it PASSES, the `SeedNormalizer` path is safe with the new controller — skip Step 4, go to Step 5.
 
-- [ ] **Step 4: Only if Step 3 FAILS — gate the normalizer's downward move**
+- [x] **Step 4: Only if Step 3 FAILS — gate the normalizer's downward move**
 
 If normalization drives the baseline below the seed, restrict `applyBaselineNormalization` so a normalization proposal may not produce a *net downward* baseline move in the same session a progression proposal held or raised it. Minimal change: in the loop in `WorkoutRepository.applyBaselineNormalization`, skip applying a proposal when `newBaseline < oldBaseline` and the muscle had no reduction/HURT this session (i.e. only allow normalization to *rebalance upward or split*, not to lower baseline on a clean session). Re-run Step 3 to confirm PASS. Keep the change minimal and commented with a pointer to the spec's "Open risk" section.
 
-- [ ] **Step 5: Run the full instrumented suite for regressions**
+- [x] **Step 5: Run the full instrumented suite for regressions**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS (existing repository/replay tests still green).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A
@@ -484,21 +484,21 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Files:**
 - Modify (if needed): `CLAUDE.md` "Progression system" paragraph (it names the old estimator behavior)
 
-- [ ] **Step 1: Run the complete unit suite**
+- [x] **Step 1: Run the complete unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 2: Run the complete instrumented suite**
+- [x] **Step 2: Run the complete instrumented suite**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS.
 
-- [ ] **Step 3: Update `CLAUDE.md` progression description**
+- [x] **Step 3: Update `CLAUDE.md` progression description**
 
 In `CLAUDE.md`, the "Progression system" section describes `computeNextBaseline` / implied-1RM behavior. Update the sentence(s) that describe how the per-muscle baseline is updated to reflect the last-set autoregulation controller (percentage buckets keyed on the last full-weight set, floored to increments, reduction clamp preserved). Keep it to the existing paragraph's length; do not restructure the doc.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md
