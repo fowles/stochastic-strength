@@ -1,8 +1,12 @@
 package io.github.fowles.stochastic_strength.ui.debug
 
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -268,5 +272,66 @@ class MuscleBaselineDetailViewModelTest {
         assertEquals(0.25f, rows[0].deviation, 1e-4f)
         assertEquals(0f, rows[1].deviation, 1e-6f)
         assertEquals(-0.20f, rows[2].deviation, 1e-4f)
+    }
+
+    // ---- buildBaselineChartPoints ---------------------------------------
+
+    private val day = 86_400_000L
+
+    private fun log(
+        timestamp: Long,
+        previousBaseline: Float,
+        newBaseline: Float,
+    ) = BaselineHistory(
+        sessionId = null,
+        muscleGroup = MuscleGroup.CHEST,
+        previousBaseline = previousBaseline,
+        newBaseline = newBaseline,
+        changeReason = BaselineChangeReason.PROGRESSION,
+        timestamp = timestamp,
+    )
+
+    @Test
+    fun `buildBaselineChartPoints returns empty list when there are no logs`() {
+        assertEquals(emptyList<DebugChartPoint>(), buildBaselineChartPoints(emptyList()))
+    }
+
+    @Test
+    fun `buildBaselineChartPoints drops the synthetic start point when first previousBaseline is zero`() {
+        // The INITIAL assessment has no prior baseline (previousBaseline == 0),
+        // which would otherwise force the chart down to zero.
+        val logs = listOf(
+            log(timestamp = 10 * day, previousBaseline = 0f, newBaseline = 40f),
+            log(timestamp = 11 * day, previousBaseline = 40f, newBaseline = 42f),
+        )
+
+        val points = buildBaselineChartPoints(logs)
+
+        assertEquals(
+            listOf(
+                DebugChartPoint(10 * day, 40f),
+                DebugChartPoint(11 * day, 42f),
+            ),
+            points,
+        )
+    }
+
+    @Test
+    fun `buildBaselineChartPoints keeps the synthetic start point when first previousBaseline is positive`() {
+        val logs = listOf(
+            log(timestamp = 10 * day, previousBaseline = 38f, newBaseline = 40f),
+            log(timestamp = 11 * day, previousBaseline = 40f, newBaseline = 42f),
+        )
+
+        val points = buildBaselineChartPoints(logs)
+
+        assertEquals(
+            listOf(
+                DebugChartPoint(10 * day - day, 38f),
+                DebugChartPoint(10 * day, 40f),
+                DebugChartPoint(11 * day, 42f),
+            ),
+            points,
+        )
     }
 }
