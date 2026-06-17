@@ -94,38 +94,53 @@ Otherwise, map the governing set's feedback to a log-delta (`nearMiss = 1` rep d
 
 | Governing set | Meaning | Log-delta (default) |
 |---|---|---|
-| RIR 5+ | way too light | **+5.0%** (big) |
-| RIR 2-4 | a bit light | **+2.5%** (moderate) |
-| RIR 0-1 | just right | **+1.0%** (tiny creep) |
+| RIR 5+ | way too light | **+15%** |
+| RIR 2-4 | a bit light | **+10%** |
+| RIR 0-1 | just made it | **+5%** |
 | Failed, `actualReps ≥ target − nearMiss` | close enough | **0** (hold) |
-| Failed, `actualReps < target − nearMiss` | genuinely too heavy | **−5.0%** (small decrease) |
+| Failed, `actualReps < target − nearMiss` | genuinely too heavy | **−5%** |
 | Failed, `actualReps` unknown | ambiguous | **0** (hold — non-punitive; real drops handled by the clamp) |
-| No usable feedback | — | exercise contributes no signal |
+| No usable feedback | — | exercise contributes no signal (`null`) |
+
+HURT on any set in the muscle overrides everything (see step 3).
 
 The percentages are the **primary tunable knob** and the main injury-vs-progress lever
-(principles 2 and 3). They are applied in log space and the result is rounded to the
-weight increment. Always-creep at RIR 0-1 keeps strength climbing but is self-limiting:
-as weight creeps up, the last set eventually becomes a near-miss → hold → plateau until
-the user genuinely gets stronger and clears the target again, then creep resumes.
+(principles 2 and 3). `nearMiss` defaults to **1 rep**.
+
+**Percentages are floored to whole increments.** The percentage is a *target*; the
+applied move is the target floored (toward zero, sign preserved) to a whole number of
+`WeightFormatter.minIncrement(unit)` steps (2.5 kg / 5 lb). Because baselines already sit
+on that grid, the result stays on-grid. Consequences (KG grid, 2.5 kg increment):
+
+- A bucket moves one increment only when `% × baseline ≥ increment`: RIR 5+ at ≥ ~17 kg,
+  RIR 2-4 at ≥ 25 kg, RIR 0-1 at ≥ 50 kg, genuine failure at ≥ 50 kg. (In LBS with a 5 lb
+  increment: RIR 0-1 moves one increment at ≥ 100 lb, exactly as intended.)
+- Light baselines are deliberately sticky: one increment is a large *relative* change, so
+  the percentage floor holds them until the signal justifies a full plate step.
 
 ### 3. Aggregation across exercises in the muscle
 
-Average the contributing per-exercise log-deltas into one baseline log-delta (common
-mode). **Exception:** a HURT on *any* contributing set forces the back-off
-(`× hurtFactor`), overriding everything (pain is worst-wins — principle 2). When exercises
+Average the contributing per-exercise target **percentages** into one muscle percentage
+(common mode), compute the raw move `baseline × avgPct`, then floor to increments. Only
+exercises that produced a signal (non-`null`, non-reduced) contribute to the average.
+**Exception:** a HURT on *any* set in the muscle forces the back-off `round(bOld ×
+hurtFactor)`, overriding everything (pain is worst-wins — principle 2). When exercises
 disagree on direction, that differential is `EstCoeff`'s job, not the baseline's.
 
-If no exercise in the muscle produced a usable signal, the baseline is unchanged.
+If no exercise produced a signal, the common-mode move is 0 (the baseline only changes if
+the reduction clamp in step 4 forces it down).
 
-### 4. Reduction clamp (unchanged)
+### 4. Reduction clamp (unchanged semantics, relocated into the controller)
 
-Apply the existing final clamp: `bNew ≤ bOld × (1 − minReductionFractions[muscle])`. In
-any session where the muscle's load had to be dropped, this wins and the baseline cannot
-creep up. The clamp is the authoritative downward mechanism for mid-session drops.
+Apply the clamp as the final downward gate: `cap = round(bOld × (1 −
+minReductionFractions[muscle]))`; if the post-floor `bNew > cap`, set `bNew = cap`. In any
+session where the muscle's load had to be dropped, this wins and the baseline cannot creep
+up. The clamp is the authoritative downward mechanism for mid-session drops. (This logic
+lived inside `EstBaselineConsensusHeuristic`; it moves verbatim into the new controller.)
 
 ### 5. Rounding and no-op suppression
 
-Round `bNew` to the weight increment. If `bNew == bOld`, emit no proposal (as today).
+Snap `bNew` to the grid with `WeightFormatter.round`. If `bNew == bOld`, emit no proposal.
 
 ## Determinism / replay
 
@@ -153,8 +168,8 @@ move from fatigue-driven common-mode drift. This is a known item, not yet decide
 
 - **Signal table:** one test per row of the step-policy table (RIR 5+/2-4/0-1, near-miss
   hold, genuine-failure decrease, ambiguous-failure hold, no-feedback skip).
-- **Self-limiting creep:** a sequence of clean RIR-0-1 sessions creeps up, then a
-  near-miss holds — assert the plateau.
+- **Percentage floor:** RIR 0-1 (5%) creeps one increment at a baseline ≥ the move
+  threshold and **holds** (no proposal) at a light baseline below it.
 - **Fatigue no longer punishes:** the original failing scenario (e.g. target 10 →
   `13, 11, 9` across three sets, no drop) results in a **hold**, not a decrease.
 - **Mid-session drop:** an exercise reduced mid-session yields a decrease bounded by the
