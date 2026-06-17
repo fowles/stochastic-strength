@@ -1,6 +1,6 @@
 # Replay-Based Derived State Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make derived workout state (baselines, coefficients, history tables) a pure, idempotent function of recorded inputs. Replace the version-gated `DerivedStateBackfill` with a wipe-and-replay routine that runs safely from any state, and clean up the schema so inputs and derived state are properly separated.
 
@@ -28,7 +28,7 @@
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`
 - Test: `app/src/test/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristicTest.kt` (existing; add a new case)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add this test to `EstCoefConsensusHeuristicTest`:
 
@@ -67,12 +67,12 @@ fun `compute uses max sessionTime from input as now, not wall clock`() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest.compute uses max sessionTime from input as now, not wall clock"`
 Expected: FAIL — `results.isEmpty()` because default `now = System::currentTimeMillis` gives ancient sessions weight 0.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Edit `EstCoefConsensusHeuristic.kt`:
 
@@ -105,12 +105,12 @@ internal fun computeH1(signals: List<SessionSignal>): H1Proposal? {
 }
 ```
 
-- [ ] **Step 4: Run all heuristic tests**
+- [x] **Step 4: Run all heuristic tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: PASS for all tests (including any existing ones that previously injected a custom `now` — they should still work as long as their session times are recent relative to each other; if any test fails because it was using a `now` that drifted from session times, fix that test to put session times near its desired `now`).
 
-- [ ] **Step 5: Check for callers**
+- [x] **Step 5: Check for callers**
 
 Run: `grep -rn "EstCoefConsensusHeuristic(" app/src --include="*.kt"`
 Expected: any caller that passed `now =` must be updated. There should be a use in `StochasticStrengthApp.kt` and possibly in tests. Remove the `now =` argument from each call. Run the unit-test suite again to confirm nothing else broke:
@@ -118,7 +118,7 @@ Expected: any caller that passed `now =` must be updated. There should be a use 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj describe -m "feat(domain): EstCoefConsensusHeuristic derives now from input"
@@ -135,7 +135,7 @@ jj new
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshot.kt`
 - Test: `app/src/test/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshotTest.kt`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create the test file:
 
@@ -219,12 +219,12 @@ class ReplaySnapshotTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails to compile**
+- [x] **Step 2: Run test to verify it fails to compile**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ReplaySnapshotTest"`
 Expected: FAIL (compile error: `ReplaySnapshot` does not exist).
 
-- [ ] **Step 3: Implement `ReplaySnapshot`**
+- [x] **Step 3: Implement `ReplaySnapshot`**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshot.kt`:
 
@@ -288,12 +288,12 @@ class ReplaySnapshot(
 }
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ReplaySnapshotTest"`
 Expected: PASS for all three tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj describe -m "feat(domain): add ReplaySnapshot with per-asOf input filters"
@@ -314,7 +314,7 @@ jj new
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineOverride.kt`
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/BaselineOverrideDao.kt`
 
-- [ ] **Step 1: Create the entity**
+- [x] **Step 1: Create the entity**
 
 ```kotlin
 // BaselineOverride.kt
@@ -341,7 +341,7 @@ data class BaselineOverride(
 )
 ```
 
-- [ ] **Step 2: Create the DAO**
+- [x] **Step 2: Create the DAO**
 
 ```kotlin
 // BaselineOverrideDao.kt
@@ -385,7 +385,7 @@ interface BaselineOverrideDao {
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/ExerciseHurtState.kt`
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/ExerciseHurtStateDao.kt`
 
-- [ ] **Step 1: Create the entity**
+- [x] **Step 1: Create the entity**
 
 ```kotlin
 // ExerciseHurtState.kt
@@ -409,7 +409,7 @@ data class ExerciseHurtState(
 )
 ```
 
-- [ ] **Step 2: Create the DAO**
+- [x] **Step 2: Create the DAO**
 
 ```kotlin
 // ExerciseHurtStateDao.kt
@@ -446,12 +446,12 @@ interface ExerciseHurtStateDao {
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineChangeReason.kt` (or wherever the enum lives — search if unsure)
 - Rename / modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/BaselineChangeLogDao.kt` → `BaselineHistoryDao.kt`
 
-- [ ] **Step 1: Locate the enum**
+- [x] **Step 1: Locate the enum**
 
 Run: `grep -rn "enum class BaselineChangeReason\|BaselineChangeReason {" app/src/main --include="*.kt"`
 Note the file path. Open it.
 
-- [ ] **Step 2: Update the enum**
+- [x] **Step 2: Update the enum**
 
 The current enum is `BaselineChangeReason { PROGRESSION, MANUAL_OVERRIDE, NORMALIZATION }`. Change to:
 
@@ -466,7 +466,7 @@ enum class BaselineChangeReason {
 
 `MANUAL_OVERRIDE` is removed (its rows migrate to `baseline_override` in the migration); `INITIAL` and `OVERRIDE` are added.
 
-- [ ] **Step 3: Rename the entity file and class**
+- [x] **Step 3: Rename the entity file and class**
 
 Delete `BaselineChangeLog.kt`. Create `app/src/main/java/io/github/fowles/stochastic_strength/data/model/BaselineHistory.kt`:
 
@@ -493,7 +493,7 @@ data class BaselineHistory(
 
 Note: `sessionId` becomes nullable to accommodate `INITIAL` rows (which have no session).
 
-- [ ] **Step 4: Rename and update the DAO**
+- [x] **Step 4: Rename and update the DAO**
 
 Delete `BaselineChangeLogDao.kt`. Create `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/BaselineHistoryDao.kt`. Mirror every existing method from `BaselineChangeLogDao`, but with the type and table name updated. At minimum it needs:
 
@@ -535,7 +535,7 @@ interface BaselineHistoryDao {
 
 Cross-check with the original `BaselineChangeLogDao` for any methods you missed and bring them over with renamed return types.
 
-- [ ] **Step 5: Update all references in the codebase**
+- [x] **Step 5: Update all references in the codebase**
 
 ```bash
 grep -rln "BaselineChangeLog\b" app/src --include="*.kt"
@@ -552,7 +552,7 @@ Don't worry about getting the build green here — that happens in Task 9.
 - Rename / modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/CoefficientChangeLog.kt` → `CoefficientHistory.kt`
 - Rename / modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/CoefficientChangeLogDao.kt` → `CoefficientHistoryDao.kt`
 
-- [ ] **Step 1: Rename the entity**
+- [x] **Step 1: Rename the entity**
 
 Delete `CoefficientChangeLog.kt`. Create `app/src/main/java/io/github/fowles/stochastic_strength/data/model/CoefficientHistory.kt`:
 
@@ -578,7 +578,7 @@ data class CoefficientHistory(
 )
 ```
 
-- [ ] **Step 2: Rename and update the DAO**
+- [x] **Step 2: Rename and update the DAO**
 
 Delete `CoefficientChangeLogDao.kt`. Create `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/CoefficientHistoryDao.kt` by mirroring every method from the original DAO, replacing types and the table name. At minimum:
 
@@ -615,7 +615,7 @@ interface CoefficientHistoryDao {
 
 Cross-check with the original `CoefficientChangeLogDao` and bring over any methods missed.
 
-- [ ] **Step 3: Update all references**
+- [x] **Step 3: Update all references**
 
 ```bash
 grep -rln "CoefficientChangeLog\b" app/src --include="*.kt"
@@ -629,7 +629,7 @@ For each match, replace `CoefficientChangeLog` with `CoefficientHistory` and `Co
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/Exercise.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/UserProfile.kt`
 
-- [ ] **Step 1: Drop hurtFlag from Exercise**
+- [x] **Step 1: Drop hurtFlag from Exercise**
 
 ```kotlin
 // Exercise.kt
@@ -646,7 +646,7 @@ data class Exercise(
 )
 ```
 
-- [ ] **Step 2: Drop derivedStateVersion from UserProfile**
+- [x] **Step 2: Drop derivedStateVersion from UserProfile**
 
 ```kotlin
 // UserProfile.kt
@@ -660,7 +660,7 @@ data class UserProfile(
 )
 ```
 
-- [ ] **Step 3: Adjust readers temporarily**
+- [x] **Step 3: Adjust readers temporarily**
 
 This will break two clusters of callers:
 - Anything reading `exercise.hurtFlag` (ExercisesScreen, ExerciseDetailScreen, ExerciseDetailViewModel) — leave those broken for now; Phase 5 reroutes them to `exercise_hurt_state`.
@@ -675,11 +675,11 @@ For Phase 3 to leave the project in a buildable state at the end of Task 9, you 
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt`
 - Delete + regenerate: `app/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/12.json`
 
-- [ ] **Step 1: Discover the v11 `exercises` column list**
+- [x] **Step 1: Discover the v11 `exercises` column list**
 
 Open `app/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/11.json` and find the `exercises` table's `fields` array. Note column names + Room types + nullability + defaults verbatim. You will need this for the recreate-table SQL in Step 4.
 
-- [ ] **Step 2: Update `AppDatabase` entities list and abstract DAO accessors**
+- [x] **Step 2: Update `AppDatabase` entities list and abstract DAO accessors**
 
 In `AppDatabase.kt`:
 
@@ -720,7 +720,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 Don't forget to add the new imports for the new entity / DAO classes.
 
-- [ ] **Step 3: Delete the existing v12 schema JSON**
+- [x] **Step 3: Delete the existing v12 schema JSON**
 
 ```bash
 rm app/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/12.json
@@ -728,7 +728,7 @@ rm app/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/12.json
 
 Room will regenerate it on the next build.
 
-- [ ] **Step 4: Replace `MIGRATION_11_12`**
+- [x] **Step 4: Replace `MIGRATION_11_12`**
 
 Replace the existing `MIGRATION_11_12` definition in `AppDatabase.kt` with the SQL from the spec's "Migration v11 → v12" section, expanded with the exact `exercises` column list you collected in Step 1. The full SQL is reproduced here for convenience — adapt the `exercises_new` column list and the `INSERT INTO exercises_new` SELECT clause to match the v11 schema exactly:
 
@@ -834,7 +834,7 @@ internal val MIGRATION_11_12 = object : Migration(11, 12) {
 
 **Verify the `exercises_new` column list matches what you noted in Step 1.** If v11 has extra columns (e.g., `seedCoefficient`), add them in both the `CREATE TABLE` and the `INSERT … SELECT`. The list in this snippet is a best-guess; the source of truth is `11.json`.
 
-- [ ] **Step 5: Run a full build**
+- [x] **Step 5: Run a full build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: PASS. Build failures here usually indicate:
@@ -844,7 +844,7 @@ Expected: PASS. Build failures here usually indicate:
 
 ### Task 9: Commit Phase 3
 
-- [ ] **Step 1: Sanity-check what's about to commit**
+- [x] **Step 1: Sanity-check what's about to commit**
 
 ```bash
 jj diff --stat
@@ -852,7 +852,7 @@ jj diff --stat
 
 Expected: changes across data/model (renames + new entities + dropped fields), data/dao (renames + new DAOs), AppDatabase (entities list + abstract methods + migration body), `app/schemas/.../12.json` regenerated.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 jj describe -m "feat(data): rewrite v11→v12 schema for input/derived separation"
@@ -866,7 +866,7 @@ jj new
 
 The existing `migrate11To12_*` tests assert the *old* end state. Replace them with these. (Other migration tests in the file — for 9→10, 10→11, etc. — stay as they are.)
 
-- [ ] **Step 1: Replace the v11→v12 test cluster**
+- [x] **Step 1: Replace the v11→v12 test cluster**
 
 Inside `MigrationTest`, remove every test method whose name begins with `migrate11To12_`. Add these in their place. Adjust column names in seed-data SQL to match the v11 `user_profile` and `exercises` schemas exactly (column list comes from `11.json`).
 
@@ -1004,14 +1004,14 @@ fun migrate11To12_renamesHistoryTables() {
 }
 ```
 
-- [ ] **Step 2: Run the migration tests**
+- [x] **Step 2: Run the migration tests**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.data.MigrationTest"`
 Expected: PASS for all `migrate11To12_*` tests. Other migration tests in the file should still pass too.
 
 If a test fails because the v11 seed SQL doesn't match the v11 schema exactly (column count mismatch, missing required column, etc.), open `app/schemas/.../11.json` for that table and fix the INSERT.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj describe -m "test(data): cover rewritten v11→v12 migration"
@@ -1027,7 +1027,7 @@ jj new
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Add the mutex**
+- [x] **Step 1: Add the mutex**
 
 At the top of `WorkoutRepository`, add:
 
@@ -1048,7 +1048,7 @@ private val replayMutex = Mutex()
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Replace the signature and body**
+- [x] **Step 1: Replace the signature and body**
 
 Change `recomputeCoefficients(asOf: Long? = null)` to take a snapshot and an `asOf`. The new body uses `snapshot.filteredCoefficientInput(asOf)` and writes to the snapshot's `currentCoefficients` in addition to inserting `coefficient_history` rows.
 
@@ -1090,7 +1090,7 @@ Note: the function now writes inside the caller's transaction (no internal `db.w
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Replace signature and body**
+- [x] **Step 1: Replace signature and body**
 
 ```kotlin
 internal suspend fun applyBaselineNormalization(
@@ -1161,7 +1161,7 @@ internal suspend fun applyBaselineNormalization(
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Replace signature and body**
+- [x] **Step 1: Replace signature and body**
 
 The old `applySessionProgression(sessionId: Long, exerciseReductions: Map<...> = emptyMap())` becomes:
 
@@ -1230,7 +1230,7 @@ Note: `weightUnit` here is the field on `WorkoutRepository`; if there isn't one,
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshot.kt` (add `loadStaticFromDb`)
 
-- [ ] **Step 1: Add a static-loader to `ReplaySnapshot`**
+- [x] **Step 1: Add a static-loader to `ReplaySnapshot`**
 
 Append to `ReplaySnapshot.kt`:
 
@@ -1265,7 +1265,7 @@ If your imports don't have `AppDatabase` and `UserCoefficientSource` paths handy
 grep -rn "class AppDatabase\|interface UserCoefficientSource\|class UserCoefficientSource" app/src/main --include="*.kt"
 ```
 
-- [ ] **Step 2: Add `replayDerivedState()` to `WorkoutRepository`**
+- [x] **Step 2: Add `replayDerivedState()` to `WorkoutRepository`**
 
 ```kotlin
 suspend fun replayDerivedState() = replayMutex.withLock {
@@ -1324,12 +1324,12 @@ suspend fun replayDerivedState() = replayMutex.withLock {
 }
 ```
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: PASS. Fix any import or unresolved-reference errors before moving on.
 
-- [ ] **Step 4: Commit Phase 4 so far**
+- [x] **Step 4: Commit Phase 4 so far**
 
 ```bash
 jj describe -m "feat(domain): replayDerivedState wipes and rebuilds via ReplaySnapshot"
@@ -1341,7 +1341,7 @@ jj new
 **Files:**
 - Create: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/ReplayDerivedStateTest.kt`
 
-- [ ] **Step 1: Write the tests**
+- [x] **Step 1: Write the tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -1537,12 +1537,12 @@ class ReplayDerivedStateTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests**
+- [x] **Step 2: Run the tests**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.ReplayDerivedStateTest"`
 Expected: PASS for all three tests. If `replay_reconstructsHistoricalTrajectory` fails, the most likely cause is that `applySessionProgression` is being called with `asOf` after all sessions exist (no per-session filter) — verify Task 14's `snapshot.filteredCoefficientInput(asOf)` is being used.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj describe -m "test(domain): replay determinism, override boundary, trajectory shape"
@@ -1558,7 +1558,7 @@ jj new
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Update the body**
+- [x] **Step 1: Update the body**
 
 ```kotlin
 suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
@@ -1580,12 +1580,12 @@ suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleG
 
 Remove the calls to `muscleGroupStrengthDao().upsert` and `baselineHistoryDao().insert` that used to be in this function — those are now derived and rebuilt by replay.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj describe -m "refactor(domain): applyManualBaselineOverrides writes baseline_override only"
@@ -1597,7 +1597,7 @@ jj new
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt`
 
-- [ ] **Step 1: Update `recordFeedback`**
+- [x] **Step 1: Update `recordFeedback`**
 
 Inside the `scope.launch { ... }` block in `recordFeedback`, after the `database.workoutSetDao().insert(...)` line, add:
 
@@ -1615,12 +1615,12 @@ if (feedback == SetFeedback.HURT) {
 
 Add the necessary import for `ExerciseHurtState`.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj describe -m "feat(ui): record exercise hurt state on HURT feedback"
@@ -1711,7 +1711,7 @@ jj new
 **Files:**
 - Create: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/LiveInputWritesTest.kt`
 
-- [ ] **Step 1: Write the tests**
+- [x] **Step 1: Write the tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -1806,12 +1806,12 @@ class LiveInputWritesTest {
 }
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.LiveInputWritesTest"`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj describe -m "test(domain): cover manual override write and hurt-state non-mutation"
@@ -1827,7 +1827,7 @@ jj new
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/DerivedStateBackfill.kt`
 
-- [ ] **Step 1: Replace the class body**
+- [x] **Step 1: Replace the class body**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -1851,7 +1851,7 @@ class DerivedStateBackfill(
 
 `CURRENT_VERSION` and the `when` arm go away.
 
-- [ ] **Step 2: Update `DerivedStateBackfillTest`**
+- [x] **Step 2: Update `DerivedStateBackfillTest`**
 
 Open `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/DerivedStateBackfillTest.kt`. Remove tests that referenced `derivedStateVersion` or `CURRENT_VERSION`. Replace them with:
 
@@ -1881,12 +1881,12 @@ fun run_isIdempotent() = runBlocking {
 
 Adapt the helpers (`seedProfile`, `BaselineHistory.toComparable()`) to whatever exists in the file or copy from `ReplayDerivedStateTest`.
 
-- [ ] **Step 3: Run the tests**
+- [x] **Step 3: Run the tests**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.DerivedStateBackfillTest"`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj describe -m "refactor(domain): DerivedStateBackfill drops version gating"
@@ -1898,7 +1898,7 @@ jj new
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt`
 
-- [ ] **Step 1: Find the session-end call**
+- [x] **Step 1: Find the session-end call**
 
 At `WorkoutSessionController.kt:311`, the existing call is something like `repository.applySessionProgression(done.sessionId, reductions)`. The reductions still need to flow into the progression step; the simplest approach is a new repository helper that combines "store reductions for this session, then replay."
 
@@ -1936,7 +1936,7 @@ Then in `WorkoutSessionController.kt:311`, change the call:
 repository.finishSession(done.sessionId, reductions)
 ```
 
-- [ ] **Step 2: Build and run integration tests**
+- [x] **Step 2: Build and run integration tests**
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -1944,7 +1944,7 @@ repository.finishSession(done.sessionId, reductions)
 ```
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj describe -m "feat(ui): session end runs full replay via finishSession"
@@ -1960,7 +1960,7 @@ jj new
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Delete unused functions**
+- [x] **Step 1: Delete unused functions**
 
 Confirm there are no callers:
 
@@ -1973,7 +1973,7 @@ If any matches outside the function definitions themselves, address them before 
 - `internal suspend fun buildCoefficientInput(): ...` from `WorkoutRepository`.
 - `internal suspend fun buildNormalizationInput(): ...` from `WorkoutRepository`.
 
-- [ ] **Step 2: Run full test suites**
+- [x] **Step 2: Run full test suites**
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -1981,7 +1981,7 @@ If any matches outside the function definitions themselves, address them before 
 ```
 Expected: PASS for both. Any failures here likely indicate a test that still references the deleted functions — update it.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj describe -m "refactor(domain): remove obsolete input builders and recomputeDerivedState"
@@ -1990,7 +1990,7 @@ jj new
 
 ### Task 24: Final regression sweep
 
-- [ ] **Step 1: Run everything**
+- [x] **Step 1: Run everything**
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -2000,7 +2000,7 @@ jj new
 ```
 Expected: PASS / clean for all four. Triage any failures.
 
-- [ ] **Step 2: Sanity-check the app**
+- [x] **Step 2: Sanity-check the app**
 
 Launch the app on the emulator (`./gradlew :app:installDebug && adb shell am start -n io.github.fowles.stochastic_strength/.MainActivity`) and walk through:
 - Open the app cold — replay should run during `DerivedStateBackfill` without crashing.
@@ -2010,7 +2010,7 @@ Launch the app on the emulator (`./gradlew :app:installDebug && adb shell am sta
 
 Any UI regression noted goes into `CLAUDE_TODO.md` for follow-up, not inline fixes here unless trivial.
 
-- [ ] **Step 3: Final commit if anything was tweaked during sanity check**
+- [x] **Step 3: Final commit if anything was tweaked during sanity check**
 
 ```bash
 jj describe -m "chore: final regression sweep adjustments"

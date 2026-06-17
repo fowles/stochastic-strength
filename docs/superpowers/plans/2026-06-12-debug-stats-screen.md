@@ -1,6 +1,6 @@
 # Debug & Advanced Stats Screen Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add an About screen reachable from Home with a "Debug and Advanced Stats" button leading to a read-only inspection screen for per-muscle baselines and per-exercise coefficients (chart + change-event list per detail screen).
 
@@ -48,7 +48,7 @@
 
 These are tested through repository methods in later tasks. The DAO change is small and shipped together with the repo method that consumes each query.
 
-- [ ] **Step 1: Add the two queries to `CoefficientChangeLogDao.kt`**
+- [x] **Step 1: Add the two queries to `CoefficientChangeLogDao.kt`**
 
 Replace the file contents with:
 
@@ -79,12 +79,12 @@ interface CoefficientChangeLogDao {
 }
 ```
 
-- [ ] **Step 2: Confirm the project still compiles**
+- [x] **Step 2: Confirm the project still compiles**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/dao/CoefficientChangeLogDao.kt
@@ -100,7 +100,7 @@ git commit -m "feat(data): add CoefficientChangeLog DAO queries for debug screen
 
 This is a plain data class returned by repository methods in Tasks 3–4.
 
-- [ ] **Step 1: Create `CoefficientRow.kt`**
+- [x] **Step 1: Create `CoefficientRow.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -120,12 +120,12 @@ data class CoefficientRow(
 )
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/CoefficientRow.kt
@@ -142,7 +142,7 @@ git commit -m "feat(domain): add CoefficientRow DTO for debug screen"
 
 Returns one `CoefficientRow` per exercise (all exercises, including disliked). Sorted alphabetically by name. Exercises with no log row receive seed values and `computedAt = null`, `heuristicName = null`, `previousCoefficient = null`, `heuristicMetadataPreview = null`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/WorkoutRepositoryDebugTest.kt`:
 
@@ -247,12 +247,12 @@ class WorkoutRepositoryDebugTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails to compile**
+- [x] **Step 2: Run the test to verify it fails to compile**
 
 Run: `./gradlew :app:compileDebugAndroidTestKotlin`
 Expected: Compile error — `getAllCoefficientRows` unresolved.
 
-- [ ] **Step 3: Implement `getAllCoefficientRows` in `WorkoutRepository.kt`**
+- [x] **Step 3: Implement `getAllCoefficientRows` in `WorkoutRepository.kt`**
 
 Add the following just before the closing `}` of the class (alongside other read methods near `getMuscleGroupStrengths`):
 
@@ -287,12 +287,12 @@ import io.github.fowles.stochastic_strength.domain.CoefficientRow
 
 (Same package; this import isn't strictly required but adding it explicitly keeps grep-ability.)
 
-- [ ] **Step 4: Run the new tests on a connected device or emulator**
+- [x] **Step 4: Run the new tests on a connected device or emulator**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryDebugTest"`
 Expected: 3 tests passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -310,7 +310,7 @@ git commit -m "feat(domain): WorkoutRepository.getAllCoefficientRows"
 
 Returns the N most-recent rows from the coefficient log, joined to exercise names. Populates `previousCoefficient`, `heuristicMetadataPreview`, and `heuristicName`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `WorkoutRepositoryDebugTest.kt` (inside the class, before the closing `}`):
 
@@ -365,12 +365,12 @@ fun getRecentCoefficientChanges_populates_metadata_preview_with_truncation() = r
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:compileDebugAndroidTestKotlin`
 Expected: Compile error — `getRecentCoefficientChanges` unresolved.
 
-- [ ] **Step 3: Implement `getRecentCoefficientChanges`**
+- [x] **Step 3: Implement `getRecentCoefficientChanges`**
 
 Add to `WorkoutRepository.kt`:
 
@@ -399,12 +399,12 @@ suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryDebugTest"`
 Expected: 5 tests passing (3 from Task 3 + 2 new).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -422,7 +422,7 @@ git commit -m "feat(domain): WorkoutRepository.getRecentCoefficientChanges"
 
 Returns all `BaselineChangeLog` rows for one muscle group, ordered ascending by timestamp.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `WorkoutRepositoryDebugTest.kt`:
 
@@ -455,12 +455,12 @@ fun getBaselineEvents_filters_by_muscle_group_and_orders_ascending() = runBlocki
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:compileDebugAndroidTestKotlin`
 Expected: Compile error — `getBaselineEvents` unresolved.
 
-- [ ] **Step 3: Implement `getBaselineEvents`**
+- [x] **Step 3: Implement `getBaselineEvents`**
 
 Add to `WorkoutRepository.kt`:
 
@@ -471,12 +471,12 @@ suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineChangeLog>
         .sortedBy { it.timestamp }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryDebugTest"`
 Expected: 6 tests passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -494,7 +494,7 @@ git commit -m "feat(domain): WorkoutRepository.getBaselineEvents"
 
 Returns all `CoefficientChangeLog` rows for one exercise via the new DAO query, ordered ascending by `computedAt`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `WorkoutRepositoryDebugTest.kt`:
 
@@ -528,12 +528,12 @@ fun getCoefficientEvents_returns_events_for_exercise_ascending() = runBlocking {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:compileDebugAndroidTestKotlin`
 Expected: Compile error — `getCoefficientEvents` unresolved.
 
-- [ ] **Step 3: Implement `getCoefficientEvents`**
+- [x] **Step 3: Implement `getCoefficientEvents`**
 
 Add to `WorkoutRepository.kt`:
 
@@ -542,12 +542,12 @@ suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientChangeLog> =
     db.coefficientChangeLogDao().getForExercise(exerciseId)
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryDebugTest"`
 Expected: 7 tests passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -565,7 +565,7 @@ git commit -m "feat(domain): WorkoutRepository.getCoefficientEvents"
 
 Exposes the static seed coefficient so the per-exercise detail screen can show "Seed: X" without leaking `CoefficientSource` to the ViewModel.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `WorkoutRepositoryDebugTest.kt`:
 
@@ -584,12 +584,12 @@ fun getSeedCoefficient_returns_default_from_coefficient_source() = runBlocking {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:compileDebugAndroidTestKotlin`
 Expected: Compile error — `getSeedCoefficient` unresolved.
 
-- [ ] **Step 3: Implement `getSeedCoefficient`**
+- [x] **Step 3: Implement `getSeedCoefficient`**
 
 Add to `WorkoutRepository.kt`:
 
@@ -598,12 +598,12 @@ fun getSeedCoefficient(exercise: Exercise): Float? =
     coefficientSource.get(exercise)
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryDebugTest"`
 Expected: 8 tests passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -620,7 +620,7 @@ git commit -m "feat(domain): WorkoutRepository.getSeedCoefficient"
 
 Single-series Vico chart based on the `ExerciseChart` in `ExerciseDetailScreen.kt`. Caller provides points and a Y-axis label formatter. The X-axis interprets timestamps as `ms / 86_400_000L` so the day label formatter matches the existing chart's behaviour.
 
-- [ ] **Step 1: Create the file with the chart composable and `DebugChartPoint` data class**
+- [x] **Step 1: Create the file with the chart composable and `DebugChartPoint` data class**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug.components
@@ -779,12 +779,12 @@ private fun rememberMarker(): DefaultCartesianMarker {
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/components/DebugLineChart.kt
@@ -801,7 +801,7 @@ git commit -m "feat(ui): add DebugLineChart reusable single-series Vico chart"
 
 Replaces the `private` `StrengthGrid`/`StrengthCard` composables in `HistoryScreen.kt` with a generic version in a shared component file.
 
-- [ ] **Step 1: Create the shared `StrengthGrid.kt`**
+- [x] **Step 1: Create the shared `StrengthGrid.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.components
@@ -882,7 +882,7 @@ private fun <T : Any> StrengthCard(
 }
 ```
 
-- [ ] **Step 2: Update `HistoryScreen.kt` to use the shared component**
+- [x] **Step 2: Update `HistoryScreen.kt` to use the shared component**
 
 Open `app/src/main/java/io/github/fowles/stochastic_strength/ui/history/HistoryScreen.kt` and make these changes:
 
@@ -920,7 +920,7 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter
 
 If the compiler then complains about a still-unused import (e.g. `Arrangement`), delete that too.
 
-- [ ] **Step 3: Confirm compile and test**
+- [x] **Step 3: Confirm compile and test**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
@@ -930,7 +930,7 @@ Verify by running the app's existing unit tests in case any touch History:
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/components/StrengthGrid.kt \
@@ -947,7 +947,7 @@ git commit -m "refactor(ui): extract StrengthGrid into shared component with gen
 
 Loads the muscle's current baseline, all baseline events (newest-first for the UI list), and the chart points (oldest-first with a synthetic anchor at `firstEvent.previousBaseline`).
 
-- [ ] **Step 1: Create the ViewModel**
+- [x] **Step 1: Create the ViewModel**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug
@@ -1057,12 +1057,12 @@ class MuscleBaselineDetailViewModel(
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailViewModel.kt
@@ -1078,7 +1078,7 @@ git commit -m "feat(ui): MuscleBaselineDetailViewModel"
 
 Top-bar with muscle name and a Back arrow. Header card with the current baseline. Chart section. Change-events list (newest first).
 
-- [ ] **Step 1: Create the screen**
+- [x] **Step 1: Create the screen**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug
@@ -1284,12 +1284,12 @@ private fun BaselineEventRow(event: BaselineEvent, weightUnit: WeightUnit) {
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailScreen.kt
@@ -1303,7 +1303,7 @@ git commit -m "feat(ui): MuscleBaselineDetailScreen"
 **Files:**
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/ExerciseCoefficientDetailViewModel.kt`
 
-- [ ] **Step 1: Create the ViewModel**
+- [x] **Step 1: Create the ViewModel**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug
@@ -1402,12 +1402,12 @@ class ExerciseCoefficientDetailViewModel(
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/ExerciseCoefficientDetailViewModel.kt
@@ -1423,7 +1423,7 @@ git commit -m "feat(ui): ExerciseCoefficientDetailViewModel"
 
 Header card with current coefficient + (optional) seed. Chart. Event list (newest first). Each event row shows timestamp, heuristic name, prev→new, and a monospace metadata block (omitted if metadata is null).
 
-- [ ] **Step 1: Create the screen**
+- [x] **Step 1: Create the screen**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug
@@ -1627,12 +1627,12 @@ private fun CoefficientEventRow(event: CoefficientEvent) {
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/ExerciseCoefficientDetailScreen.kt
@@ -1648,7 +1648,7 @@ git commit -m "feat(ui): ExerciseCoefficientDetailScreen"
 
 Loads current weight unit, muscle strengths (sorted by ordinal), and the two coefficient lists.
 
-- [ ] **Step 1: Create the ViewModel**
+- [x] **Step 1: Create the ViewModel**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug
@@ -1700,12 +1700,12 @@ class DebugStatsViewModel(application: Application) : AndroidViewModel(applicati
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/DebugStatsViewModel.kt
@@ -1721,7 +1721,7 @@ git commit -m "feat(ui): DebugStatsViewModel"
 
 Top-bar "Debug and Advanced Stats". `StrengthGrid` with `MuscleGroup`-keyed tap targets. "Recently Changed Coefficients" section (omitted if empty). "All Exercises" section.
 
-- [ ] **Step 1: Create the screen**
+- [x] **Step 1: Create the screen**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug
@@ -1887,12 +1887,12 @@ private fun RecentCoefficientRow(row: CoefficientRow, onClick: () -> Unit) {
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/DebugStatsScreen.kt
@@ -1908,7 +1908,7 @@ git commit -m "feat(ui): DebugStatsScreen landing"
 
 Static content: header, "How it works" blurb, GitHub link button, spacer, "Debug and Advanced Stats" button at the bottom.
 
-- [ ] **Step 1: Create the screen**
+- [x] **Step 1: Create the screen**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.about
@@ -2017,12 +2017,12 @@ fun AboutScreen(onDebug: () -> Unit, onBack: () -> Unit) {
 }
 ```
 
-- [ ] **Step 2: Confirm compile**
+- [x] **Step 2: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/about/AboutScreen.kt
@@ -2037,7 +2037,7 @@ git commit -m "feat(ui): AboutScreen"
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/AppNavigation.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/home/HomeScreen.kt`
 
-- [ ] **Step 1: Add `onAbout` parameter and About button to `HomeScreen`**
+- [x] **Step 1: Add `onAbout` parameter and About button to `HomeScreen`**
 
 Edit `HomeScreen.kt`:
 
@@ -2091,7 +2091,7 @@ private fun ReadyContent(
         }
 ```
 
-- [ ] **Step 2: Add the routes in `AppNavigation.kt`**
+- [x] **Step 2: Add the routes in `AppNavigation.kt`**
 
 Add the imports (alphabetically with the rest):
 
@@ -2155,17 +2155,17 @@ Add the four new `composable(...)` blocks anywhere inside the `NavHost { }` bloc
         }
 ```
 
-- [ ] **Step 3: Confirm compile**
+- [x] **Step 3: Confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Confirm the full test suite still passes**
+- [x] **Step 4: Confirm the full test suite still passes**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/AppNavigation.kt \
@@ -2179,12 +2179,12 @@ git commit -m "feat(ui): wire About and Debug routes; add Home About button"
 
 **Files:** none
 
-- [ ] **Step 1: Build and install the debug APK**
+- [x] **Step 1: Build and install the debug APK**
 
 Run: `./gradlew :app:installDebug`
 Expected: APK installed on connected device/emulator.
 
-- [ ] **Step 2: Walk the user flow manually**
+- [x] **Step 2: Walk the user flow manually**
 
 Use the `run` skill (or open the app manually) and verify:
 
@@ -2200,12 +2200,12 @@ Use the `run` skill (or open the app manually) and verify:
 
 If any of these fail, fix the underlying code (don't paper over with workarounds) and re-run the relevant step.
 
-- [ ] **Step 3: Run the full instrumented test suite once**
+- [x] **Step 3: Run the full instrumented test suite once**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: BUILD SUCCESSFUL — all existing + new tests pass.
 
-- [ ] **Step 4: Final commit (if any fixes were needed)**
+- [x] **Step 4: Final commit (if any fixes were needed)**
 
 ```bash
 git add -p

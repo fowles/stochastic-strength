@@ -1,6 +1,6 @@
 # Workout State Cleanup Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Extract `WorkoutSessionController` from `WorkoutViewModel` to isolate the state machine, eliminate loose mutable vars, and move session-scoped state off the Application class.
 
@@ -160,7 +160,7 @@ Both `WorkoutViewModel.loadDoneSummary` and `SummaryViewModel.summary` do the sa
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/summary/SummaryViewModel.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutViewModel.kt`
 
-- [ ] **Step 1: Add `loadWorkoutSummary` to `WorkoutSummaryData.kt`**
+- [x] **Step 1: Add `loadWorkoutSummary` to `WorkoutSummaryData.kt`**
 
 Append to the bottom of the file (after the existing data classes):
 
@@ -198,7 +198,7 @@ suspend fun loadWorkoutSummary(db: AppDatabase, sessionId: Long): WorkoutSummary
 }
 ```
 
-- [ ] **Step 2: Update `SummaryViewModel` to call the shared function**
+- [x] **Step 2: Update `SummaryViewModel` to call the shared function**
 
 Replace the entire `summary` flow body:
 ```kotlin
@@ -287,7 +287,7 @@ Extract the state machine, timers, planner, and session metadata from `WorkoutVi
 **Files:**
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt`
 
-- [ ] **Step 1: Create `WorkoutSessionController.kt` with the full implementation**
+- [x] **Step 1: Create `WorkoutSessionController.kt` with the full implementation**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.workout
@@ -765,7 +765,7 @@ class WorkoutSessionController(
 }
 ```
 
-- [ ] **Step 2: Move `ExerciseRemovalReason` from `WorkoutViewModel.kt` to `WorkoutSessionController.kt`**
+- [x] **Step 2: Move `ExerciseRemovalReason` from `WorkoutViewModel.kt` to `WorkoutSessionController.kt`**
 
 The enum is currently at the top of `WorkoutViewModel.kt`:
 ```kotlin
@@ -806,7 +806,7 @@ Replace `WorkoutViewModel` with a thin delegation layer and update `WorkoutScree
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutViewModel.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutScreen.kt`
 
-- [ ] **Step 1: Rewrite `WorkoutViewModel.kt`**
+- [x] **Step 1: Rewrite `WorkoutViewModel.kt`**
 
 Replace the entire file content with:
 
@@ -994,7 +994,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 }
 ```
 
-- [ ] **Step 2: Update `WorkoutScreen.kt` — remove `workoutCompleted`, add navigationEvent collection, remove `onNavigatedToLocationEdit` call**
+- [x] **Step 2: Update `WorkoutScreen.kt` — remove `workoutCompleted`, add navigationEvent collection, remove `onNavigatedToLocationEdit` call**
 
 **Change 1** — Remove line 102 (the `workoutCompleted` state collection):
 ```kotlin

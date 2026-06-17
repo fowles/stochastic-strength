@@ -1,6 +1,6 @@
 # Rep-Aware Workout Duration Estimate Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the constant-per-set duration heuristic with a rep-aware formula (work scales with `sessionReps`, plate-change overhead modeled explicitly) plus per-exercise learned pacing, so the plan-preview estimate tracks the new rep-range slider correctly.
 
@@ -40,7 +40,7 @@
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/DurationCalculator.kt`
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/DurationCalculatorTest.kt`
 
-- [ ] **Step 1: Write the failing test file**
+- [x] **Step 1: Write the failing test file**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/DurationCalculatorTest.kt`:
 
@@ -172,12 +172,12 @@ class DurationCalculatorTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.DurationCalculatorTest"`
 Expected: FAIL with `Unresolved reference: DurationCalculator`.
 
-- [ ] **Step 3: Implement `DurationCalculator`**
+- [x] **Step 3: Implement `DurationCalculator`**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/DurationCalculator.kt`:
 
@@ -228,12 +228,12 @@ object DurationCalculator {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.DurationCalculatorTest"`
 Expected: PASS — 7 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(domain): add DurationCalculator with rep-aware formula"
@@ -247,7 +247,7 @@ jj commit -m "feat(domain): add DurationCalculator with rep-aware formula"
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/ExercisePacingEstimator.kt`
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/ExercisePacingEstimatorTest.kt`
 
-- [ ] **Step 1: Write the failing test file**
+- [x] **Step 1: Write the failing test file**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/ExercisePacingEstimatorTest.kt`:
 
@@ -505,12 +505,12 @@ class ExercisePacingEstimatorTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ExercisePacingEstimatorTest"`
 Expected: FAIL with `Unresolved reference: ExercisePacingEstimator`.
 
-- [ ] **Step 3: Implement `ExercisePacingEstimator`**
+- [x] **Step 3: Implement `ExercisePacingEstimator`**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/ExercisePacingEstimator.kt`:
 
@@ -592,12 +592,12 @@ class ExercisePacingEstimator(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ExercisePacingEstimatorTest"`
 Expected: PASS — 11 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(domain): add ExercisePacingEstimator (learns secondsPerRep per exercise)"
@@ -616,7 +616,7 @@ This task touches the model (`PlannedExercise`), the planner, and three test fil
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/model/WorkoutPlanTest.kt`
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt`
 
-- [ ] **Step 1: Rewrite `PlannedExercise.kt`**
+- [x] **Step 1: Rewrite `PlannedExercise.kt`**
 
 Replace the entire file `app/src/main/java/io/github/fowles/stochastic_strength/domain/model/PlannedExercise.kt`:
 
@@ -639,7 +639,7 @@ data class PlannedExercise(
 }
 ```
 
-- [ ] **Step 2: Rewrite `PlannedExerciseTest.kt`**
+- [x] **Step 2: Rewrite `PlannedExerciseTest.kt`**
 
 Replace the entire file `app/src/test/java/io/github/fowles/stochastic_strength/domain/model/PlannedExerciseTest.kt`:
 
@@ -675,7 +675,7 @@ class PlannedExerciseTest {
 }
 ```
 
-- [ ] **Step 3: Rewrite `WorkoutPlanTest.kt`**
+- [x] **Step 3: Rewrite `WorkoutPlanTest.kt`**
 
 Replace the entire file `app/src/test/java/io/github/fowles/stochastic_strength/domain/model/WorkoutPlanTest.kt`:
 
@@ -723,7 +723,7 @@ class WorkoutPlanTest {
 }
 ```
 
-- [ ] **Step 4: Replace `durationEstimator` field in the planner**
+- [x] **Step 4: Replace `durationEstimator` field in the planner**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner.kt`, change the constructor parameter:
 
@@ -737,7 +737,7 @@ to:
 private val pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
 ```
 
-- [ ] **Step 5: Rewrite `withWeight`**
+- [x] **Step 5: Rewrite `withWeight`**
 
 Replace the `private fun withWeight(...)` function (currently at the bottom of `WorkoutPlanner.kt`, around lines 121-136) with:
 
@@ -776,7 +776,7 @@ Replace the `private fun withWeight(...)` function (currently at the bottom of `
     }
 ```
 
-- [ ] **Step 6: Rewrite `recomputeExercise`**
+- [x] **Step 6: Rewrite `recomputeExercise`**
 
 Replace the `fun recomputeExercise(...)` function (lines 89-100) with:
 
@@ -804,7 +804,7 @@ Replace the `fun recomputeExercise(...)` function (lines 89-100) with:
     }
 ```
 
-- [ ] **Step 7: Update `WorkoutPlannerTest.kt`**
+- [x] **Step 7: Update `WorkoutPlannerTest.kt`**
 
 In `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt`:
 
@@ -909,14 +909,14 @@ In `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner
     }
 ```
 
-- [ ] **Step 8: Run the unit test suite**
+- [x] **Step 8: Run the unit test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS — all tests including the new ones from Tasks 1, 2, and the rewritten model + planner tests.
 
 If the build fails because `ExerciseDurationEstimator` is still imported somewhere (it shouldn't be, but double-check), fix the import to `ExercisePacingEstimator` and rerun.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 jj commit -m "feat(planner): rep-aware estimatedSeconds via DurationCalculator + ExercisePacingEstimator"
@@ -929,7 +929,7 @@ jj commit -m "feat(planner): rep-aware estimatedSeconds via DurationCalculator +
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`
 
-- [ ] **Step 1: Update `buildPlanner`**
+- [x] **Step 1: Update `buildPlanner`**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`, around line 67 (where `durationEstimator` is built), replace:
 
@@ -956,17 +956,17 @@ with:
             pacingEstimator = pacingEstimator,
 ```
 
-- [ ] **Step 2: Build the project**
+- [x] **Step 2: Build the project**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Run the unit test suite**
+- [x] **Step 3: Run the unit test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "feat(repo): wire ExercisePacingEstimator into WorkoutRepository"
@@ -980,31 +980,31 @@ jj commit -m "feat(repo): wire ExercisePacingEstimator into WorkoutRepository"
 - Delete: `app/src/main/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimator.kt`
 - Delete: `app/src/test/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimatorTest.kt`
 
-- [ ] **Step 1: Verify no references remain**
+- [x] **Step 1: Verify no references remain**
 
 Run: `grep -rn "ExerciseDurationEstimator" app/src --include="*.kt"`
 Expected: no output (no remaining references after Tasks 3 and 4).
 
 If output is non-empty, fix the reference before deleting the files.
 
-- [ ] **Step 2: Delete the files**
+- [x] **Step 2: Delete the files**
 
 ```bash
 rm app/src/main/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimator.kt
 rm app/src/test/java/io/github/fowles/stochastic_strength/domain/ExerciseDurationEstimatorTest.kt
 ```
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS — full suite, no compile errors.
 
-- [ ] **Step 4: Run instrumented tests**
+- [x] **Step 4: Run instrumented tests**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS. (Memory notes the emulator is typically running. If it isn't, surface that and stop — don't try to launch one.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "chore(domain): remove obsolete ExerciseDurationEstimator"
@@ -1014,12 +1014,12 @@ jj commit -m "chore(domain): remove obsolete ExerciseDurationEstimator"
 
 ## Task 6: Final build sweep
 
-- [ ] **Step 1: Assemble + lint**
+- [x] **Step 1: Assemble + lint**
 
 Run: `./gradlew :app:assembleDebug :app:lint`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 2: Confirm the rep-range slider drives the displayed duration**
+- [x] **Step 2: Confirm the rep-range slider drives the displayed duration**
 
 Sanity-check the goal manually (no UI test required):
 
@@ -1029,7 +1029,7 @@ grep -n "estimatedDurationSeconds" app/src/main/java/io/github/fowles/stochastic
 
 Expected output line: `val durationMin = plan.estimatedDurationSeconds / 60`. Confirms the preview already reads through the model's `estimatedDurationSeconds`, which sums the new `estimatedSeconds` fields — no UI wiring change needed.
 
-- [ ] **Step 3: Nothing to commit** unless `lint` introduced a baseline change. If it did:
+- [x] **Step 3: Nothing to commit** unless `lint` introduced a baseline change. If it did:
 
 ```bash
 jj commit -m "chore: lint baseline update"

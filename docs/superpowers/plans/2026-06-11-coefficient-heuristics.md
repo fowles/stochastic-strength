@@ -1,6 +1,6 @@
 # Coefficient Heuristics Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Land the first concrete `CoefficientHeuristic` — `EstCoefConsensusHeuristic` — that derives per-exercise coefficients from session history (set-level signals → H1 per-exercise → H2 muscle-group consensus → damping) and register it on `WorkoutRepository`.
 

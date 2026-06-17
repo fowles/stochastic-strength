@@ -1,6 +1,6 @@
 # In-Memory Derived State Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Move the three derived-state tables (`muscle_group_strength`, `baseline_history`, `coefficient_history`) out of Room and into an in-memory `DerivedStateStore` rebuilt by `replayDerivedState` at app start.
 

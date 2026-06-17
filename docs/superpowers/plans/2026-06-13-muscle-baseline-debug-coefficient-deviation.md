@@ -1,6 +1,6 @@
 # Muscle Baseline Debug — Coefficient Deviation Chart Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the "Current baseline" card on `MuscleBaselineDetailScreen` with a horizontal diverging bar list showing each exercise's current coefficient relative to its seed (`coeff / seed - 1`), so developers can spot baseline gains hidden inside coefficient drift.
 
@@ -39,7 +39,7 @@
 
 We start with the pure helper because it has the most logic (filter + sort + arithmetic) and is the only piece worth unit-testing in this change.
 
-- [ ] **Step 1: Add `CoefficientDeviationRow` and helper signature to `MuscleBaselineDetailViewModel.kt`**
+- [x] **Step 1: Add `CoefficientDeviationRow` and helper signature to `MuscleBaselineDetailViewModel.kt`**
 
 Open `MuscleBaselineDetailViewModel.kt`. After the `BaselineEvent` data class (around line 30) and before `MuscleBaselineDetailState`, add:
 
@@ -74,7 +74,7 @@ internal fun computeCoefficientDeviations(
 
 The `exercises` parameter is `List<Pair<Long, String>>` rather than `List<Exercise>` so tests don't have to construct `Exercise` entities with all their fields. The ViewModel will map down to pairs before calling.
 
-- [ ] **Step 2: Write the failing unit tests**
+- [x] **Step 2: Write the failing unit tests**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/ui/debug/CoefficientDeviationTest.kt`:
 
@@ -174,13 +174,13 @@ class CoefficientDeviationTest {
 }
 ```
 
-- [ ] **Step 3: Run the tests to verify they pass**
+- [x] **Step 3: Run the tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.debug.CoefficientDeviationTest"`
 
 Expected: 5 tests pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "feat(debug): add computeCoefficientDeviations helper for muscle baseline screen"
@@ -193,7 +193,7 @@ jj commit -m "feat(debug): add computeCoefficientDeviations helper for muscle ba
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailViewModel.kt`
 
-- [ ] **Step 1: Add `coefficientDeviations` to `MuscleBaselineDetailState`**
+- [x] **Step 1: Add `coefficientDeviations` to `MuscleBaselineDetailState`**
 
 In `MuscleBaselineDetailViewModel.kt`, update the `MuscleBaselineDetailState` data class:
 
@@ -211,11 +211,11 @@ data class MuscleBaselineDetailState(
 
 Note: `currentBaseline` stays on the state for now — even though the card is removed in Task 3, removing the field is part of Task 3 so the diff is colocated with the UI change that drops the only reader.
 
-- [ ] **Step 2: Add `import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients`**
+- [x] **Step 2: Add `import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients`**
 
 At the top of `MuscleBaselineDetailViewModel.kt`, add the import alongside the existing imports.
 
-- [ ] **Step 3: Compute deviations inside the `init` coroutine**
+- [x] **Step 3: Compute deviations inside the `init` coroutine**
 
 Inside `init { viewModelScope.launch { … } }`, after `val logs = repository.getBaselineEvents(muscleGroup)` and before the `_state.value =` assignment, add:
 
@@ -232,17 +232,17 @@ Inside `init { viewModelScope.launch { … } }`, after `val logs = repository.ge
             )
 ```
 
-- [ ] **Step 4: Pass `coefficientDeviations` into the new state**
+- [x] **Step 4: Pass `coefficientDeviations` into the new state**
 
 Update the `_state.value = MuscleBaselineDetailState(...)` call to include `coefficientDeviations = coefficientDeviations,`.
 
-- [ ] **Step 5: Build to verify**
+- [x] **Step 5: Build to verify**
 
 Run: `./gradlew :app:assembleDebug`
 
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat(debug): compute per-exercise coefficient deviations in MuscleBaselineDetailViewModel"
@@ -256,13 +256,13 @@ jj commit -m "feat(debug): compute per-exercise coefficient deviations in Muscle
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailScreen.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailViewModel.kt`
 
-- [ ] **Step 1: Delete the current-baseline card from the screen**
+- [x] **Step 1: Delete the current-baseline card from the screen**
 
 In `MuscleBaselineDetailScreen.kt`, delete the `item { Card(...) { ... } }` block (currently lines 69-88), starting from the line containing `item {` immediately after `LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {` through and including the matching closing `}` of that item.
 
 After this edit, the `LazyColumn` should start directly with `item { SectionHeader("Baseline over time") }`.
 
-- [ ] **Step 2: Drop unused imports**
+- [x] **Step 2: Drop unused imports**
 
 In `MuscleBaselineDetailScreen.kt`, the removal of the card may leave imports unused. Delete these imports if they no longer have references:
 
@@ -273,7 +273,7 @@ Keep `Row`, `padding`, `Column`, `MaterialTheme`, `Text` — they remain in use 
 
 Run `./gradlew :app:assembleDebug` after the deletion to surface any stale imports the compiler complains about, then fix them.
 
-- [ ] **Step 3: Drop `currentBaseline` from the state and ViewModel**
+- [x] **Step 3: Drop `currentBaseline` from the state and ViewModel**
 
 In `MuscleBaselineDetailViewModel.kt`:
 
@@ -281,7 +281,7 @@ In `MuscleBaselineDetailViewModel.kt`:
 - Remove the local `val currentBaseline = repository.getMuscleGroupStrengths()...` lookup inside `init`.
 - Remove `currentBaseline = currentBaseline,` from the `_state.value = MuscleBaselineDetailState(...)` call.
 
-- [ ] **Step 4: Tighten the SectionHeader spacing**
+- [x] **Step 4: Tighten the SectionHeader spacing**
 
 In `MuscleBaselineDetailScreen.kt`, change `SectionHeader`'s padding from:
 
@@ -295,7 +295,7 @@ to:
             .padding(horizontal = 16.dp, vertical = 4.dp),
 ```
 
-- [ ] **Step 5: Tighten the line chart wrapper padding**
+- [x] **Step 5: Tighten the line chart wrapper padding**
 
 In the same file, change the `DebugLineChart` `modifier` from:
 
@@ -315,13 +315,13 @@ to:
                             .padding(horizontal = 16.dp, vertical = 0.dp),
 ```
 
-- [ ] **Step 6: Build to verify**
+- [x] **Step 6: Build to verify**
 
 Run: `./gradlew :app:assembleDebug`
 
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat(debug): drop current-baseline card and tighten section spacing"
@@ -334,7 +334,7 @@ jj commit -m "feat(debug): drop current-baseline card and tighten section spacin
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailScreen.kt`
 
-- [ ] **Step 1: Add the new section to the `LazyColumn`**
+- [x] **Step 1: Add the new section to the `LazyColumn`**
 
 In `MuscleBaselineDetailScreen.kt`, between `item { SectionHeader("Baseline over time") }`'s block (which renders the line chart or the placeholder) and `item { SectionHeader("Change events") }`, insert:
 
@@ -350,7 +350,7 @@ In `MuscleBaselineDetailScreen.kt`, between `item { SectionHeader("Baseline over
             }
 ```
 
-- [ ] **Step 2: Add required imports**
+- [x] **Step 2: Add required imports**
 
 Add these imports near the top of `MuscleBaselineDetailScreen.kt` if not already present:
 
@@ -368,7 +368,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 Compile errors after this step will tell you which are already imported — remove duplicates.
 
-- [ ] **Step 3: Add `CoefficientDeviationList` composable**
+- [x] **Step 3: Add `CoefficientDeviationList` composable**
 
 Add this private composable near `SectionHeader`/`EmptyHistoryPlaceholder` at the bottom of `MuscleBaselineDetailScreen.kt`:
 
@@ -387,7 +387,7 @@ private fun CoefficientDeviationList(rows: List<CoefficientDeviationRow>) {
 }
 ```
 
-- [ ] **Step 4: Add `DeviationRow` composable**
+- [x] **Step 4: Add `DeviationRow` composable**
 
 Below `CoefficientDeviationList`, add:
 
@@ -471,7 +471,7 @@ private fun formatDeviation(deviation: Float): String {
 
 The bar area is a Row of two equal-weight halves: the left half hosts negative bars anchored to its right edge (which is the visual center), and the right half hosts positive bars anchored to its left edge. `fillMaxWidth(fraction)` on the colored Box scales relative to its half, so the bar width equals `fraction × (parent / 2)` — exactly the geometry we want. The 1.dp center guideline overlays the Row via `align(Alignment.Center)` so it sits flush against whichever bar is showing.
 
-- [ ] **Step 5: Add the empty-state placeholder**
+- [x] **Step 5: Add the empty-state placeholder**
 
 Below `EmptyHistoryPlaceholder`, add:
 
@@ -489,13 +489,13 @@ private fun EmptyDeviationsPlaceholder() {
 }
 ```
 
-- [ ] **Step 6: Build to verify**
+- [x] **Step 6: Build to verify**
 
 Run: `./gradlew :app:assembleDebug`
 
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat(debug): add coefficient-vs-seed diverging bar list to muscle baseline screen"
@@ -507,19 +507,19 @@ jj commit -m "feat(debug): add coefficient-vs-seed diverging bar list to muscle 
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Run unit tests**
+- [x] **Step 1: Run unit tests**
 
 Run: `./gradlew :app:testDebugUnitTest`
 
 Expected: all tests pass, including the 5 new ones in `CoefficientDeviationTest`.
 
-- [ ] **Step 2: Run lint**
+- [x] **Step 2: Run lint**
 
 Run: `./gradlew :app:lint`
 
 Expected: no new lint errors introduced by this change.
 
-- [ ] **Step 3: Verify on emulator**
+- [x] **Step 3: Verify on emulator**
 
 Per the instrumented-tests memory, the emulator is typically running. Install and launch:
 
@@ -538,7 +538,7 @@ Visually confirm:
 
 If a muscle group has no weighted exercises (very unlikely), confirm the "No weighted exercises" placeholder renders.
 
-- [ ] **Step 4: No commit needed — verification only.**
+- [x] **Step 4: No commit needed — verification only.**
 
 ---
 
