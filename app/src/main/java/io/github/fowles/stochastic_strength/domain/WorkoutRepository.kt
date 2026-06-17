@@ -64,7 +64,6 @@ class WorkoutRepository(
             db.workoutSetDao().getSetsForSessions(recentSessions.map { it.id })
                 .groupBy { it.sessionId }
         else emptyMap()
-        val durationEstimator = ExerciseDurationEstimator.build(recentSessions, recentSets)
         val effectiveCoefficients = effectiveCoefficientSource()
         return WorkoutPlanner(
             availableExercises = available,
