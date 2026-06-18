@@ -342,6 +342,7 @@ package io.github.fowles.stochastic_strength.domain
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import kotlin.math.abs
@@ -484,8 +485,24 @@ class CoefficientConvergenceSimulationTest {
 
     private fun daysMs(days: Int): Long = days.toLong() * 24L * 60L * 60L * 1000L
 
-    @Test
-    fun simulate_damperSweep_printsTable() {
+    data class SweepRow(
+        val scenario: String,
+        val alpha: Float,
+        val tauD: Int,
+        val minRel: Float,
+        val minPeers: Int,
+        val atten: Float?,
+        val result: SimResult,
+    )
+
+    private fun SimResult.metricsFinite(): Boolean =
+        !avgJitterPct.isNaN() && !avgJitterPct.isInfinite() &&
+            !maxStepPct.isNaN() && !maxStepPct.isInfinite() &&
+            !avgEndErrorPct.isNaN() && !avgEndErrorPct.isInfinite()
+
+    /** Damper sweep over alpha x tau x minRelChange (full peers). Writes the report and returns rows. */
+    fun damperSweep(): List<SweepRow> {
+        val rows = mutableListOf<SweepRow>()
         val sb = StringBuilder()
         sb.appendLine("# Coefficient damper sweep (full peers, seed err incl. 2x and 33% low)\n")
         sb.appendLine("| alpha | tau_d | minRelChg | worstConvSess | avgJitter% | maxStep% | endErr% |")
@@ -503,6 +520,7 @@ class CoefficientConvergenceSimulationTest {
                         trainPerSession = null, sessionIntervalMs = daysMs(3),
                         repNoiseStd = 1.0, seed = 42L,
                     )
+                    rows.add(SweepRow("damper", alpha, tauD, minRel, 3, null, r))
                     sb.appendLine("| $alpha | $tauD | $minRel | ${r.worstConvSessions} | " +
                         "%.2f | %.2f | %.2f |".format(r.avgJitterPct, r.maxStepPct, r.avgEndErrorPct))
                 }
@@ -510,10 +528,12 @@ class CoefficientConvergenceSimulationTest {
         }
         writeReport(sb.toString(), append = false)
         println(sb.toString())
+        return rows
     }
 
-    @Test
-    fun simulate_thinPeerSweep_printsTable() {
+    /** Thin-peer robustness sweep over minPeers x attenuation (train 2/5). Writes report, returns rows. */
+    fun thinPeerSweep(): List<SweepRow> {
+        val rows = mutableListOf<SweepRow>()
         val sb = StringBuilder()
         sb.appendLine("\n# Thin-peer robustness sweep (train 2/5 per session)\n")
         sb.appendLine("| minPeers | attenFullW | worstConvSess | avgJitter% | maxStep% | endErr% |")
@@ -531,12 +551,36 @@ class CoefficientConvergenceSimulationTest {
                     trainPerSession = 2, sessionIntervalMs = daysMs(3),
                     repNoiseStd = 1.0, seed = 7L,
                 )
+                rows.add(SweepRow("thin", 0.3f, 21, 0.003f, minPeers, atten, r))
                 sb.appendLine("| $minPeers | ${atten ?: "off"} | ${r.worstConvSessions} | " +
                     "%.2f | %.2f | %.2f |".format(r.avgJitterPct, r.maxStepPct, r.avgEndErrorPct))
             }
         }
         writeReport(sb.toString(), append = true)
         println(sb.toString())
+        return rows
+    }
+
+    @Test
+    fun damperSweep_producesFiniteMetrics() {
+        val rows = damperSweep()
+        assertTrue("damper sweep produced no rows", rows.isNotEmpty())
+        rows.forEach {
+            assertTrue("non-finite metric in $it", it.result.metricsFinite())
+            assertTrue("conv beyond horizon in $it", it.result.worstConvSessions in 0..100)
+        }
+        // Task 5 adds the locked chosen-row bound assertions here.
+    }
+
+    @Test
+    fun thinPeerSweep_producesFiniteMetrics() {
+        val rows = thinPeerSweep()
+        assertTrue("thin-peer sweep produced no rows", rows.isNotEmpty())
+        rows.forEach {
+            assertTrue("non-finite metric in $it", it.result.metricsFinite())
+            assertTrue("conv beyond horizon in $it", it.result.worstConvSessions in 0..200)
+        }
+        // Task 5 adds the locked chosen-row bound assertions here.
     }
 
     private fun writeReport(text: String, append: Boolean) {
@@ -553,7 +597,7 @@ Note: `Random.nextGaussian()` is available on `kotlin.random.Random` (JVM). If t
 - [ ] **Step 2: Run the harness**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CoefficientConvergenceSimulationTest"`
-Expected: PASS (no assertions), and the file `app/build/reports/coefficient-sweep.md` is written with two markdown tables.
+Expected: PASS — the two `*_producesFiniteMetrics` tests assert the sweeps return non-empty rows with finite metrics, and the file `app/build/reports/coefficient-sweep.md` is written with two markdown tables.
 
 - [ ] **Step 3: Inspect the output**
 
@@ -581,7 +625,7 @@ Read the sweep tables, choose parameters per an explicit rule, confirm with the 
 
 **Interfaces:**
 - Consumes: the sweep output from Task 4.
-- Produces: production heuristic constructed with tuned values; two assertion `@Test`s.
+- Produces: production heuristic constructed with tuned values; locked bound assertions added to the two sweep `@Test` wrappers (`damperSweep_producesFiniteMetrics`, `thinPeerSweep_producesFiniteMetrics`).
 
 - [ ] **Step 1: Choose values from the damper sweep (selection rule)**
 
@@ -613,38 +657,51 @@ with the confirmed values (example shown with placeholders — substitute the co
             ),
 ```
 
-- [ ] **Step 4: Write the locked-value assertion tests**
+- [ ] **Step 4: Lock the chosen values with bound assertions in the sweep tests**
 
-Add to `CoefficientConvergenceSimulationTest.kt`, substituting the confirmed values and the metric bounds observed for the chosen row (use the observed numbers with a small slack as shown):
+Add the locked-value assertions to the two existing `@Test` wrappers in
+`CoefficientConvergenceSimulationTest.kt` — asserting on the chosen row of each
+sweep's returned `List<SweepRow>`. First, if the confirmed damper values differ
+from `(0.3f, 21, 0.003f)`, update the fixed `alpha`/`tauHalfMs`/`minRelativeChange`
+in `thinPeerSweep()` to the confirmed `(ALPHA, TAU_DAYS, MIN_REL)` so the thin-peer
+lock reflects the final config (also update the `SweepRow("thin", ...)` constructor
+args to match).
+
+In `damperSweep_producesFiniteMetrics`, replace the trailing comment with (substitute
+the confirmed `ALPHA`/`TAU_DAYS`/`MIN_REL` and the observed chosen-row bounds):
 
 ```kotlin
-    @Test
-    fun convergence_atChosenValues_meetsBudget() {
-        val h = EstCoefConsensusHeuristic(
-            alpha = ALPHA, tauHalfMs = daysMs(TAU_DAYS),
-            minRelativeChange = MIN_REL, minPeers = MIN_PEERS,
-            peerSupportFullWeight = ATTEN, // null if off
-        )
-        val r = simulate(
-            heuristic = h, trueCoefs = trueCoefs, seedCoefs = seedCoefs,
-            convergenceSessions = 60, jitterTailSessions = 40,
-            trainPerSession = null, sessionIntervalMs = daysMs(3),
-            repNoiseStd = 1.0, seed = 42L,
-        )
-        // Bounds = chosen row's observed metrics + slack. Replace the literals with
-        // the observed values rounded up.
-        assertTrue("convergence ${r.worstConvSessions} > budget", r.worstConvSessions <= CONV_BUDGET)
-        assertTrue("jitter ${r.avgJitterPct} > ceiling", r.avgJitterPct <= JITTER_CEIL)
-        assertTrue("step ${r.maxStepPct} exceeds cap", r.maxStepPct <= 5.0f + 0.01f)
-    }
+        val chosen = rows.single { it.alpha == ALPHA && it.tauD == TAU_DAYS && it.minRel == MIN_REL }
+        assertTrue("convergence ${chosen.result.worstConvSessions} > budget",
+            chosen.result.worstConvSessions <= CONV_BUDGET)
+        assertTrue("jitter ${chosen.result.avgJitterPct} > ceiling",
+            chosen.result.avgJitterPct <= JITTER_CEIL)
+        assertTrue("step ${chosen.result.maxStepPct} exceeds cap",
+            chosen.result.maxStepPct <= 5.0f + 0.01f)
 ```
 
-Add `import org.junit.Assert.assertTrue` if not already present. `CONV_BUDGET` and `JITTER_CEIL` are literals you set from the observed chosen-row metrics (e.g. observed `worstConvSess` rounded up to the next 5, observed `avgJitter%` rounded up to one decimal). `maxStep%` is bounded by the `ln(1.05)` cap → `≤ 5.0%`.
+In `thinPeerSweep_producesFiniteMetrics`, replace the trailing comment with
+(substitute the confirmed `MIN_PEERS`/`ATTEN` and the observed chosen-row bounds):
 
-- [ ] **Step 5: Run the targeted assertion test**
+```kotlin
+        val chosen = rows.single { it.minPeers == MIN_PEERS && it.atten == ATTEN }
+        assertTrue("thin jitter ${chosen.result.avgJitterPct} > ceiling",
+            chosen.result.avgJitterPct <= THIN_JITTER_CEIL)
+        assertTrue("thin step ${chosen.result.maxStepPct} exceeds cap",
+            chosen.result.maxStepPct <= 5.0f + 0.01f)
+```
 
-Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CoefficientConvergenceSimulationTest.convergence_atChosenValues_meetsBudget"`
-Expected: PASS. If it fails, the bounds were set too tight — set them to the actually-observed values (the test documents what the chosen parameters deliver; it is not a target to beat).
+`CONV_BUDGET`, `JITTER_CEIL`, and `THIN_JITTER_CEIL` are literals set from the observed
+chosen-row metrics (e.g. observed `worstConvSess` rounded up to the next 5, observed
+`avgJitter%` rounded up to one decimal). `maxStep%` is bounded by the `ln(1.05)` cap
+→ `≤ 5.0%`. Note `ATTEN` may be `null` (`it.atten == null` matches the off row).
+
+- [ ] **Step 5: Run the sweep/lock tests**
+
+Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CoefficientConvergenceSimulationTest"`
+Expected: PASS. If a bound assertion fails, the bound was set too tight — set it to the
+actually-observed value (these document what the chosen parameters deliver; they are
+not targets to beat).
 
 - [ ] **Step 6: Update the adaptation doc**
 
