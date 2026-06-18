@@ -1,6 +1,6 @@
 # Coefficient Estimator Robustness & Tuning Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make the peer-consensus coefficient reference degrade gracefully at small peer counts, add optional peer-support confidence attenuation, and re-tune the damper parameters using a simulation harness that measures convergence and stability.
 
@@ -30,7 +30,7 @@ Add a continuous (interpolated) weighted median alongside the existing data-poin
 **Interfaces:**
 - Produces: `internal fun interpolatedWeightedMedian(valueWeights: List<Pair<Float, Float>>): Float` — `valueWeights` is a list of `(value, weight)`; returns the value at the 50%-of-total-weight crossing, linearly interpolated between the two adjacent values whose weight-mass midpoints straddle the crossing. n=1 → that value; all-equal values → that value; total weight ≤ 0 → the middle element's value.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `EstCoefConsensusHeuristicTest.kt` (after the existing `weightedMedian`-related tests; if none, anywhere in the class):
 
@@ -68,12 +68,12 @@ Add to `EstCoefConsensusHeuristicTest.kt` (after the existing `weightedMedian`-r
     }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: FAIL — compilation error, `interpolatedWeightedMedian` is unresolved.
 
-- [ ] **Step 3: Implement the function**
+- [x] **Step 3: Implement the function**
 
 Add this `internal` function inside `EstCoefConsensusHeuristic`, immediately below the existing private `weightedMedian` (around `:202-212`):
 
@@ -105,12 +105,12 @@ Add this `internal` function inside `EstCoefConsensusHeuristic`, immediately bel
     }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: PASS (all existing tests plus the 5 new ones).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -134,7 +134,7 @@ Switch only the peer-consensus reference (`B_others`) to the interpolated median
 - Consumes: `interpolatedWeightedMedian` from Task 1.
 - Produces: no signature change to `applyPeerConsensus` or `compute`.
 
-- [ ] **Step 1: Write the failing integration test**
+- [x] **Step 1: Write the failing integration test**
 
 Add to `EstCoefConsensusHeuristicTest.kt`. This builds one muscle with a target exercise plus two unequal-weight peers and asserts the reference is a blend (so the proposal is not equal to either single-peer selection). Use `minPeers = 2` explicitly so the scenario is exercised regardless of the production default.
 
@@ -185,12 +185,12 @@ Add to `EstCoefConsensusHeuristicTest.kt`. This builds one muscle with a target 
 
 Add the import if missing: `import org.junit.Assert.assertNotNull` and `import io.github.fowles.stochastic_strength.data.model.MuscleGroup`.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest.peerReference_twoPeers_usesInterpolatedBlendNotSelection"`
 Expected: FAIL — the current code calls the data-point `weightedMedian`, so the reference (and thus the coefficient) differs from the interpolated `expected`.
 
-- [ ] **Step 3: Switch the peer reference to the interpolated median**
+- [x] **Step 3: Switch the peer reference to the interpolated median**
 
 In `applyPeerConsensus`, change the reference line (currently `:184`):
 
@@ -206,12 +206,12 @@ to:
 
 Leave the inner `computeEstimate` call to `weightedMedian` (`:148`) unchanged.
 
-- [ ] **Step 4: Run the new test, then the full suite**
+- [x] **Step 4: Run the new test, then the full suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: PASS. The existing systemic-drift and equilibrium regression tests stay green because the interpolated median is scale-equivariant and their peer sets are symmetric (a symmetric peer set yields the same center under both estimators). If any existing test asserts an exact center value over an *asymmetric* peer set and now fails, recompute its expected value using `interpolatedWeightedMedian` over the same `(value, weight)` pairs and update the expectation (do not change the production code).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -234,7 +234,7 @@ Add an optional knob that scales a proposal's confidence down when the total pee
 **Interfaces:**
 - Produces: new constructor param `peerSupportFullWeight: Float? = null`. When non-null and `> 0`, a proposal's confidence is multiplied by `min(1, totalOtherWeight / peerSupportFullWeight)`, where `totalOtherWeight` is the summed evidence weight of the peers forming the reference. When null, no attenuation.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
     @Test
@@ -268,12 +268,12 @@ Add an optional knob that scales a proposal's confidence down when the total pee
     }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest.peerSupportAttenuation_thinPeers_dampensMoveRelativeToNoAttenuation"`
 Expected: FAIL — `peerSupportFullWeight` is not a constructor parameter (compilation error).
 
-- [ ] **Step 3: Add the parameter and apply attenuation**
+- [x] **Step 3: Add the parameter and apply attenuation**
 
 Add the parameter to the constructor (after `minRelativeChange`, `:14`):
 
@@ -304,12 +304,12 @@ with:
                 )
 ```
 
-- [ ] **Step 4: Run the new test, then the full suite**
+- [x] **Step 4: Run the new test, then the full suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: PASS (default `peerSupportFullWeight = null` leaves all existing tests unchanged).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt \
@@ -332,7 +332,7 @@ Build a deterministic JVM test that drives the heuristic over many synthetic ses
 - Consumes: `EstCoefConsensusHeuristic` (with all params from Tasks 1–3), `DefaultProgressionEngine`, `WorkoutSet`, `CoefficientComputationInput`, `SetFeedback`, `MuscleGroup`.
 - Produces: a `SimResult` data class and a `simulate(...)` helper, plus two `@Test` methods that write `build/reports/coefficient-sweep.md`.
 
-- [ ] **Step 1: Create the harness file**
+- [x] **Step 1: Create the harness file**
 
 Create `CoefficientConvergenceSimulationTest.kt` with the full content below:
 
@@ -594,16 +594,16 @@ class CoefficientConvergenceSimulationTest {
 
 Note: `Random.nextGaussian()` is available on `kotlin.random.Random` (JVM). If the toolchain's Kotlin version lacks it, replace `rng.nextGaussian()` with `java.util.Random(seed).nextGaussian()` driven by a `java.util.Random` instance created alongside `rng`.
 
-- [ ] **Step 2: Run the harness**
+- [x] **Step 2: Run the harness**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CoefficientConvergenceSimulationTest"`
 Expected: PASS — the two `*_producesFiniteMetrics` tests assert the sweeps return non-empty rows with finite metrics, and the file `app/build/reports/coefficient-sweep.md` is written with two markdown tables.
 
-- [ ] **Step 3: Inspect the output**
+- [x] **Step 3: Inspect the output**
 
 Open `app/build/reports/coefficient-sweep.md` and confirm both tables are populated with finite numbers (no `NaN`/`Infinity`). If any row shows `NaN`, the feedback model produced a degenerate weight — check that `seedCoefs` values are all `> 0` and `baseline > 1.74` (so `denom > 0`).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/CoefficientConvergenceSimulationTest.kt
@@ -627,17 +627,17 @@ Read the sweep tables, choose parameters per an explicit rule, confirm with the 
 - Consumes: the sweep output from Task 4.
 - Produces: production heuristic constructed with tuned values; locked bound assertions added to the two sweep `@Test` wrappers (`damperSweep_producesFiniteMetrics`, `thinPeerSweep_producesFiniteMetrics`).
 
-- [ ] **Step 1: Choose values from the damper sweep (selection rule)**
+- [x] **Step 1: Choose values from the damper sweep (selection rule)**
 
 From the damper-sweep table, select the row that **minimizes `worstConvSess`** subject to **`avgJitter% ≤ 3.0` and `maxStep% ≤ 5.0`**. Break ties by preferring the **smaller `alpha`**, then the **smaller `tau_d`**. Record the chosen `(alpha, tau_d, minRelChange)`.
 
 From the thin-peer-sweep table, choose `minPeers` and `peerSupportFullWeight`: pick the `(minPeers, attenFullW)` row with the **lowest `avgJitter%`** while keeping `worstConvSess` no worse than 1.3× the best row's. If `off` is within 0.5 percentage points of the best attenuated row on jitter, prefer `off` (smaller surface). Record the chosen `minPeers` and attenuation (`null` if `off`).
 
-- [ ] **Step 2: CHECKPOINT — confirm chosen values with the user**
+- [x] **Step 2: CHECKPOINT — confirm chosen values with the user**
 
 Present the two chosen rows (with their metric numbers) and the resulting parameter set to the user. Wait for confirmation or an override before continuing. Record the final values as `ALPHA`, `TAU_DAYS`, `MIN_REL`, `MIN_PEERS`, `ATTEN` for use below.
 
-- [ ] **Step 3: Apply tuned values at the production construction site**
+- [x] **Step 3: Apply tuned values at the production construction site**
 
 In `StochasticStrengthApp.kt:39`, replace:
 
@@ -657,7 +657,7 @@ with the confirmed values (example shown with placeholders — substitute the co
             ),
 ```
 
-- [ ] **Step 4: Lock the chosen values with bound assertions in the sweep tests**
+- [x] **Step 4: Lock the chosen values with bound assertions in the sweep tests**
 
 Add the locked-value assertions to the two existing `@Test` wrappers in
 `CoefficientConvergenceSimulationTest.kt` — asserting on the chosen row of each
@@ -696,25 +696,25 @@ chosen-row metrics (e.g. observed `worstConvSess` rounded up to the next 5, obse
 `avgJitter%` rounded up to one decimal). `maxStep%` is bounded by the chosen
 `maxLogStep` cap (`ln(1.10)` → `≤ 10.0%`). Note `ATTEN` may be `null` (`it.atten == null` matches the off row).
 
-- [ ] **Step 5: Run the sweep/lock tests**
+- [x] **Step 5: Run the sweep/lock tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CoefficientConvergenceSimulationTest"`
 Expected: PASS. If a bound assertion fails, the bound was set too tight — set it to the
 actually-observed value (these document what the chosen parameters deliver; they are
 not targets to beat).
 
-- [ ] **Step 6: Update the adaptation doc**
+- [x] **Step 6: Update the adaptation doc**
 
 In `docs/adaptation/03-coefficient-estimation.md`, update the Layer 4 and Layer 5 descriptions:
 - Layer 4: the peer-consensus reference is now an **interpolated** weighted median (blends the straddling peers at the half-weight crossing, so it degrades gracefully when only two or three peers are present rather than hard-selecting one). Note the `minPeers` floor of `MIN_PEERS` and, if attenuation is on, that proposal confidence is scaled down when total peer evidence weight is thin.
 - Layer 5: state the tuned `alpha`, recency half-life (`TAU_DAYS` days), and `minRelativeChange`, and the per-session safety cap `maxLogStep = ln(1.10)` (~10%).
 
-- [ ] **Step 7: Run the full domain suite**
+- [x] **Step 7: Run the full domain suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.*"`
 Expected: PASS (all existing tests + new median/attenuation tests + harness sweeps + locked-value assertion).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt \
