@@ -155,6 +155,7 @@ class CoefficientConvergenceSimulationTest {
         val minPeers: Int,
         val atten: Float?,
         val result: SimResult,
+        val capPct: Int? = null,
     )
 
     private fun SimResult.metricsFinite(): Boolean =
@@ -203,8 +204,9 @@ class CoefficientConvergenceSimulationTest {
         for (minPeers in listOf(2, 3)) {
             for (atten in listOf<Float?>(null, 2.0f)) {
                 val h = EstCoefConsensusHeuristic(
-                    alpha = 0.3f, tauHalfMs = daysMs(21),
-                    minRelativeChange = 0.003f, minPeers = minPeers,
+                    alpha = 0.6f, tauHalfMs = daysMs(21),
+                    minRelativeChange = 0.002f, minPeers = minPeers,
+                    maxLogStep = kotlin.math.ln(1.10f),
                     peerSupportFullWeight = atten,
                 )
                 val r = simulate(
@@ -213,7 +215,7 @@ class CoefficientConvergenceSimulationTest {
                     trainPerSession = 2, sessionIntervalMs = daysMs(3),
                     repNoiseStd = 1.0, seed = 7L,
                 )
-                rows.add(SweepRow("thin", 0.3f, 21, 0.003f, minPeers, atten, r))
+                rows.add(SweepRow("thin", 0.6f, 21, 0.002f, minPeers, atten, r, 10))
                 sb.appendLine("| $minPeers | ${atten ?: "off"} | ${r.worstConvSessions} | " +
                     "%.2f | %.2f | %.2f |".format(r.avgJitterPct, r.maxStepPct, r.avgEndErrorPct))
             }
@@ -231,7 +233,7 @@ class CoefficientConvergenceSimulationTest {
             assertTrue("non-finite metric in $it", it.result.metricsFinite())
             assertTrue("conv beyond horizon in $it", it.result.worstConvSessions in 0..100)
         }
-        // Task 5 adds the locked chosen-row bound assertions here.
+        // No lock here: the chosen production config (alpha=0.6, 10% cap) lives in capExploration; this sweep stays exploration-only.
     }
 
     @Test
@@ -242,7 +244,9 @@ class CoefficientConvergenceSimulationTest {
             assertTrue("non-finite metric in $it", it.result.metricsFinite())
             assertTrue("conv beyond horizon in $it", it.result.worstConvSessions in 0..200)
         }
-        // Task 5 adds the locked chosen-row bound assertions here.
+        val chosenThin = rows.single { it.minPeers == 3 && it.atten == null }
+        assertTrue("thin jitter ${chosenThin.result.avgJitterPct} > ceiling", chosenThin.result.avgJitterPct <= 1.5f)
+        assertTrue("thin step ${chosenThin.result.maxStepPct} exceeds cap", chosenThin.result.maxStepPct <= 10.0f + 0.5f)
     }
 
     /** Cap exploration: alpha x maxLogStep (full peers; tau=21d, minRel=0.002, minPeers=3). */
@@ -266,7 +270,7 @@ class CoefficientConvergenceSimulationTest {
                     trainPerSession = null, sessionIntervalMs = daysMs(3),
                     repNoiseStd = 1.0, seed = 42L,
                 )
-                rows.add(SweepRow("cap", alpha, 21, 0.002f, 3, null, r))
+                rows.add(SweepRow("cap", alpha, 21, 0.002f, 3, null, r, capPct))
                 sb.appendLine("| $alpha | $capPct% | ${r.worstConvSessions} | " +
                     "%.2f | %.2f | %.2f |".format(r.avgJitterPct, r.maxStepPct, r.avgEndErrorPct))
             }
@@ -284,6 +288,10 @@ class CoefficientConvergenceSimulationTest {
             assertTrue("non-finite metric in $it", it.result.metricsFinite())
             assertTrue("conv beyond horizon in $it", it.result.worstConvSessions in 0..100)
         }
+        val chosen = rows.single { it.alpha == 0.6f && it.capPct == 10 }
+        assertTrue("conv ${chosen.result.worstConvSessions} > budget", chosen.result.worstConvSessions <= 20)
+        assertTrue("jitter ${chosen.result.avgJitterPct} > ceiling", chosen.result.avgJitterPct <= 0.6f)
+        assertTrue("step ${chosen.result.maxStepPct} exceeds cap", chosen.result.maxStepPct <= 10.0f + 0.5f)
     }
 
     private fun writeReport(text: String, append: Boolean) {
