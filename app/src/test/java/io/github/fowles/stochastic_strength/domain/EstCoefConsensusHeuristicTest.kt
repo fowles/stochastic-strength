@@ -304,4 +304,144 @@ class EstCoefConsensusHeuristicTest {
         val h = EstCoefConsensusHeuristic()
         assertTrue(h.compute(input).isEmpty())
     }
+
+    @Test
+    fun computeEstimate_singleSession_returnsEstimateWithNoGate() {
+        // Under the old design a single 0.7-confidence session (weight 0.7 < 1.5)
+        // returned null. There is no gate now — one session is usable.
+        val h = EstCoefConsensusHeuristic()
+        val est = h.computeEstimate(listOf(sessionSignal(1L, 1000L, 120.0f, 0.7f)))!!
+        assertEquals(120.0f, est.est1RM, 0.001f)
+        assertEquals(0.7f, est.confidence, 0.001f)
+        assertTrue("weight should be positive", est.weight > 0f)
+    }
+
+    @Test
+    fun applyPeerConsensus_proposalIsEstimateOverPeerMedianImpliedBaseline() {
+        val h = EstCoefConsensusHeuristic()
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        // Three exercises, all E=100. Peers 2 and 3 have coef 1.0 -> implied baseline 100 each.
+        // Exercise 1 has coef 0.8; its proposal = E_1 / median(100,100) = 100/100 = 1.0.
+        val estimates = mapOf(
+            1L to estimate(est1RM = 100f),
+            2L to estimate(est1RM = 100f),
+            3L to estimate(est1RM = 100f),
+        )
+        val result = h.applyPeerConsensus(
+            estimates,
+            currentCoefficients = mapOf(1L to 0.8f, 2L to 1.0f, 3L to 1.0f),
+            exerciseMuscle = mapOf(1L to muscle, 2L to muscle, 3L to muscle),
+        )
+        assertEquals(1.0f, result.getValue(1L).proposal, 0.001f)
+        assertTrue(result.getValue(1L).metadata?.startsWith("peer_consensus") == true)
+    }
+
+    @Test
+    fun applyPeerConsensus_fewerThanTwoPeers_emitsNothing() {
+        val h = EstCoefConsensusHeuristic()
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        // Two exercises in the muscle: each has exactly one peer (< minPeers = 2).
+        val estimates = mapOf(
+            1L to estimate(est1RM = 100f),
+            2L to estimate(est1RM = 120f),
+        )
+        val result = h.applyPeerConsensus(
+            estimates,
+            currentCoefficients = mapOf(1L to 1.0f, 2L to 1.0f),
+            exerciseMuscle = mapOf(1L to muscle, 2L to muscle),
+        )
+        assertTrue("a 2-exercise muscle has <2 peers per exercise", result.isEmpty())
+    }
+
+    @Test
+    fun compute_twoWrongCoefficientsBothMoveTowardTruth() {
+        // Five CHEST exercises, identical sessions (same E). True coefficient is 1.0 for all.
+        // Exercises 1 and 2 start wrong (0.8 and 1.25); 3,4,5 are correct (1.0).
+        // Each exercise's peer median ignores one polluted peer, so both wrong ones
+        // are pulled toward 1.0 while the correct ones do not move.
+        val nowT = 100_000_000_000L
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        fun s(exerciseId: Long) = WorkoutSet(
+            id = exerciseId, sessionId = exerciseId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = nowT,
+        )
+        val ids = listOf(1L, 2L, 3L, 4L, 5L)
+        val input = CoefficientComputationInput(
+            sets = ids.map { s(it) },
+            sessionTimes = ids.associateWith { nowT },
+            exerciseMuscle = ids.associateWith { muscle },
+            baselines = emptyMap(),
+            currentCoefficients = mapOf(1L to 0.8f, 2L to 1.25f, 3L to 1.0f, 4L to 1.0f, 5L to 1.0f),
+        )
+        val results = EstCoefConsensusHeuristic().compute(input).associateBy { it.exerciseId }
+
+        // Exercise 1 (too low) moves up toward 1.0; exercise 2 (too high) moves down toward 1.0.
+        val one = results.getValue(1L).coefficient
+        val two = results.getValue(2L).coefficient
+        assertTrue("ex1 should rise from 0.8, got $one", one in 0.80f..1.00f && one > 0.80f)
+        assertTrue("ex2 should fall from 1.25, got $two", two in 1.00f..1.25f && two < 1.25f)
+        // The three correct exercises sit at peer consensus and do not move.
+        assertFalse(results.containsKey(3L))
+        assertFalse(results.containsKey(4L))
+        assertFalse(results.containsKey(5L))
+    }
+
+    @Test
+    fun compute_systemicDriftProducesNoCoefficientMovement() {
+        // Three CHEST exercises, all coef 1.0, all performing identically. Because every
+        // implied baseline matches, each proposal equals the current coefficient -> no move.
+        // This holds regardless of the absolute weight (i.e. a uniform strength shift is invisible).
+        val nowT = 100_000_000_000L
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        fun run(weight: Float): List<CoefficientResult> {
+            fun s(exerciseId: Long) = WorkoutSet(
+                id = exerciseId, sessionId = exerciseId, exerciseId = exerciseId, setNumber = 1,
+                targetWeight = weight, targetReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = nowT,
+            )
+            val ids = listOf(1L, 2L, 3L)
+            return EstCoefConsensusHeuristic().compute(
+                CoefficientComputationInput(
+                    sets = ids.map { s(it) },
+                    sessionTimes = ids.associateWith { nowT },
+                    exerciseMuscle = ids.associateWith { muscle },
+                    baselines = emptyMap(),
+                    currentCoefficients = ids.associateWith { 1.0f },
+                )
+            )
+        }
+        assertTrue("no movement at 80kg", run(80f).isEmpty())
+        assertTrue("no movement at 120kg (uniform drift invisible)", run(120f).isEmpty())
+    }
+
+    @Test
+    fun compute_atPeerConsensusEquilibrium_emitsNothing() {
+        // Coefficients already reflect each exercise's relative strength: exercise 2 is
+        // genuinely twice as strong as 1 and 3, and its session weight reflects that.
+        // At equilibrium the pass proposes no change (so it cannot chase renormalization).
+        val nowT = 100_000_000_000L
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        fun s(exerciseId: Long, weight: Float) = WorkoutSet(
+            id = exerciseId, sessionId = exerciseId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = weight, targetReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = nowT,
+        )
+        // Same feedback at proportional weights => E_2 = 2 * E_1 = 2 * E_3.
+        // Implied baselines: E_1/1.0, E_2/2.0, E_3/1.0 all equal => every proposal == current.
+        val sets = listOf(s(1L, 50f), s(2L, 100f), s(3L, 50f))
+        val input = CoefficientComputationInput(
+            sets = sets,
+            sessionTimes = mapOf(1L to nowT, 2L to nowT, 3L to nowT),
+            exerciseMuscle = mapOf(1L to muscle, 2L to muscle, 3L to muscle),
+            baselines = emptyMap(),
+            currentCoefficients = mapOf(1L to 1.0f, 2L to 2.0f, 3L to 1.0f),
+        )
+        // toOneRepMax is not exactly linear, so E_2 may differ slightly from 2*E_1.
+        // If the tiny nonlinearity pushes a proposal over the 0.5% churn floor, we
+        // relax to: every emitted coefficient is within 1% of its current value.
+        val current = mapOf(1L to 1.0f, 2L to 2.0f, 3L to 1.0f)
+        val results = EstCoefConsensusHeuristic().compute(input)
+        assertTrue(
+            "all proposals within 1% of current at equilibrium",
+            results.all { kotlin.math.abs(it.coefficient - current.getValue(it.exerciseId)) < 0.01f * current.getValue(it.exerciseId) }
+        )
+    }
 }
