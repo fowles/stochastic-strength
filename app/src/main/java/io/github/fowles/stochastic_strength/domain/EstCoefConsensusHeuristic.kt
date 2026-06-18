@@ -12,6 +12,7 @@ class EstCoefConsensusHeuristic(
     private val alpha: Float = 0.2f,
     private val maxLogStep: Float = ln(1.05f),
     private val minRelativeChange: Float = 0.005f,
+    private val peerSupportFullWeight: Float? = null,
 ) : CoefficientHeuristic {
 
     override val name: String = "est-coef-consensus"
@@ -184,7 +185,15 @@ class EstCoefConsensusHeuristic(
                 val reference = interpolatedWeightedMedian(others.map { it.impliedBaseline to it.weight })
                 if (reference <= 0f) continue
                 val proposal = est.est1RM / reference
-                out[id] = EmitProposal(proposal, est.confidence, "peer_consensus:peers=${others.size}")
+                val totalOtherWeight = others.sumOf { it.weight.toDouble() }.toFloat()
+                val support = peerSupportFullWeight
+                val attenuation =
+                    if (support != null && support > 0f) minOf(1f, totalOtherWeight / support) else 1f
+                out[id] = EmitProposal(
+                    proposal,
+                    est.confidence * attenuation,
+                    "peer_consensus:peers=${others.size}",
+                )
             }
         }
         return out

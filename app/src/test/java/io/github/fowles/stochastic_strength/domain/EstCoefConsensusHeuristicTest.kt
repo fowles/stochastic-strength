@@ -515,4 +515,34 @@ class EstCoefConsensusHeuristicTest {
         val expected = 1.0f * kotlin.math.exp(step.toDouble()).toFloat()
         assertEquals(expected, result!!.coefficient, 0.0005f)
     }
+
+    @Test
+    fun peerSupportAttenuation_thinPeers_dampensMoveRelativeToNoAttenuation() {
+        // Same scenario; target coefficient is wrong (0.7) so there is a move to make.
+        fun run(attenuation: Float?): Float {
+            val h = EstCoefConsensusHeuristic(minPeers = 2, minRelativeChange = 0.0f,
+                peerSupportFullWeight = attenuation)
+            val sets = listOf(
+                WorkoutSet(sessionId = 1L, exerciseId = 1L, setNumber = 1,
+                    targetWeight = 70f, targetReps = 5, feedback = SetFeedback.RIR_0_1),
+                WorkoutSet(sessionId = 2L, exerciseId = 2L, setNumber = 1,
+                    targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
+                WorkoutSet(sessionId = 3L, exerciseId = 3L, setNumber = 1,
+                    targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
+            )
+            val input = CoefficientComputationInput(
+                sets = sets,
+                sessionTimes = mapOf(1L to 0L, 2L to 0L, 3L to 0L),
+                exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST, 3L to MuscleGroup.CHEST),
+                baselines = emptyMap(),
+                currentCoefficients = mapOf(1L to 0.7f, 2L to 1.0f, 3L to 1.0f),
+            )
+            val r = input.let { h.compute(it) }.first { it.exerciseId == 1L }
+            return kotlin.math.abs(r.coefficient - 0.7f)
+        }
+        val moveNoAtten = run(null)
+        val moveAtten = run(100f) // threshold far above the thin peer weight (~0.8) -> heavy attenuation
+        assertTrue("attenuated move should be smaller", moveAtten < moveNoAtten)
+        assertTrue("attenuated move should be > 0", moveAtten > 0f)
+    }
 }
