@@ -210,4 +210,30 @@ class EstCoefConsensusHeuristic(
         }
         return sorted.last().first
     }
+
+    internal fun interpolatedWeightedMedian(valueWeights: List<Pair<Float, Float>>): Float {
+        if (valueWeights.isEmpty()) return 0f
+        val sorted = valueWeights.sortedBy { it.first }
+        val total = sorted.sumOf { it.second.toDouble() }.toFloat()
+        if (total <= 0f) return sorted[sorted.size / 2].first
+        val target = total / 2f
+        // weight-mass midpoint of each point along the cumulative axis
+        val positions = FloatArray(sorted.size)
+        var cum = 0f
+        for (i in sorted.indices) {
+            positions[i] = cum + sorted[i].second / 2f
+            cum += sorted[i].second
+        }
+        if (target <= positions.first()) return sorted.first().first
+        if (target >= positions.last()) return sorted.last().first
+        for (i in 0 until sorted.size - 1) {
+            val pLo = positions[i]
+            val pHi = positions[i + 1]
+            if (target in pLo..pHi) {
+                val t = (target - pLo) / (pHi - pLo)
+                return sorted[i].first + t * (sorted[i + 1].first - sorted[i].first)
+            }
+        }
+        return sorted.last().first
+    }
 }

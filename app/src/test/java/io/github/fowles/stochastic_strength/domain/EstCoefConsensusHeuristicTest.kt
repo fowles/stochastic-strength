@@ -435,4 +435,36 @@ class EstCoefConsensusHeuristicTest {
             },
         )
     }
+
+    @Test
+    fun interpolatedWeightedMedian_singleValue_returnsThatValue() {
+        assertEquals(42f, heuristic.interpolatedWeightedMedian(listOf(42f to 1f)), 0.0001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_twoEqualWeights_returnsMidpoint() {
+        // equal weights -> midpoint blend, not a hard pick of either
+        assertEquals(110f, heuristic.interpolatedWeightedMedian(listOf(100f to 1f, 120f to 1f)), 0.0001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_twoUnequalWeights_leansTowardHeavier() {
+        // weights 0.3 (@100) and 0.5 (@130): total 0.8, target 0.4
+        // midpoints p0=0.15, p1=0.30+0.25=0.55; t=(0.4-0.15)/(0.55-0.15)=0.625
+        // value = 100 + 0.625*(130-100) = 118.75
+        assertEquals(118.75f, heuristic.interpolatedWeightedMedian(listOf(100f to 0.3f, 130f to 0.5f)), 0.001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_allEqualValues_returnsThatValue() {
+        assertEquals(50f, heuristic.interpolatedWeightedMedian(listOf(50f to 1f, 50f to 2f, 50f to 0.5f)), 0.0001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_isScaleEquivariant() {
+        val pts = listOf(100f to 0.3f, 130f to 0.5f, 90f to 0.2f)
+        val base = heuristic.interpolatedWeightedMedian(pts)
+        val scaled = heuristic.interpolatedWeightedMedian(pts.map { (v, w) -> (v * 3f) to w })
+        assertEquals(base * 3f, scaled, 0.001f)
+    }
 }
