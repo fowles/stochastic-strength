@@ -13,7 +13,7 @@
 - Package: `io.github.fowles.stochastic_strength` (sub-package `domain`).
 - No DB schema changes; no Room migration (all changes are code constants and pure functions).
 - The existing 27 `EstCoefConsensusHeuristicTest` tests MUST stay green. Do NOT change class-level constructor defaults of `EstCoefConsensusHeuristic`; apply tuned values only at the production call site (`StochasticStrengthApp.kt:39`).
-- `maxLogStep` is held fixed at `ln(1.05f)` — it is the single-session safety cap and must not be traded for speed.
+- `maxLogStep` is the single-session safety cap; its value (`ln(1.05f)` vs `ln(1.10f)`) is chosen by the harness from measured convergence-vs-worst-step impact, not loosened blindly.
 - All location/center estimators added here must be scale-equivariant (`f(k·x) = k·f(x)`) so the systemic-drift cancellation property is preserved.
 - Run the targeted test after each change; run the full `domain` suite at the end of each task.
 

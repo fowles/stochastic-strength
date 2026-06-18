@@ -121,11 +121,12 @@ Candidate ranges to sweep (the spec deliberately does **not** pin final values):
 | `tauHalfMs` | 14 d | 14 – 28 d |
 | `minRelativeChange` | 0.005 | 0.002 – 0.005 |
 | `minPeers` | 2 | 2 – 3 |
-| `maxLogStep` | `ln(1.05)` | held fixed (single-session guard) |
+| `maxLogStep` | `ln(1.05)` | swept `ln(1.05)` / `ln(1.10)`; chosen by harness |
 | peer-support attenuation | n/a | on / off |
 
-`maxLogStep` is intentionally held: it is the hard guarantee against a single wild
-session and must not be traded for speed.
+`maxLogStep` is the hard guarantee against a single wild session, so it is swept
+(not loosened blindly) and chosen from measured impact on convergence vs. worst-case
+single-session move.
 
 ### Component 4 — simulation harness (JUnit, prints + asserts)
 
