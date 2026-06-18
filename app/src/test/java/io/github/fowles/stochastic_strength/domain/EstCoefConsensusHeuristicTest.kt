@@ -334,6 +334,8 @@ class EstCoefConsensusHeuristicTest {
         )
         assertEquals(1.0f, result.getValue(1L).proposal, 0.001f)
         assertTrue(result.getValue(1L).metadata?.startsWith("peer_consensus") == true)
+        assertEquals(1.0f, result.getValue(2L).proposal, 0.001f)
+        assertEquals(1.0f, result.getValue(3L).proposal, 0.001f)
     }
 
     @Test
@@ -378,8 +380,8 @@ class EstCoefConsensusHeuristicTest {
         // Exercise 1 (too low) moves up toward 1.0; exercise 2 (too high) moves down toward 1.0.
         val one = results.getValue(1L).coefficient
         val two = results.getValue(2L).coefficient
-        assertTrue("ex1 should rise from 0.8, got $one", one in 0.80f..1.00f && one > 0.80f)
-        assertTrue("ex2 should fall from 1.25, got $two", two in 1.00f..1.25f && two < 1.25f)
+        assertTrue("ex1 should rise meaningfully from 0.8 toward 1.0, got $one", one in 0.81f..0.99f)
+        assertTrue("ex2 should fall meaningfully from 1.25 toward 1.0, got $two", two in 1.01f..1.24f)
         // The three correct exercises sit at peer consensus and do not move.
         assertFalse(results.containsKey(3L))
         assertFalse(results.containsKey(4L))
@@ -435,13 +437,16 @@ class EstCoefConsensusHeuristicTest {
             currentCoefficients = mapOf(1L to 1.0f, 2L to 2.0f, 3L to 1.0f),
         )
         // toOneRepMax is not exactly linear, so E_2 may differ slightly from 2*E_1.
-        // If the tiny nonlinearity pushes a proposal over the 0.5% churn floor, we
-        // relax to: every emitted coefficient is within 1% of its current value.
+        // Use minRelativeChange=0.0 to force the proposal to always be emitted so the
+        // 1% bound is always exercised (List.all{} is vacuously true on empty).
         val current = mapOf(1L to 1.0f, 2L to 2.0f, 3L to 1.0f)
-        val results = EstCoefConsensusHeuristic().compute(input)
+        val results = EstCoefConsensusHeuristic(minRelativeChange = 0.0f).compute(input)
+        assertFalse("near-equilibrium still emits a proposal (toOneRepMax nonlinearity)", results.isEmpty())
         assertTrue(
-            "all proposals within 1% of current at equilibrium",
-            results.all { kotlin.math.abs(it.coefficient - current.getValue(it.exerciseId)) < 0.01f * current.getValue(it.exerciseId) }
+            "every coefficient stays within 1% of its current value at equilibrium",
+            results.all {
+                kotlin.math.abs(it.coefficient - current.getValue(it.exerciseId)) < 0.01f * current.getValue(it.exerciseId)
+            },
         )
     }
 }
