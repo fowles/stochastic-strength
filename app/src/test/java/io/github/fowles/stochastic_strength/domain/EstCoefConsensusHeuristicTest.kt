@@ -45,7 +45,6 @@ class EstCoefConsensusHeuristicTest {
         assertEquals(expected, s.est1RM, 0.001f)
         assertEquals(0.4f, s.confidence, 0.001f)
         assertFalse(s.isUpperBound)
-        assertFalse(s.isDefinite)
     }
 
     @Test
@@ -65,12 +64,11 @@ class EstCoefConsensusHeuristicTest {
     }
 
     @Test
-    fun setSignal_tooHardWithActualReps_isDefinite() {
+    fun setSignal_tooHardWithActualReps_isHighConfidenceMeasured() {
         val s = heuristic.setSignal(set(targetWeight = 80f, targetReps = 8, actualReps = 3, feedback = SetFeedback.TOO_HARD))!!
         val expected = DefaultProgressionEngine.toOneRepMax(80f, 3)
         assertEquals(expected, s.est1RM, 0.001f)
         assertEquals(0.95f, s.confidence, 0.001f)
-        assertTrue(s.isDefinite)
         assertFalse(s.isUpperBound)
     }
 
@@ -81,7 +79,6 @@ class EstCoefConsensusHeuristicTest {
         assertEquals(expected, s.est1RM, 0.001f)
         assertEquals(0.5f, s.confidence, 0.001f)
         assertTrue(s.isUpperBound)
-        assertFalse(s.isDefinite)
     }
 
     @Test
@@ -110,7 +107,6 @@ class EstCoefConsensusHeuristicTest {
         val expected = DefaultProgressionEngine.toOneRepMax(80f, 8)
         assertEquals(expected, agg.est1RM, 0.001f)
         assertEquals(0.7f, agg.sessionConfidence, 0.001f)
-        assertFalse(agg.hasDefinite)
     }
 
     @Test
@@ -125,16 +121,6 @@ class EstCoefConsensusHeuristicTest {
         val b = DefaultProgressionEngine.toOneRepMax(70f, 6)
         val expectedEst1RM = (a * 0.7f + b * 0.85f) / (0.7f + 0.85f)
         assertEquals(expectedEst1RM, agg.est1RM, 0.001f)
-    }
-
-    @Test
-    fun aggregateSession_definiteFlagSetWhenAnySetIsTooHardWithActualReps() {
-        val sets = listOf(
-            set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
-            set(targetWeight = 75f, targetReps = 5, actualReps = 3, feedback = SetFeedback.TOO_HARD),
-        )
-        val agg = heuristic.aggregateSession(sets)!!
-        assertTrue(agg.hasDefinite)
     }
 
     @Test

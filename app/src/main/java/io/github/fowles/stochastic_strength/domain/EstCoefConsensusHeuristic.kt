@@ -20,7 +20,6 @@ class EstCoefConsensusHeuristic(
         val est1RM: Float,
         val confidence: Float,
         val isUpperBound: Boolean,
-        val isDefinite: Boolean,
     )
 
     override fun compute(input: CoefficientComputationInput): List<CoefficientResult> {
@@ -61,7 +60,6 @@ class EstCoefConsensusHeuristic(
     data class SessionAggregate(
         val est1RM: Float,
         val sessionConfidence: Float,
-        val hasDefinite: Boolean,
     )
 
     internal fun aggregateSession(sets: List<WorkoutSet>): SessionAggregate? {
@@ -87,7 +85,6 @@ class EstCoefConsensusHeuristic(
         return SessionAggregate(
             est1RM = weighted1RM,
             sessionConfidence = avgConf,
-            hasDefinite = signals.any { it.isDefinite },
         )
     }
 
@@ -97,15 +94,15 @@ class EstCoefConsensusHeuristic(
             SetFeedback.HURT -> null
             SetFeedback.RIR_5_PLUS -> SetSignal(
                 est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 7),
-                confidence = 0.4f, isUpperBound = false, isDefinite = false,
+                confidence = 0.4f, isUpperBound = false,
             )
             SetFeedback.RIR_2_4 -> SetSignal(
                 est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 3),
-                confidence = 0.7f, isUpperBound = false, isDefinite = false,
+                confidence = 0.7f, isUpperBound = false,
             )
             SetFeedback.RIR_0_1 -> SetSignal(
                 est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 1),
-                confidence = 0.85f, isUpperBound = false, isDefinite = false,
+                confidence = 0.85f, isUpperBound = false,
             )
             SetFeedback.TOO_HARD -> {
                 val reps = set.actualReps
@@ -114,14 +111,12 @@ class EstCoefConsensusHeuristic(
                         est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, reps),
                         confidence = 0.95f,
                         isUpperBound = false,
-                        isDefinite = true,
                     )
                 } else {
                     SetSignal(
                         est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, maxOf(1, set.targetReps - 1)),
                         confidence = 0.5f,
                         isUpperBound = true,
-                        isDefinite = false,
                     )
                 }
             }
