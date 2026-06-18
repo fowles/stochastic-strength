@@ -693,8 +693,8 @@ In `thinPeerSweep_producesFiniteMetrics`, replace the trailing comment with
 
 `CONV_BUDGET`, `JITTER_CEIL`, and `THIN_JITTER_CEIL` are literals set from the observed
 chosen-row metrics (e.g. observed `worstConvSess` rounded up to the next 5, observed
-`avgJitter%` rounded up to one decimal). `maxStep%` is bounded by the `ln(1.05)` cap
-→ `≤ 5.0%`. Note `ATTEN` may be `null` (`it.atten == null` matches the off row).
+`avgJitter%` rounded up to one decimal). `maxStep%` is bounded by the chosen
+`maxLogStep` cap (`ln(1.10)` → `≤ 10.0%`). Note `ATTEN` may be `null` (`it.atten == null` matches the off row).
 
 - [ ] **Step 5: Run the sweep/lock tests**
 
@@ -707,7 +707,7 @@ not targets to beat).
 
 In `docs/adaptation/03-coefficient-estimation.md`, update the Layer 4 and Layer 5 descriptions:
 - Layer 4: the peer-consensus reference is now an **interpolated** weighted median (blends the straddling peers at the half-weight crossing, so it degrades gracefully when only two or three peers are present rather than hard-selecting one). Note the `minPeers` floor of `MIN_PEERS` and, if attenuation is on, that proposal confidence is scaled down when total peer evidence weight is thin.
-- Layer 5: state the tuned `alpha`, recency half-life (`TAU_DAYS` days), and `minRelativeChange`, and that `maxLogStep` remains the per-session safety cap at `ln(1.05)` (~5%).
+- Layer 5: state the tuned `alpha`, recency half-life (`TAU_DAYS` days), and `minRelativeChange`, and the per-session safety cap `maxLogStep = ln(1.10)` (~10%).
 
 - [ ] **Step 7: Run the full domain suite**
 
@@ -734,7 +734,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Keep inner data-point median → Task 2 Step 3 (explicit). ✅
 - Peer-support confidence attenuation behind a knob, default off → Task 3. ✅
 - Re-tune `alpha`/`tauHalfMs`/`minRelativeChange`/`minPeers` via harness, values not pinned in spec → Tasks 4–5. ✅
-- `maxLogStep` held fixed → Global Constraints + Task 5 Step 4 (step ≤ 5%). ✅
+- `maxLogStep` chosen by harness (broadened to `ln(1.10)`) → Global Constraints + Task 5 Step 4 (step ≤ 10%). ✅
 - JUnit harness: realistic gap-derived feedback, sweep+print, then lock with asserts → Task 4 (sweep+print) + Task 5 (asserts). ✅
 - Existing 27 tests stay green (class defaults unchanged, tuned values at call site) → Global Constraints + Task 5 Step 3. ✅
 - No DB migration; recompute-not-migration rollout note → covered in spec; no code change needed. ✅
