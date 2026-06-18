@@ -1,6 +1,6 @@
 # Peer-Consensus Coefficient Estimation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the coefficient engine's stored-baseline reference + fragile cross-exercise "consensus guard" with a peer-consensus reference, so coefficients learn each exercise's strength *relative to its muscle peers* and are structurally immune to systemic baseline drift.
 
@@ -40,7 +40,7 @@ Replace the stored-baseline + `applyH2` pipeline with the peer-consensus pipelin
   - Unchanged: `SetSignal`, `SessionAggregate`, `EmitProposal(proposal, confidence, metadata)`, `internal fun setSignal`, `internal fun aggregateSession`, `internal fun damp`.
   - Constructor: removes `minEvidenceWeight`, `minOutlierSessions`, `tauConsensusThreshold`, `tauOutlierThreshold`; adds `minPeers: Int = 2`, `peerWeightEpsilon: Float = 1e-4f`; keeps `tauHalfMs`, `alpha`, `maxLogStep`, `minRelativeChange`.
 
-- [ ] **Step 1: Replace the whole heuristic file**
+- [x] **Step 1: Replace the whole heuristic file**
 
 Overwrite `EstCoefConsensusHeuristic.kt` with exactly this content:
 
@@ -265,7 +265,7 @@ class EstCoefConsensusHeuristic(
 }
 ```
 
-- [ ] **Step 2: Update the test file — replace the synthetic helpers**
+- [x] **Step 2: Update the test file — replace the synthetic helpers**
 
 In `EstCoefConsensusHeuristicTest.kt`, replace the `sessionSignal(...)` helper (currently lines ~170-182) with the new field set (drop `estCoef`/`hasDefinite`, add `est1RM`):
 
@@ -298,7 +298,7 @@ Replace the `proposal(...)` helper (currently lines ~240-250) with an `estimate(
     )
 ```
 
-- [ ] **Step 3: Delete the obsolete tests**
+- [x] **Step 3: Delete the obsolete tests**
 
 Delete these test methods entirely (they assert removed behavior):
 - `computeH1_belowMinEvidenceAndNoDefinite_returnsNull`
@@ -311,7 +311,7 @@ Delete these test methods entirely (they assert removed behavior):
 - `applyH2_outlierWithSingleSession_fallsThroughToMixedPath`
 - `compute_singleExerciseConsistentRir2_4_nudgesCoefficientUp` (single-exercise muscles now never emit — replaced by a multi-exercise test in Task 2)
 
-- [ ] **Step 4: Adapt the surviving `computeH1` tests to `computeEstimate`**
+- [x] **Step 4: Adapt the surviving `computeH1` tests to `computeEstimate`**
 
 Replace `computeH1_empty_returnsNull` with:
 
@@ -342,7 +342,7 @@ Replace `computeH1_weightedMedianIgnoresSingleOutlier` with the est-1RM-space eq
     }
 ```
 
-- [ ] **Step 5: Adapt the wall-clock test to the peer-consensus compute path**
+- [x] **Step 5: Adapt the wall-clock test to the peer-consensus compute path**
 
 Replace the body of `` `compute uses max sessionTime from input as now, not wall clock` `` so it has a real peer group (3 exercises in one muscle). With the correct "now = max sessionTime", peer weights exceed `peerWeightEpsilon` and proposals emit; with a wall-clock "now" (years later) all recencies collapse below epsilon, leaving `<2` peers and an empty result.
 
@@ -372,12 +372,12 @@ Replace the body of `` `compute uses max sessionTime from input as now, not wall
 
 Note: `baselines` is now unused by the heuristic, so passing `emptyMap()` is fine.
 
-- [ ] **Step 6: Run the heuristic test class and verify green**
+- [x] **Step 6: Run the heuristic test class and verify green**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: BUILD SUCCESSFUL; all remaining `setSignal_*`, `aggregateSession_*`, `damp_*`, `computeEstimate_*`, `compute_skipsBodyweightExercisesWithZeroCoefficient`, and the wall-clock test pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "refactor: peer-consensus reference for coefficient estimation
@@ -402,7 +402,7 @@ Encode the properties the redesign exists to guarantee. Impl is already complete
 **Interfaces:**
 - Consumes: `computeEstimate`, `applyPeerConsensus`, `compute`, helpers `sessionSignal`, `estimate`, `set` from Task 1.
 
-- [ ] **Step 1: Add — a single recent session yields a usable estimate (no gate)**
+- [x] **Step 1: Add — a single recent session yields a usable estimate (no gate)**
 
 ```kotlin
     @Test
@@ -417,7 +417,7 @@ Encode the properties the redesign exists to guarantee. Impl is already complete
     }
 ```
 
-- [ ] **Step 2: Add — peer-consensus proposal is `E_i / weightedMedian(E_j/c_j)`**
+- [x] **Step 2: Add — peer-consensus proposal is `E_i / weightedMedian(E_j/c_j)`**
 
 ```kotlin
     @Test
@@ -441,7 +441,7 @@ Encode the properties the redesign exists to guarantee. Impl is already complete
     }
 ```
 
-- [ ] **Step 3: Add — fewer than two peers emits nothing (cold-start guard)**
+- [x] **Step 3: Add — fewer than two peers emits nothing (cold-start guard)**
 
 ```kotlin
     @Test
@@ -462,7 +462,7 @@ Encode the properties the redesign exists to guarantee. Impl is already complete
     }
 ```
 
-- [ ] **Step 4: Add — two wrong coefficients both converge toward truth**
+- [x] **Step 4: Add — two wrong coefficients both converge toward truth**
 
 ```kotlin
     @Test
@@ -499,7 +499,7 @@ Encode the properties the redesign exists to guarantee. Impl is already complete
     }
 ```
 
-- [ ] **Step 5: Add — systemic drift produces zero coefficient movement**
+- [x] **Step 5: Add — systemic drift produces zero coefficient movement**
 
 ```kotlin
     @Test
@@ -530,7 +530,7 @@ Encode the properties the redesign exists to guarantee. Impl is already complete
     }
 ```
 
-- [ ] **Step 6: Add — equilibrium is a fixed point of the coefficient pass**
+- [x] **Step 6: Add — equilibrium is a fixed point of the coefficient pass**
 
 ```kotlin
     @Test
@@ -560,12 +560,12 @@ Encode the properties the redesign exists to guarantee. Impl is already complete
 
 Note on Step 6: `toOneRepMax` is not exactly linear in weight, so `E_2` may differ from `2*E_1` by a fraction of a percent. If this test emits a tiny sub-`minRelativeChange` move and stays empty, it passes as written. If rounding pushes a proposal just over the `0.5%` floor, relax the assertion to: each emitted coefficient is within `1%` of its current value (`assertTrue(results.all { kotlin.math.abs(it.coefficient - current.getValue(it.exerciseId)) < 0.01f * current.getValue(it.exerciseId) })`). Verify which case holds when running, and keep the stricter empty-assertion if it passes.
 
-- [ ] **Step 7: Run the heuristic test class and verify green**
+- [x] **Step 7: Run the heuristic test class and verify green**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: BUILD SUCCESSFUL; all new tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 jj commit -m "test: peer-consensus robustness properties
@@ -586,7 +586,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Interfaces:** none (documentation only).
 
-- [ ] **Step 1: Overwrite the doc**
+- [x] **Step 1: Overwrite the doc**
 
 Replace the entire contents of `docs/adaptation/03-coefficient-estimation.md` with:
 
@@ -694,7 +694,7 @@ future session's weights are computed for those exercises. Any systemic, whole-m
 component is then reconciled into the baseline by renormalization.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 jj commit -m "docs: rewrite coefficient-estimation around peer consensus
@@ -708,19 +708,19 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Run the full unit-test suite**
+- [x] **Step 1: Run the full unit-test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL. If any unrelated test referenced the old coefficient
 behavior, investigate before proceeding — the refactor is contained to the
 heuristic, so failures elsewhere are unexpected.
 
-- [ ] **Step 2: Build the debug APK to catch any compile regressions**
+- [x] **Step 2: Build the debug APK to catch any compile regressions**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit any final state (only if anything changed)**
+- [x] **Step 3: Commit any final state (only if anything changed)**
 
 If Steps 1–2 required fixes, commit them:
 
