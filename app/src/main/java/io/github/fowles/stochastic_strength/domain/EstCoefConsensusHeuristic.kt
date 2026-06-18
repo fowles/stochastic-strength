@@ -181,7 +181,7 @@ class EstCoefConsensusHeuristic(
                 if (c <= 0f) continue
                 val others = peers.filter { it.id != id && it.weight > peerWeightEpsilon }
                 if (others.size < minPeers) continue
-                val reference = weightedMedian(others.map { it.impliedBaseline to it.weight })
+                val reference = interpolatedWeightedMedian(others.map { it.impliedBaseline to it.weight })
                 if (reference <= 0f) continue
                 val proposal = est.est1RM / reference
                 out[id] = EmitProposal(proposal, est.confidence, "peer_consensus:peers=${others.size}")
