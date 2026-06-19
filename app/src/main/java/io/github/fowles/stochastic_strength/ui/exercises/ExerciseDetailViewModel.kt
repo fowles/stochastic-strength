@@ -69,6 +69,7 @@ data class ExerciseDetailState(
     val isHurt: Boolean = false,
     val primaryPoints: List<ChartPoint> = emptyList(),
     val shadowPoints: List<ChartPoint> = emptyList(),
+    val prescribedPoints: List<ChartPoint> = emptyList(),
     val weightUnit: WeightUnit = WeightUnit.KG,
     val primarySetsByDay: Map<Long, List<WorkoutSet>> = emptyMap(),
     val shadowSetsByDay: Map<Long, List<ExerciseSetEntry>> = emptyMap(),
@@ -115,9 +116,19 @@ class ExerciseDetailViewModel(
 
         val (shadowPoints, shadowSetsByDay) = computeShadowPoints(exercise, sessionStartById, zone)
 
+        val seedCoefficient = ExerciseCoefficients.byName[exercise.name] ?: 0f
+        val prescribedPoints = buildPrescribedPoints(
+            baselineEvents = repository.getBaselineEvents(exercise.primaryMuscle),
+            coefficientEvents = repository.getCoefficientEvents(exerciseId),
+            seedCoefficient = seedCoefficient,
+            dayKeys = primarySetsByDay.keys,
+            zone = zone,
+        )
+
         _state.value = _state.value.copy(
             primaryPoints = primaryPoints,
             shadowPoints = shadowPoints,
+            prescribedPoints = prescribedPoints,
             primarySetsByDay = primarySetsByDay,
             shadowSetsByDay = shadowSetsByDay,
         )
