@@ -97,19 +97,36 @@ class ProgressionControllerTest {
     }
 
     @Test
-    fun singleExerciseSession_poolsRecentWindow_untrainedUntouched() {
+    fun singleExerciseSession_conservesGauge_untouchedWhenNoRecentMeasurement() {
         val c = controller()
         val baseline = 100f
-        val coefs = mapOf(1L to 1.0f, 2L to 0.5f)
-        // Session A: both measured, establishing the pool.
-        c.step(input(1000, listOf(obs(1, baseline * 1.0f), obs(2, baseline * 0.5f)), baseline, coefs))
-        // Session B: only id1 trained, reads high. Pool still includes id2 (recent).
-        val out = c.step(input(2000, listOf(obs(1, baseline * 1.0f * 1.10f)), baseline, coefs))
-        val touched = out.coefficientUpdates.map { it.exerciseId }.toSet()
-        assertTrue("trained exercise corrects", 1L in touched)
-        // id2 carries near-zero recency-weighted differential vs id1; its move is negligible.
-        val id2 = out.coefficientUpdates.firstOrNull { it.exerciseId == 2L }
-        assertTrue("untrained barely moves", id2 == null || kotlin.math.abs(id2.coefficient - 0.5f) < 0.5f * 0.01f)
+        val coefs = mapOf(1L to 1.0f, 2L to 0.5f, 3L to 0.8f)
+        // muscleExercises includes id3, which is NEVER observed (no recent measurement).
+        fun inp(now: Long, observations: List<ProgressionObservation>) = ProgressionStepInput(
+            now = now, observations = observations,
+            baselines = mapOf(m to baseline), coefficients = coefs,
+            muscleExercises = mapOf(m to listOf(1L, 2L, 3L)),
+            hurtMuscles = emptySet(), weightUnit = unit,
+        )
+        // Session A: id1 and id2 measured on-target, establishing the pool. id3 never seen.
+        c.step(inp(1000, listOf(obs(1, baseline * 1.0f), obs(2, baseline * 0.5f))))
+        // Session B: only id1 trained, reads 10% high.
+        val out = c.step(inp(2000, listOf(obs(1, baseline * 1.0f * 1.10f))))
+        val byId = out.coefficientUpdates.associateBy { it.exerciseId }
+
+        // Trained exercise corrects upward.
+        assertTrue("id1 corrects up", byId.getValue(1).coefficient > 1.0f)
+        // Pooled-but-untrained id2 moves the opposite way to conserve the gauge.
+        assertTrue("id2 (pooled) moves down to conserve gauge", byId.getValue(2).coefficient < 0.5f)
+        // id3 has no recent measurement -> not in the pool -> untouched.
+        assertTrue("id3 (no measurement) untouched", 3L !in byId)
+
+        // The differential conserves the geomean over the exercises that moved.
+        val ratio = exp(
+            (ln((byId.getValue(1).coefficient / 1.0f).toDouble()) +
+                ln((byId.getValue(2).coefficient / 0.5f).toDouble())) / 2.0,
+        )
+        assertEquals("geomean conserved over the moved pair", 1.0, ratio, 1e-3)
     }
 
     @Test

@@ -78,7 +78,6 @@ class RollingConservingProgressionController(
         val baselineUpdates = mutableListOf<BaselineUpdate>()
         val coefficientUpdates = mutableListOf<CoefficientUpdate>()
 
-        val trainedNow = input.observations.map { it.exerciseId }.toSet()
         for (o in input.observations) {
             if (o.est1RM <= 0f) continue
             val le = ln(o.est1RM)
@@ -121,7 +120,6 @@ class RollingConservingProgressionController(
 
             val maxW = pooled.maxOf { it.third }
             for ((id, e, w) in pooled) {
-                if (id !in trainedNow) continue // only update exercises trained this session
                 val gain = w / maxW // freshest gets full K_c; staler proportionally less. Preserves sum-zero.
                 val dLogC = (config.kC * gain * (e - common)).coerceIn(-config.maxLogStepC, config.maxLogStepC)
                 val cOld = input.coefficients.getValue(id)
