@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.exercises
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
 import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.common.insets
+import com.patrykandpatrick.vico.compose.cartesian.layer.continuous
 import com.patrykandpatrick.vico.compose.cartesian.layer.point
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
@@ -176,7 +178,25 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
             )
 
-            if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty()) {
+            Row(
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(16.dp)
+                        .height(2.dp)
+                        .background(MaterialTheme.colorScheme.tertiary),
+                )
+                Text(
+                    text = "Prescribed target",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty() && state.prescribedPoints.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -192,6 +212,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 ExerciseChart(
                     primaryPoints = state.primaryPoints,
                     shadowPoints = state.shadowPoints,
+                    prescribedPoints = state.prescribedPoints,
                     weightUnit = state.weightUnit,
                     onDaySelected = viewModel::selectDay,
                     modifier = Modifier
@@ -219,13 +240,14 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
 private fun ExerciseChart(
     primaryPoints: List<ChartPoint>,
     shadowPoints: List<ChartPoint>,
+    prescribedPoints: List<ChartPoint>,
     weightUnit: WeightUnit,
     onDaySelected: (Long?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
 
-    LaunchedEffect(primaryPoints, shadowPoints) {
+    LaunchedEffect(primaryPoints, shadowPoints, prescribedPoints) {
         modelProducer.runTransaction {
             lineSeries {
                 if (primaryPoints.isNotEmpty()) {
@@ -238,6 +260,12 @@ private fun ExerciseChart(
                     series(
                         x = shadowPoints.map { it.dateMs / 86_400_000L },
                         y = shadowPoints.map { it.weightKg },
+                    )
+                }
+                if (prescribedPoints.isNotEmpty()) {
+                    series(
+                        x = prescribedPoints.map { it.dateMs / 86_400_000L },
+                        y = prescribedPoints.map { it.weightKg },
                     )
                 }
             }
@@ -271,13 +299,21 @@ private fun ExerciseChart(
             )
         ),
     )
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    val prescribedLine = LineCartesianLayer.rememberLine(
+        fill = LineCartesianLayer.LineFill.single(fill(tertiaryColor)),
+        stroke = LineCartesianLayer.LineStroke.continuous(thickness = 2.dp),
+        pointConnector = LineCartesianLayer.PointConnector.cubic(),
+    )
 
     val hasPrimary = primaryPoints.isNotEmpty()
     val hasShadow = shadowPoints.isNotEmpty()
-    val lineProvider = remember(hasPrimary, hasShadow, primaryLine, shadowLine) {
+    val hasPrescribed = prescribedPoints.isNotEmpty()
+    val lineProvider = remember(hasPrimary, hasShadow, hasPrescribed, primaryLine, shadowLine, prescribedLine) {
         LineCartesianLayer.LineProvider.series(buildList {
             if (hasPrimary) add(primaryLine)
             if (hasShadow) add(shadowLine)
+            if (hasPrescribed) add(prescribedLine)
         })
     }
 
