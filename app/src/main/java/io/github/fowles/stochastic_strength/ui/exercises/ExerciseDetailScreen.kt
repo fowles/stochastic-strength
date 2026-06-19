@@ -178,22 +178,24 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
             )
 
-            Row(
-                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(16.dp)
-                        .height(2.dp)
-                        .background(MaterialTheme.colorScheme.tertiary),
-                )
-                Text(
-                    text = "Prescribed target",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (state.prescribedPoints.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(16.dp)
+                            .height(2.dp)
+                            .background(MaterialTheme.colorScheme.tertiary),
+                    )
+                    Text(
+                        text = "Prescribed target",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty() && state.prescribedPoints.isEmpty()) {
