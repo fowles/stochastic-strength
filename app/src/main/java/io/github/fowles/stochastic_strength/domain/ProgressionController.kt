@@ -130,6 +130,9 @@ class RollingConservingProgressionController(
                 val dLogC = (config.kC * gain * (e - common)).coerceIn(-config.maxLogStepC, config.maxLogStepC)
                 val cOld = input.coefficients.getValue(id)
                 val cNew = cOld * exp(dLogC)
+                // Suppressing near-zero moves relaxes the per-session sum-zero invariant slightly;
+                // the residual gauge drift stays bounded (see ProgressionControllerSimulationTest's
+                // coefInflation ceiling). Do not "fix" this by removing the skip.
                 if (abs(cNew - cOld) <= config.minRelativeChange * cOld) continue
                 coefficientUpdates.add(CoefficientUpdate(id, cNew, "pi:d=${fmt(e - common)},w=${fmt(gain)}"))
             }

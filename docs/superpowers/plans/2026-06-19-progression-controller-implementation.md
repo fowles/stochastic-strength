@@ -63,7 +63,7 @@ Lift the feedback→(implied-1RM, confidence) logic out of `EstCoefConsensusHeur
   - `fun SessionSignalExtractor.setSignal(set: WorkoutSet): SetSignal?`
   - `fun SessionSignalExtractor.aggregateSession(sets: List<WorkoutSet>): SessionAggregate?`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/SessionSignalExtractorTest.kt`:
 
@@ -110,12 +110,12 @@ class SessionSignalExtractorTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SessionSignalExtractorTest"`
 Expected: FAIL — `SessionSignalExtractor` is unresolved.
 
-- [ ] **Step 3: Create `SessionSignalExtractor` with the lifted logic**
+- [x] **Step 3: Create `SessionSignalExtractor` with the lifted logic**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/SessionSignalExtractor.kt`:
 
@@ -192,7 +192,7 @@ object SessionSignalExtractor {
 }
 ```
 
-- [ ] **Step 4: Make `EstCoefConsensusHeuristic` delegate to the extractor**
+- [x] **Step 4: Make `EstCoefConsensusHeuristic` delegate to the extractor**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsensusHeuristic.kt`, replace the body of `internal fun aggregateSession(...)` (lines 66-90) and `internal fun setSignal(...)` (lines 92-125) with thin delegations, and re-expose the data classes as aliases so existing test references keep compiling:
 
@@ -221,12 +221,12 @@ In `app/src/main/java/io/github/fowles/stochastic_strength/domain/EstCoefConsens
 
 (Leave the rest of `EstCoefConsensusHeuristic` untouched; it still uses its own `SetSignal`/`SessionAggregate` types internally.)
 
-- [ ] **Step 5: Run the new test and the existing heuristic test**
+- [x] **Step 5: Run the new test and the existing heuristic test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SessionSignalExtractorTest" --tests "io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristicTest"`
 Expected: PASS (both).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/SessionSignalExtractor.kt \
@@ -257,7 +257,7 @@ The unified controller, ported from the validated `RollingConservingPiController
   - `data class ProgressionControllerConfig(kB, kC, emaBeta, halfLifeMs, maxLogStepB, maxLogStepC, hurtFactor, minRelativeChange)` with the locked defaults.
   - `class RollingConservingProgressionController(config: ProgressionControllerConfig = ProgressionControllerConfig()) : ProgressionController`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/ProgressionControllerTest.kt`:
 
@@ -392,12 +392,12 @@ class ProgressionControllerTest {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProgressionControllerTest"`
 Expected: FAIL — `ProgressionController`/`RollingConservingProgressionController` unresolved.
 
-- [ ] **Step 3: Implement `ProgressionController.kt`**
+- [x] **Step 3: Implement `ProgressionController.kt`**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/ProgressionController.kt`:
 
@@ -539,12 +539,12 @@ class RollingConservingProgressionController(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProgressionControllerTest"`
 Expected: PASS (all 6).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/ProgressionController.kt \
@@ -577,7 +577,7 @@ Replace the three injected seams with one controller factory and rewrite `applyS
 - Consumes (from Task 1 & 2): `SessionSignalExtractor.aggregateSession`, `ProgressionController`, `ProgressionStepInput`, `ProgressionObservation`, `ProgressionStepOutput`, `BaselineUpdate`, `CoefficientUpdate`.
 - Produces: `WorkoutRepository(db, derivedState, progressionEngine, progressionControllerFactory: () -> ProgressionController)`; `FakeProgressionController(upFactor: Float = 1.05f) : ProgressionController`.
 
-- [ ] **Step 1: Write the failing fake + a repo-mechanics expectation**
+- [x] **Step 1: Write the failing fake + a repo-mechanics expectation**
 
 Create `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/FakeProgressionController.kt`:
 
@@ -602,12 +602,12 @@ class FakeProgressionController(private val upFactor: Float = 1.05f) : Progressi
 }
 ```
 
-- [ ] **Step 2: Run the existing repo androidTest to confirm the current baseline (pre-change)**
+- [x] **Step 2: Run the existing repo androidTest to confirm the current baseline (pre-change)**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest"`
 Expected: PASS on the current `FakeBaselineHeuristic` wiring (establishes the green starting point before the constructor change makes it fail to compile).
 
-- [ ] **Step 3: Rewrite `WorkoutRepository` constructor + progression body**
+- [x] **Step 3: Rewrite `WorkoutRepository` constructor + progression body**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt`:
 
@@ -763,7 +763,7 @@ Update the call site in `replayDerivedState` (the loop near line 319-344): insta
 
 Remove now-unused imports (`BaselineNormalizationThreshold` usage is gone; `BaselineComputationInput`/proposal references are gone). Keep imports still used: `BaselineHistory`, `CoefficientHistory`, `MuscleGroupStrength`, `BaselineChangeReason`, `WorkoutSet`, `MuscleGroup`, `WeightUnit`.
 
-- [ ] **Step 4: Trim `ReplaySnapshot` and delete its obsolete test**
+- [x] **Step 4: Trim `ReplaySnapshot` and delete its obsolete test**
 
 The deleted repo methods were the only callers of `ReplaySnapshot.filteredCoefficientInput`/`filteredNormalizationInput`, which return the to-be-deleted `*ComputationInput` types. Remove both methods and the three fields only they used (`allSets`, `allSessionTimes`, `allExercises`), and simplify `loadStaticFromDb` (it no longer needs the wasteful `workoutSetDao().getAll()`). Replace `app/src/main/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshot.kt` with:
 
@@ -809,7 +809,7 @@ Then `git rm app/src/test/java/io/github/fowles/stochastic_strength/domain/Repla
 
 Note: `progressionBaselines` and `baselineHistoryByMuscle` are still written (by `writeBaselineUpdate` and the INITIAL/OVERRIDE bookkeeping in `replayDerivedState`) but no longer read by any controller. They are harmless in-replay scaffolding; leave them and add a `CLAUDE_TODO.md` line noting they are now write-only and removable in a later cleanup.
 
-- [ ] **Step 5: Add the `CLAUDE_TODO.md` note**
+- [x] **Step 5: Add the `CLAUDE_TODO.md` note**
 
 Append to `CLAUDE_TODO.md` (create if missing):
 
@@ -820,7 +820,7 @@ Append to `CLAUDE_TODO.md` (create if missing):
   clamp was dropped with the PI controller).
 ```
 
-- [ ] **Step 6: Update the 7 androidTest construction sites and delete the old fake**
+- [x] **Step 6: Update the 7 androidTest construction sites and delete the old fake**
 
 In each listed androidTest, replace the `WorkoutRepository(...)` construction that passed `baselineHeuristic = FakeBaselineHeuristic()` (and any `heuristic = …`, `normalizer = …`) with the factory form, and delete `FakeBaselineHeuristic.kt`.
 
@@ -849,7 +849,7 @@ For `WorkoutRepositoryTest`'s normalizer-specific test (the one that built `Work
 
 Delete: `app/src/androidTest/java/io/github/fowles/stochastic_strength/domain/FakeBaselineHeuristic.kt`.
 
-- [ ] **Step 7: Build, then run the affected androidTests**
+- [x] **Step 7: Build, then run the affected androidTests**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
@@ -857,7 +857,7 @@ Expected: BUILD SUCCESSFUL.
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryTest" --tests "io.github.fowles.stochastic_strength.domain.ReplayDerivedStateTest" --tests "io.github.fowles.stochastic_strength.domain.FatigueNoDownwardBiasReplayTest" --tests "io.github.fowles.stochastic_strength.domain.LiveInputWritesTest" --tests "io.github.fowles.stochastic_strength.domain.DerivedStateBackfillTest" --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryDebugTest" --tests "io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionControllerTest"`
 Expected: PASS. If `FatigueNoDownwardBiasReplayTest` asserts a specific downward-bias number tied to the old heuristic, re-derive the expectation under the controller (the property — no spurious downward drift from high-rep fatigue — still holds because innovation is symmetric in log space) and update the assertion.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
@@ -874,7 +874,7 @@ git commit -m "feat: drive WorkoutRepository progression through ProgressionCont
 **Interfaces:**
 - Consumes: `RollingConservingProgressionController`, `ProgressionControllerConfig` (defaults are the locked production gains).
 
-- [ ] **Step 1: Replace the repository construction**
+- [x] **Step 1: Replace the repository construction**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt`, replace the `workoutRepository` lazy (lines 35-49) with:
 
@@ -890,12 +890,12 @@ In `app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp
 
 Update imports: remove `LastSetAutoregulationHeuristic`, `EstCoefConsensusHeuristic`, `SeedNormalizer`; add `RollingConservingProgressionController`.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt
@@ -914,7 +914,7 @@ Transform the exploration harness `ControllerReframeSimulationTest` into a focus
 **Interfaces:**
 - Consumes: `RollingConservingProgressionController`, `ProgressionStepInput`, `ProgressionObservation`, `SessionSignalExtractor`, `WorkoutGenerator`, `ExerciseLibrary`, `ExerciseCoefficients`, `DefaultProgressionEngine`.
 
-- [ ] **Step 1: Rewrite the harness to drive the production controller**
+- [x] **Step 1: Rewrite the harness to drive the production controller**
 
 Replace the file with a single realistic harness (keep the real-library / real-planner / mid-set-drop generator from `simulateRealistic`, and the strengthening-creep variant) that uses **only** `RollingConservingProgressionController`. The per-session step becomes:
 
@@ -940,7 +940,7 @@ Replace the file with a single realistic harness (keep the real-library / real-p
 
 Keep the existing metric machinery (`RMetrics`, `trainedEndErr`, `jitter`, `coefInflation`, `baselineGaugeErr`, the seeds list, the report writer). Delete the `RStack` enum, `MultiMusclePiController`, `RollingWindowPiController`, the embedded `RollingConservingPiController`, `CommonDiffPiController`, the `currentStackStep` / `piStackStep` / `stacks` machinery, the `Profile` A/B in `reframe_abComparison_broadened`, and all references to `LastSetAutoregulationHeuristic` / `EstCoefConsensusHeuristic` / `SeedNormalizer` / `BaselineNormalizationThreshold`.
 
-- [ ] **Step 2: Add the locked-config asserts**
+- [x] **Step 2: Add the locked-config asserts**
 
 Add a test method that runs the realistic harness at seed factor 0.8 (climbing from below) over 120+30 sessions, averages over the seeds, and asserts the ceilings the design doc's findings table establishes for the gauge-conserving form (with headroom):
 
@@ -969,12 +969,12 @@ Add a test method that runs the realistic harness at seed factor 0.8 (climbing f
 
 (`metricsFinite` and `simulateRealistic` are retained from the original file, with the controller-driven step swapped in and the `stack` parameter removed.)
 
-- [ ] **Step 3: Run the simulation lock**
+- [x] **Step 3: Run the simulation lock**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProgressionControllerSimulationTest"`
 Expected: PASS. If a ceiling is violated, do NOT loosen it blindly — confirm the production controller matches the validated prototype (gains, EMA, recency, clamps) before adjusting; a violation means the port diverged from what was validated.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git rm app/src/test/java/io/github/fowles/stochastic_strength/domain/ControllerReframeSimulationTest.kt
@@ -996,7 +996,7 @@ Delete the replaced classes, their now-orphaned interfaces and input/proposal ty
 - Delete: `BaselineNormalizationThreshold.kt`, `BaselineNormalizationThresholdTest.kt`
 - Modify: `docs/superpowers/specs/2026-06-18-common-differential-pi-controller-design.md`
 
-- [ ] **Step 1: Confirm no remaining references**
+- [x] **Step 1: Confirm no remaining references**
 
 Run:
 ```bash
@@ -1004,7 +1004,7 @@ rg -n "LastSetAutoregulationHeuristic|EstCoefConsensusHeuristic|SeedNormalizer|B
 ```
 Expected: only matches inside the files being deleted in this task. If any live file (e.g. `MuscleBaselineDetailViewModel.kt`, which references the `+1/+3/+7` offsets in a comment) still references a deleted symbol in code, update it first — for comment-only references, reword to point at `SessionSignalExtractor`.
 
-- [ ] **Step 2: Delete the files**
+- [x] **Step 2: Delete the files**
 
 ```bash
 git rm \
@@ -1023,24 +1023,24 @@ git rm \
 
 Note: `BaselineHistory.changeReason = BaselineChangeReason.NORMALIZATION` is no longer produced. Leave the enum value in place (historical rows may exist / UI may switch on it); do not remove the enum constant in this plan.
 
-- [ ] **Step 3: Mark the design doc decisions resolved**
+- [x] **Step 3: Mark the design doc decisions resolved**
 
 In `docs/superpowers/specs/2026-06-18-common-differential-pi-controller-design.md`, under "## Open decisions", update #2 and #3 from open to resolved:
 - #2 → "RESOLVED: ship pure PI; progressive overload is intrinsic to the retained signal extractor's `+7/+3/+1` rep-offset map (successful sets yield positive innovations; the loop climbs to the failure edge and self-limits via TOO_HARD). No separate overload-policy layer; an explicit target-RIR / +x%/week layer is a documented future knob."
 - #3 → "RESOLVED: dropped. Downward moves come from negative innovation, bounded by the log-step caps and EMA; the validated controller has no clamp."
 Update the top-of-file Status line to "Design — implemented" (or similar).
 
-- [ ] **Step 4: Run the full unit suite**
+- [x] **Step 4: Run the full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL, all green.
 
-- [ ] **Step 5: Run the full instrumented suite**
+- [x] **Step 5: Run the full instrumented suite**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: all green. (If no device is attached, report that the instrumented run was skipped rather than claiming it passed.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A

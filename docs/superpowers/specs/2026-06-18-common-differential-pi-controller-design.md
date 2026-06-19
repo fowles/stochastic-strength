@@ -6,7 +6,7 @@ removed; `RollingConservingProgressionController` is the sole production path.
 
 ## Problem
 
-Today the per-session progression runs as **three coupled components** (in
+Before this change, the per-session progression ran as **three coupled components** (in
 `WorkoutRepository.applySessionProgression`):
 
 1. `LastSetAutoregulationHeuristic` (a `BaselineHeuristic`) — moves the per-muscle

@@ -12,3 +12,8 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 
 - `ReplaySnapshot.progressionBaselines` and `ReplaySnapshot.baselineHistoryByMuscle` are
   now write-only (no controller reads them). Remove in a later cleanup pass.
+
+- Note (intended, not a bug): the progression pool / `seedCoefficients` come from
+  `getActive()`, so an exercise later marked inactive drops out of the muscle pool and its
+  coefficient stops moving / stops contributing to the gauge. Matches the prior stack's
+  active-only behavior; documented here in case it ever needs revisiting.
