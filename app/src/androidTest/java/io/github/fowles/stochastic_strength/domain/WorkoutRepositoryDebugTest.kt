@@ -30,7 +30,7 @@ class WorkoutRepositoryDebugTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())
+        repository = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
     }
 
     @After

@@ -45,12 +45,13 @@ class FatigueNoDownwardBiasReplayTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        // Use real EstCoefConsensusHeuristic + SeedNormalizer — the exact path under test.
+        // Use the real controller — the property under test (no spurious downward drift from
+        // high-rep fatigue) holds because innovations are symmetric in log space: TOO_HARD at
+        // targetReps-1 on a weight that equals the baseline implies est1RM ≈ baseline, so the
+        // common-mode innovation is near zero and the baseline is not penalised.
         repository = WorkoutRepository(
             db,
-            heuristic = EstCoefConsensusHeuristic(),
-            normalizer = SeedNormalizer(),
-            baselineHeuristic = FakeBaselineHeuristic(),
+            progressionControllerFactory = { RollingConservingProgressionController() },
         )
     }
 

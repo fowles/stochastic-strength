@@ -39,9 +39,7 @@ class DerivedStateBackfillTest {
             .build()
         repository = WorkoutRepository(
             db,
-            heuristic = EstCoefConsensusHeuristic(),
-            normalizer = SeedNormalizer(),
-            baselineHeuristic = FakeBaselineHeuristic(),
+            progressionControllerFactory = { FakeProgressionController() },
         )
     }
 

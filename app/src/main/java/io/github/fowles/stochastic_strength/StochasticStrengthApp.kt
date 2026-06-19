@@ -4,10 +4,8 @@ import android.app.Application
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.DerivedStateBackfill
-import io.github.fowles.stochastic_strength.domain.LastSetAutoregulationHeuristic
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
-import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
-import io.github.fowles.stochastic_strength.domain.SeedNormalizer
+import io.github.fowles.stochastic_strength.domain.RollingConservingProgressionController
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.strava.StravaExporter
 import io.github.fowles.stochastic_strength.domain.strava.StravaJsonBuilder
@@ -36,15 +34,7 @@ class StochasticStrengthApp : Application() {
         WorkoutRepository(
             database,
             derivedState = derivedStateStore,
-            heuristic = EstCoefConsensusHeuristic(
-                alpha = 0.6f,
-                maxLogStep = kotlin.math.ln(1.10f),
-                tauHalfMs = 21L * 24L * 60L * 60L * 1000L,
-                minRelativeChange = 0.002f,
-                minPeers = 3,
-            ),
-            normalizer = SeedNormalizer(),
-            baselineHeuristic = LastSetAutoregulationHeuristic(),
+            progressionControllerFactory = { RollingConservingProgressionController() },
         )
     }
 

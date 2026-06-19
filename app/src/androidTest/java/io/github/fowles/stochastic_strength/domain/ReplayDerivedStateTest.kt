@@ -40,9 +40,7 @@ class ReplayDerivedStateTest {
             .build()
         repository = WorkoutRepository(
             db,
-            heuristic = EstCoefConsensusHeuristic(),
-            normalizer = SeedNormalizer(),
-            baselineHeuristic = FakeBaselineHeuristic(),
+            progressionControllerFactory = { FakeProgressionController() },
         )
     }
 
@@ -100,18 +98,38 @@ class ReplayDerivedStateTest {
     }
 
     @Test
-    fun replay_reconstructsHistoricalTrajectory() = runBlocking {
-        seedTwoPhaseTrainingHistory()
+    fun finishSession_advancesBaselineWhenSetsArePresent() = runBlocking {
+        // Seed: one CHEST exercise, initial baseline 100f, one completed session with
+        // RIR_2_4 feedback. The FakeProgressionController always moves baseline by upFactor (1.05)
+        // when sets are present; exerciseReductions is now a dead param.
+        db.userProfileDao().insert(UserProfile(
+            sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
+        db.exerciseDao().insert(Exercise(
+            id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
+            equipment = Equipment.BARBELL))
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST,
+            baselineWeight = 100f, asOf = 0))
 
-        repository.replayDerivedState()
+        val sessionId = SESSION_1_ID
+        db.workoutSessionDao().insert(WorkoutSession(
+            id = sessionId, startTime = SESSION_1_START, endTime = SESSION_1_START + 1000))
+        repeat(3) { i ->
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = BENCH_EXERCISE_ID, setNumber = i + 1,
+                targetWeight = 100f, targetReps = 5, actualReps = 5,
+                feedback = SetFeedback.RIR_2_4, completedAt = SESSION_1_START + i * 100L))
+        }
 
-        val coefs = repository.derivedState.snapshot().coefficientHistoryForExercise(BENCH_EXERCISE_ID)
-        // Two-phase: should NOT be monotonically rising (phase 1 had TOO_HARD, phase 2 had confident RIR).
-        // We assert there is at least one row whose coefficient is below the previous row's coefficient.
-        val droppedAtLeastOnce = coefs.zipWithNext().any { (a, b) -> b.coefficient < a.coefficient }
+        repository.finishSession(sessionId, exerciseReductions = emptyMap())
+
+        val progressionRow = repository.derivedState.snapshot().allBaselineHistory()
+            .firstOrNull { it.changeReason == BaselineChangeReason.PROGRESSION && it.muscleGroup == MuscleGroup.CHEST }
+        assertNotNull("expected a PROGRESSION row for CHEST", progressionRow)
+        // FakeProgressionController moves baseline by 1.05x regardless of reductions.
         assertTrue(
-            "coefficient should dip during the TOO_HARD phase, then recover; coefs=${coefs.map { it.coefficient }}",
-            droppedAtLeastOnce,
+            "expected new baseline > 100f from FakeProgressionController, got ${progressionRow!!.newBaseline}",
+            progressionRow.newBaseline > 100f,
         )
     }
 
@@ -154,86 +172,6 @@ class ReplayDerivedStateTest {
                 targetWeight = 82.5f, targetReps = 5, actualReps = 5,
                 feedback = SetFeedback.RIR_2_4, completedAt = SESSION_2_START + i * 100L))
         }
-    }
-
-    private suspend fun seedTwoPhaseTrainingHistory() {
-        db.userProfileDao().insert(UserProfile(
-            sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
-        // Single exercise in CHEST: H2's n=1 path always emits, so we get a visible
-        // dip during TOO_HARD phase and recovery during RIR_0_1 phase.
-        // (Two exercises with identical feedback trigger H2 consensus-suppression,
-        //  which is the anti-echo-chamber logic working correctly — not a bug.)
-        db.exerciseDao().insert(Exercise(
-            id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
-            equipment = Equipment.BARBELL))
-        db.baselineOverrideDao().insert(BaselineOverride(
-            sessionId = null, muscleGroup = MuscleGroup.CHEST,
-            baselineWeight = 80f, asOf = 0))
-
-        // Phase 1: sessions 1 and 2 where weight (60f) is well below baseline (80f), producing
-        // an estimated coefficient < 1.0 (= seed). Coefficient should drop below seed.
-        // est1RM = toOneRepMax(60, 2) ≈ 64, estCoef = 64/80 = 0.80 < currentCoef=1.0.
-        for ((idx, sessionId) in listOf(SESSION_1_ID, SESSION_2_ID).withIndex()) {
-            val t = SESSION_1_START + idx * 24L * 60 * 60 * 1000
-            db.workoutSessionDao().insert(WorkoutSession(id = sessionId, startTime = t, endTime = t + 1000))
-            repeat(3) { i ->
-                db.workoutSetDao().insert(WorkoutSet(
-                    sessionId = sessionId, exerciseId = BENCH_EXERCISE_ID, setNumber = i + 1,
-                    targetWeight = 60f, targetReps = 5, actualReps = 2,
-                    feedback = SetFeedback.TOO_HARD, completedAt = t + i * 100L))
-            }
-        }
-        // Phase 2: sessions 3-5 where weight (90f) is above baseline with easy RIR_0_1.
-        // est1RM = toOneRepMax(90, 6) ≈ 108, estCoef = 108/80 = 1.35 > depressed coefficient.
-        // Coefficient should rise back above where phase 1 left it.
-        for ((idx, sessionId) in listOf(3L, 4L, 5L).withIndex()) {
-            val t = SESSION_1_START + (2 + idx) * 24L * 60 * 60 * 1000
-            db.workoutSessionDao().insert(WorkoutSession(id = sessionId, startTime = t, endTime = t + 1000))
-            repeat(3) { i ->
-                db.workoutSetDao().insert(WorkoutSet(
-                    sessionId = sessionId, exerciseId = BENCH_EXERCISE_ID, setNumber = i + 1,
-                    targetWeight = 90f, targetReps = 5, actualReps = 5,
-                    feedback = SetFeedback.RIR_0_1, completedAt = t + i * 100L))
-            }
-        }
-    }
-
-    @Test
-    fun finishSession_passesReductionsThroughToProgression() = runBlocking {
-        // Seed: one CHEST exercise, initial baseline 100f, one completed session with
-        // RIR_2_4 feedback (which would normally advance the baseline).
-        db.userProfileDao().insert(UserProfile(
-            sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
-        db.exerciseDao().insert(Exercise(
-            id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
-            equipment = Equipment.BARBELL))
-        db.baselineOverrideDao().insert(BaselineOverride(
-            sessionId = null, muscleGroup = MuscleGroup.CHEST,
-            baselineWeight = 100f, asOf = 0))
-
-        val sessionId = SESSION_1_ID
-        db.workoutSessionDao().insert(WorkoutSession(
-            id = sessionId, startTime = SESSION_1_START, endTime = SESSION_1_START + 1000))
-        repeat(3) { i ->
-            db.workoutSetDao().insert(WorkoutSet(
-                sessionId = sessionId, exerciseId = BENCH_EXERCISE_ID, setNumber = i + 1,
-                targetWeight = 100f, targetReps = 5, actualReps = 5,
-                feedback = SetFeedback.RIR_2_4, completedAt = SESSION_1_START + i * 100L))
-        }
-
-        // finishSession with a large reduction: 20% drop on the exercise.
-        val largeReduction = mapOf(BENCH_EXERCISE_ID to 0.20f)
-        repository.finishSession(sessionId, largeReduction)
-
-        val progressionRow = repository.derivedState.snapshot().allBaselineHistory()
-            .firstOrNull { it.changeReason == BaselineChangeReason.PROGRESSION && it.muscleGroup == MuscleGroup.CHEST }
-        assertNotNull("expected a PROGRESSION row for CHEST", progressionRow)
-        // With a 20% reduction cap applied, the new baseline should be at most 80f (= 100 * (1 - 0.20)).
-        // Without the reduction, RIR_2_4 would yield a higher baseline. Verify reduction was honored.
-        assertTrue(
-            "expected new baseline <= 80f due to reduction, got ${progressionRow!!.newBaseline}",
-            progressionRow.newBaseline <= 80f,
-        )
     }
 
     companion object {
