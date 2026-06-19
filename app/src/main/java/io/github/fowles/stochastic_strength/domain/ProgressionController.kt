@@ -30,8 +30,9 @@ data class ProgressionStepInput(
 /**
  * A controller's proposed update for one muscle's baseline.
  *
- * [newBaseline] is already rounded to the weight grid (kg or lb increment) by the controller;
- * the persistence layer stores it verbatim without further rounding.
+ * [newBaseline] is stored at full precision (raw kg); the controller does NOT round it.
+ * Grid rounding (kg/lb increment) happens only at weight selection in WorkoutPlanner, so
+ * sub-grid progression accumulates instead of being lost to a rounding deadband.
  */
 data class BaselineUpdate(val muscleGroup: MuscleGroup, val newBaseline: Float, val metadata: String?)
 data class CoefficientUpdate(val exerciseId: Long, val coefficient: Float, val metadata: String?)
@@ -99,7 +100,7 @@ class RollingConservingProgressionController(
             if (b <= 0f) continue
 
             if (m in input.hurtMuscles) {
-                val bNew = WeightFormatter.round(b * config.hurtFactor, input.weightUnit)
+                val bNew = b * config.hurtFactor
                 if (bNew != b && bNew > 0f) baselineUpdates.add(BaselineUpdate(m, bNew, "hurt"))
                 continue
             }
@@ -119,7 +120,7 @@ class RollingConservingProgressionController(
             val common = if (wsum > 0f) pooled.sumOf { (it.second * it.third).toDouble() }.toFloat() / wsum else 0f
 
             val dLogB = (config.kB * common).coerceIn(-config.maxLogStepB, config.maxLogStepB)
-            val bNew = WeightFormatter.round(b * exp(dLogB), input.weightUnit)
+            val bNew = b * exp(dLogB)
             if (bNew != b && bNew > 0f) {
                 baselineUpdates.add(BaselineUpdate(m, bNew, "pi:n=${pooled.size},common=${fmt(common)}"))
             }
