@@ -23,6 +23,11 @@ class EstCoefConsensusHeuristic(
         val isUpperBound: Boolean,
     )
 
+    data class SessionAggregate(
+        val est1RM: Float,
+        val sessionConfidence: Float,
+    )
+
     override fun compute(input: CoefficientComputationInput): List<CoefficientResult> {
         val buckets = input.sets.groupBy { it.sessionId to it.exerciseId }
         val perExerciseSignals = mutableMapOf<Long, MutableList<SessionSignal>>()
@@ -58,71 +63,15 @@ class EstCoefConsensusHeuristic(
         }
     }
 
-    data class SessionAggregate(
-        val est1RM: Float,
-        val sessionConfidence: Float,
-    )
-
-    internal fun aggregateSession(sets: List<WorkoutSet>): SessionAggregate? {
-        val signals = sets.mapNotNull { setSignal(it) }
-        if (signals.isEmpty()) return null
-
-        val nonUpperBound = signals.filter { !it.isUpperBound }
-        val included = if (nonUpperBound.isEmpty()) {
-            signals
-        } else {
-            val nonBoundMean = nonUpperBound.sumOf { (it.est1RM * it.confidence).toDouble() }
-                .toFloat() / nonUpperBound.sumOf { it.confidence.toDouble() }.toFloat()
-            signals.filter { sig ->
-                if (!sig.isUpperBound) true
-                else nonBoundMean > sig.est1RM
-            }
+    internal fun aggregateSession(sets: List<WorkoutSet>): SessionAggregate? =
+        SessionSignalExtractor.aggregateSession(sets)?.let {
+            SessionAggregate(it.est1RM, it.sessionConfidence)
         }
-        if (included.isEmpty()) return null
 
-        val totalConf = included.sumOf { it.confidence.toDouble() }.toFloat()
-        val weighted1RM = included.sumOf { (it.est1RM * it.confidence).toDouble() }.toFloat() / totalConf
-        val avgConf = totalConf / included.size
-        return SessionAggregate(
-            est1RM = weighted1RM,
-            sessionConfidence = avgConf,
-        )
-    }
-
-    internal fun setSignal(set: WorkoutSet): SetSignal? {
-        val feedback = set.feedback ?: return null
-        return when (feedback) {
-            SetFeedback.HURT -> null
-            SetFeedback.RIR_5_PLUS -> SetSignal(
-                est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 7),
-                confidence = 0.4f, isUpperBound = false,
-            )
-            SetFeedback.RIR_2_4 -> SetSignal(
-                est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 3),
-                confidence = 0.7f, isUpperBound = false,
-            )
-            SetFeedback.RIR_0_1 -> SetSignal(
-                est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 1),
-                confidence = 0.85f, isUpperBound = false,
-            )
-            SetFeedback.TOO_HARD -> {
-                val reps = set.actualReps
-                if (reps != null) {
-                    SetSignal(
-                        est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, reps),
-                        confidence = 0.95f,
-                        isUpperBound = false,
-                    )
-                } else {
-                    SetSignal(
-                        est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, maxOf(1, set.targetReps - 1)),
-                        confidence = 0.5f,
-                        isUpperBound = true,
-                    )
-                }
-            }
+    internal fun setSignal(set: WorkoutSet): SetSignal? =
+        SessionSignalExtractor.setSignal(set)?.let {
+            SetSignal(it.est1RM, it.confidence, it.isUpperBound)
         }
-    }
 
     data class SessionSignal(
         val sessionId: Long,
