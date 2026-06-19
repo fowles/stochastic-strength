@@ -188,7 +188,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                         modifier = Modifier
                             .width(16.dp)
                             .height(2.dp)
-                            .background(MaterialTheme.colorScheme.tertiary),
+                            .background(MaterialTheme.colorScheme.primary),
                     )
                     Text(
                         text = "Prescribed target",
@@ -301,9 +301,8 @@ private fun ExerciseChart(
             )
         ),
     )
-    val tertiaryColor = MaterialTheme.colorScheme.tertiary
     val prescribedLine = LineCartesianLayer.rememberLine(
-        fill = LineCartesianLayer.LineFill.single(fill(tertiaryColor)),
+        fill = LineCartesianLayer.LineFill.single(fill(primaryColor)),
         stroke = LineCartesianLayer.LineStroke.continuous(thickness = 2.dp),
         pointConnector = LineCartesianLayer.PointConnector.cubic(),
     )

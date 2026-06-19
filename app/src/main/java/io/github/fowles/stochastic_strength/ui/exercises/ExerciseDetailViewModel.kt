@@ -121,7 +121,13 @@ class ExerciseDetailViewModel(
             baselineEvents = repository.getBaselineEvents(exercise.primaryMuscle),
             coefficientEvents = repository.getCoefficientEvents(exerciseId),
             seedCoefficient = seedCoefficient,
-            dayKeys = primarySetsByDay.keys,
+            // Sample over every charted day (this exercise's days plus the shadow
+            // days from related exercises). baseline × coefficient is defined on
+            // every day, and a line needs ≥2 points — sampling only this
+            // exercise's own days collapses to a single invisible point whenever
+            // it was performed on just one day. The union stays on the already
+            // plotted x-grid, so the marker / day-selection is unaffected.
+            dayKeys = primarySetsByDay.keys + shadowSetsByDay.keys,
             zone = zone,
         )
 
