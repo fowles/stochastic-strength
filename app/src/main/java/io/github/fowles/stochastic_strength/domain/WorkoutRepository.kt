@@ -138,19 +138,19 @@ class WorkoutRepository(
         scratch: MutableDerivedState,
     ) {
         val current = snapshot.currentBaselines[update.muscleGroup] ?: return
-        val rounded = update.newBaseline
-        if (rounded <= 0f || rounded == current) return
+        val newBaseline = update.newBaseline
+        if (newBaseline <= 0f || newBaseline == current) return
         scratch.upsertMuscleGroupStrength(
-            MuscleGroupStrength(muscleGroup = update.muscleGroup, baselineWeight = rounded),
+            MuscleGroupStrength(muscleGroup = update.muscleGroup, baselineWeight = newBaseline),
         )
         snapshot.progressionBaselines[sessionId to update.muscleGroup] = current
-        snapshot.currentBaselines[update.muscleGroup] = rounded
+        snapshot.currentBaselines[update.muscleGroup] = newBaseline
         val muscleFeedbacks = setsByMuscle[update.muscleGroup].orEmpty().mapNotNull { it.feedback }
         val historyRow = BaselineHistory(
             sessionId = sessionId,
             muscleGroup = update.muscleGroup,
             previousBaseline = current,
-            newBaseline = rounded,
+            newBaseline = newBaseline,
             changeReason = BaselineChangeReason.PROGRESSION,
             feedbacks = muscleFeedbacks.joinToString(",") { it.name }.ifEmpty { null },
             sessionReps = sessionReps,
