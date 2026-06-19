@@ -1,6 +1,5 @@
 package io.github.fowles.stochastic_strength.ui.exercises
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -177,26 +178,6 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
             )
-
-            if (state.prescribedPoints.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(16.dp)
-                            .height(2.dp)
-                            .background(MaterialTheme.colorScheme.primary),
-                    )
-                    Text(
-                        text = "Prescribed target",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
 
             if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty() && state.prescribedPoints.isEmpty()) {
                 Box(
@@ -345,7 +326,7 @@ private fun ExerciseChart(
                 currentOnDaySelected(targets.firstOrNull()?.x?.toLong())
         }
     }
-    val marker = rememberSelectionMarker(weightUnit)
+    val marker = rememberSelectionMarker(weightUnit, prescribedColor = primaryColor)
 
     CartesianChartHost(
         chart = rememberCartesianChart(
@@ -369,7 +350,7 @@ private fun ExerciseChart(
 }
 
 @Composable
-private fun rememberSelectionMarker(weightUnit: WeightUnit): DefaultCartesianMarker {
+private fun rememberSelectionMarker(weightUnit: WeightUnit, prescribedColor: Color): DefaultCartesianMarker {
     val labelBackground = rememberShapeComponent(
         fill = fill(MaterialTheme.colorScheme.surface),
         shape = CorneredShape.Pill,
@@ -383,12 +364,16 @@ private fun rememberSelectionMarker(weightUnit: WeightUnit): DefaultCartesianMar
     )
     val guideline = rememberAxisGuidelineComponent()
     val fmt = remember { DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()) }
-    val valueFormatter = remember(fmt, weightUnit) {
+    // The prescribed-target line is drawn in [prescribedColor]; exclude it so the
+    // marker reports only the plotted achieved points, not the trend line's value.
+    val excludeArgb = remember(prescribedColor) { prescribedColor.toArgb() }
+    val valueFormatter = remember(fmt, weightUnit, excludeArgb) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
             formatLineMarkerLabel(
                 targets = targets,
                 xLabel = { x -> LocalDate.ofEpochDay(x.toLong()).format(fmt) },
                 yLabel = { y -> WeightFormatter.format(y.toFloat(), weightUnit) },
+                excludeColor = excludeArgb,
             )
         }
     }
