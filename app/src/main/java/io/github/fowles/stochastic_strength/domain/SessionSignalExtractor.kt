@@ -4,8 +4,8 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 
 /**
- * Pure feedback → (implied 1RM, confidence) extraction, lifted verbatim from the former
- * EstCoefConsensusHeuristic so it survives that class's removal. A set's RIR bucket maps to an
+ * Pure feedback → (implied 1RM, confidence) extraction, originally from the former
+ * three-component coefficient estimator stack. A set's RIR bucket maps to an
  * implied 1RM assuming `targetReps + {7,3,1}` reps in reserve; TOO_HARD reads the achieved reps
  * (or, if unknown, an upper bound just under target). HURT carries no load signal.
  */

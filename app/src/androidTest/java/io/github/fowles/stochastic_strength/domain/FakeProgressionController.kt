@@ -2,7 +2,7 @@ package io.github.fowles.stochastic_strength.domain
 
 /**
  * Deterministic test double: every trained muscle's baseline moves by [upFactor]; coefficients are
- * left untouched. Replaces the former FakeBaselineHeuristic for repo-mechanics androidTests, which
+ * left untouched. Used for repo-mechanics androidTests, which
  * assert that replay writes the expected derived rows — not the controller's math.
  */
 class FakeProgressionController(private val upFactor: Float = 1.05f) : ProgressionController {

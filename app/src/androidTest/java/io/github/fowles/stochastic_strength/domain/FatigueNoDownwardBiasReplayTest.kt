@@ -25,11 +25,11 @@ import org.junit.runner.RunWith
 /**
  * Regression guard: a sequence of clean high-rep sessions where only the last set is a
  * near-miss TOO_HARD (actualReps = targetReps - 1) must never drive a muscle's baseline
- * *below* its seed value through the EstCoefConsensusHeuristic → SeedNormalizer path.
+ * *below* its seed value.
  *
- * Background: the old LastSet heuristic had a fatigue downward bias. After replacing it with
- * LastSetAutoregulationHeuristic (Task 3), this test guards that the coefficient → normalizer
- * pipeline cannot smuggle a net downward baseline move back in on clean sessions.
+ * Background: the old three-component progression stack had a fatigue downward bias on the
+ * coefficient → normalizer path. The current [RollingConservingProgressionController] replaced
+ * that stack; this test guards that clean TOO_HARD sessions do not produce a net downward baseline.
  *
  * See: spec "Open risk" section in task-4-brief.md.
  */
@@ -149,7 +149,7 @@ class FatigueNoDownwardBiasReplayTest {
          * `ExerciseCoefficients.get(exercise)` which looks up by [Exercise.name]. If this name
          * is removed or its coefficient changes in [ExerciseCoefficients], the seed coefficient
          * assumed by this test will silently diverge, potentially altering the 1RM estimate used
-         * by [EstCoefConsensusHeuristic] and producing unexpected coefficient proposals.
+         * by [SessionSignalExtractor] and producing unexpected coefficient proposals.
          *
          * If [ExerciseCoefficients.byName]["Barbell Bench Press"] ever changes from 1.0f, update
          * [BENCH_EXERCISE_NAME] and [BENCH_SEED_COEFFICIENT] together.

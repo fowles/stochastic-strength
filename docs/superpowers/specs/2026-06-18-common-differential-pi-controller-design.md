@@ -1,9 +1,8 @@
 # Common/Differential PI Controller — unifying baseline + coefficient estimation
 
 **Date:** 2026-06-18
-**Status:** Design — pending implementation plan. Decision #1 resolved (gauge-conserving
-rolling-window differential); two open decisions (#2 estimation-vs-policy, #3 reduction
-clamp) remain.
+**Status:** Design — implemented. All three decisions resolved; the three-component stack
+removed; `RollingConservingProgressionController` is the sole production path.
 
 ## Problem
 
@@ -236,15 +235,14 @@ each recompute.)
    strengthening remains (see findings) and is accepted as safe/transient; an untested knob
    (shorter half-life for the common mode than the differential) could erase it later.
 
-2. **Estimation vs progression policy (architectural).** PI *estimates true capacity*; the
-   current baseline controller *also drives overload* (the +5%-at-RIR-0–1 creep). If
-   deliberate overload is desired, it should become an **explicit thin policy layer** on top
-   of an accurate estimate (e.g. prescribe at a target RIR / +x%/week), rather than being
-   baked into the estimator. Decision: keep overload behavior, and if so, where it lives.
+2. **Estimation vs progression policy (architectural) — RESOLVED: ship pure PI; progressive
+   overload is intrinsic to the retained signal extractor's `+7/+3/+1` rep-offset map
+   (successful sets yield positive innovations; the loop climbs to the failure edge and
+   self-limits via TOO_HARD). No separate overload-policy layer; an explicit target-RIR /
+   +x%/week layer is a documented future knob.**
 
-3. **Reduction clamp (minor).** PI produces downward moves organically via negative
-   innovation. Decide whether to also retain the explicit `minReductionFractions` clamp as a
-   belt-and-suspenders downward guard, or drop it as redundant.
+3. **Reduction clamp (minor) — RESOLVED: dropped.** Downward moves come from negative
+   innovation, bounded by the log-step caps and EMA; the validated controller has no clamp.
 
 ## Migration path
 
