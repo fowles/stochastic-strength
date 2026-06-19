@@ -242,8 +242,8 @@ class ProgressionControllerSimulationTest {
         rows.forEach { assertTrue("non-finite metric: $it", metricsFinite(it)) }
 
         assertTrue("convergence ${convSess} > budget", convSess <= 8.0)            // doc: ~3
-        assertTrue("trainedErr ${avg { it.trainedEndErr }} > ceiling", avg { it.trainedEndErr } <= 4.0f)  // doc: ~2.3
-        assertTrue("jitter ${avg { it.jitter }} > ceiling", avg { it.jitter } <= 1.0f)                    // doc: ~0.5
+        assertTrue("trainedErr ${avg { it.trainedEndErr }} > ceiling", avg { it.trainedEndErr } <= 4.0f)  // doc: ~1.8
+        assertTrue("jitter ${avg { it.jitter }} > ceiling", avg { it.jitter } <= 1.0f)                    // doc: ~0.6
     }
 
     @Test
