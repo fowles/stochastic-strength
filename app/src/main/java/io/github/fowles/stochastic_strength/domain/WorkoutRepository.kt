@@ -15,6 +15,7 @@ import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
@@ -100,7 +101,8 @@ class WorkoutRepository(
                 ProgressionObservation(id, muscle, it.est1RM, it.sessionConfidence)
             }
         }
-        val hurtMuscles = sets.filter { it.feedback == io.github.fowles.stochastic_strength.data.model.SetFeedback.HURT }
+        // HURT is muscle-level and coefficient-independent (matches prior LastSetAutoregulation): any pain backs the baseline off.
+        val hurtMuscles = sets.filter { it.feedback == SetFeedback.HURT }
             .mapNotNull { exerciseMuscle[it.exerciseId] }.toSet()
         val muscleExercises = snapshot.currentCoefficients.filterValues { it > 0f }.keys
             .mapNotNull { id -> exerciseMuscle[id]?.let { it to id } }

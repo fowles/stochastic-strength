@@ -98,10 +98,11 @@ class ReplayDerivedStateTest {
     }
 
     @Test
-    fun finishSession_advancesBaselineWhenSetsArePresent() = runBlocking {
+    fun finishSession_ignoresDeadReductionsParam_baselineStillAdvances() = runBlocking {
         // Seed: one CHEST exercise, initial baseline 100f, one completed session with
         // RIR_2_4 feedback. The FakeProgressionController always moves baseline by upFactor (1.05)
-        // when sets are present; exerciseReductions is now a dead param.
+        // when sets are present; exerciseReductions is now a dead param — passing a large
+        // reduction map must NOT suppress the baseline advance.
         db.userProfileDao().insert(UserProfile(
             sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
         db.exerciseDao().insert(Exercise(
@@ -121,15 +122,84 @@ class ReplayDerivedStateTest {
                 feedback = SetFeedback.RIR_2_4, completedAt = SESSION_1_START + i * 100L))
         }
 
-        repository.finishSession(sessionId, exerciseReductions = emptyMap())
+        // Pass a LARGE reduction (99%) for the exercise — if the repo still read this param
+        // it would clamp the baseline down; the fact it still advances proves the param is dead.
+        repository.finishSession(sessionId, exerciseReductions = mapOf(BENCH_EXERCISE_ID to 0.99f))
 
         val progressionRow = repository.derivedState.snapshot().allBaselineHistory()
             .firstOrNull { it.changeReason == BaselineChangeReason.PROGRESSION && it.muscleGroup == MuscleGroup.CHEST }
         assertNotNull("expected a PROGRESSION row for CHEST", progressionRow)
         // FakeProgressionController moves baseline by 1.05x regardless of reductions.
         assertTrue(
-            "expected new baseline > 100f from FakeProgressionController, got ${progressionRow!!.newBaseline}",
+            "expected new baseline > 100f from FakeProgressionController even with 99% reduction param, got ${progressionRow!!.newBaseline}",
             progressionRow.newBaseline > 100f,
+        )
+    }
+
+    @Test
+    fun replay_multiSession_baselineStrictlyIncreases() = runBlocking {
+        // Uses the REAL RollingConservingProgressionController (not the fake) to assert real
+        // progression: 3 sessions of consistently-easy (RIR_5_PLUS) feedback on Barbell Bench
+        // Press at the prescribed weight must drive the baseline strictly upward each session.
+        val realRepository = WorkoutRepository(
+            db,
+            progressionControllerFactory = { RollingConservingProgressionController() },
+        )
+
+        db.userProfileDao().insert(UserProfile(
+            sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
+        db.exerciseDao().insert(Exercise(
+            id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
+            equipment = Equipment.BARBELL))
+        // Barbell Bench Press has coefficient 1.0, so prescribed weight == baseline.
+        // Seed baseline well below a realistic 1RM so RIR_5_PLUS is plausible.
+        val initialBaseline = 80f
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST,
+            baselineWeight = initialBaseline, asOf = 0))
+
+        // 3 sessions, each with 3 sets at target weight with RIR_5_PLUS (very easy) feedback.
+        // Use plausible target weights that approximate prescribed weight at the current baseline.
+        val sessionData = listOf(
+            Triple(SESSION_1_ID, SESSION_1_START, 80f),
+            Triple(SESSION_2_ID, SESSION_2_START, 82.5f),
+            Triple(SESSION_3_ID, SESSION_3_START, 85f),
+        )
+        for ((sid, startTime, weight) in sessionData) {
+            db.workoutSessionDao().insert(WorkoutSession(
+                id = sid, startTime = startTime, endTime = startTime + 3600_000L))
+            repeat(3) { i ->
+                db.workoutSetDao().insert(WorkoutSet(
+                    sessionId = sid, exerciseId = BENCH_EXERCISE_ID, setNumber = i + 1,
+                    targetWeight = weight, targetReps = 5, actualReps = 5,
+                    feedback = SetFeedback.RIR_5_PLUS, completedAt = startTime + i * 120_000L))
+            }
+        }
+
+        realRepository.replayDerivedState()
+
+        val history = realRepository.derivedState.snapshot().allBaselineHistory()
+            .filter { it.changeReason == BaselineChangeReason.PROGRESSION && it.muscleGroup == MuscleGroup.CHEST }
+            .sortedBy { it.timestamp }
+
+        assertTrue(
+            "expected at least 3 PROGRESSION rows for CHEST, got ${history.size}: $history",
+            history.size >= 3,
+        )
+
+        // Verify strictly increasing: each newBaseline must exceed the previous newBaseline.
+        val baselines = listOf(initialBaseline) + history.map { it.newBaseline }
+        for (i in 1 until baselines.size) {
+            assertTrue(
+                "expected strictly increasing baselines across sessions but step $i went " +
+                    "${baselines[i - 1]} -> ${baselines[i]}: full sequence = $baselines",
+                baselines[i] > baselines[i - 1],
+            )
+        }
+        // Final baseline must be strictly above initial.
+        assertTrue(
+            "expected final baseline > initial $initialBaseline, got ${baselines.last()}",
+            baselines.last() > initialBaseline,
         )
     }
 
@@ -178,7 +248,9 @@ class ReplayDerivedStateTest {
         private const val BENCH_EXERCISE_ID = 100L
         private const val SESSION_1_ID = 1L
         private const val SESSION_2_ID = 2L
+        private const val SESSION_3_ID = 3L
         private const val SESSION_1_START = 1_700_000_000_000L
         private const val SESSION_2_START = 1_700_086_400_000L  // +1 day
+        private const val SESSION_3_START = 1_700_172_800_000L  // +2 days
     }
 }

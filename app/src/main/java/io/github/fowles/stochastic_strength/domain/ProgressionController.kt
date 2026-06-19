@@ -27,6 +27,12 @@ data class ProgressionStepInput(
     val weightUnit: WeightUnit,
 )
 
+/**
+ * A controller's proposed update for one muscle's baseline.
+ *
+ * [newBaseline] is already rounded to the weight grid (kg or lb increment) by the controller;
+ * the persistence layer stores it verbatim without further rounding.
+ */
 data class BaselineUpdate(val muscleGroup: MuscleGroup, val newBaseline: Float, val metadata: String?)
 data class CoefficientUpdate(val exerciseId: Long, val coefficient: Float, val metadata: String?)
 data class ProgressionStepOutput(
