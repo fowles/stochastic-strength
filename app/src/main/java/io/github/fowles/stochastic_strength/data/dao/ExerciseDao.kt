@@ -18,6 +18,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE isDisliked = 0")
     suspend fun getActive(): List<Exercise>
 
+    @Query("SELECT * FROM exercises")
+    suspend fun getAll(): List<Exercise>
+
     @Query("SELECT * FROM exercises WHERE id = :id")
     suspend fun getById(id: Long): Exercise?
 

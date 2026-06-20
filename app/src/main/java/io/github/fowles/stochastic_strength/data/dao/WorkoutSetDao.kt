@@ -40,4 +40,7 @@ interface WorkoutSetDao {
 
     @Query("SELECT * FROM workout_sets LIMIT 1")
     suspend fun getFirst(): List<WorkoutSet>
+
+    @Query("SELECT * FROM workout_sets")
+    suspend fun getAll(): List<WorkoutSet>
 }

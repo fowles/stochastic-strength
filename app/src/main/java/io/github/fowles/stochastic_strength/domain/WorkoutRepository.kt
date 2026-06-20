@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.domain
 import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
+import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
@@ -22,10 +23,17 @@ class WorkoutRepository(
     private val db: AppDatabase,
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
+    private val heuristics: List<CoefficientHeuristic> = listOf(),
 ) {
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
         else emptySet()
+
+    private suspend fun effectiveCoefficientSource(): UserCoefficientSource {
+        val latest = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        return UserCoefficientSource(latest, coefficientSource)
+    }
 
     suspend fun buildPlanner(
         locationId: Long?,
@@ -43,13 +51,14 @@ class WorkoutRepository(
             db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
                 .groupBy { it.exerciseId }
         else emptyMap()
+        val effectiveCoefficients = effectiveCoefficientSource()
         return WorkoutPlanner(
             availableExercises = available,
             strengths = strengths,
             recentHistory = history,
             weightUnit = weightUnit,
             locationId = locationId,
-            coefficientSource = coefficientSource,
+            coefficientSource = effectiveCoefficients,
             progressionEngine = progressionEngine,
         )
     }
@@ -77,8 +86,9 @@ class WorkoutRepository(
 
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
+        val effectiveCoefficients = effectiveCoefficientSource()
         val exercisesByMuscle = exerciseById.values
-            .filter { (coefficientSource.get(it) ?: 0f) > 0f }
+            .filter { (effectiveCoefficients.get(it) ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
         for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
             val allFeedbacks = muscleExercises.flatMap { exercise ->
@@ -105,6 +115,7 @@ class WorkoutRepository(
                 )
             )
         }
+        recomputeCoefficients()
     }
 
     suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
@@ -123,6 +134,83 @@ class WorkoutRepository(
             )
         }
     }
+
+    internal suspend fun buildCoefficientInput(): CoefficientComputationInput {
+        // Use all exercises (including disliked) for history — we want full training data.
+        // Use only active exercises for currentCoefficients — disliked exercises are excluded from planning.
+        val allExercises = db.exerciseDao().getAll()
+        val activeExercises = db.exerciseDao().getActive()
+        val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
+        val sessionTimeById = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
+        val progressionLogs = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.PROGRESSION }
+            .associateBy { it.sessionId to it.muscleGroup }
+        val snapshots = db.workoutSetDao().getAll()
+            .groupBy { it.sessionId to it.exerciseId }
+            .mapNotNull { (key, sets) ->
+                val (sessionId, exerciseId) = key
+                val muscle = exerciseMuscle[exerciseId] ?: return@mapNotNull null
+                val logEntry = progressionLogs[sessionId to muscle] ?: return@mapNotNull null
+                val sessionTime = sessionTimeById[sessionId] ?: return@mapNotNull null
+                val targetReps = sets.firstOrNull()?.targetReps ?: return@mapNotNull null
+                ExerciseSessionSnapshot(
+                    exerciseId = exerciseId,
+                    sessionId = sessionId,
+                    sessionTime = sessionTime,
+                    targetReps = targetReps,
+                    muscleBaseline = logEntry.previousBaseline,
+                    sets = sets.sortedBy { it.setNumber }
+                        .map { SetSnapshot(it.targetWeight, it.feedback) },
+                )
+            }
+            .sortedBy { it.sessionTime }
+        val latestUserCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        val currentCoefficients = activeExercises.associate { exercise ->
+            exercise.id to (latestUserCoefficients[exercise.id]
+                ?: coefficientSource.get(exercise)
+                ?: 0f)
+        }
+        return CoefficientComputationInput(
+            history = snapshots,
+            currentCoefficients = currentCoefficients,
+        )
+    }
+
+    suspend fun recomputeCoefficients() {
+        if (heuristics.isEmpty()) return
+        // buildCoefficientInput reads happen outside the write transaction — safe on a single-user device where no concurrent writes occur
+        val input = buildCoefficientInput()
+        val candidatesByExercise = mutableMapOf<Long, MutableList<Pair<String, CoefficientResult>>>()
+        for (heuristic in heuristics) {
+            for (result in heuristic.compute(input)) {
+                candidatesByExercise.getOrPut(result.exerciseId) { mutableListOf() }
+                    .add(heuristic.name to result)
+            }
+        }
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+                .associateBy { it.exerciseId }
+            for ((exerciseId, candidates) in candidatesByExercise) {
+                val (winnerName, winner) = mergeHeuristicResults(candidates) ?: continue
+                db.coefficientChangeLogDao().insert(
+                    CoefficientChangeLog(
+                        exerciseId = exerciseId,
+                        previousCoefficient = latestByExercise[exerciseId]?.coefficient,
+                        coefficient = winner.coefficient,
+                        heuristicName = winnerName,
+                        heuristicMetadata = winner.metadata,
+                        computedAt = now,
+                    )
+                )
+            }
+        }
+    }
+
+    private fun mergeHeuristicResults(
+        candidates: List<Pair<String, CoefficientResult>>,
+    ): Pair<String, CoefficientResult>? = candidates.firstOrNull()
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit))
