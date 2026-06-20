@@ -10,6 +10,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
+import io.github.fowles.stochastic_strength.domain.ReplacementTier
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -311,5 +312,58 @@ class WorkoutSessionControllerTest {
         assertTrue(target.plan.exercises.none { it.exercise.id == firstId })
         controller.skipRest()
         awaitState<WorkoutState.ActiveSet>()
+    }
+
+    @Test
+    fun swap_noLoggedSets_replacesInPlace() = runBlocking {
+        val active = controller.state.value as WorkoutState.ActiveSet
+        val originalId = active.plannedExercise.exercise.id
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        val resting = awaitState<WorkoutState.Resting>()
+        val target = resting.staged!!.commitTarget!!
+        assertEquals(StagedKind.SWAP, resting.staged!!.kind)
+        assertEquals(0, target.exerciseIndex)
+        // Replaced in place: original gone, exactly one exercise, different id.
+        assertEquals(1, target.plan.exercises.size)
+        assertTrue(target.plan.exercises.none { it.exercise.id == originalId })
+    }
+
+    @Test
+    fun swap_commitPersistsDislike_undoDoesNot() = runBlocking {
+        val originalId = (controller.state.value as WorkoutState.ActiveSet).plannedExercise.exercise.id
+
+        // Undo path: no persistence.
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        awaitState<WorkoutState.ActiveSet>()
+        delay(100)
+        assertEquals(false, db.exerciseDao().getById(originalId)!!.isDisliked)
+
+        // Commit path: persists.
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+        awaitState<WorkoutState.ActiveSet>()
+        delay(100)
+        assertEquals(true, db.exerciseDao().getById(originalId)!!.isDisliked)
+    }
+
+    @Test
+    fun swap_hasLoggedSets_keepsOriginalAndInsertsAfter() = runBlocking {
+        toWorkingSet()
+        controller.recordFeedback(SetFeedback.RIR_2_4) // log a set for exercise 0
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+        val active = awaitState<WorkoutState.ActiveSet>() // exercise 0, set 2 (hasLogged)
+        val originalId = active.plannedExercise.exercise.id
+
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        val resting = awaitState<WorkoutState.Resting>()
+        val target = resting.staged!!.commitTarget!!
+        // Original kept at 0, replacement inserted at 1; commit jumps to index 1.
+        assertEquals(originalId, target.plan.exercises[0].exercise.id)
+        assertEquals(1, target.exerciseIndex)
+        assertEquals(2, target.plan.exercises.size)
     }
 }

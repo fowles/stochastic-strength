@@ -140,6 +140,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun reduceExerciseWeight(completedReps: Int) = controller.reduceExerciseWeight(completedReps)
     fun completeWorkout() = controller.completeWorkout()
     fun setActiveSetWeight(newWeight: Float) = controller.setActiveSetWeight(newWeight)
+    fun swapCurrentExercise(reason: ExerciseRemovalReason) = controller.swapCurrentExercise(reason)
     fun stopWorkout() = controller.stopWorkout()
     fun endCurrentExercise() = controller.endCurrentExercise()
 

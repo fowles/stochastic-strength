@@ -11,6 +11,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
+import io.github.fowles.stochastic_strength.domain.ReplacementTier
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -406,6 +407,52 @@ class WorkoutSessionController(
             kind = StagedKind.ADJUST_WEIGHT,
             undoTarget = current,
             commitTarget = commitTarget,
+        ))
+    }
+
+    fun swapCurrentExercise(reason: ExerciseRemovalReason) {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        val i = current.exerciseIndex
+        val original = current.plannedExercise.exercise
+        val hasLogged = current.warmupSetIndex == null && current.setIndex > 0
+        val p = planner ?: return
+
+        val rejectedPlan = current.plan.copy(
+            sessionRejectedIds = current.plan.sessionRejectedIds + original.id,
+        )
+        val replacementRaw = p.pickReplacement(
+            rejectedPlan, i,
+            listOf(ReplacementTier.WEIGHTED_MUSCLE, ReplacementTier.MUSCLE, ReplacementTier.ANY),
+        )
+        val replacement = replacementRaw?.let { it.copy(originalSessionWeight = it.sessionWeight) }
+
+        val exercises = rejectedPlan.exercises.toMutableList()
+        val commitIndex: Int
+        when {
+            replacement == null && hasLogged -> {
+                commitIndex = i + 1 // keep original, advance past it
+            }
+            replacement == null -> {
+                exercises.removeAt(i)
+                commitIndex = i
+            }
+            hasLogged -> {
+                exercises.add(i + 1, replacement)
+                commitIndex = i + 1
+            }
+            else -> {
+                exercises[i] = replacement
+                commitIndex = i
+            }
+        }
+        val newPlan = rejectedPlan.copy(exercises = exercises)
+        val commitTarget = nextExerciseActiveSet(newPlan, commitIndex, current.sessionId)
+
+        stageRest(current, StagedAction(
+            kind = StagedKind.SWAP,
+            undoTarget = current,
+            commitTarget = commitTarget,
+            pendingSwap = PendingSwap(reason, original.id, sessionLocationId),
         ))
     }
 
