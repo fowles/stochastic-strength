@@ -388,6 +388,23 @@ class WorkoutSessionController(
         ))
     }
 
+    fun endCurrentExercise() {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        val i = current.exerciseIndex
+        val hasLogged = current.warmupSetIndex == null && current.setIndex > 0
+        val commitTarget = if (hasLogged) {
+            nextExerciseActiveSet(current.plan, i + 1, current.sessionId)
+        } else {
+            val trimmed = current.plan.exercises.toMutableList().also { it.removeAt(i) }
+            nextExerciseActiveSet(current.plan.copy(exercises = trimmed), i, current.sessionId)
+        }
+        stageRest(current, StagedAction(
+            kind = StagedKind.END_EXERCISE,
+            undoTarget = current,
+            commitTarget = commitTarget,
+        ))
+    }
+
     private fun stageRest(current: WorkoutState.ActiveSet, staged: StagedAction) {
         val target = staged.commitTarget
         setState(WorkoutState.Resting(

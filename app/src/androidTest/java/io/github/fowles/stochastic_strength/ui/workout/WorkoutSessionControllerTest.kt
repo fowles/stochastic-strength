@@ -207,4 +207,71 @@ class WorkoutSessionControllerTest {
         assertEquals(before.exerciseIndex, after.exerciseIndex)
         assertEquals(before.warmupSetIndex, after.warmupSetIndex)
     }
+
+    private suspend fun toWorkingSet() {
+        var s = controller.state.value
+        while (s is WorkoutState.ActiveSet && s.warmupSetIndex != null) {
+            controller.completeWarmupSet()
+            delay(20)
+            s = controller.state.value
+        }
+    }
+
+    @Test
+    fun endExercise_noLoggedSets_singleExercise_finishesOnCommit() = runBlocking {
+        // Fresh on warmup/set 0 => no logged sets.
+        controller.endCurrentExercise()
+        val resting = awaitState<WorkoutState.Resting>()
+        assertEquals(StagedKind.END_EXERCISE, resting.staged!!.kind)
+        controller.skipRest()
+        awaitState<WorkoutState.Done>()
+        delay(100)
+        assertEquals(0, db.workoutSetDao().getAll().size) // nothing logged
+    }
+
+    @Test
+    fun endExercise_undoRestoresOriginatingSet() = runBlocking<Unit> {
+        val before = controller.state.value as WorkoutState.ActiveSet
+        controller.endCurrentExercise()
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        val after = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(before.exerciseIndex, after.exerciseIndex)
+        assertEquals(before.warmupSetIndex, after.warmupSetIndex)
+    }
+
+    @Test
+    fun endExercise_hasLoggedSets_keepsLoggedAndAdvances() = runBlocking {
+        startSession(2) // two exercises in the plan
+        toWorkingSet()
+        controller.recordFeedback(SetFeedback.RIR_2_4) // logs set 1 of exercise 0
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+        awaitState<WorkoutState.ActiveSet>() // now on exercise 0, set 2 (hasLogged)
+
+        controller.endCurrentExercise()
+        val resting = awaitState<WorkoutState.Resting>()
+        // commitTarget advances to the second exercise (index 1).
+        assertEquals(1, resting.staged!!.commitTarget!!.exerciseIndex)
+        controller.skipRest()
+        val active = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(1, active.exerciseIndex)
+        delay(100)
+        assertEquals(1, db.workoutSetDao().getAll().size) // the logged set is retained
+    }
+
+    @Test
+    fun endExercise_noLoggedSets_multiExercise_removesAndAdvances() = runBlocking<Unit> {
+        startSession(2)
+        val firstId = (controller.state.value as WorkoutState.ActiveSet)
+            .plannedExercise.exercise.id
+        controller.endCurrentExercise() // on warmup/set 0 of exercise 0 => no logged sets
+        val resting = awaitState<WorkoutState.Resting>()
+        val target = resting.staged!!.commitTarget!!
+        // Exercise 0 removed; the second exercise now occupies index 0.
+        assertEquals(0, target.exerciseIndex)
+        assertTrue(target.plan.exercises.none { it.exercise.id == firstId })
+        controller.skipRest()
+        awaitState<WorkoutState.ActiveSet>()
+    }
 }

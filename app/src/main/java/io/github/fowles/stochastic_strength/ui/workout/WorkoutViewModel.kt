@@ -140,6 +140,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun reduceExerciseWeight(completedReps: Int) = controller.reduceExerciseWeight(completedReps)
     fun completeWorkout() = controller.completeWorkout()
     fun stopWorkout() = controller.stopWorkout()
+    fun endCurrentExercise() = controller.endCurrentExercise()
 
     fun onResumed() {
         if (controller.state.value is WorkoutState.PlanPreview) {
