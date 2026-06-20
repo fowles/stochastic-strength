@@ -11,7 +11,6 @@ data class Exercise(
     val secondaryMuscles: List<MuscleGroup> = emptyList(),
     val equipment: Equipment,
     val isDisliked: Boolean = false,
-    val hurtFlag: Boolean = false,
     val isUnilateral: Boolean = false,
     val isTimed: Boolean = false,
 )

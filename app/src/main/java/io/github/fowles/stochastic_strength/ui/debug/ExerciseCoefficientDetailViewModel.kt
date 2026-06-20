@@ -70,7 +70,7 @@ class ExerciseCoefficientDetailViewModel(
 
             val muscleExercises = app.database.exerciseDao().getAll()
                 .filter { it.primaryMuscle == exercise.primaryMuscle }
-            val latestUserCoefficients = app.database.coefficientChangeLogDao()
+            val latestUserCoefficients = app.database.coefficientHistoryDao()
                 .getLatestPerExercise()
                 .associate { it.exerciseId to it.coefficient }
             val deviations = computeCoefficientDeviations(

@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -240,6 +241,15 @@ class WorkoutSessionController(
                     durationSeconds = if (planned.exercise.isTimed) TIMED_SET_SECONDS else null,
                 )
             )
+            if (feedback == SetFeedback.HURT) {
+                database.exerciseHurtStateDao().upsert(
+                    ExerciseHurtState(
+                        exerciseId = planned.exercise.id,
+                        isHurt = true,
+                        asOf = System.currentTimeMillis(),
+                    )
+                )
+            }
             val completedSetIndex = if (feedback == SetFeedback.HURT) current.totalSets - 1 else current.setIndex
             setState(WorkoutState.Resting(
                 plan = current.plan,
@@ -308,7 +318,7 @@ class WorkoutSessionController(
             val reductions = done.plan.exercises
                 .filter { it.originalSessionWeight > 0f && it.sessionWeight < it.originalSessionWeight }
                 .associate { it.exercise.id to (it.originalSessionWeight - it.sessionWeight) / it.originalSessionWeight }
-            repository.applySessionProgression(done.sessionId, reductions)
+            repository.finishSession(done.sessionId, reductions)
             _navigationEvent.send(NavigationEvent.WorkoutCompleted)
         }
     }

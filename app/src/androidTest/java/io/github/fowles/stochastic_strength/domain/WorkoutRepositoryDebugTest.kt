@@ -4,9 +4,9 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
-import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
+import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -63,8 +63,8 @@ class WorkoutRepositoryDebugTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
         ))
         val exerciseId = db.exerciseDao().getAll().single().id
-        db.coefficientChangeLogDao().insert(
-            CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(
+            CoefficientHistory(
                 exerciseId = exerciseId,
                 previousCoefficient = 1.0f,
                 coefficient = 0.85f,
@@ -107,15 +107,15 @@ class WorkoutRepositoryDebugTest {
         val bench = exercises.first { it.name == "Barbell Bench Press" }
         val squat = exercises.first { it.name == "Squat" }
         val dead = exercises.first { it.name == "Deadlift" }
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.95f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
         ))
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = squat.id, previousCoefficient = 1.0f, coefficient = 0.90f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
         ))
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = dead.id, previousCoefficient = 1.0f, coefficient = 0.92f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
         ))
@@ -134,7 +134,7 @@ class WorkoutRepositoryDebugTest {
         ))
         val bench = db.exerciseDao().getAll().single()
         val longMeta = "x".repeat(200) + "\n" + "y".repeat(50)
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = bench.id, previousCoefficient = 1.0f, coefficient = 0.9f,
             heuristicName = "h", heuristicMetadata = longMeta, computedAt = 1000L,
         ))
@@ -147,19 +147,19 @@ class WorkoutRepositoryDebugTest {
 
     @Test
     fun getBaselineEvents_filters_by_muscle_group_and_orders_ascending() = runBlocking {
-        db.baselineChangeLogDao().insert(BaselineChangeLog(
+        db.baselineHistoryDao().insert(BaselineHistory(
             sessionId = 1L, muscleGroup = MuscleGroup.CHEST,
             previousBaseline = 100f, newBaseline = 102f,
             changeReason = BaselineChangeReason.PROGRESSION,
             timestamp = 3000L,
         ))
-        db.baselineChangeLogDao().insert(BaselineChangeLog(
+        db.baselineHistoryDao().insert(BaselineHistory(
             sessionId = 2L, muscleGroup = MuscleGroup.BACK,
             previousBaseline = 80f, newBaseline = 82f,
             changeReason = BaselineChangeReason.PROGRESSION,
             timestamp = 4000L,
         ))
-        db.baselineChangeLogDao().insert(BaselineChangeLog(
+        db.baselineHistoryDao().insert(BaselineHistory(
             sessionId = 3L, muscleGroup = MuscleGroup.CHEST,
             previousBaseline = 102f, newBaseline = 104f,
             changeReason = BaselineChangeReason.PROGRESSION,
@@ -181,15 +181,15 @@ class WorkoutRepositoryDebugTest {
         val exercises = db.exerciseDao().getAll()
         val bench = exercises.first { it.name == "Barbell Bench Press" }
         val squat = exercises.first { it.name == "Squat" }
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = bench.id, previousCoefficient = null, coefficient = 0.95f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
         ))
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = bench.id, previousCoefficient = 0.95f, coefficient = 0.92f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
         ))
-        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+        db.coefficientHistoryDao().insert(CoefficientHistory(
             exerciseId = squat.id, previousCoefficient = null, coefficient = 0.9f,
             heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
         ))

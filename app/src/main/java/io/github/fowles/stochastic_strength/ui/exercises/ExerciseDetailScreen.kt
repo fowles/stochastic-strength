@@ -74,6 +74,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.ui.ExerciseSetSection
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
+import io.github.fowles.stochastic_strength.ui.debug.components.formatLineMarkerLabel
 import io.github.fowles.stochastic_strength.ui.toSummarySet
 import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
 
@@ -145,7 +146,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 }
                 Button(
                     onClick = { viewModel.toggleHurtFlag() },
-                    colors = if (exercise.hurtFlag) ButtonDefaults.buttonColors(
+                    colors = if (state.isHurt) ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     ) else ButtonDefaults.buttonColors(
@@ -157,7 +158,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     Text("Hurt")
                     Spacer(modifier = Modifier.width(8.dp))
                     Switch(
-                        checked = exercise.hurtFlag,
+                        checked = state.isHurt,
                         onCheckedChange = null,
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colorScheme.onError,
@@ -321,7 +322,7 @@ private fun ExerciseChart(
                 currentOnDaySelected(targets.firstOrNull()?.x?.toLong())
         }
     }
-    val marker = rememberSelectionMarker()
+    val marker = rememberSelectionMarker(weightUnit)
 
     CartesianChartHost(
         chart = rememberCartesianChart(
@@ -345,7 +346,7 @@ private fun ExerciseChart(
 }
 
 @Composable
-private fun rememberSelectionMarker(): DefaultCartesianMarker {
+private fun rememberSelectionMarker(weightUnit: WeightUnit): DefaultCartesianMarker {
     val labelBackground = rememberShapeComponent(
         fill = fill(MaterialTheme.colorScheme.surface),
         shape = CorneredShape.Pill,
@@ -359,14 +360,18 @@ private fun rememberSelectionMarker(): DefaultCartesianMarker {
     )
     val guideline = rememberAxisGuidelineComponent()
     val sdf = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
-    val dateFormatter = remember(sdf) {
+    val valueFormatter = remember(sdf, weightUnit) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
-            sdf.format(Date((targets.firstOrNull()?.x?.toLong() ?: 0L) * 86_400_000L))
+            formatLineMarkerLabel(
+                targets = targets,
+                xLabel = { x -> sdf.format(Date(x.toLong() * 86_400_000L)) },
+                yLabel = { y -> WeightFormatter.format(y.toFloat(), weightUnit) },
+            )
         }
     }
     return rememberDefaultCartesianMarker(
         label = label,
-        valueFormatter = dateFormatter,
+        valueFormatter = valueFormatter,
         guideline = guideline,
         indicatorSize = 0.dp,
     )
