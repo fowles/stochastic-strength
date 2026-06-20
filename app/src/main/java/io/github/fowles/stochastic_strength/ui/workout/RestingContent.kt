@@ -201,10 +201,19 @@ internal fun RestingContent(
             }
         }
         // Exercises — always 20%
+        // For a staged action the rest precedes the commit-target exercise, so the
+        // "in progress" exercise and its remaining-set count come from the commit
+        // target (a freshly inserted/swapped exercise has all its sets to go), not
+        // from completedSetIndex which still reflects the originating exercise.
+        val commitTarget = state.staged?.commitTarget
         RemainingExerciseList(
             exercises = plan.exercises,
-            currentExerciseIndex = state.exerciseIndex,
-            setsRemainingForCurrent = totalSets - nextSet,
+            currentExerciseIndex = commitTarget?.exerciseIndex ?: state.exerciseIndex,
+            setsRemainingForCurrent = if (commitTarget != null) {
+                totalSets - commitTarget.setIndex
+            } else {
+                totalSets - nextSet
+            },
             modifier = Modifier.weight(0.2f),
         )
     }
