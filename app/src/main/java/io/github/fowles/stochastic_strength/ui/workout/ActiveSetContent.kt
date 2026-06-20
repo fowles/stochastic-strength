@@ -89,6 +89,7 @@ private fun TimedSetContent(
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val arcColor = if (started) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -96,9 +97,6 @@ private fun TimedSetContent(
             .then(if (!started) Modifier.clickable { onStartTimedSet() } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            actions()
-        }
         Spacer(Modifier.weight(1f))
         Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
         Text(
@@ -162,6 +160,10 @@ private fun TimedSetContent(
         YoutubeFormCard(exerciseName = exercise.name)
         Spacer(Modifier.height(16.dp))
     }
+        Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+            actions()
+        }
+    }
 }
 
 @Composable
@@ -175,47 +177,49 @@ internal fun ExerciseSetLayout(
     menu: @Composable () -> Unit = {},
     bottomContent: @Composable () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            menu()
-        }
-        Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
-        Text(progressLabel, style = MaterialTheme.typography.titleLarge, color = progressColor)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
+            Text(progressLabel, style = MaterialTheme.typography.titleLarge, color = progressColor)
 
-        Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
 
-        Text("$reps reps", style = MaterialTheme.typography.displaySmall)
-        when {
-            weight > 0f -> {
-                Text(WeightFormatter.format(weight, weightUnit), style = MaterialTheme.typography.displaySmall)
-                if (exercise.equipment == Equipment.BARBELL) {
-                    WeightFormatter.platesPerSide(weight, weightUnit)?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
+            Text("$reps reps", style = MaterialTheme.typography.displaySmall)
+            when {
+                weight > 0f -> {
+                    Text(WeightFormatter.format(weight, weightUnit), style = MaterialTheme.typography.displaySmall)
+                    if (exercise.equipment == Equipment.BARBELL) {
+                        WeightFormatter.platesPerSide(weight, weightUnit)?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 }
+                exercise.equipment == Equipment.BODYWEIGHT -> Text(
+                    "Bodyweight",
+                    style = MaterialTheme.typography.displaySmall,
+                )
             }
-            exercise.equipment == Equipment.BODYWEIGHT -> Text(
-                "Bodyweight",
-                style = MaterialTheme.typography.displaySmall,
-            )
+
+            Spacer(Modifier.weight(1f))
+
+            bottomContent()
+            Spacer(Modifier.height(16.dp))
+            YoutubeFormCard(exerciseName = exercise.name)
+            Spacer(Modifier.height(16.dp))
         }
-
-        Spacer(Modifier.weight(1f))
-
-        bottomContent()
-        Spacer(Modifier.height(16.dp))
-        YoutubeFormCard(exerciseName = exercise.name)
-        Spacer(Modifier.height(16.dp))
+        Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+            menu()
+        }
     }
 }
 
