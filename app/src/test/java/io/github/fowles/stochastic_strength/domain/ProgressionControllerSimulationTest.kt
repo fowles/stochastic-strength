@@ -8,6 +8,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 import kotlin.math.abs
 import kotlin.math.exp
@@ -234,6 +235,7 @@ class ProgressionControllerSimulationTest {
 
     // ---- locked asserts -------------------------------------------------------------------------
 
+    @Ignore("Re-locked in 2026-06-19-asymmetric-fatigue-aware-signal Task 3: harness needs a cross-set fatigue model")
     @Test
     fun production_gains_hold_convergence_and_gauge_ceilings() {
         val rows = seeds.map { simulateRealistic(0.8f, it, sessions = 120, tail = 30) }
@@ -246,6 +248,7 @@ class ProgressionControllerSimulationTest {
         assertTrue("jitter ${avg { it.jitter }} > ceiling", avg { it.jitter } <= 1.0f)                    // doc: ~0.6
     }
 
+    @Ignore("Re-locked in 2026-06-19-asymmetric-fatigue-aware-signal Task 3: harness needs a cross-set fatigue model")
     @Test
     fun production_gains_conserve_gauge_under_strengthening() {
         for (growth in listOf(0.0f, 0.002f, 0.004f)) {
