@@ -2,7 +2,6 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -88,14 +87,12 @@ class WorkoutSessionController(
         val plan = preview.plan.copy(exercises = frozenExercises)
         val firstExercise = plan.exercises[0]
         scope.launch {
-            for ((muscle, baseline) in plan.strengthOverrides) {
-                database.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscle, baseline))
-            }
             val now = System.currentTimeMillis()
             sessionStartTime = now
             val sessionId = database.workoutSessionDao().insert(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
+            repository.applyManualBaselineOverrides(sessionId, plan.strengthOverrides)
             setState(WorkoutState.ActiveSet(
                 plan = plan,
                 exerciseIndex = 0,

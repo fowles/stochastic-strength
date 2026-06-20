@@ -2,6 +2,8 @@ package io.github.fowles.stochastic_strength.domain
 
 import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeLog
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
@@ -81,8 +83,37 @@ class WorkoutRepository(private val db: AppDatabase) {
             val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
             val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
             val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
-            db.muscleGroupStrengthDao().upsert(
-                current.copy(baselineWeight = WeightFormatter.round(newBaseline, weightUnit))
+            val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
+            db.muscleGroupStrengthDao().upsert(current.copy(baselineWeight = roundedNewBaseline))
+            db.baselineChangeLogDao().insert(
+                BaselineChangeLog(
+                    sessionId = sessionId,
+                    muscleGroup = muscleGroup,
+                    previousBaseline = current.baselineWeight,
+                    newBaseline = roundedNewBaseline,
+                    changeReason = BaselineChangeReason.PROGRESSION,
+                    feedbacks = allFeedbacks.joinToString(",") { it.name },
+                    sessionReps = sessionReps,
+                    minReductionFraction = if (minReduction > 0f) minReduction else null,
+                    timestamp = System.currentTimeMillis(),
+                )
+            )
+        }
+    }
+
+    suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
+        for ((muscleGroup, newBaseline) in overrides) {
+            val previous = db.muscleGroupStrengthDao().get(muscleGroup)?.baselineWeight ?: 0f
+            db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(muscleGroup = muscleGroup, baselineWeight = newBaseline))
+            db.baselineChangeLogDao().insert(
+                BaselineChangeLog(
+                    sessionId = sessionId,
+                    muscleGroup = muscleGroup,
+                    previousBaseline = previous,
+                    newBaseline = newBaseline,
+                    changeReason = BaselineChangeReason.MANUAL_OVERRIDE,
+                    timestamp = System.currentTimeMillis(),
+                )
             )
         }
     }

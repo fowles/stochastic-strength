@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.data
 
 import androidx.room.TypeConverter
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -22,6 +23,9 @@ class Converters {
 
     @TypeConverter fun fromStrengthLevel(v: StrengthLevel): String = v.name
     @TypeConverter fun toStrengthLevel(v: String): StrengthLevel = StrengthLevel.valueOf(v)
+
+    @TypeConverter fun fromBaselineChangeReason(v: BaselineChangeReason): String = v.name
+    @TypeConverter fun toBaselineChangeReason(v: String): BaselineChangeReason = BaselineChangeReason.valueOf(v)
 
     @TypeConverter
     fun fromMuscleGroupList(v: List<MuscleGroup>): String = v.joinToString(",") { it.name }
