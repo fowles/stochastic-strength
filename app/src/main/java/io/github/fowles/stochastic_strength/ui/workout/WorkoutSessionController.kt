@@ -433,7 +433,7 @@ class WorkoutSessionController(
                 i++
             }
             if (plan != preview.plan || locationName != preview.locationName) {
-                setState(WorkoutState.PlanPreview(plan = plan, locationName = locationName))
+                setState(preview.copy(plan = plan, locationName = locationName))
             }
         }
     }
