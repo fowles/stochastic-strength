@@ -5,9 +5,17 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 
-data class SummarySet(val setNumber: Int, val targetWeight: Float, val targetReps: Int, val feedback: SetFeedback?, val isTimed: Boolean = false)
+data class SummarySet(
+    val setNumber: Int,
+    val targetWeight: Float,
+    val targetReps: Int,
+    val actualReps: Int?,
+    val feedback: SetFeedback?,
+    val isTimed: Boolean = false,
+)
 
-fun WorkoutSet.toSummarySet(isTimed: Boolean) = SummarySet(setNumber, targetWeight, targetReps, feedback, isTimed)
+fun WorkoutSet.toSummarySet(isTimed: Boolean) =
+    SummarySet(setNumber, targetWeight, targetReps, actualReps, feedback, isTimed)
 
 data class SummaryExercise(val name: String, val exerciseId: Long, val sets: List<SummarySet>)
 

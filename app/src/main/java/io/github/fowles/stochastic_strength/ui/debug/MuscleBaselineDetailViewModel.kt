@@ -9,9 +9,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,16 +27,71 @@ data class BaselineEvent(
     val previousBaseline: Float,
     val newBaseline: Float,
     val reason: BaselineChangeReason,
-    val feedbacks: List<SetFeedback>,
-    val sessionReps: Int?,
     val minReductionFraction: Float?,
-    val exerciseNames: List<String>,
+    val exercises: List<BaselineEventExercise>,
+    val heuristicMetadata: String? = null,
+)
+
+data class BaselineEventExercise(
+    val name: String,
+    val setLines: List<String>,
 )
 
 data class CoefficientDeviationRow(
     val name: String,
     val deviation: Float,
 )
+
+/**
+ * Renders a single set as "<reps>@<weight>" for the change-events feed.
+ *
+ * RIR feedbacks become an estimated rep count at the prescribed weight using the
+ * same +1 / +3 / +7 offsets that [EstCoefConsensusHeuristic] uses to compute the
+ * implied 1RM, prefixed with `~` to mark it as an estimate. TOO_HARD shows the
+ * actual reps achieved (no tilde — it is observed, not estimated). HURT has no
+ * implied rep estimate, so it renders as "hurt@<weight>". Sets with no feedback
+ * (warmups or unfinished sets) return null and are skipped.
+ */
+internal fun formatBaselineSetLine(set: WorkoutSet, weightUnit: WeightUnit): String? {
+    val feedback = set.feedback ?: return null
+    val repsPart = when (feedback) {
+        SetFeedback.RIR_0_1 -> "~${set.targetReps + 1}"
+        SetFeedback.RIR_2_4 -> "~${set.targetReps + 3}"
+        SetFeedback.RIR_5_PLUS -> "~${set.targetReps + 7}"
+        SetFeedback.TOO_HARD -> set.actualReps?.toString() ?: "?"
+        SetFeedback.HURT -> "hurt"
+    }
+    return "$repsPart@${formatWeightCompact(set.targetWeight, weightUnit)}"
+}
+
+/** Compact "55lbs" / "25kg" rendering for the change-events feed. */
+internal fun formatWeightCompact(kg: Float, weightUnit: WeightUnit): String =
+    if (weightUnit == WeightUnit.KG) {
+        "%.1fkg".format(kg)
+    } else {
+        "%.0flbs".format(kg * 2.20462f)
+    }
+
+/**
+ * Groups a session's sets by exercise (preserving the order in which exercises
+ * first appear), then renders each exercise's sets through [formatBaselineSetLine].
+ * Exercises with no displayable sets are dropped.
+ */
+internal fun buildExerciseBlocks(
+    sets: List<WorkoutSet>,
+    nameByExerciseId: Map<Long, String>,
+    weightUnit: WeightUnit,
+): List<BaselineEventExercise> {
+    val grouped = LinkedHashMap<Long, MutableList<WorkoutSet>>()
+    for (s in sets.sortedBy { it.setNumber }) {
+        grouped.getOrPut(s.exerciseId) { mutableListOf() }.add(s)
+    }
+    return grouped.mapNotNull { (exerciseId, exerciseSets) ->
+        val name = nameByExerciseId[exerciseId] ?: return@mapNotNull null
+        val lines = exerciseSets.mapNotNull { formatBaselineSetLine(it, weightUnit) }
+        if (lines.isEmpty()) null else BaselineEventExercise(name = name, setLines = lines)
+    }
+}
 
 /**
  * Returns the per-exercise drift of `current` coefficient vs `seed`,
@@ -94,7 +151,10 @@ class MuscleBaselineDetailViewModel(
                 currentByExerciseId = latestUserCoefficients,
             )
 
-            val nameByExerciseId = allExercises.associate { it.id to it.name }
+            // Non-weighted (bodyweight) exercises don't enter the baseline computation,
+            // so omit them from the per-event display.
+            val weightedExercises = allExercises.filter { it.equipment != Equipment.BODYWEIGHT }
+            val nameByExerciseId = weightedExercises.associate { it.id to it.name }
             val exerciseIdsForMuscle = nameByExerciseId.keys
             val sessionIds = logs.mapNotNull { it.sessionId }.toSet()
             val setsBySession = app.database.workoutSetDao().getAll()
@@ -102,21 +162,20 @@ class MuscleBaselineDetailViewModel(
                 .groupBy { it.sessionId }
 
             val events = logs.asReversed().map { log ->
-                val names = setsBySession[log.sessionId].orEmpty()
-                    .map { it.exerciseId }
-                    .distinct()
-                    .mapNotNull { nameByExerciseId[it] }
-                    .sorted()
+                val exerciseBlocks = buildExerciseBlocks(
+                    sets = setsBySession[log.sessionId].orEmpty(),
+                    nameByExerciseId = nameByExerciseId,
+                    weightUnit = weightUnit,
+                )
                 BaselineEvent(
                     sessionId = log.sessionId,
                     timestamp = log.timestamp,
                     previousBaseline = log.previousBaseline,
                     newBaseline = log.newBaseline,
                     reason = log.changeReason,
-                    feedbacks = parseFeedbacks(log.feedbacks),
-                    sessionReps = log.sessionReps,
                     minReductionFraction = log.minReductionFraction,
-                    exerciseNames = names,
+                    exercises = exerciseBlocks,
+                    heuristicMetadata = log.heuristicMetadata,
                 )
             }
 
@@ -136,11 +195,6 @@ class MuscleBaselineDetailViewModel(
             )
         }
     }
-
-    private fun parseFeedbacks(csv: String?): List<SetFeedback> =
-        csv?.split(',')
-            ?.mapNotNull { token -> runCatching { SetFeedback.valueOf(token.trim()) }.getOrNull() }
-            ?: emptyList()
 
     companion object {
         fun factory(muscleGroup: MuscleGroup): ViewModelProvider.Factory =

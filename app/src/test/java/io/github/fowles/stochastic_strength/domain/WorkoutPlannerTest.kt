@@ -35,6 +35,7 @@ class WorkoutPlannerTest {
         random: Random = Random(0),
         recentHistory: Map<Long, List<WorkoutSet>> = emptyMap(),
         nowMs: Long = System.currentTimeMillis(),
+        durationEstimator: ExerciseDurationEstimator = ExerciseDurationEstimator.EMPTY,
     ) = WorkoutPlanner(
         availableExercises = exercises,
         strengths = strengths,
@@ -43,6 +44,7 @@ class WorkoutPlannerTest {
         locationId = null,
         random = random,
         nowMs = nowMs,
+        durationEstimator = durationEstimator,
     )
 
     private fun nearFailureSet(exerciseId: Long, completedAt: Long, feedback: SetFeedback = SetFeedback.RIR_0_1) = WorkoutSet(
@@ -434,5 +436,34 @@ class WorkoutPlannerTest {
         )
         assertTrue("override baseline should produce different weight than DB baseline",
             abs(pe.sessionWeight - dbExpected) > 0.1f || overrideBaseline == dbBaseline)
+    }
+
+    @Test
+    fun `generated plan stamps duration override from estimator onto planned exercise`() {
+        val ex = exercise(id = 1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
+        val estimator = ExerciseDurationEstimator(mapOf(1L to 612))
+        val p = planner(
+            exercises = listOf(ex),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+            durationEstimator = estimator,
+        )
+
+        val plan = p.generateWorkout(sessionReps = 8)
+
+        assertEquals(612, plan.exercises.single().estimatedSecondsOverride)
+    }
+
+    @Test
+    fun `generated plan leaves override null when estimator has no value for exercise`() {
+        val ex = exercise(id = 1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
+        val p = planner(
+            exercises = listOf(ex),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+            // default durationEstimator is EMPTY
+        )
+
+        val plan = p.generateWorkout(sessionReps = 8)
+
+        assertEquals(null, plan.exercises.single().estimatedSecondsOverride)
     }
 }

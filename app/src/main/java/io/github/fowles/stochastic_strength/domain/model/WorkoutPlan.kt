@@ -10,5 +10,5 @@ data class WorkoutPlan(
     val strengthOverrides: Map<MuscleGroup, Float> = emptyMap(),
 ) {
     val estimatedDurationSeconds: Int
-        get() = exercises.sumOf { PlannedExercise.DEFAULT_SETS * it.secondsPerSet + it.warmupSets.size * PlannedExercise.SECONDS_PER_WARMUP_SET }
+        get() = exercises.sumOf { it.estimatedSeconds }
 }
