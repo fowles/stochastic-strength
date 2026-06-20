@@ -8,6 +8,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
@@ -92,6 +93,62 @@ class WorkoutSessionController(
             repMax = preferredRepMax,
         ))
         adjustExerciseCount(preferredExerciseCount)
+        maybeOfferDetraining()
+    }
+
+    private suspend fun maybeOfferDetraining() {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val lastCompleted = database.workoutSessionDao().getRecentCompletedSessions(limit = 1)
+            .firstOrNull()?.endTime ?: return
+        val weeks = DetrainingModel.weeksOff(lastCompleted, System.currentTimeMillis())
+        if (!DetrainingModel.qualifies(weeks)) return
+        val strengths = repository.getMuscleGroupStrengths()
+        if (strengths.isEmpty()) return
+        setState(
+            preview.copy(
+                detraining = DetrainingPrompt(
+                    weeksOff = weeks,
+                    suggestedFraction = DetrainingModel.suggestedFraction(weeks),
+                    currentStrengths = strengths,
+                ),
+            ),
+        )
+    }
+
+    fun applyDetraining(fraction: Float) {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val prompt = preview.detraining ?: return
+        if (fraction <= 0f) { skipDetraining(); return }
+        val detrainOverrides = prompt.currentStrengths.associate { strength ->
+            strength.muscleGroup to DetrainingModel.reduce(strength.baselineWeight, fraction)
+        }
+        scope.launch {
+            val p = repository.buildPlanner(
+                sessionLocationId,
+                weightUnit,
+                detrainOverrides + preview.plan.strengthOverrides,
+            )
+            planner = p
+            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
+            val recomputed = current.plan.exercises.map { ex ->
+                val newBaseline = detrainOverrides[ex.exercise.primaryMuscle]
+                if (newBaseline != null) p.recomputeExercise(ex, newBaseline) else ex
+            }
+            setState(
+                current.copy(
+                    plan = current.plan.copy(
+                        exercises = recomputed,
+                        detrainOverrides = detrainOverrides,
+                    ),
+                    detraining = null,
+                ),
+            )
+        }
+    }
+
+    fun skipDetraining() {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        setState(preview.copy(detraining = null))
     }
 
     fun startFirstExercise() {
@@ -106,6 +163,7 @@ class WorkoutSessionController(
             val sessionId = database.workoutSessionDao().insert(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
+            repository.applyDetrainingReduction(sessionId, plan.detrainOverrides)
             repository.applyManualBaselineOverrides(sessionId, plan.strengthOverrides)
             setState(WorkoutState.ActiveSet(
                 plan = plan,
