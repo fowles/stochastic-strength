@@ -136,34 +136,16 @@ class WorkoutRepository(
     }
 
     internal suspend fun buildCoefficientInput(): CoefficientComputationInput {
-        // Use all exercises (including disliked) for history — we want full training data.
-        // Use only active exercises for currentCoefficients — disliked exercises are excluded from planning.
+        // History pulls from all exercises (training signal lives there even for disliked ones),
+        // but currentCoefficients only covers active exercises since disliked ones aren't planned.
         val allExercises = db.exerciseDao().getAll()
         val activeExercises = db.exerciseDao().getActive()
         val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
-        val sessionTimeById = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
-        val progressionLogs = db.baselineChangeLogDao().getAll()
+        val sessionTimes = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
+        val baselines = db.baselineChangeLogDao().getAll()
             .filter { it.changeReason == BaselineChangeReason.PROGRESSION }
-            .associateBy { it.sessionId to it.muscleGroup }
-        val snapshots = db.workoutSetDao().getAll()
-            .groupBy { it.sessionId to it.exerciseId }
-            .mapNotNull { (key, sets) ->
-                val (sessionId, exerciseId) = key
-                val muscle = exerciseMuscle[exerciseId] ?: return@mapNotNull null
-                val logEntry = progressionLogs[sessionId to muscle] ?: return@mapNotNull null
-                val sessionTime = sessionTimeById[sessionId] ?: return@mapNotNull null
-                val targetReps = sets.firstOrNull()?.targetReps ?: return@mapNotNull null
-                ExerciseSessionSnapshot(
-                    exerciseId = exerciseId,
-                    sessionId = sessionId,
-                    sessionTime = sessionTime,
-                    targetReps = targetReps,
-                    muscleBaseline = logEntry.previousBaseline,
-                    sets = sets.sortedBy { it.setNumber }
-                        .map { SetSnapshot(it.targetWeight, it.feedback) },
-                )
-            }
-            .sortedBy { it.sessionTime }
+            .associate { (it.sessionId to it.muscleGroup) to it.previousBaseline }
+        val sets = db.workoutSetDao().getAll()
         val latestUserCoefficients = db.coefficientChangeLogDao().getLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
         val currentCoefficients = activeExercises.associate { exercise ->
@@ -172,7 +154,10 @@ class WorkoutRepository(
                 ?: 0f)
         }
         return CoefficientComputationInput(
-            history = snapshots,
+            sets = sets,
+            sessionTimes = sessionTimes,
+            exerciseMuscle = exerciseMuscle,
+            baselines = baselines,
             currentCoefficients = currentCoefficients,
         )
     }
