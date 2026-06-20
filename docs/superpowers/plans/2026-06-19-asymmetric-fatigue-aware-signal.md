@@ -32,7 +32,7 @@ The Option-2 gentle nudge (`RIR_0_1 → +0.5` rep) only survives if est-1RM is c
 **Interfaces:**
 - Produces: `internal fun DefaultProgressionEngine.rawToOneRepMax(weight: Float, reps: Float): Float` — unrounded 1RM at fractional reps; `reps ≤ 1f` returns `weight`. Used by Task 2.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/DefaultProgressionEngineTest.kt`:
 
@@ -70,12 +70,12 @@ class DefaultProgressionEngineTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.DefaultProgressionEngineTest"`
 Expected: FAIL — compile error, `rawToOneRepMax(Float, Float)` not resolved.
 
-- [ ] **Step 3: Add the fractional overload and delegate**
+- [x] **Step 3: Add the fractional overload and delegate**
 
 In `DefaultProgressionEngine.kt`, replace the existing `internal fun rawToOneRepMax(weight: Float, reps: Int)` block (lines 19-24):
 
@@ -90,12 +90,12 @@ In `DefaultProgressionEngine.kt`, replace the existing `internal fun rawToOneRep
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.DefaultProgressionEngineTest"`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: fractional-reps 1RM in DefaultProgressionEngine
@@ -123,7 +123,7 @@ Replace the whole extractor. Per-set signed rep-deviation; per-exercise asymmetr
   - `fun setSignal(set: WorkoutSet): SetSignal?`.
   - `fun aggregateSession(sets: List<WorkoutSet>): SessionAggregate?` with `SessionAggregate(est1RM, sessionConfidence)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace the entire contents of `SessionSignalExtractorTest.kt` with:
 
@@ -281,12 +281,12 @@ class SessionSignalExtractorTest {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SessionSignalExtractorTest"`
 Expected: FAIL — `repDeviation`/`isFailure`/`softening` unresolved.
 
-- [ ] **Step 3: Rewrite the extractor**
+- [x] **Step 3: Rewrite the extractor**
 
 Replace the entire contents of `SessionSignalExtractor.kt` with:
 
@@ -382,12 +382,12 @@ object SessionSignalExtractor {
 }
 ```
 
-- [ ] **Step 4: Run the extractor tests to verify they pass**
+- [x] **Step 4: Run the extractor tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.SessionSignalExtractorTest"`
 Expected: PASS (11 tests).
 
-- [ ] **Step 5: Quarantine the now-stale simulation asserts**
+- [x] **Step 5: Quarantine the now-stale simulation asserts**
 
 In `ProgressionControllerSimulationTest.kt`, add the import and `@Ignore` to both `@Test` methods (the fatigue-free harness no longer models the behavior these lock; Task 3 re-establishes them):
 
@@ -410,12 +410,12 @@ Above `fun production_gains_conserve_gauge_under_strengthening()` (currently lin
     fun production_gains_conserve_gauge_under_strengthening() {
 ```
 
-- [ ] **Step 6: Verify the module compiles and the rest of the suite is green**
+- [x] **Step 6: Verify the module compiles and the rest of the suite is green**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS, with the two simulation tests reported as skipped/ignored.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat: asymmetric, fatigue-aware session signal in SessionSignalExtractor
@@ -440,7 +440,7 @@ Give the synthetic lifter cross-set fatigue, draw reps from `[1, 20]`, and repla
 **Interfaces:**
 - Consumes: `SessionSignalExtractor.aggregateSession`, `RepRangePicker.pick`.
 
-- [ ] **Step 1: Add the fatigue constant and full-range rep draw**
+- [x] **Step 1: Add the fatigue constant and full-range rep draw**
 
 In `ProgressionControllerSimulationTest.kt`, add a companion-level constant near the top of the class body (after `private val unit = WeightUnit.KG`):
 
@@ -455,7 +455,7 @@ Replace the session rep draw (currently `val reps = listOf(5, 8, 10).random(rng)
             val reps = RepRangePicker.pick(1, 20, rng)
 ```
 
-- [ ] **Step 2: Apply cross-set fatigue in the set loop**
+- [x] **Step 2: Apply cross-set fatigue in the set loop**
 
 In the inner `for (setNum in 1..PlannedExercise.DEFAULT_SETS)` loop, compute a fatigued per-set 1RM and feed it to `feedbackFor`. Replace:
 
@@ -472,7 +472,7 @@ with:
                     val (fb, ar) = feedbackFor(w, reps, setTrue1RM, noise)
 ```
 
-- [ ] **Step 3: Capture the last full-weight set's RIR during the tail**
+- [x] **Step 3: Capture the last full-weight set's RIR during the tail**
 
 Add tail accumulators next to `tailTrainedErr` (~line 132):
 
@@ -506,7 +506,7 @@ Then, after the `for (setNum ...)` loop closes (right after the `if (w < w0) { r
                 }
 ```
 
-- [ ] **Step 4: Redefine the convergence target to the fatigued steady state and extend metrics**
+- [x] **Step 4: Redefine the convergence target to the fatigued steady state and extend metrics**
 
 The baseline should settle at the **last set's** effective 1RM, not the fresh `true1RM`. Replace `errOf` (~line 135-139):
 
@@ -560,7 +560,7 @@ And construct the returned metrics (lines 227-232):
         )
 ```
 
-- [ ] **Step 5: Replace the locked asserts and remove the `@Ignore`s**
+- [x] **Step 5: Replace the locked asserts and remove the `@Ignore`s**
 
 Replace the two test methods (remove the `@Ignore` added in Task 2). The primary assert is now behavioral; the gauge ceiling is unchanged:
 
@@ -596,12 +596,12 @@ Replace the two test methods (remove the `@Ignore` added in Task 2). The primary
 
 Update the class KDoc (lines 19-29) to describe the cross-set fatigue model and the behavioral metric, replacing the "Two locked asserts gate convergence/accuracy/jitter" sentence with one noting the behavioral last-set-RIR lock plus the gauge ceiling.
 
-- [ ] **Step 6: Run the simulation test**
+- [x] **Step 6: Run the simulation test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProgressionControllerSimulationTest"`
 Expected: ideally PASS. If it FAILS, go to Step 7; otherwise skip to Step 8.
 
-- [ ] **Step 7: Tune to meet the behavioral + gauge asserts**
+- [x] **Step 7: Tune to meet the behavioral + gauge asserts**
 
 Adjust only these knobs, re-running Step 6 after each change, until both tests pass. Stay within the listed bounds; record the final values in a comment in `SessionSignalExtractor.kt`.
 
@@ -610,12 +610,12 @@ Adjust only these knobs, re-running Step 6 after each change, until both tests p
 - If `coefInflation` drifts outside `[0.97, 1.03]`: do **not** touch the controller — this signals the signal is biased per-exercise; re-check that reduced-weight sets are excluded and that `upAgg` uses only non-failing sets.
 - The synthetic-lifter `fatiguePerSet` (0.03f) is a property of the simulated world; only change it if the fatigue effect is unrealistically large/small (keep within `0.02f..0.04f`).
 
-- [ ] **Step 8: Run the full unit suite**
+- [x] **Step 8: Run the full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS (no ignored tests remain from this plan).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 jj commit -m "test: fatigue-aware simulation harness locks last-set-RIR behavior
@@ -640,7 +640,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `SessionSignalExtractor.RESERVE_RIR_0_1 / RESERVE_RIR_2_4 / RESERVE_RIR_5_PLUS` (Task 2).
 
-- [ ] **Step 1: Update the failing test to the new RIR_5_PLUS display**
+- [x] **Step 1: Update the failing test to the new RIR_5_PLUS display**
 
 In `MuscleBaselineDetailViewModelTest.kt`, change the `RIR_5_PLUS` expectation (line ~65) from `"~12@20.0kg"` to the new `+6` offset:
 
@@ -650,12 +650,12 @@ In `MuscleBaselineDetailViewModelTest.kt`, change the `RIR_5_PLUS` expectation (
 
 (Rename the test if desired: `renders RIR_5_PLUS as target plus six`. The `RIR_0_1` test stays `~11` — `10 + 0.5` rounds up to 11 — and `RIR_2_4` stays `~11` for target 8.)
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.debug.MuscleBaselineDetailViewModelTest"`
 Expected: FAIL on the RIR_5_PLUS case (still renders `~12`).
 
-- [ ] **Step 3: Point the formatter at the shared constants**
+- [x] **Step 3: Point the formatter at the shared constants**
 
 In `MuscleBaselineDetailViewModel.kt`, update the KDoc (lines 46-55) to reference the new offsets and replace the RIR branches of `formatBaselineSetLine` (lines 58-64). Add the import `import kotlin.math.roundToInt` and `import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor` if not already present:
 
@@ -669,17 +669,17 @@ In `MuscleBaselineDetailViewModel.kt`, update the KDoc (lines 46-55) to referenc
     }
 ```
 
-- [ ] **Step 4: Run the debug test to verify it passes**
+- [x] **Step 4: Run the debug test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.debug.MuscleBaselineDetailViewModelTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full unit suite**
+- [x] **Step 5: Run the full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "refactor: debug set-line formatter uses shared reserve offsets

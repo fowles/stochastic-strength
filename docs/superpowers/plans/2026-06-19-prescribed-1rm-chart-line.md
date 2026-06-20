@@ -39,7 +39,7 @@
   ): List<ChartPoint>
   ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/ui/exercises/ExerciseDetailViewModelTest.kt`:
 
@@ -139,12 +139,12 @@ class ExerciseDetailViewModelTest {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.exercises.ExerciseDetailViewModelTest"`
 Expected: FAIL — `buildPrescribedPoints` unresolved reference.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 In `ExerciseDetailViewModel.kt`, add these imports if missing:
 
@@ -194,12 +194,12 @@ internal fun buildPrescribedPoints(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.exercises.ExerciseDetailViewModelTest"`
 Expected: PASS (6 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/exercises/ExerciseDetailViewModel.kt \
@@ -218,7 +218,7 @@ git commit -m "feat: add buildPrescribedPoints helper for prescribed-1RM chart l
 - Consumes: `buildPrescribedPoints(...)` from Task 1; `repository.getBaselineEvents(muscle: MuscleGroup)`, `repository.getCoefficientEvents(exerciseId: Long)`, `ExerciseCoefficients.byName` (already imported).
 - Produces: `ExerciseDetailState.prescribedPoints: List<ChartPoint>` (default `emptyList()`), populated in `loadChartData`.
 
-- [ ] **Step 1: Add the state field**
+- [x] **Step 1: Add the state field**
 
 In `ExerciseDetailState`, add after `shadowPoints`:
 
@@ -226,7 +226,7 @@ In `ExerciseDetailState`, add after `shadowPoints`:
     val prescribedPoints: List<ChartPoint> = emptyList(),
 ```
 
-- [ ] **Step 2: Populate it in `loadChartData`**
+- [x] **Step 2: Populate it in `loadChartData`**
 
 In `loadChartData`, after the `computeShadowPoints(...)` call and before `_state.value = ...`, add:
 
@@ -243,17 +243,17 @@ In `loadChartData`, after the `computeShadowPoints(...)` call and before `_state
 
 Then add `prescribedPoints = prescribedPoints,` to the `_state.value = _state.value.copy(...)` block.
 
-- [ ] **Step 3: Verify it compiles**
+- [x] **Step 3: Verify it compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Run the unit suite (no regressions)**
+- [x] **Step 4: Run the unit suite (no regressions)**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.exercises.*"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/exercises/ExerciseDetailViewModel.kt
@@ -271,7 +271,7 @@ git commit -m "feat: expose prescribedPoints in exercise detail state"
 - Consumes: `state.prescribedPoints` from Task 2.
 - Vico APIs (see `docs/vico-reference.md`): `LineCartesianLayer.rememberLine(fill, stroke, pointConnector)`, `LineCartesianLayer.LineStroke.continuous(thickness)`, `LineCartesianLayer.PointConnector.cubic()`. All nested in the already-imported `LineCartesianLayer` — no new imports needed.
 
-- [ ] **Step 1: Extend the empty-state guard**
+- [x] **Step 1: Extend the empty-state guard**
 
 In `ExerciseDetailScreen`, change:
 
@@ -285,7 +285,7 @@ to:
             if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty() && state.prescribedPoints.isEmpty()) {
 ```
 
-- [ ] **Step 2: Pass prescribedPoints into `ExerciseChart`**
+- [x] **Step 2: Pass prescribedPoints into `ExerciseChart`**
 
 Update the `ExerciseChart(...)` call to add the argument:
 
@@ -303,7 +303,7 @@ Update the `ExerciseChart(...)` call to add the argument:
                 )
 ```
 
-- [ ] **Step 3: Add the parameter and series to `ExerciseChart`**
+- [x] **Step 3: Add the parameter and series to `ExerciseChart`**
 
 Change the signature:
 
@@ -329,7 +329,7 @@ In the `LaunchedEffect`, change the key list to `LaunchedEffect(primaryPoints, s
                 }
 ```
 
-- [ ] **Step 4: Define the prescribed line and add it to the provider**
+- [x] **Step 4: Define the prescribed line and add it to the provider**
 
 After the `shadowLine` definition, add:
 
@@ -357,7 +357,7 @@ Change the `hasPrimary`/`hasShadow` block to include the prescribed flag and ser
     }
 ```
 
-- [ ] **Step 5: Add a caption legend under the chart title**
+- [x] **Step 5: Add a caption legend under the chart title**
 
 In `ExerciseDetailScreen`, right after the `Text("Estimated One Rep Max", ...)` title and before the `if (state.primaryPoints...)` guard, add a small legend so the line's meaning is clear:
 
@@ -383,16 +383,16 @@ In `ExerciseDetailScreen`, right after the `Text("Estimated One Rep Max", ...)` 
 
 Add the import `import androidx.compose.foundation.background` at the top.
 
-- [ ] **Step 6: Verify it compiles**
+- [x] **Step 6: Verify it compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 7: Visual check**
+- [x] **Step 7: Visual check**
 
 Install/run the app, open an exercise with history (e.g. via the debug seeder), and confirm: a smooth tertiary-colored curve appears through the achieved dots; bodyweight exercises show no curve; tapping a day still selects it. (See `superpowers:verification-before-completion`.)
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/exercises/ExerciseDetailScreen.kt

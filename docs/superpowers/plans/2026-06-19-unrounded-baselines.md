@@ -29,7 +29,7 @@
 - Consumes: existing `RollingConservingProgressionController.step(ProgressionStepInput): ProgressionStepOutput`, `BaselineUpdate(muscleGroup, newBaseline, metadata)`, `ProgressionControllerConfig(minRelativeChange = …, kB = 0.5, hurtFactor = 0.85, maxLogStepB = ln(1.15))`.
 - Produces: `BaselineUpdate.newBaseline` is now the unrounded controller output (raw kg), not grid-snapped.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `ProgressionControllerTest.kt`, add the `assertNotEquals` import next to the existing JUnit imports:
 
@@ -75,12 +75,12 @@ fun hurt_backsOffBaseline_andSkipsCoefficients() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProgressionControllerTest"`
 Expected: FAIL — `progression_storesUnroundedBaseline` (nb is `105.0`, not `104.88`) and `hurt_backsOffBaseline_andSkipsCoefficients` (nb is `85.0`, not `85.85`).
 
-- [ ] **Step 3: Remove rounding in the controller**
+- [x] **Step 3: Remove rounding in the controller**
 
 In `ProgressionController.kt`, the HURT branch (around `:102`), change:
 
@@ -127,12 +127,12 @@ to:
 
 If `WeightFormatter` is now unused in `ProgressionController.kt`, remove its import; if it is still referenced elsewhere in the file, keep it.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProgressionControllerTest"`
 Expected: PASS (all tests in the class, including the two edited ones).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj describe -m "feat: store progression baselines unrounded
@@ -156,21 +156,21 @@ jj new
 - Consumes: Task 1's unrounded controller output. The simulation already applies `out.baselineUpdates.forEach { baselines[it.muscleGroup] = it.newBaseline }` verbatim and rounds only at session-weight selection (`WeightFormatter.round(fromOneRepMax(...))`), mirroring `WorkoutPlanner`.
 - Produces: confidence that convergence/jitter/error/gauge ceilings still hold.
 
-- [ ] **Step 1: Run the simulation test**
+- [x] **Step 1: Run the simulation test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProgressionControllerSimulationTest"`
 Expected: PASS. Locked ceilings have headroom (convergence ≤ 8; trainedErr ≤ 4.0, doc ~2.3; jitter ≤ 1.0, doc ~0.5; coefInflation ∈ 0.97–1.03). Removing quantization should keep them green and likely lower jitter.
 
-- [ ] **Step 2: Reconcile the `// doc: ~X` comments if metrics drifted**
+- [x] **Step 2: Reconcile the `// doc: ~X` comments if metrics drifted**
 
 If the test passes but the realized metrics no longer match the inline `// doc: ~X` annotations (lines around `:244-254`), update only those comments to the new observed values. Do NOT loosen any `assertTrue(... <= ceiling)` bound. If a ceiling genuinely fails, STOP and report the numbers — do not adjust the ceiling without explicit approval.
 
-- [ ] **Step 3: Run the full unit-test suite**
+- [x] **Step 3: Run the full unit-test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS (no regressions across the module).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Only if Step 2 changed the file:
 

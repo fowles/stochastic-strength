@@ -17,3 +17,4 @@ Task 3: complete (commit 08932b3..7146697, review clean — validated UNDER GROW
   Minor (final-review triage): lastSetRir=1.30 high in [0,1.5] band — optional re-center toward ~0.8 via RESERVE_RIR_0_1 (deferred, deterministic not flaky); redundant achievableReps recompute in sim hot loop (perf nit)
 Task 4: complete (commit 7146697..2b638ed, review clean)
 ALL TASKS COMPLETE
+Final review: Ready to merge. New Minor (stale RIR_0_1 test name) fixed inline + committed. T1/T2/T3 deferred.
