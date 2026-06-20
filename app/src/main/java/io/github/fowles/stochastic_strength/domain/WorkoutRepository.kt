@@ -18,7 +18,11 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlinx.coroutines.flow.Flow
 
-class WorkoutRepository(private val db: AppDatabase) {
+class WorkoutRepository(
+    private val db: AppDatabase,
+    private val coefficientSource: CoefficientSource = ExerciseCoefficients,
+    private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
+) {
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
         else emptySet()
@@ -45,6 +49,8 @@ class WorkoutRepository(private val db: AppDatabase) {
             recentHistory = history,
             weightUnit = weightUnit,
             locationId = locationId,
+            coefficientSource = coefficientSource,
+            progressionEngine = progressionEngine,
         )
     }
 
@@ -72,7 +78,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
 
         val exercisesByMuscle = exerciseById.values
-            .filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
+            .filter { (coefficientSource.get(it) ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }
         for ((muscleGroup, muscleExercises) in exercisesByMuscle) {
             val allFeedbacks = muscleExercises.flatMap { exercise ->
@@ -82,7 +88,7 @@ class WorkoutRepository(private val db: AppDatabase) {
 
             val current = db.muscleGroupStrengthDao().get(muscleGroup) ?: continue
             val minReduction = muscleExercises.mapNotNull { exerciseReductions[it.id] }.maxOrNull() ?: 0f
-            val newBaseline = ProgressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
+            val newBaseline = progressionEngine.computeNextBaseline(current.baselineWeight, allFeedbacks, minReduction, sessionReps)
             val roundedNewBaseline = WeightFormatter.round(newBaseline, weightUnit)
             db.muscleGroupStrengthDao().upsert(current.copy(baselineWeight = roundedNewBaseline))
             db.baselineChangeLogDao().insert(

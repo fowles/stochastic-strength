@@ -80,7 +80,7 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.domain.ProgressionEngine
+import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -714,7 +714,7 @@ private fun WeightReductionCard(
             ) {
                 repeat(sessionReps) { reps ->
                     val newWeight = WeightFormatter.round(
-                        maxOf(0.5f, ProgressionEngine.scaleReps(sessionWeight, from = maxOf(1, reps), to = sessionReps)),
+                        maxOf(0.5f, DefaultProgressionEngine.scaleReps(sessionWeight, from = maxOf(1, reps), to = sessionReps)),
                         weightUnit,
                     )
                     val delta = sessionWeight - newWeight

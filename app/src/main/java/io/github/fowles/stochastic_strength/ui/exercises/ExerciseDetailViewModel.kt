@@ -11,8 +11,8 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
-import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,7 +63,7 @@ class ExerciseDetailViewModel(
             .map { (day, sets) ->
                 ChartPoint(
                     dateMs = day * 86_400_000L,
-                    weightKg = sets.map { ProgressionEngine.toOneRepMax(it.targetWeight, it.targetReps) }.average().toFloat(),
+                    weightKg = sets.map { DefaultProgressionEngine.toOneRepMax(it.targetWeight, it.targetReps) }.average().toFloat(),
                 )
             }
             .sortedBy { it.dateMs }
@@ -99,7 +99,7 @@ class ExerciseDetailViewModel(
             for (set in sets) {
                 val completedAt = set.completedAt ?: continue
                 val dayKey = completedAt / 86_400_000L
-                dayToWeights.getOrPut(dayKey) { mutableListOf() }.add(ProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps) * scaleFactor)
+                dayToWeights.getOrPut(dayKey) { mutableListOf() }.add(DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps) * scaleFactor)
                 dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, set, rel.isTimed))
             }
         }

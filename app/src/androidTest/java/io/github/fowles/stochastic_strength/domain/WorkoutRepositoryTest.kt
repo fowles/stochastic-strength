@@ -15,10 +15,13 @@ import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
+import io.github.fowles.stochastic_strength.data.model.KnownLocation
+import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -103,5 +106,110 @@ class WorkoutRepositoryTest {
             assertEquals(sessionId, this.sessionId)
             assertNull(feedbacks)
         }
+    }
+
+    @Test
+    fun applySessionProgression_setsHurtFlagWhenFeedbackIsHurt() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        db.workoutSetDao().insert(
+            WorkoutSet(
+                sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.HURT,
+            )
+        )
+
+        repository.applySessionProgression(sessionId)
+
+        val exercise = db.exerciseDao().getById(exerciseId)
+        assertTrue("hurtFlag must be set when any set has HURT feedback", exercise!!.hurtFlag)
+    }
+
+    @Test
+    fun applySessionProgression_aggregatesExercisesInSameMuscleGroupIntoOneLogEntry() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Machine Chest Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.MACHINE),
+        ))
+        val exercises = db.exerciseDao().getActive()
+        val ex1 = exercises.first { it.name == "Barbell Bench Press" }
+        val ex2 = exercises.first { it.name == "Machine Chest Press" }
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = ex1.id, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS)
+        )
+        db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = ex2.id, setNumber = 1,
+                targetWeight = 60f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS)
+        )
+
+        repository.applySessionProgression(sessionId)
+
+        val logs = db.baselineChangeLogDao().getForSession(sessionId)
+        assertEquals("two exercises in same muscle group should produce one log entry", 1, logs.size)
+        assertEquals(MuscleGroup.CHEST, logs[0].muscleGroup)
+        assertTrue("combined good feedback should increase baseline", logs[0].newBaseline > 100f)
+        // Both exercise feedbacks must appear in the log
+        assertEquals("RIR_5_PLUS,RIR_5_PLUS", logs[0].feedbacks)
+    }
+
+    @Test
+    fun applySessionProgression_capsBaselineWhenExerciseReductionProvided() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS)
+        )
+
+        // 10% reduction cap: new baseline must not exceed 100 × (1 − 0.10) = 90 kg
+        repository.applySessionProgression(sessionId, exerciseReductions = mapOf(exerciseId to 0.10f))
+
+        val strength = db.muscleGroupStrengthDao().get(MuscleGroup.CHEST)!!
+        assertTrue(
+            "10% reduction cap should hold baseline at or below 90 kg, got ${strength.baselineWeight}",
+            strength.baselineWeight <= 90.5f
+        )
+        val log = db.baselineChangeLogDao().getForSession(sessionId).single()
+        assertEquals(0.10f, log.minReductionFraction!!, 0.001f)
+    }
+
+    @Test
+    fun buildPlanner_excludesExercisesMarkedForLocation() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Push-Up",             primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BODYWEIGHT),
+        ))
+        val exercises = db.exerciseDao().getActive()
+        val barbellId = exercises.first { it.name == "Barbell Bench Press" }.id
+
+        val locationId = db.knownLocationDao().insert(KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0))
+        db.locationExcludedExerciseDao().insert(LocationExcludedExercise(locationId, barbellId))
+
+        val planner = repository.buildPlanner(locationId = locationId, weightUnit = WeightUnit.KG)
+
+        assertFalse("excluded exercise must not appear in planner",
+            planner.availableExercises.any { it.id == barbellId })
+        assertTrue("non-excluded exercise must be available",
+            planner.availableExercises.any { it.name == "Push-Up" })
     }
 }
