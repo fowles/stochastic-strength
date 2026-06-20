@@ -8,7 +8,12 @@ data class WorkoutPlan(
     val sessionReps: Int = 10,
     val sessionRejectedIds: Set<Long> = emptySet(),
     val strengthOverrides: Map<MuscleGroup, Float> = emptyMap(),
+    val detrainOverrides: Map<MuscleGroup, Float> = emptyMap(),
 ) {
     val estimatedDurationSeconds: Int
         get() = exercises.sumOf { it.estimatedSeconds }
+
+    /** Baselines feeding the planner: detraining first, manual edits override it. */
+    val effectiveOverrides: Map<MuscleGroup, Float>
+        get() = detrainOverrides + strengthOverrides
 }

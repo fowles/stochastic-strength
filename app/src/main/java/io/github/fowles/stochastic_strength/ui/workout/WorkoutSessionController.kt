@@ -136,7 +136,7 @@ class WorkoutSessionController(
                 sessionRejectedIds = current.plan.sessionRejectedIds + rejectedId
             )
             val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
-                repository.buildPlanner(sessionLocationId, weightUnit, updatedPlan.strengthOverrides)
+                repository.buildPlanner(sessionLocationId, weightUnit, updatedPlan.effectiveOverrides)
                     .also { planner = it }
             } else {
                 planner ?: return@launch
@@ -209,7 +209,7 @@ class WorkoutSessionController(
         setState(state.copy(plan = state.plan.copy(exercises = exercises, strengthOverrides = updatedOverrides)))
         weightAdjustJob?.cancel()
         weightAdjustJob = scope.launch {
-            planner = repository.buildPlanner(sessionLocationId, weightUnit, updatedOverrides)
+            planner = repository.buildPlanner(sessionLocationId, weightUnit, state.plan.detrainOverrides + updatedOverrides)
         }
     }
 
@@ -355,7 +355,7 @@ class WorkoutSessionController(
         val locationId = sessionLocationId ?: return
         scope.launch {
             val locationName = database.knownLocationDao().getById(locationId)?.name
-            val freshPlanner = repository.buildPlanner(locationId, weightUnit, preview.plan.strengthOverrides)
+            val freshPlanner = repository.buildPlanner(locationId, weightUnit, preview.plan.effectiveOverrides)
             planner = freshPlanner
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
             var plan = preview.plan
@@ -550,7 +550,7 @@ class WorkoutSessionController(
         val staged = current.staged
         if (staged != null) {
             scope.launch {
-                staged.pendingSwap?.let { persistSwap(it, current.plan.strengthOverrides) }
+                staged.pendingSwap?.let { persistSwap(it, current.plan.effectiveOverrides) }
                 val target = staged.commitTarget
                 if (target != null) setState(target) else finishWorkout(current.plan, current.sessionId)
             }
