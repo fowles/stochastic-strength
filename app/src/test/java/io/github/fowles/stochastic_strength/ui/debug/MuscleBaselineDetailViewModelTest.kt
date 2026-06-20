@@ -39,11 +39,12 @@ class MuscleBaselineDetailViewModelTest {
     }
 
     @Test
-    fun `formatBaselineSetLine renders RIR_0_1 as target plus one with tilde`() {
+    fun `formatBaselineSetLine renders RIR_0_1 reserve rounded to target plus one with tilde`() {
         val out = formatBaselineSetLine(
             set(feedback = SetFeedback.RIR_0_1, targetReps = 10, targetWeight = 24.9477f),
             WeightUnit.LBS,
         )
+        // RESERVE_RIR_0_1 is +0.5; (10 + 0.5) rounds half-up to 11.
         assertEquals("~11@55lbs", out)
     }
 

@@ -15,3 +15,5 @@ Task 3: BLOCKED (uncommitted structural edits in working copy; SessionSignalExtr
 Task 3: complete (commit 08932b3..7146697, review clean — validated UNDER GROWTH per user decision)
   Metrics: lastSetRir=1.30, failRate=0.175, gauge 0.999/1.011/1.011; default constants, no prod tuning.
   Minor (final-review triage): lastSetRir=1.30 high in [0,1.5] band — optional re-center toward ~0.8 via RESERVE_RIR_0_1 (deferred, deterministic not flaky); redundant achievableReps recompute in sim hot loop (perf nit)
+Task 4: complete (commit 7146697..2b638ed, review clean)
+ALL TASKS COMPLETE
