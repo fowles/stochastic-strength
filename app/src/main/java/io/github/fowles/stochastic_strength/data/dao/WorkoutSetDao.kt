@@ -43,4 +43,13 @@ interface WorkoutSetDao {
 
     @Query("SELECT * FROM workout_sets")
     suspend fun getAll(): List<WorkoutSet>
+
+    @Query("SELECT * FROM workout_sets WHERE id = :id")
+    suspend fun getById(id: Long): WorkoutSet?
+
+    @Query("DELETE FROM workout_sets WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("UPDATE workout_sets SET actualReps = :reps WHERE id = :id")
+    suspend fun updateActualReps(id: Long, reps: Int?)
 }

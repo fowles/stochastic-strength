@@ -29,13 +29,13 @@ sealed interface WorkoutState {
     data class Resting(
         val plan: WorkoutPlan,
         val exerciseIndex: Int,
-        val completedSetIndex: Int,  // may be inflated to totalSets-1 when HURT skips remaining sets
-        val recordedSetIndex: Int,   // the actual set index written to DB, used for undo
+        val completedSetIndex: Int,
         val sessionId: Long,
         val secondsRemaining: Int,
         val lastFeedback: SetFeedback,
         val weightReductionApplied: Boolean = false,
         val weightAtSetStart: Float,
+        val currentSetRowId: Long,
     ) : WorkoutState
 
     data class Done(
@@ -43,7 +43,5 @@ sealed interface WorkoutState {
         val plan: WorkoutPlan,
         val startTime: Long,
         val endTime: Long,
-        val lastExerciseIndex: Int,
-        val lastRecordedSetIndex: Int,
     ) : WorkoutState
 }

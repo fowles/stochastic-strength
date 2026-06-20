@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import kotlin.random.Random
 
@@ -73,22 +74,41 @@ object DebugSeeder {
             for (exercise in sessionExercises) {
                 val equipmentKey = exercise.equipment.name
                 val baseWeight = baseWeightByEquipment[equipmentKey] ?: 20f
-                val weight = WeightFormatter.round(baseWeight * progressionFactor, weightUnit)
+                var currentWeight = WeightFormatter.round(baseWeight * progressionFactor, weightUnit)
 
                 var setTime = startMs
                 for (setNumber in 1..3) {
                     setTime += rng.nextLong(3 * 60_000L, 7 * 60_000L)
+                    val feedback = feedbackDistribution.random(rng)
+                    val isLastSet = setNumber == 3
+
+                    val actualReps: Int? = when (feedback) {
+                        SetFeedback.RIR_0_1, SetFeedback.RIR_2_4, SetFeedback.RIR_5_PLUS -> targetReps
+                        SetFeedback.TOO_HARD ->
+                            if (isLastSet) null
+                            else rng.nextInt(0, targetReps)
+                        SetFeedback.HURT -> null
+                    }
+
                     db.workoutSetDao().insert(
                         WorkoutSet(
                             sessionId = sessionId,
                             exerciseId = exercise.id,
                             setNumber = setNumber,
-                            targetWeight = weight,
+                            targetWeight = currentWeight,
                             targetReps = targetReps,
-                            feedback = feedbackDistribution.random(rng),
+                            actualReps = actualReps,
+                            feedback = feedback,
                             completedAt = setTime,
                         )
                     )
+
+                    if (feedback == SetFeedback.TOO_HARD && !isLastSet && actualReps != null && currentWeight > 0f) {
+                        currentWeight = maxOf(0.5f, WeightFormatter.round(
+                            DefaultProgressionEngine.scaleReps(currentWeight, from = maxOf(1, actualReps), to = targetReps),
+                            weightUnit,
+                        ))
+                    }
                 }
             }
         }
