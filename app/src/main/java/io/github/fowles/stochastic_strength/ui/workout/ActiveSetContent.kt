@@ -44,10 +44,11 @@ internal fun ActiveSetContent(
     weightUnit: WeightUnit,
     onFeedback: (SetFeedback) -> Unit,
     onStartTimedSet: () -> Unit,
+    actions: @Composable () -> Unit = {},
 ) {
     val exercise = state.plannedExercise.exercise
     if (exercise.isTimed) {
-        TimedSetContent(state = state, onStartTimedSet = onStartTimedSet, onFeedback = onFeedback)
+        TimedSetContent(state = state, onStartTimedSet = onStartTimedSet, onFeedback = onFeedback, actions = actions)
     } else {
         ExerciseSetLayout(
             exercise = exercise,
@@ -56,6 +57,7 @@ internal fun ActiveSetContent(
             weight = state.plannedExercise.sessionWeight,
             reps = state.plannedExercise.sessionReps,
             weightUnit = weightUnit,
+            menu = actions,
         ) {
             Text("How many more reps could you have done?", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(12.dp))
@@ -69,6 +71,7 @@ private fun TimedSetContent(
     state: WorkoutState.ActiveSet,
     onStartTimedSet: () -> Unit,
     onFeedback: (SetFeedback) -> Unit,
+    actions: @Composable () -> Unit = {},
 ) {
     val exercise = state.plannedExercise.exercise
     val secondsRemaining = state.timerSecondsRemaining
@@ -93,6 +96,9 @@ private fun TimedSetContent(
             .then(if (!started) Modifier.clickable { onStartTimedSet() } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            actions()
+        }
         Spacer(Modifier.weight(1f))
         Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
         Text(
@@ -166,6 +172,7 @@ internal fun ExerciseSetLayout(
     weight: Float,
     reps: Int,
     weightUnit: WeightUnit,
+    menu: @Composable () -> Unit = {},
     bottomContent: @Composable () -> Unit,
 ) {
     Column(
@@ -174,6 +181,9 @@ internal fun ExerciseSetLayout(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            menu()
+        }
         Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
         Text(progressLabel, style = MaterialTheme.typography.titleLarge, color = progressColor)
 

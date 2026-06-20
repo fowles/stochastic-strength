@@ -13,6 +13,7 @@ internal fun WarmupSetContent(
     state: WorkoutState.ActiveSet,
     weightUnit: WeightUnit,
     onDone: () -> Unit,
+    actions: @Composable () -> Unit = {},
 ) {
     val warmupSet = state.currentWarmupSet ?: return
     val exercise = state.plannedExercise.exercise
@@ -24,6 +25,7 @@ internal fun WarmupSetContent(
         weight = warmupSet.weight,
         reps = warmupSet.reps,
         weightUnit = weightUnit,
+        menu = actions,
     ) {
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.warmupSetIndex + 1 < totalWarmups) "Next Warm-up" else "Start Working Sets")
