@@ -12,8 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -33,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.ui.debug.components.CoefficientDeviationList
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugLineChart
 import java.time.Instant
 import java.time.ZoneId
@@ -66,27 +65,6 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Current baseline",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = WeightFormatter.format(state.currentBaseline, state.weightUnit),
-                            style = MaterialTheme.typography.headlineSmall,
-                        )
-                    }
-                }
-            }
-
             item { SectionHeader("Baseline over time") }
 
             item {
@@ -99,8 +77,18 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(200.dp)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 16.dp, vertical = 0.dp),
                     )
+                }
+            }
+
+            item { SectionHeader("Coefficient vs seed") }
+
+            item {
+                if (state.coefficientDeviations.isEmpty()) {
+                    EmptyDeviationsPlaceholder()
+                } else {
+                    CoefficientDeviationList(state.coefficientDeviations)
                 }
             }
 
@@ -136,8 +124,20 @@ private fun SectionHeader(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
     )
+}
+
+@Composable
+private fun EmptyDeviationsPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable
@@ -182,6 +182,13 @@ private fun BaselineEventRow(event: BaselineEvent, weightUnit: WeightUnit) {
                 WeightFormatter.format(event.newBaseline, weightUnit),
             style = MaterialTheme.typography.bodyLarge,
         )
+        if (event.exerciseNames.isNotEmpty()) {
+            Text(
+                text = "Exercises: " + event.exerciseNames.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (event.feedbacks.isNotEmpty()) {
             val repsSuffix = event.sessionReps?.let { " · reps: $it" } ?: ""
             Text(

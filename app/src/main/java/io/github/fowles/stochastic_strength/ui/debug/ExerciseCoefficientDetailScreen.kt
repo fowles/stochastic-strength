@@ -12,8 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -21,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -32,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.ui.debug.components.CoefficientDeviationList
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugLineChart
 import java.time.Instant
 import java.time.ZoneId
@@ -65,34 +63,6 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Current coefficient",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = "%.3f".format(state.currentCoefficient),
-                            style = MaterialTheme.typography.headlineSmall,
-                        )
-                        if (state.seedCoefficient != null) {
-                            Text(
-                                text = "Seed: %.3f".format(state.seedCoefficient),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-
             item { SectionHeader("Coefficient over time") }
 
             item {
@@ -110,7 +80,25 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(200.dp)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 16.dp, vertical = 0.dp),
+                    )
+                }
+            }
+
+            item { SectionHeader("Coefficient vs seed") }
+
+            item {
+                if (state.coefficientDeviations.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    CoefficientDeviationList(
+                        rows = state.coefficientDeviations,
+                        highlightedName = state.exercise?.name,
                     )
                 }
             }
@@ -147,7 +135,7 @@ private fun SectionHeader(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
     )
 }
 
@@ -183,17 +171,11 @@ private fun CoefficientEventRow(event: CoefficientEvent) {
         }
         Text(text = transition, style = MaterialTheme.typography.bodyLarge)
         if (event.heuristicMetadata != null) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            ) {
-                Text(
-                    text = event.heuristicMetadata,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                    modifier = Modifier.padding(8.dp),
-                )
-            }
+            Text(
+                text = event.heuristicMetadata,
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

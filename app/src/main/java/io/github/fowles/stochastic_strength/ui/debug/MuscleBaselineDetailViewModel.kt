@@ -12,6 +12,7 @@ import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,15 +28,43 @@ data class BaselineEvent(
     val feedbacks: List<SetFeedback>,
     val sessionReps: Int?,
     val minReductionFraction: Float?,
+    val exerciseNames: List<String>,
 )
+
+data class CoefficientDeviationRow(
+    val name: String,
+    val deviation: Float,
+)
+
+/**
+ * Returns the per-exercise drift of `current` coefficient vs `seed`,
+ * expressed as `current / seed - 1` and sorted descending. Exercises
+ * whose seed is `0f` are omitted (bodyweight — ratio undefined).
+ *
+ * If an exercise has no entry in [currentByExerciseId] the current value
+ * falls back to its seed, yielding a deviation of `0f`.
+ */
+internal fun computeCoefficientDeviations(
+    exercises: List<Pair<Long, String>>,
+    seedByName: Map<String, Float>,
+    currentByExerciseId: Map<Long, Float>,
+): List<CoefficientDeviationRow> {
+    val rows = exercises.mapNotNull { (id, name) ->
+        val seed = seedByName[name] ?: return@mapNotNull null
+        if (seed == 0f) return@mapNotNull null
+        val current = currentByExerciseId[id] ?: seed
+        CoefficientDeviationRow(name = name, deviation = current / seed - 1f)
+    }
+    return rows.sortedByDescending { it.deviation }
+}
 
 data class MuscleBaselineDetailState(
     val loading: Boolean = true,
     val muscleGroup: MuscleGroup,
-    val currentBaseline: Float = 0f,
     val weightUnit: WeightUnit = WeightUnit.KG,
     val events: List<BaselineEvent> = emptyList(),
     val chartPoints: List<DebugChartPoint> = emptyList(),
+    val coefficientDeviations: List<CoefficientDeviationRow> = emptyList(),
 )
 
 class MuscleBaselineDetailViewModel(
@@ -52,12 +81,32 @@ class MuscleBaselineDetailViewModel(
         viewModelScope.launch {
             val profile = app.database.userProfileDao().getProfile()
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
-            val currentBaseline = repository.getMuscleGroupStrengths()
-                .firstOrNull { it.muscleGroup == muscleGroup }
-                ?.baselineWeight ?: 0f
             val logs = repository.getBaselineEvents(muscleGroup)
 
+            val allExercises = app.database.exerciseDao().getAll()
+                .filter { it.primaryMuscle == muscleGroup }
+            val latestUserCoefficients = app.database.coefficientChangeLogDao()
+                .getLatestPerExercise()
+                .associate { it.exerciseId to it.coefficient }
+            val coefficientDeviations = computeCoefficientDeviations(
+                exercises = allExercises.map { it.id to it.name },
+                seedByName = ExerciseCoefficients.byName,
+                currentByExerciseId = latestUserCoefficients,
+            )
+
+            val nameByExerciseId = allExercises.associate { it.id to it.name }
+            val exerciseIdsForMuscle = nameByExerciseId.keys
+            val sessionIds = logs.map { it.sessionId }.toSet()
+            val setsBySession = app.database.workoutSetDao().getAll()
+                .filter { it.sessionId in sessionIds && it.exerciseId in exerciseIdsForMuscle }
+                .groupBy { it.sessionId }
+
             val events = logs.asReversed().map { log ->
+                val names = setsBySession[log.sessionId].orEmpty()
+                    .map { it.exerciseId }
+                    .distinct()
+                    .mapNotNull { nameByExerciseId[it] }
+                    .sorted()
                 BaselineEvent(
                     sessionId = log.sessionId,
                     timestamp = log.timestamp,
@@ -67,6 +116,7 @@ class MuscleBaselineDetailViewModel(
                     feedbacks = parseFeedbacks(log.feedbacks),
                     sessionReps = log.sessionReps,
                     minReductionFraction = log.minReductionFraction,
+                    exerciseNames = names,
                 )
             }
 
@@ -79,10 +129,10 @@ class MuscleBaselineDetailViewModel(
             _state.value = MuscleBaselineDetailState(
                 loading = false,
                 muscleGroup = muscleGroup,
-                currentBaseline = currentBaseline,
                 weightUnit = weightUnit,
                 events = events,
                 chartPoints = chartPoints,
+                coefficientDeviations = coefficientDeviations,
             )
         }
     }

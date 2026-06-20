@@ -2,11 +2,11 @@ package io.github.fowles.stochastic_strength
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
-import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
-import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.WorkoutRepository
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionController
 import kotlin.random.Random
 
 object DebugSeeder {
@@ -17,100 +17,70 @@ object DebugSeeder {
         SetFeedback.TOO_HARD,
     )
 
-    private val repTargets = listOf(5, 8, 10)
-
-    // Rough starting weights by equipment (kg), scales with progression
-    private val baseWeightByEquipment = mapOf(
-        "BARBELL" to 60f,
-        "DUMBBELL" to 16f,
-        "CABLE_MACHINE" to 30f,
-        "MACHINE" to 40f,
-        "BODYWEIGHT" to 0f,
-        "KETTLEBELL" to 16f,
-        "RESISTANCE_BAND" to 10f,
-        "SMITH_MACHINE" to 50f,
-    )
-
-    suspend fun seedIfEmpty(db: AppDatabase) {
+    suspend fun seedIfEmpty(db: AppDatabase, repository: WorkoutRepository) {
         if (db.workoutSessionDao().getAll().isNotEmpty()) return
+        if (db.exerciseDao().getActive().isEmpty()) return
+        // Wait until the user has onboarded — the planner relies on the baselines
+        // that onboarding writes via seedInitialWeights.
+        val profile = db.userProfileDao().getProfile() ?: return
 
-        val exercises = db.exerciseDao().getActive()
-        if (exercises.isEmpty()) return
-
-        val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+        val weightUnit = profile.weightUnit
         val rng = Random(seed = 42)
         val now = System.currentTimeMillis()
         val msPerDay = 86_400_000L
 
-        // ~3 sessions/week for 12 weeks
+        // ~3 sessions/week for 12 weeks, oldest first so progression compounds.
         val sessionDaysAgo = buildList {
             var day = 84
             while (day > 0) {
                 add(day)
                 day -= rng.nextInt(2, 4)
             }
-        }
+        }.sortedDescending()
 
-        // Group exercises by primary muscle so sessions have variety
-        val byMuscle = exercises.groupBy { it.primaryMuscle }
-        val muscleGroups = byMuscle.keys.toList()
-
-        for ((sessionIndex, daysAgo) in sessionDaysAgo.withIndex()) {
-            val progressionFactor = 1f + (sessionIndex.toFloat() / sessionDaysAgo.size) * 0.15f
-
+        for (daysAgo in sessionDaysAgo) {
             val startMs = now - daysAgo * msPerDay + rng.nextLong(6 * 3_600_000L, 20 * 3_600_000L)
+            val endMs = startMs + rng.nextLong(45 * 60_000L, 75 * 60_000L)
+
+            val planner = repository.buildPlanner(locationId = null, weightUnit = weightUnit)
+            val plan = planner.generateWorkout()
+            if (plan.exercises.isEmpty()) continue
+
             val sessionId = db.workoutSessionDao().insert(
-                WorkoutSession(startTime = startMs, endTime = startMs + rng.nextLong(45 * 60_000L, 75 * 60_000L))
+                WorkoutSession(startTime = startMs, endTime = endMs)
             )
 
-            // Pick 5–6 muscle groups, then one exercise each
-            val shuffledMuscles = muscleGroups.shuffled(rng).take(rng.nextInt(5, 7))
-            val sessionExercises = shuffledMuscles.mapNotNull { muscle ->
-                byMuscle[muscle]?.filter { !it.hurtFlag }?.randomOrNull(rng)
-            }
-
-            val targetReps = repTargets.random(rng)
-
-            for (exercise in sessionExercises) {
-                val equipmentKey = exercise.equipment.name
-                val baseWeight = baseWeightByEquipment[equipmentKey] ?: 20f
-                var currentWeight = WeightFormatter.round(baseWeight * progressionFactor, weightUnit)
-
-                var setTime = startMs
-                for (setNumber in 1..3) {
+            var setTime = startMs
+            for (planned in plan.exercises) {
+                for (setNumber in 1..PlannedExercise.DEFAULT_SETS) {
                     setTime += rng.nextLong(3 * 60_000L, 7 * 60_000L)
                     val feedback = feedbackDistribution.random(rng)
-                    val isLastSet = setNumber == 3
-
+                    val isLastSet = setNumber == PlannedExercise.DEFAULT_SETS
                     val actualReps: Int? = when (feedback) {
-                        SetFeedback.RIR_0_1, SetFeedback.RIR_2_4, SetFeedback.RIR_5_PLUS -> targetReps
+                        SetFeedback.RIR_0_1, SetFeedback.RIR_2_4, SetFeedback.RIR_5_PLUS -> planned.sessionReps
                         SetFeedback.TOO_HARD ->
                             if (isLastSet) null
-                            else rng.nextInt(0, targetReps)
+                            else rng.nextInt(0, planned.sessionReps)
                         SetFeedback.HURT -> null
                     }
 
                     db.workoutSetDao().insert(
                         WorkoutSet(
                             sessionId = sessionId,
-                            exerciseId = exercise.id,
+                            exerciseId = planned.exercise.id,
                             setNumber = setNumber,
-                            targetWeight = currentWeight,
-                            targetReps = targetReps,
+                            targetWeight = planned.sessionWeight,
+                            targetReps = planned.sessionReps,
                             actualReps = actualReps,
                             feedback = feedback,
                             completedAt = setTime,
+                            durationSeconds = if (planned.exercise.isTimed) WorkoutSessionController.TIMED_SET_SECONDS else null,
                         )
                     )
-
-                    if (feedback == SetFeedback.TOO_HARD && !isLastSet && actualReps != null && currentWeight > 0f) {
-                        currentWeight = maxOf(0.5f, WeightFormatter.round(
-                            DefaultProgressionEngine.scaleReps(currentWeight, from = maxOf(1, actualReps), to = targetReps),
-                            weightUnit,
-                        ))
-                    }
                 }
             }
+
+            repository.applySessionProgression(sessionId)
         }
     }
 }

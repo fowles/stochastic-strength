@@ -13,7 +13,7 @@ class EstCoefConsensusHeuristic(
     private val tauOutlierThreshold: Float = LN_110,
     private val alpha: Float = 0.2f,
     private val maxLogStep: Float = ln(1.05f),
-    private val minChangeThreshold: Float = 0.005f,
+    private val minRelativeChange: Float = 0.005f,
 ) : CoefficientHeuristic {
 
     override val name: String = "est-coef-consensus"
@@ -238,7 +238,7 @@ class EstCoefConsensusHeuristic(
         val raw = alpha * emit.confidence * ln((emit.proposal / currentCoef).toDouble()).toFloat()
         val step = raw.coerceIn(-maxLogStep, maxLogStep)
         val newCoef = currentCoef * kotlin.math.exp(step.toDouble()).toFloat()
-        if (kotlin.math.abs(newCoef - currentCoef) < minChangeThreshold) return null
+        if (kotlin.math.abs(newCoef - currentCoef) < minRelativeChange * currentCoef) return null
         return CoefficientResult(exerciseId, newCoef, emit.metadata)
     }
 

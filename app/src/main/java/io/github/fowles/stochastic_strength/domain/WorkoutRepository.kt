@@ -65,6 +65,7 @@ class WorkoutRepository(
 
     suspend fun applySessionProgression(sessionId: Long, exerciseReductions: Map<Long, Float> = emptyMap()) {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
+        val triggerTime = sessionTriggerTime(sessionId, sets)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
         val profile = db.userProfileDao().getProfile()
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
@@ -111,11 +112,17 @@ class WorkoutRepository(
                     feedbacks = allFeedbacks.joinToString(",") { it.name },
                     sessionReps = sessionReps,
                     minReductionFraction = if (minReduction > 0f) minReduction else null,
-                    timestamp = System.currentTimeMillis(),
+                    timestamp = triggerTime,
                 )
             )
         }
-        recomputeCoefficients()
+        recomputeCoefficients(asOf = triggerTime)
+    }
+
+    private suspend fun sessionTriggerTime(sessionId: Long, sets: List<WorkoutSet>): Long {
+        sets.mapNotNull { it.completedAt }.maxOrNull()?.let { return it }
+        val session = db.workoutSessionDao().getById(sessionId)
+        return session?.endTime ?: session?.startTime ?: System.currentTimeMillis()
     }
 
     suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
@@ -162,7 +169,7 @@ class WorkoutRepository(
         )
     }
 
-    suspend fun recomputeCoefficients() {
+    suspend fun recomputeCoefficients(asOf: Long? = null) {
         if (heuristics.isEmpty()) return
         // buildCoefficientInput reads happen outside the write transaction — safe on a single-user device where no concurrent writes occur
         val input = buildCoefficientInput()
@@ -173,7 +180,9 @@ class WorkoutRepository(
                     .add(heuristic.name to result)
             }
         }
-        val now = System.currentTimeMillis()
+        val timestamp = asOf
+            ?: input.sets.mapNotNull { it.completedAt }.maxOrNull()
+            ?: System.currentTimeMillis()
         db.withTransaction {
             val latestByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
                 .associateBy { it.exerciseId }
@@ -186,7 +195,7 @@ class WorkoutRepository(
                         coefficient = winner.coefficient,
                         heuristicName = winnerName,
                         heuristicMetadata = winner.metadata,
-                        computedAt = now,
+                        computedAt = timestamp,
                     )
                 )
             }

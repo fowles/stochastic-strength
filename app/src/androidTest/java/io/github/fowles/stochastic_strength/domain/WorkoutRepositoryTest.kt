@@ -397,6 +397,130 @@ class WorkoutRepositoryTest {
     }
 
     @Test
+    fun applySessionProgression_baselineLogTimestampMatchesLatestSetCompletedAt() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val startMs = 1_700_000_000_000L
+        val sessionId = db.workoutSessionDao().insert(
+            WorkoutSession(startTime = startMs, endTime = startMs + 60 * 60_000L)
+        )
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = startMs + 5 * 60_000L,
+        ))
+        val lastSetMs = startMs + 15 * 60_000L
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = exerciseId, setNumber = 2,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = lastSetMs,
+        ))
+
+        repository.applySessionProgression(sessionId)
+
+        val log = db.baselineChangeLogDao().getForSession(sessionId).single()
+        assertEquals(lastSetMs, log.timestamp)
+    }
+
+    @Test
+    fun applySessionProgression_baselineLogFallsBackToSessionEndTime_whenSetsLackCompletedAt() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val startMs = 1_700_000_000_000L
+        val endMs = startMs + 60 * 60_000L
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = startMs, endTime = endMs))
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = null,
+        ))
+
+        repository.applySessionProgression(sessionId)
+
+        val log = db.baselineChangeLogDao().getForSession(sessionId).single()
+        assertEquals(endMs, log.timestamp)
+    }
+
+    @Test
+    fun applySessionProgression_coefficientLogUsesSessionTriggerTime() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val startMs = 1_700_000_000_000L
+        val sessionId = db.workoutSessionDao().insert(
+            WorkoutSession(startTime = startMs, endTime = startMs + 60 * 60_000L)
+        )
+        val lastSetMs = startMs + 20 * 60_000L
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = lastSetMs,
+        ))
+        val testHeuristic = object : CoefficientHeuristic {
+            override val name = "test"
+            override fun compute(input: CoefficientComputationInput) =
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.85f) }
+        }
+        val repo = WorkoutRepository(db, heuristics = listOf(testHeuristic))
+
+        repo.applySessionProgression(sessionId)
+
+        val log = db.coefficientChangeLogDao().getLatestPerExercise().single()
+        assertEquals(lastSetMs, log.computedAt)
+    }
+
+    @Test
+    fun recomputeCoefficients_standaloneUsesLatestSetCompletedAt() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        val startMs = 1_700_000_000_000L
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = startMs))
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = startMs + 5 * 60_000L,
+        ))
+        val lastSetMs = startMs + 25 * 60_000L
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = exerciseId, setNumber = 2,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = lastSetMs,
+        ))
+        val testHeuristic = object : CoefficientHeuristic {
+            override val name = "test"
+            override fun compute(input: CoefficientComputationInput) =
+                input.sets.map { it.exerciseId }.distinct()
+                    .map { CoefficientResult(it, 0.9f) }
+        }
+        val repo = WorkoutRepository(db, heuristics = listOf(testHeuristic))
+
+        repo.recomputeCoefficients()
+
+        val log = db.coefficientChangeLogDao().getLatestPerExercise().single()
+        assertEquals(lastSetMs, log.computedAt)
+    }
+
+    @Test
     fun buildPlanner_excludesExercisesMarkedForLocation() = runBlocking {
         db.exerciseDao().insertAll(listOf(
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
