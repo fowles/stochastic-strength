@@ -4,8 +4,10 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.RepRangePicker
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.workout.WorkoutViewModel
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionController
 import kotlin.random.Random
 
@@ -25,6 +27,8 @@ object DebugSeeder {
         val profile = db.userProfileDao().getProfile() ?: return
 
         val weightUnit = profile.weightUnit
+        val repMin = profile.preferredRepMin ?: WorkoutViewModel.DEFAULT_REP_MIN
+        val repMax = profile.preferredRepMax ?: WorkoutViewModel.DEFAULT_REP_MAX
         val rng = Random(seed = 42)
         val now = System.currentTimeMillis()
         val msPerDay = 86_400_000L
@@ -43,7 +47,9 @@ object DebugSeeder {
             val endMs = startMs + rng.nextLong(45 * 60_000L, 75 * 60_000L)
 
             val planner = repository.buildPlanner(locationId = null, weightUnit = weightUnit)
-            val plan = planner.generateWorkout(sessionReps = 5)
+            val plan = planner.generateWorkout(
+                sessionReps = RepRangePicker.pick(repMin, repMax, rng),
+            )
             if (plan.exercises.isEmpty()) continue
 
             val sessionId = db.workoutSessionDao().insert(
