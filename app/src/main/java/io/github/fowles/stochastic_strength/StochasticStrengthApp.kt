@@ -4,6 +4,8 @@ import android.app.Application
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.ActualRepsBackfill
+import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
+import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.strava.StravaExporter
 import io.github.fowles.stochastic_strength.domain.strava.StravaJsonBuilder
 import io.github.fowles.stochastic_strength.domain.strava.StravaTokenStore
@@ -25,6 +27,9 @@ class StochasticStrengthApp : Application() {
             jsonBuilder = StravaJsonBuilder(),
             context = this,
         )
+    }
+    val workoutRepository: WorkoutRepository by lazy {
+        WorkoutRepository(database, heuristics = listOf(EstCoefConsensusHeuristic()))
     }
 
     override fun onCreate() {

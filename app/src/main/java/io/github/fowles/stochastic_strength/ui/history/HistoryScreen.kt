@@ -1,10 +1,8 @@
 package io.github.fowles.stochastic_strength.ui.history
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,8 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -34,10 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.fowles.stochastic_strength.data.model.MuscleGroup
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
-import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.ui.components.StrengthGrid
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -98,9 +91,9 @@ fun HistoryScreen(
             item {
                 StrengthGrid(
                     strengths = state.muscleStrengths,
-                    referenceExerciseIds = state.referenceExerciseIds,
+                    tapTargets = state.referenceExerciseIds,
                     weightUnit = state.weightUnit,
-                    onExerciseTap = onExerciseTap,
+                    onTap = onExerciseTap,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
@@ -145,63 +138,6 @@ private fun SectionHeader(title: String) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     )
-}
-
-@Composable
-private fun StrengthGrid(
-    strengths: List<MuscleGroupStrength>,
-    referenceExerciseIds: Map<MuscleGroup, Long>,
-    weightUnit: WeightUnit,
-    onExerciseTap: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        strengths.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                pair.forEach { strength ->
-                    StrengthCard(
-                        strength = strength,
-                        exerciseId = referenceExerciseIds[strength.muscleGroup],
-                        weightUnit = weightUnit,
-                        onTap = onExerciseTap,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (pair.size == 1) {
-                    Box(modifier = Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StrengthCard(
-    strength: MuscleGroupStrength,
-    exerciseId: Long?,
-    weightUnit: WeightUnit,
-    onTap: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val cardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-    val cardContent: @Composable ColumnScope.() -> Unit = {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Text(
-                text = strength.muscleGroup.displayName(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = WeightFormatter.format(strength.baselineWeight, weightUnit),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-    if (exerciseId != null) {
-        Card(onClick = { onTap(exerciseId) }, modifier = modifier, colors = cardColors, content = cardContent)
-    } else {
-        Card(modifier = modifier, colors = cardColors, content = cardContent)
-    }
 }
 
 @Composable

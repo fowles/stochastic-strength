@@ -42,6 +42,7 @@ fun HomeScreen(
     onHistory: () -> Unit,
     onExercises: () -> Unit,
     onLocations: () -> Unit,
+    onAbout: () -> Unit,
     viewModel: HomeViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -80,6 +81,7 @@ fun HomeScreen(
                     onHistory = onHistory,
                     onExercises = onExercises,
                     onLocations = onLocations,
+                    onAbout = onAbout,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(24.dp),
@@ -95,6 +97,7 @@ private fun ReadyContent(
     onHistory: () -> Unit,
     onExercises: () -> Unit,
     onLocations: () -> Unit,
+    onAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -124,6 +127,10 @@ private fun ReadyContent(
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onLocations, modifier = Modifier.fillMaxWidth()) {
             Text("Locations")
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) {
+            Text("About")
         }
     }
 }

@@ -1,0 +1,105 @@
+package io.github.fowles.stochastic_strength.ui.debug
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
+import io.github.fowles.stochastic_strength.StochasticStrengthApp
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+data class BaselineEvent(
+    val sessionId: Long,
+    val timestamp: Long,
+    val previousBaseline: Float,
+    val newBaseline: Float,
+    val reason: BaselineChangeReason,
+    val feedbacks: List<SetFeedback>,
+    val sessionReps: Int?,
+    val minReductionFraction: Float?,
+)
+
+data class MuscleBaselineDetailState(
+    val loading: Boolean = true,
+    val muscleGroup: MuscleGroup,
+    val currentBaseline: Float = 0f,
+    val weightUnit: WeightUnit = WeightUnit.KG,
+    val events: List<BaselineEvent> = emptyList(),
+    val chartPoints: List<DebugChartPoint> = emptyList(),
+)
+
+class MuscleBaselineDetailViewModel(
+    application: Application,
+    private val muscleGroup: MuscleGroup,
+) : AndroidViewModel(application) {
+    private val app = application as StochasticStrengthApp
+    private val repository = app.workoutRepository
+
+    private val _state = MutableStateFlow(MuscleBaselineDetailState(muscleGroup = muscleGroup))
+    val state: StateFlow<MuscleBaselineDetailState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val profile = app.database.userProfileDao().getProfile()
+            val weightUnit = profile?.weightUnit ?: WeightUnit.KG
+            val currentBaseline = repository.getMuscleGroupStrengths()
+                .firstOrNull { it.muscleGroup == muscleGroup }
+                ?.baselineWeight ?: 0f
+            val logs = repository.getBaselineEvents(muscleGroup)
+
+            val events = logs.asReversed().map { log ->
+                BaselineEvent(
+                    sessionId = log.sessionId,
+                    timestamp = log.timestamp,
+                    previousBaseline = log.previousBaseline,
+                    newBaseline = log.newBaseline,
+                    reason = log.changeReason,
+                    feedbacks = parseFeedbacks(log.feedbacks),
+                    sessionReps = log.sessionReps,
+                    minReductionFraction = log.minReductionFraction,
+                )
+            }
+
+            val chartPoints: List<DebugChartPoint> = if (logs.isEmpty()) emptyList() else buildList {
+                val first = logs.first()
+                add(DebugChartPoint(first.timestamp - 86_400_000L, first.previousBaseline))
+                logs.forEach { add(DebugChartPoint(it.timestamp, it.newBaseline)) }
+            }
+
+            _state.value = MuscleBaselineDetailState(
+                loading = false,
+                muscleGroup = muscleGroup,
+                currentBaseline = currentBaseline,
+                weightUnit = weightUnit,
+                events = events,
+                chartPoints = chartPoints,
+            )
+        }
+    }
+
+    private fun parseFeedbacks(csv: String?): List<SetFeedback> =
+        csv?.split(',')
+            ?.mapNotNull { token -> runCatching { SetFeedback.valueOf(token.trim()) }.getOrNull() }
+            ?: emptyList()
+
+    companion object {
+        fun factory(muscleGroup: MuscleGroup): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+                    val app = extras[APPLICATION_KEY] ?: error("No application")
+                    return MuscleBaselineDetailViewModel(app, muscleGroup) as T
+                }
+            }
+    }
+}
