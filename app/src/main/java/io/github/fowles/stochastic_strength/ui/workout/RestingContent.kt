@@ -88,8 +88,15 @@ internal fun RestingContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Rest", style = MaterialTheme.typography.headlineMedium)
                 Spacer(Modifier.height(8.dp))
+                val subtitle = when (state.staged?.kind) {
+                    StagedKind.STOP_WORKOUT -> "Finishing workout"
+                    StagedKind.END_EXERCISE -> "Exercise stopped"
+                    StagedKind.SWAP -> "Swapped exercise"
+                    StagedKind.ADJUST_WEIGHT -> "Weight changed"
+                    null -> "Logged: ${state.lastFeedback?.displayLabel ?: ""}"
+                }
                 Text(
-                    "Logged: ${state.lastFeedback.displayLabel}",
+                    subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -147,6 +154,19 @@ internal fun RestingContent(
             val weightReduced = plannedExercise.sessionWeight != state.weightAtSetStart
 
             when {
+                state.staged != null -> {
+                    val up = state.staged.commitTarget?.let { it.plan.exercises.getOrNull(it.exerciseIndex) }
+                    if (up != null) {
+                        val warmup = up.warmupSets.firstOrNull()
+                        NextExerciseCard(
+                            title = if (warmup != null) "Warm up" else "Up next",
+                            exerciseName = up.exercise.name,
+                            weight = warmup?.weight ?: up.sessionWeight,
+                            equipment = up.exercise.equipment,
+                            weightUnit = weightUnit,
+                        )
+                    }
+                }
                 state.lastFeedback == SetFeedback.TOO_HARD && !state.weightReductionApplied
                     && !plannedExercise.exercise.isTimed -> {
                     WeightReductionCard(

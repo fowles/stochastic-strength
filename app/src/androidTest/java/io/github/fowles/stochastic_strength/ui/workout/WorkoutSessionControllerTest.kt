@@ -58,20 +58,21 @@ class WorkoutSessionControllerTest {
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
             }
-            controller = WorkoutSessionController(db, repository, bus, scope)
-            controller.initializeSession(
-                locationId = null,
-                locationName = null,
-                preferredExerciseCount = 1,
-                preferredRepMin = 5,
-                preferredRepMax = 10,
-                weightUnit = WeightUnit.KG,
-            )
-            controller.adjustExerciseCount(1)
-            awaitStateNotLoading()
-            controller.startFirstExercise()
-            awaitState<WorkoutState.ActiveSet>()
+            startSession(1)
         }
+    }
+
+    private fun startSession(count: Int) = runBlocking {
+        controller = WorkoutSessionController(db, repository, bus, scope)
+        controller.initializeSession(
+            locationId = null, locationName = null,
+            preferredExerciseCount = count, preferredRepMin = 5, preferredRepMax = 10,
+            weightUnit = WeightUnit.KG,
+        )
+        controller.adjustExerciseCount(count)
+        awaitStateNotLoading()
+        controller.startFirstExercise()
+        awaitState<WorkoutState.ActiveSet>()
     }
 
     @After
@@ -183,5 +184,27 @@ class WorkoutSessionControllerTest {
         awaitState<WorkoutState.ActiveSet>()
         delay(100)
         assertEquals(0, db.workoutSetDao().getAll().size)
+    }
+
+    @Test
+    fun stopWorkout_landsOnRest_commitFinishes() = runBlocking<Unit> {
+        controller.stopWorkout()
+        val resting = awaitState<WorkoutState.Resting>()
+        assertNotNull(resting.staged)
+        assertEquals(StagedKind.STOP_WORKOUT, resting.staged!!.kind)
+        assertEquals(WorkoutSessionController.NO_ROW, resting.currentSetRowId)
+        controller.skipRest()
+        awaitState<WorkoutState.Done>()
+    }
+
+    @Test
+    fun stopWorkout_undoRestoresActiveSet() = runBlocking<Unit> {
+        val before = controller.state.value as WorkoutState.ActiveSet
+        controller.stopWorkout()
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        val after = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(before.exerciseIndex, after.exerciseIndex)
+        assertEquals(before.warmupSetIndex, after.warmupSetIndex)
     }
 }

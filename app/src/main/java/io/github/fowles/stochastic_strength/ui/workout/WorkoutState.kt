@@ -34,10 +34,11 @@ sealed interface WorkoutState {
         val completedSetIndex: Int,
         val sessionId: Long,
         val secondsRemaining: Int,
-        val lastFeedback: SetFeedback,
+        val lastFeedback: SetFeedback?,
         val weightReductionApplied: Boolean = false,
         val weightAtSetStart: Float,
         val currentSetRowId: Long,
+        val staged: StagedAction? = null,
     ) : WorkoutState
 
     data class Done(
@@ -47,3 +48,18 @@ sealed interface WorkoutState {
         val endTime: Long,
     ) : WorkoutState
 }
+
+enum class StagedKind { SWAP, ADJUST_WEIGHT, END_EXERCISE, STOP_WORKOUT }
+
+data class StagedAction(
+    val kind: StagedKind,
+    val undoTarget: WorkoutState.ActiveSet,
+    val commitTarget: WorkoutState.ActiveSet?,
+    val pendingSwap: PendingSwap? = null,
+)
+
+data class PendingSwap(
+    val reason: ExerciseRemovalReason,
+    val exerciseId: Long,
+    val locationId: Long?,
+)
