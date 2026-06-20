@@ -379,6 +379,36 @@ class WorkoutSessionController(
         }
     }
 
+    fun setActiveSetWeight(newWeight: Float) {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        val i = current.exerciseIndex
+        val pe = current.plannedExercise
+        val w = WeightFormatter.round(newWeight, weightUnit).coerceAtLeast(WeightFormatter.minIncrement(weightUnit))
+        if (w == pe.sessionWeight) return
+        val exercises = current.plan.exercises.toMutableList()
+        exercises[i] = pe.copy(
+            sessionWeight = w,
+            warmupSets = when {
+                pe.exercise.isTimed -> emptyList()
+                current.warmupSetIndex != null -> planner?.computeWarmupSets(w) ?: pe.warmupSets
+                else -> pe.warmupSets
+            },
+        )
+        val newPlan = current.plan.copy(exercises = exercises)
+        val commitTarget = WorkoutState.ActiveSet(
+            plan = newPlan,
+            exerciseIndex = i,
+            setIndex = current.setIndex,
+            sessionId = current.sessionId,
+            warmupSetIndex = current.warmupSetIndex,
+        )
+        stageRest(current, StagedAction(
+            kind = StagedKind.ADJUST_WEIGHT,
+            undoTarget = current,
+            commitTarget = commitTarget,
+        ))
+    }
+
     fun stopWorkout() {
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         stageRest(current, StagedAction(

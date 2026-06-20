@@ -14,6 +14,7 @@ import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.FakeProgressionController
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -258,6 +259,43 @@ class WorkoutSessionControllerTest {
         assertEquals(1, active.exerciseIndex)
         delay(100)
         assertEquals(1, db.workoutSetDao().getAll().size) // the logged set is retained
+    }
+
+    @Test
+    fun setActiveSetWeight_stagesResumeSameSetAtNewWeight() = runBlocking {
+        toWorkingSet()
+        val active = controller.state.value as WorkoutState.ActiveSet
+        val i = active.exerciseIndex
+        val original = active.plannedExercise.sessionWeight
+        val target = original + 5f
+
+        controller.setActiveSetWeight(target)
+        val resting = awaitState<WorkoutState.Resting>()
+        assertEquals(StagedKind.ADJUST_WEIGHT, resting.staged!!.kind)
+        val commit = resting.staged!!.commitTarget!!
+        // Same set coordinates.
+        assertEquals(active.exerciseIndex, commit.exerciseIndex)
+        assertEquals(active.setIndex, commit.setIndex)
+        assertEquals(active.warmupSetIndex, commit.warmupSetIndex)
+        // New weight applied to the plan.
+        assertEquals(
+            WeightFormatter.round(target, WeightUnit.KG),
+            commit.plan.exercises[i].sessionWeight,
+        )
+        // Baseline override untouched.
+        assertTrue(commit.plan.strengthOverrides.isEmpty())
+    }
+
+    @Test
+    fun setActiveSetWeight_undoRestoresOriginalWeight() = runBlocking<Unit> {
+        toWorkingSet()
+        val active = controller.state.value as WorkoutState.ActiveSet
+        val original = active.plannedExercise.sessionWeight
+        controller.setActiveSetWeight(original + 5f)
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        val after = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(original, after.plannedExercise.sessionWeight)
     }
 
     @Test
