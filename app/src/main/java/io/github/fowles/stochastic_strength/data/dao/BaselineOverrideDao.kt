@@ -24,7 +24,4 @@ interface BaselineOverrideDao {
 
     @Query("DELETE FROM baseline_override WHERE sessionId IS NULL AND muscleGroup = :muscleGroup")
     suspend fun deleteInitialFor(muscleGroup: MuscleGroup)
-
-    @Query("DELETE FROM baseline_override WHERE sessionId = :sessionId AND muscleGroup = :muscleGroup")
-    suspend fun deleteForSession(sessionId: Long, muscleGroup: MuscleGroup)
 }

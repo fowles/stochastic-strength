@@ -4,6 +4,7 @@ import android.app.Application
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.DerivedStateBackfill
+import io.github.fowles.stochastic_strength.domain.EstBaselineConsensusHeuristic
 import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
 import io.github.fowles.stochastic_strength.domain.SeedNormalizer
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
@@ -32,8 +33,9 @@ class StochasticStrengthApp : Application() {
     val workoutRepository: WorkoutRepository by lazy {
         WorkoutRepository(
             database,
-            heuristics = listOf(EstCoefConsensusHeuristic()),
-            normalizers = listOf(SeedNormalizer()),
+            heuristic = EstCoefConsensusHeuristic(),
+            normalizer = SeedNormalizer(),
+            baselineHeuristic = EstBaselineConsensusHeuristic(),
         )
     }
 

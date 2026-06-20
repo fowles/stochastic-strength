@@ -32,16 +32,6 @@ class ReplayDerivedStateTest {
     private lateinit var db: AppDatabase
     private lateinit var repository: WorkoutRepository
 
-    // Coefficient source that gives all test exercises a non-zero seed so they pass
-    // the `(coefficient > 0f)` filter in applySessionProgression and recomputeCoefficients.
-    private val testCoefficientSource = object : CoefficientSource {
-        override fun get(exercise: Exercise): Float? = when (exercise.id) {
-            BENCH_EXERCISE_ID -> 1.0f
-            BENCH_EXERCISE_ID + 1 -> 0.9f
-            else -> null
-        }
-    }
-
     @Before
     fun setUp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -50,9 +40,9 @@ class ReplayDerivedStateTest {
             .build()
         repository = WorkoutRepository(
             db,
-            coefficientSource = testCoefficientSource,
-            heuristics = listOf(EstCoefConsensusHeuristic()),
-            normalizers = listOf(SeedNormalizer()),
+            heuristic = EstCoefConsensusHeuristic(),
+            normalizer = SeedNormalizer(),
+            baselineHeuristic = FakeBaselineHeuristic(),
         )
     }
 
@@ -138,7 +128,7 @@ class ReplayDerivedStateTest {
         db.userProfileDao().insert(UserProfile(
             sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
         db.exerciseDao().insert(Exercise(
-            id = BENCH_EXERCISE_ID, name = "Bench", primaryMuscle = MuscleGroup.CHEST,
+            id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL))
         db.baselineOverrideDao().insert(BaselineOverride(
             sessionId = null, muscleGroup = MuscleGroup.CHEST,
@@ -171,7 +161,7 @@ class ReplayDerivedStateTest {
         // (Two exercises with identical feedback trigger H2 consensus-suppression,
         //  which is the anti-echo-chamber logic working correctly — not a bug.)
         db.exerciseDao().insert(Exercise(
-            id = BENCH_EXERCISE_ID, name = "Bench", primaryMuscle = MuscleGroup.CHEST,
+            id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL))
         db.baselineOverrideDao().insert(BaselineOverride(
             sessionId = null, muscleGroup = MuscleGroup.CHEST,
@@ -212,7 +202,7 @@ class ReplayDerivedStateTest {
         db.userProfileDao().insert(UserProfile(
             sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
         db.exerciseDao().insert(Exercise(
-            id = BENCH_EXERCISE_ID, name = "Bench", primaryMuscle = MuscleGroup.CHEST,
+            id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL))
         db.baselineOverrideDao().insert(BaselineOverride(
             sessionId = null, muscleGroup = MuscleGroup.CHEST,

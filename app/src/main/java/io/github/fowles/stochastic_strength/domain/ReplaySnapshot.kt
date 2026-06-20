@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
@@ -22,6 +23,7 @@ class ReplaySnapshot(
     val currentCoefficients: MutableMap<Long, Float> = seedCoefficients.toMutableMap()
     val currentBaselines: MutableMap<MuscleGroup, Float> = mutableMapOf()
     val progressionBaselines: MutableMap<Pair<Long, MuscleGroup>, Float> = mutableMapOf()
+    val baselineHistoryByMuscle: MutableMap<MuscleGroup, MutableList<BaselineHistory>> = mutableMapOf()
 
     fun filteredCoefficientInput(asOf: Long): CoefficientComputationInput {
         val sessionTimes = allSessionTimes.filterValues { it <= asOf }
@@ -58,17 +60,14 @@ class ReplaySnapshot(
 
     companion object {
         /** Reads static (input-only) data from the DB once for a full replay run. */
-        suspend fun loadStaticFromDb(
-            db: AppDatabase,
-            coefficientSource: CoefficientSource,
-        ): ReplaySnapshot {
+        suspend fun loadStaticFromDb(db: AppDatabase): ReplaySnapshot {
             val allExercises = db.exerciseDao().getAll()
             val activeExercises = db.exerciseDao().getActive()
             val allSets = db.workoutSetDao().getAll()
             val allSessionTimes = db.workoutSessionDao().getAll().associate { it.id to it.startTime }
             val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
             val seedCoefficients = activeExercises.associate { ex ->
-                ex.id to (coefficientSource.get(ex) ?: 0f)
+                ex.id to (ExerciseCoefficients.get(ex) ?: 0f)
             }
             return ReplaySnapshot(
                 allSets = allSets,
