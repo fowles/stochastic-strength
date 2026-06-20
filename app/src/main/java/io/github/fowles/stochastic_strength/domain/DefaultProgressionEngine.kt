@@ -66,6 +66,7 @@ object DefaultProgressionEngine : ProgressionEngine {
             val fprime = 1f + k * (denom - 4.58f) / (denom * denom)
             if (fprime <= 0f) return epley
             w -= (w * (1f + k / denom) - oneRepMax) / fprime
+            if (w <= 0f) return epley  // Newton overshot past zero; fall back to Epley
         }
         return w
     }

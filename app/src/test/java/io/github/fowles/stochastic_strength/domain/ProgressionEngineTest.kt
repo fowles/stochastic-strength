@@ -203,6 +203,24 @@ class ProgressionEngineTest {
     }
 
     @Test
+    fun fromOneRepMax_smallOneRepMax_doesNotProduceNaN() {
+        // Newton's method overshoots past zero for oneRepMax in ~3.5–6.5 kg, making w negative.
+        // ln(negative) = NaN, and NaN comparisons return false, so the existing guards silently
+        // pass and NaN escapes. Regression coverage for the full danger zone.
+        val dangerValues = listOf(3.6f, 4.0f, 4.5f, 5.0f, 5.3f, 5.5f, 6.0f, 6.5f)
+        for (orm in dangerValues) {
+            for (reps in DefaultProgressionEngine.REP_OPTIONS) {
+                val result = DefaultProgressionEngine.rawFromOneRepMax(orm, reps)
+                assertTrue("rawFromOneRepMax($orm, $reps) should be finite, got $result",
+                    result.isFinite() && result > 0f)
+                val rounded = DefaultProgressionEngine.fromOneRepMax(orm, reps)
+                assertTrue("fromOneRepMax($orm, $reps) should be finite, got $rounded",
+                    rounded.isFinite() && rounded > 0f)
+            }
+        }
+    }
+
+    @Test
     fun scaleRepsRoundtripIsAccurate() {
         // scaleReps uses raw (unrounded) intermediate 1RM, so a from→to→from roundtrip
         // accumulates at most one rounding step of error.
