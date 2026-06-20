@@ -112,6 +112,61 @@ class WorkoutPlannerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────
+    // repriceForReps
+    // ──────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun repriceForReps_preservesExerciseListInOrder() {
+        val ex1 = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val ex2 = exercise(2L, "Ex2", MuscleGroup.BACK)
+        val strengths = strengthsFor(MuscleGroup.CHEST to 100f, MuscleGroup.BACK to 80f)
+        val p = planner(listOf(ex1, ex2), strengths)
+
+        val original = p.generateWorkout(sessionReps = 5)
+        val repriced = p.repriceForReps(original, repMin = 8, repMax = 8)
+
+        assertEquals(
+            original.exercises.map { it.exercise.id },
+            repriced.exercises.map { it.exercise.id },
+        )
+        assertEquals(2, repriced.exercises.size)
+    }
+
+    @Test
+    fun repriceForReps_singletonRange_setsSessionRepsAndRecomputesWeight() {
+        val baseline = 100f
+        val ex = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
+        val strengths = strengthsFor(MuscleGroup.CHEST to baseline)
+        val p = planner(listOf(ex), strengths)
+
+        val original = p.generateWorkout(sessionReps = 5)
+        val repriced = p.repriceForReps(original, repMin = 10, repMax = 10)
+
+        assertEquals(10, repriced.sessionReps)
+        val pe = repriced.exercises.single()
+        assertEquals(10, pe.sessionReps)
+        val expected = WeightFormatter.round(
+            DefaultProgressionEngine.fromOneRepMax(baseline * 1.0f, 10),
+            WeightUnit.KG,
+        )
+        assertEquals(expected, pe.sessionWeight, 0.01f)
+    }
+
+    @Test
+    fun repriceForReps_timedExerciseStaysAtSixtyRepsZeroWeight() {
+        val timed = exercise(1L, isTimed = true)
+        val p = planner(listOf(timed))
+
+        val original = p.generateWorkout(sessionReps = 5)
+        val repriced = p.repriceForReps(original, repMin = 8, repMax = 8)
+
+        val pe = repriced.exercises.single()
+        assertEquals(60, pe.sessionReps)
+        assertEquals(0f, pe.sessionWeight, 0f)
+        assertTrue(pe.warmupSets.isEmpty())
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
     // pickReplacement / pickAdditional — sessionRejectedIds exclusion
     // ──────────────────────────────────────────────────────────────────────
 

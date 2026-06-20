@@ -75,9 +75,18 @@ fun AboutScreen(onDebug: () -> Unit, onBack: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(8.dp))
+            Text("The idea", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Provide varying workouts targeting strength gains with minimumal " +
+                    "mental effort.  Stochastic Strength builds the workouts, tracks " +
+                    "weights, and converts them between exercises for you. Just show up " +
+                    "and do your best.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
 
             Spacer(Modifier.height(8.dp))
-            Text("How it works", style = MaterialTheme.typography.titleMedium)
+            Text("How does it work?", style = MaterialTheme.typography.titleMedium)
             Text(
                 text = "Every muscle group has a baseline — the app's estimate of your " +
                     "1-rep max for that group. All your working weights are derived from it.",
@@ -90,6 +99,14 @@ fun AboutScreen(onDebug: () -> Unit, onBack: () -> Unit) {
                     "individual coefficients from your performance.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-        }
+
+            Spacer(Modifier.height(8.dp))
+            Text("Where's the data?", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "On your phone.  Stochastic Strength runs entirely locally.  It is " +
+                    "open source and available for anyone to extend or enjoy.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+          }
     }
 }

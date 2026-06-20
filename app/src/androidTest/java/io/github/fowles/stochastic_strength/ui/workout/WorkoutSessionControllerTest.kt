@@ -63,6 +63,8 @@ class WorkoutSessionControllerTest {
                 locationId = null,
                 locationName = null,
                 preferredExerciseCount = 1,
+                preferredRepMin = 5,
+                preferredRepMax = 10,
                 weightUnit = WeightUnit.KG,
             )
             controller.adjustExerciseCount(1)

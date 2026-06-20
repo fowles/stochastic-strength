@@ -1,6 +1,8 @@
 package io.github.fowles.stochastic_strength.ui
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,6 +22,12 @@ import io.github.fowles.stochastic_strength.ui.locations.LocationsScreen
 import io.github.fowles.stochastic_strength.ui.summary.SummaryScreen
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutScreen
 
+private fun NavController.popBackStackIfResumed() {
+    val entry = currentBackStackEntry ?: return
+    if (entry.lifecycle.currentState != Lifecycle.State.RESUMED) return
+    popBackStack()
+}
+
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
@@ -37,14 +45,14 @@ fun AppNavigation() {
         composable("about") {
             AboutScreen(
                 onDebug = { navController.navigate("debug") },
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable("debug") {
             DebugStatsScreen(
                 onMuscleTap = { muscle -> navController.navigate("debug/muscle/${muscle.name}") },
                 onExerciseTap = { exerciseId -> navController.navigate("debug/coefficient/$exerciseId") },
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable(
@@ -54,7 +62,7 @@ fun AppNavigation() {
             val name = backStackEntry.arguments!!.getString("muscleGroup")!!
             MuscleBaselineDetailScreen(
                 muscleGroup = MuscleGroup.valueOf(name),
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable(
@@ -64,20 +72,20 @@ fun AppNavigation() {
             val exerciseId = backStackEntry.arguments!!.getLong("exerciseId")
             ExerciseCoefficientDetailScreen(
                 exerciseId = exerciseId,
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable("history") {
             HistoryScreen(
                 onSessionTap = { sessionId -> navController.navigate("summary/$sessionId") },
                 onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable("locations") {
             LocationsScreen(
                 onLocationTap = { locationId -> navController.navigate("location/$locationId") },
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable(
@@ -87,13 +95,13 @@ fun AppNavigation() {
             val locationId = backStackEntry.arguments!!.getLong("locationId")
             LocationEditScreen(
                 locationId = locationId,
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable("exercises") {
             ExercisesScreen(
                 onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable(
@@ -103,7 +111,7 @@ fun AppNavigation() {
             val exerciseId = backStackEntry.arguments!!.getLong("exerciseId")
             ExerciseDetailScreen(
                 exerciseId = exerciseId,
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable("workout") {
@@ -129,7 +137,7 @@ fun AppNavigation() {
                         popUpTo("home") { inclusive = true }
                     }
                 },
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackIfResumed() },
                 onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
             )
         }

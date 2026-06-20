@@ -43,11 +43,20 @@ class WorkoutPlanner(
             .toSet()
     }
 
-    fun generateWorkout(sessionReps: Int = progressionEngine.repOptions.random(random)): WorkoutPlan {
+    fun generateWorkout(sessionReps: Int): WorkoutPlan {
         val plannable = availableExercises.filter { muscleGroupRested(it) }
         val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(plannable, random))
             .map { withWeight(it, sessionReps) }
         return WorkoutPlan(exercises = exercises, locationId = locationId, sessionReps = sessionReps)
+    }
+
+    fun generateWorkout(repMin: Int, repMax: Int): WorkoutPlan =
+        generateWorkout(sessionReps = RepRangePicker.pick(repMin, repMax, random))
+
+    fun repriceForReps(plan: WorkoutPlan, repMin: Int, repMax: Int): WorkoutPlan {
+        val sessionReps = RepRangePicker.pick(repMin, repMax, random)
+        val newExercises = plan.exercises.map { withWeight(it, sessionReps) }
+        return plan.copy(exercises = newExercises, sessionReps = sessionReps)
     }
 
     fun pickReplacement(plan: WorkoutPlan, removedIndex: Int): PlannedExercise? {

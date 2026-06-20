@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -59,6 +60,7 @@ internal fun PlanPreviewContent(
     onStart: () -> Unit,
     onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
     onSetExerciseCount: (Int) -> Unit,
+    onSetRepRange: (repMin: Int, repMax: Int) -> Unit,
     onAdjustWeight: (index: Int, delta: Float) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
@@ -68,6 +70,9 @@ internal fun PlanPreviewContent(
     val durationMin = plan.estimatedDurationSeconds / 60
 
     var sliderValue by remember { mutableFloatStateOf(plan.exercises.size.toFloat()) }
+    var repRangeValue by remember(state.repMin, state.repMax) {
+        mutableStateOf(state.repMin.toFloat()..state.repMax.toFloat())
+    }
 
     Column(
         modifier = Modifier
@@ -115,6 +120,37 @@ internal fun PlanPreviewContent(
             )
             Text(
                 "Longer",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                "Fewer reps",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            RangeSlider(
+                value = repRangeValue,
+                onValueChange = { repRangeValue = it },
+                onValueChangeFinished = {
+                    onSetRepRange(
+                        repRangeValue.start.roundToInt(),
+                        repRangeValue.endInclusive.roundToInt(),
+                    )
+                },
+                valueRange = REP_RANGE_MIN.toFloat()..REP_RANGE_MAX.toFloat(),
+                steps = REP_RANGE_MAX - REP_RANGE_MIN - 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
+            )
+            Text(
+                "More reps",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -303,3 +339,5 @@ private fun ExerciseActionRow(
 }
 
 private const val MAX_EXERCISE_COUNT = 15
+private const val REP_RANGE_MIN = 1
+private const val REP_RANGE_MAX = 20

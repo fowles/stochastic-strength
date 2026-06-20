@@ -144,6 +144,7 @@ class MigrationTest {
                 AppDatabase.MIGRATION_11_12,
                 AppDatabase.MIGRATION_12_13,
                 AppDatabase.MIGRATION_13_14,
+                AppDatabase.MIGRATION_14_15,
             )
             .allowMainThreadQueries()
             .build()
@@ -248,7 +249,7 @@ class MigrationTest {
 
         // Walk all migrations forward to the current entity version.
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName10)
-            .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14)
+            .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
             .allowMainThreadQueries()
             .build()
 
@@ -470,6 +471,57 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate14To15_addsRepRangeColumns_preservesExistingRow() {
+        val dbName14 = "migration-test-db-14"
+        context.deleteDatabase(dbName14)
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(dbName14)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(14) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        // Full v14 schema (all tables Room validates post-migration).
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `exercises` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `primaryMuscle` TEXT NOT NULL, `secondaryMuscles` TEXT NOT NULL, `equipment` TEXT NOT NULL, `isDisliked` INTEGER NOT NULL, `isUnilateral` INTEGER NOT NULL, `isTimed` INTEGER NOT NULL)")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `known_locations` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL)")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `location_excluded_exercises` (`locationId` INTEGER NOT NULL, `exerciseId` INTEGER NOT NULL, PRIMARY KEY(`locationId`, `exerciseId`))")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `workout_sessions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `locationId` INTEGER, `startTime` INTEGER NOT NULL, `endTime` INTEGER, `stravaActivityId` INTEGER)")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `workout_sets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER NOT NULL, `exerciseId` INTEGER NOT NULL, `setNumber` INTEGER NOT NULL, `targetWeight` REAL NOT NULL, `targetReps` INTEGER NOT NULL, `actualReps` INTEGER, `feedback` TEXT, `completedAt` INTEGER, `durationSeconds` INTEGER)")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `user_profile` (`id` INTEGER NOT NULL, `sex` TEXT NOT NULL, `strengthLevel` TEXT NOT NULL, `weightUnit` TEXT NOT NULL, `preferredExerciseCount` INTEGER, PRIMARY KEY(`id`))")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `baseline_override` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` INTEGER, `muscleGroup` TEXT NOT NULL, `baselineWeight` REAL NOT NULL, `asOf` INTEGER NOT NULL)")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS `exercise_hurt_state` (`exerciseId` INTEGER NOT NULL, `isHurt` INTEGER NOT NULL, `asOf` INTEGER NOT NULL, PRIMARY KEY(`exerciseId`))")
+                        db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+                        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '50988b32c711c18f008bbad72d9b7357')")
+                        db.execSQL(
+                            "INSERT INTO user_profile (id, sex, strengthLevel, weightUnit, preferredExerciseCount) " +
+                                "VALUES (1, 'MALE', 'MEDIUM', 'KG', 5)"
+                        )
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+        helper.writableDatabase.close()
+
+        // Open through Room so MIGRATION_14_15 fires.
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName14)
+            .addMigrations(AppDatabase.MIGRATION_14_15)
+            .build()
+        try {
+            runBlocking {
+                val profile = db.userProfileDao().getProfile()
+                assertNotNull(profile)
+                assertEquals(WeightUnit.KG, profile!!.weightUnit)
+                assertEquals(5, profile.preferredExerciseCount)
+                assertNull(profile.preferredRepMin)
+                assertNull(profile.preferredRepMax)
+            }
+        } finally {
+            db.close()
+            context.deleteDatabase(dbName14)
+        }
+    }
+
+    @Test
     fun migrate11To12_dropsActualRepsBackfilledFromUserProfile() {
         val helper = FrameworkSQLiteOpenHelperFactory().create(
             androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
@@ -556,7 +608,7 @@ class MigrationTest {
         helper.close()
 
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName11)
-            .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14)
+            .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
             .allowMainThreadQueries()
             .build()
 
