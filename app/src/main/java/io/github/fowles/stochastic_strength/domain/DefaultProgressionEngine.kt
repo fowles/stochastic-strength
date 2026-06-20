@@ -16,11 +16,13 @@ object DefaultProgressionEngine : ProgressionEngine {
 
     override fun scaleReps(weight: Float, from: Int, to: Int): Float = roundInternal(rawFromOneRepMax(rawToOneRepMax(weight, from), to))
 
-    internal fun rawToOneRepMax(weight: Float, reps: Int): Float {
-        if (weight <= 0f || reps <= 1) return weight
+    internal fun rawToOneRepMax(weight: Float, reps: Int): Float = rawToOneRepMax(weight, reps.toFloat())
+
+    internal fun rawToOneRepMax(weight: Float, reps: Float): Float {
+        if (weight <= 0f || reps <= 1f) return weight
         val denom = -2.55f + 4.58f * ln(weight)
         if (denom <= 0f) return weight * (1f + reps / 30f)
-        return weight * (1f + (reps - 1).toFloat().pow(0.85f) / denom)
+        return weight * (1f + (reps - 1f).pow(0.85f) / denom)
     }
 
     internal fun rawFromOneRepMax(oneRepMax: Float, reps: Int): Float {
