@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -115,6 +116,25 @@ internal fun computeCoefficientDeviations(
     return rows.sortedByDescending { it.deviation }
 }
 
+/**
+ * Builds the baseline-over-time line from the muscle's change history.
+ *
+ * Each log contributes its `newBaseline` at its timestamp. A synthetic point one
+ * day before the first log shows where the baseline started, but only when that
+ * starting value is positive — the INITIAL assessment has `previousBaseline == 0`
+ * (no baseline existed yet), and plotting it would drag the chart down to zero.
+ */
+internal fun buildBaselineChartPoints(logs: List<BaselineHistory>): List<DebugChartPoint> {
+    if (logs.isEmpty()) return emptyList()
+    return buildList {
+        val first = logs.first()
+        if (first.previousBaseline > 0f) {
+            add(DebugChartPoint(first.timestamp - 86_400_000L, first.previousBaseline))
+        }
+        logs.forEach { add(DebugChartPoint(it.timestamp, it.newBaseline)) }
+    }
+}
+
 data class MuscleBaselineDetailState(
     val loading: Boolean = true,
     val muscleGroup: MuscleGroup,
@@ -177,11 +197,7 @@ class MuscleBaselineDetailViewModel(
                 )
             }
 
-            val chartPoints: List<DebugChartPoint> = if (logs.isEmpty()) emptyList() else buildList {
-                val first = logs.first()
-                add(DebugChartPoint(first.timestamp - 86_400_000L, first.previousBaseline))
-                logs.forEach { add(DebugChartPoint(it.timestamp, it.newBaseline)) }
-            }
+            val chartPoints = buildBaselineChartPoints(logs)
 
             _state.value = MuscleBaselineDetailState(
                 loading = false,

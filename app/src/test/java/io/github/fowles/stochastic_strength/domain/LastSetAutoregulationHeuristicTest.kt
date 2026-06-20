@@ -37,10 +37,11 @@ class LastSetAutoregulationHeuristicTest {
         exerciseMuscle: Map<Long, MuscleGroup> = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
         minReductionFractions: Map<MuscleGroup, Float> = emptyMap(),
         weightUnit: WeightUnit = WeightUnit.KG,
+        currentCoefficients: Map<Long, Float> = mapOf(1L to 1.0f, 2L to 1.0f),
     ) = BaselineComputationInput(
         sets = sets,
         exerciseMuscle = exerciseMuscle,
-        currentCoefficients = mapOf(1L to 1.0f, 2L to 1.0f),
+        currentCoefficients = currentCoefficients,
         currentBaselines = currentBaselines,
         recentHistory = emptyMap<MuscleGroup, List<BaselineHistory>>(),
         sessionReps = 10,
@@ -170,5 +171,52 @@ class LastSetAutoregulationHeuristicTest {
     fun noSignal_noProposal() {
         val s = set(feedback = null)
         assertTrue(heuristic.compute(input(listOf(s))).isEmpty())
+    }
+
+    @Test
+    fun easySet_belowBaselineWeight_contributesNoUpSignal() {
+        // Baseline 100, coeff 1, 10 reps → the baseline prescribes ~83 kg.
+        // A historical/backfilled set logged at 50 kg (well below) reading RIR_5_PLUS is
+        // trivially easy and must NOT push the baseline up.
+        val prescribed = DefaultProgressionEngine.fromOneRepMax(100f * 1.0f, 10)
+        assertTrue("test premise: 50 kg is below prescribed", 50f < prescribed - 2.5f)
+        val s = set(targetWeight = 50f, targetReps = 10, feedback = SetFeedback.RIR_5_PLUS)
+        assertTrue(heuristic.compute(input(listOf(s))).isEmpty())
+    }
+
+    @Test
+    fun easySet_atBaselineWeight_stillCountsAsUpSignal() {
+        // The same easy set, logged at the baseline-prescribed weight, must still raise.
+        val prescribed = DefaultProgressionEngine.fromOneRepMax(100f * 1.0f, 10)
+        val s = set(targetWeight = prescribed, targetReps = 10, feedback = SetFeedback.RIR_5_PLUS)
+        val r = heuristic.compute(input(listOf(s)))
+        assertEquals(1, r.size)
+        assertTrue("baseline should increase", r.single().newBaseline > 100f)
+    }
+
+    @Test
+    fun zeroCoefficientExercise_contributesNoUpSignal() {
+        // Bodyweight/banded/wall-sit moves have coefficient 0 and weight 0 — no relationship to
+        // the loaded baseline. An easy bodyweight squat must NOT raise the loaded quad baseline.
+        val s = set(exerciseId = 1L, targetWeight = 0f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS)
+        val r = heuristic.compute(input(listOf(s), currentCoefficients = mapOf(1L to 0f)))
+        assertTrue(r.isEmpty())
+    }
+
+    @Test
+    fun zeroCoefficientExercise_contributesNoDownSignal() {
+        // Likewise a "failed" bodyweight set must not drag the loaded baseline down.
+        val s = set(exerciseId = 1L, targetWeight = 0f, targetReps = 5, actualReps = 2, feedback = SetFeedback.TOO_HARD)
+        val r = heuristic.compute(input(listOf(s), currentCoefficients = mapOf(1L to 0f)))
+        assertTrue(r.isEmpty())
+    }
+
+    @Test
+    fun failureBelowBaselineWeight_stillDecreases() {
+        // Down-signals are unconditional: failing even at a sub-baseline weight should drop.
+        val s = set(targetWeight = 50f, targetReps = 10, actualReps = 6, feedback = SetFeedback.TOO_HARD)
+        val r = heuristic.compute(input(listOf(s)))
+        assertEquals(1, r.size)
+        assertTrue("baseline should decrease", r.single().newBaseline < 100f)
     }
 }

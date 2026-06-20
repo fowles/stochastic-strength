@@ -24,7 +24,6 @@ import com.patrykandpatrick.vico.core.cartesian.Scroll
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
@@ -32,8 +31,8 @@ import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
 import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.core.cartesian.marker.LineCartesianLayerMarkerTarget
 import com.patrykandpatrick.vico.core.common.Fill
-import com.patrykandpatrick.vico.core.common.data.ExtraStore
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
+import io.github.fowles.stochastic_strength.ui.components.paddedChartRangeProvider
 import androidx.compose.material3.MaterialTheme
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -114,18 +113,7 @@ internal fun DebugLineChart(
         LineCartesianLayer.LineProvider.series(listOf(primaryLine))
     }
 
-    val rangeProvider = remember {
-        object : CartesianLayerRangeProvider {
-            override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
-                val padding = if (minY == maxY) maxOf(minY * 0.10, 0.05) else (maxY - minY) * 0.15
-                return minY - padding
-            }
-            override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
-                val padding = if (minY == maxY) maxOf(maxY * 0.10, 0.05) else (maxY - minY) * 0.15
-                return maxY + padding
-            }
-        }
-    }
+    val rangeProvider = remember { paddedChartRangeProvider() }
 
     val yValueFormatter = remember(yFormatter) {
         CartesianValueFormatter { _, value, _ -> yFormatter(value.toFloat()) }

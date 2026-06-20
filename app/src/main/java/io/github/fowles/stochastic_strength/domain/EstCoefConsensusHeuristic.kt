@@ -1,15 +1,14 @@
 package io.github.fowles.stochastic_strength.domain
 
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import kotlin.math.ln
 
 class EstCoefConsensusHeuristic(
     private val tauHalfMs: Long = 14L * 24 * 60 * 60 * 1000,
-    private val minEvidenceWeight: Float = 1.5f,
-    private val minOutlierSessions: Int = 2,
-    private val tauConsensusThreshold: Float = ln(1.05f),
-    private val tauOutlierThreshold: Float = LN_110,
+    private val minPeers: Int = 2,
+    private val peerWeightEpsilon: Float = 1e-4f,
     private val alpha: Float = 0.2f,
     private val maxLogStep: Float = ln(1.05f),
     private val minRelativeChange: Float = 0.005f,
@@ -21,7 +20,6 @@ class EstCoefConsensusHeuristic(
         val est1RM: Float,
         val confidence: Float,
         val isUpperBound: Boolean,
-        val isDefinite: Boolean,
     )
 
     override fun compute(input: CoefficientComputationInput): List<CoefficientResult> {
@@ -32,29 +30,28 @@ class EstCoefConsensusHeuristic(
             val (sessionId, exerciseId) = key
             val current = input.currentCoefficients[exerciseId] ?: 0f
             if (current <= 0f) continue
-            val muscle = input.exerciseMuscle[exerciseId] ?: continue
-            val baseline = input.baselines[sessionId to muscle] ?: continue
-            if (baseline <= 0f) continue
+            if (input.exerciseMuscle[exerciseId] == null) continue
             val sessionTime = input.sessionTimes[sessionId] ?: continue
             val agg = aggregateSession(bucketSets) ?: continue
             perExerciseSignals.getOrPut(exerciseId) { mutableListOf() }
-                .add(SessionSignal(
-                    sessionId = sessionId,
-                    sessionTime = sessionTime,
-                    estCoef = agg.est1RM / baseline,
-                    sessionConfidence = agg.sessionConfidence,
-                    hasDefinite = agg.hasDefinite,
-                ))
+                .add(
+                    SessionSignal(
+                        sessionId = sessionId,
+                        sessionTime = sessionTime,
+                        est1RM = agg.est1RM,
+                        sessionConfidence = agg.sessionConfidence,
+                    )
+                )
         }
 
-        val h1Proposals = perExerciseSignals.mapNotNull { (id, signals) ->
-            computeH1(signals)?.let { id to it }
+        val estimates = perExerciseSignals.mapNotNull { (id, signals) ->
+            computeEstimate(signals)?.let { id to it }
         }.toMap()
-        if (h1Proposals.isEmpty()) return emptyList()
+        if (estimates.isEmpty()) return emptyList()
 
-        val survivors = applyH2(h1Proposals, input.currentCoefficients, input.exerciseMuscle)
+        val emits = applyPeerConsensus(estimates, input.currentCoefficients, input.exerciseMuscle)
 
-        return survivors.mapNotNull { (id, emit) ->
+        return emits.mapNotNull { (id, emit) ->
             val cur = input.currentCoefficients[id] ?: return@mapNotNull null
             damp(id, emit, cur)
         }
@@ -63,7 +60,6 @@ class EstCoefConsensusHeuristic(
     data class SessionAggregate(
         val est1RM: Float,
         val sessionConfidence: Float,
-        val hasDefinite: Boolean,
     )
 
     internal fun aggregateSession(sets: List<WorkoutSet>): SessionAggregate? {
@@ -89,7 +85,6 @@ class EstCoefConsensusHeuristic(
         return SessionAggregate(
             est1RM = weighted1RM,
             sessionConfidence = avgConf,
-            hasDefinite = signals.any { it.isDefinite },
         )
     }
 
@@ -99,15 +94,15 @@ class EstCoefConsensusHeuristic(
             SetFeedback.HURT -> null
             SetFeedback.RIR_5_PLUS -> SetSignal(
                 est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 7),
-                confidence = 0.4f, isUpperBound = false, isDefinite = false,
+                confidence = 0.4f, isUpperBound = false,
             )
             SetFeedback.RIR_2_4 -> SetSignal(
                 est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 3),
-                confidence = 0.7f, isUpperBound = false, isDefinite = false,
+                confidence = 0.7f, isUpperBound = false,
             )
             SetFeedback.RIR_0_1 -> SetSignal(
                 est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps + 1),
-                confidence = 0.85f, isUpperBound = false, isDefinite = false,
+                confidence = 0.85f, isUpperBound = false,
             )
             SetFeedback.TOO_HARD -> {
                 val reps = set.actualReps
@@ -116,14 +111,12 @@ class EstCoefConsensusHeuristic(
                         est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, reps),
                         confidence = 0.95f,
                         isUpperBound = false,
-                        isDefinite = true,
                     )
                 } else {
                     SetSignal(
                         est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, maxOf(1, set.targetReps - 1)),
                         confidence = 0.5f,
                         isUpperBound = true,
-                        isDefinite = false,
                     )
                 }
             }
@@ -133,20 +126,17 @@ class EstCoefConsensusHeuristic(
     data class SessionSignal(
         val sessionId: Long,
         val sessionTime: Long,
-        val estCoef: Float,
+        val est1RM: Float,
         val sessionConfidence: Float,
-        val hasDefinite: Boolean,
     )
 
-    data class H1Proposal(
-        val proposal: Float,
-        val totalWeight: Float,
-        val proposalConfidence: Float,
-        val hasDefinite: Boolean,
-        val sessionCount: Int,
+    data class ExerciseEstimate(
+        val est1RM: Float,
+        val weight: Float,
+        val confidence: Float,
     )
 
-    internal fun computeH1(signals: List<SessionSignal>): H1Proposal? {
+    internal fun computeEstimate(signals: List<SessionSignal>): ExerciseEstimate? {
         if (signals.isEmpty()) return null
         val nowT = signals.maxOf { it.sessionTime }
         val ln2OverHalf = ln(2.0) / tauHalfMs
@@ -155,21 +145,11 @@ class EstCoefConsensusHeuristic(
             Triple(s, recency, recency * s.sessionConfidence)
         }
         val totalWeight = weighted.sumOf { it.third.toDouble() }.toFloat()
-        val hasDefinite = signals.any { it.hasDefinite }
-        if (totalWeight < minEvidenceWeight && !hasDefinite) return null
-
-        val median = weightedMedian(weighted.map { it.first.estCoef to it.third })
+        val median = weightedMedian(weighted.map { it.first.est1RM to it.third })
         val recencySum = weighted.sumOf { it.second.toDouble() }.toFloat()
         val confSum = weighted.sumOf { (it.second * it.first.sessionConfidence).toDouble() }.toFloat()
-        val proposalConfidence = if (recencySum > 0f) confSum / recencySum else 0f
-
-        return H1Proposal(
-            proposal = median,
-            totalWeight = totalWeight,
-            proposalConfidence = proposalConfidence,
-            hasDefinite = hasDefinite,
-            sessionCount = signals.size,
-        )
+        val confidence = if (recencySum > 0f) confSum / recencySum else 0f
+        return ExerciseEstimate(est1RM = median, weight = totalWeight, confidence = confidence)
     }
 
     data class EmitProposal(
@@ -178,55 +158,33 @@ class EstCoefConsensusHeuristic(
         val metadata: String?,
     )
 
-    internal fun applyH2(
-        proposals: Map<Long, H1Proposal>,
+    private data class Peer(val id: Long, val impliedBaseline: Float, val weight: Float)
+
+    internal fun applyPeerConsensus(
+        estimates: Map<Long, ExerciseEstimate>,
         currentCoefficients: Map<Long, Float>,
-        exerciseMuscle: Map<Long, io.github.fowles.stochastic_strength.data.model.MuscleGroup> = emptyMap(),
+        exerciseMuscle: Map<Long, MuscleGroup>,
     ): Map<Long, EmitProposal> {
         val out = mutableMapOf<Long, EmitProposal>()
-        // If exerciseMuscle is empty (test convenience), treat all as one synthetic group.
-        val groups = if (exerciseMuscle.isEmpty()) {
-            mapOf("ALL" to proposals.keys.toList())
-        } else {
-            proposals.keys.groupBy { exerciseMuscle[it]?.name ?: "UNKNOWN" }
-        }
-
-        for ((muscleName, exerciseIds) in groups) {
-            val entries = exerciseIds.map { id ->
-                val p = proposals.getValue(id)
-                val cur = currentCoefficients[id] ?: 0f
-                if (cur <= 0f) return@map null
-                Triple(id, p, ln((p.proposal / cur).toDouble()).toFloat())
-            }.filterNotNull()
-
-            val n = entries.size
-            when {
-                n == 0 -> { /* nothing */ }
-                n == 1 -> {
-                    val (id, p, _) = entries.single()
-                    out[id] = EmitProposal(p.proposal, p.proposalConfidence, null)
-                }
-                else -> {
-                    val mean = entries.sumOf { it.third.toDouble() }.toFloat() / n
-                    val sameSign = entries.all { it.third >= 0f } || entries.all { it.third <= 0f }
-                    if (sameSign && kotlin.math.abs(mean) > tauConsensusThreshold) {
-                        // suppress all
-                    } else {
-                        val outlierCandidates = entries.filter { kotlin.math.abs(it.third) > tauOutlierThreshold }
-                        val siblings = entries - outlierCandidates.toSet()
-                        val siblingsCalm = siblings.all { kotlin.math.abs(it.third) < tauConsensusThreshold }
-                        if (n >= 3 && outlierCandidates.size == 1 && siblingsCalm
-                            && outlierCandidates.single().second.sessionCount >= minOutlierSessions) {
-                            val (id, p, _) = outlierCandidates.single()
-                            out[id] = EmitProposal(p.proposal, 1.0f, "consensus_outlier:m=$muscleName,sibling_count=${n - 1}")
-                        } else {
-                            for ((id, p, _) in entries) {
-                                val meta = "consensus_mixed:m=$muscleName,n=$n"
-                                out[id] = EmitProposal(p.proposal, p.proposalConfidence, meta)
-                            }
-                        }
-                    }
-                }
+        val groups = estimates.keys.groupBy { exerciseMuscle[it] }
+        for ((muscle, idsInMuscle) in groups) {
+            if (muscle == null) continue
+            val peers = idsInMuscle.mapNotNull { id ->
+                val est = estimates.getValue(id)
+                val c = currentCoefficients[id] ?: 0f
+                if (c <= 0f) return@mapNotNull null
+                Peer(id, est.est1RM / c, est.weight)
+            }
+            for (id in idsInMuscle) {
+                val est = estimates.getValue(id)
+                val c = currentCoefficients[id] ?: 0f
+                if (c <= 0f) continue
+                val others = peers.filter { it.id != id && it.weight > peerWeightEpsilon }
+                if (others.size < minPeers) continue
+                val reference = weightedMedian(others.map { it.impliedBaseline to it.weight })
+                if (reference <= 0f) continue
+                val proposal = est.est1RM / reference
+                out[id] = EmitProposal(proposal, est.confidence, "peer_consensus:peers=${others.size}")
             }
         }
         return out
@@ -251,9 +209,5 @@ class EstCoefConsensusHeuristic(
             if (cum >= half) return v
         }
         return sorted.last().first
-    }
-
-    companion object {
-        private val LN_110 = ln(1.10f)
     }
 }

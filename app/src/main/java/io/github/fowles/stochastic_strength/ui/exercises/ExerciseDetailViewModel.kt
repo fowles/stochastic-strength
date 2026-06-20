@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 
 data class ChartPoint(val dateMs: Long, val weightKg: Float)
 
@@ -30,7 +31,7 @@ data class ExerciseDetailState(
     val primaryPoints: List<ChartPoint> = emptyList(),
     val shadowPoints: List<ChartPoint> = emptyList(),
     val weightUnit: WeightUnit = WeightUnit.KG,
-    val allSets: List<WorkoutSet> = emptyList(),
+    val primarySetsByDay: Map<Long, List<WorkoutSet>> = emptyMap(),
     val shadowSetsByDay: Map<Long, List<ExerciseSetEntry>> = emptyMap(),
     val selectedDay: Long? = null,
 )
@@ -58,10 +59,13 @@ class ExerciseDetailViewModel(
 
     private suspend fun loadChartData(exercise: Exercise) {
         val isBodyweight = (ExerciseCoefficients.byName[exercise.name] ?: 0f) <= 0f
+        val zone = ZoneId.systemDefault()
+        val sessionStartById = repository.getAllSessions().associate { it.id to it.startTime }
         val primarySets = repository.getAllSetsForExercise(exerciseId)
-        val primaryPoints = if (isBodyweight) emptyList() else primarySets
+        val primarySetsByDay = primarySets
             .filter { it.completedAt != null }
-            .groupBy { it.completedAt!! / 86_400_000L }
+            .groupBy { ExerciseChartGrouping.sessionDayKey(it, sessionStartById, zone) }
+        val primaryPoints = if (isBodyweight) emptyList() else primarySetsByDay
             .map { (day, sets) ->
                 ChartPoint(
                     dateMs = day * 86_400_000L,
@@ -70,18 +74,20 @@ class ExerciseDetailViewModel(
             }
             .sortedBy { it.dateMs }
 
-        val (shadowPoints, shadowSetsByDay) = computeShadowPoints(exercise)
+        val (shadowPoints, shadowSetsByDay) = computeShadowPoints(exercise, sessionStartById, zone)
 
         _state.value = _state.value.copy(
             primaryPoints = primaryPoints,
             shadowPoints = shadowPoints,
-            allSets = primarySets,
+            primarySetsByDay = primarySetsByDay,
             shadowSetsByDay = shadowSetsByDay,
         )
     }
 
     private suspend fun computeShadowPoints(
         exercise: Exercise,
+        sessionStartById: Map<Long, Long>,
+        zone: ZoneId,
     ): Pair<List<ChartPoint>, Map<Long, List<ExerciseSetEntry>>> {
         val thisCoeff = ExerciseCoefficients.byName[exercise.name] ?: 0f
         val isBodyweight = thisCoeff <= 0f
@@ -99,8 +105,8 @@ class ExerciseDetailViewModel(
             val scaleFactor = if (isBodyweight) 1f else thisCoeff / relCoeff
             val sets = repository.getAllSetsForExercise(rel.id)
             for (set in sets) {
-                val completedAt = set.completedAt ?: continue
-                val dayKey = completedAt / 86_400_000L
+                if (set.completedAt == null) continue
+                val dayKey = ExerciseChartGrouping.sessionDayKey(set, sessionStartById, zone)
                 dayToWeights.getOrPut(dayKey) { mutableListOf() }.add(DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps) * scaleFactor)
                 dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, set, rel.isTimed))
             }

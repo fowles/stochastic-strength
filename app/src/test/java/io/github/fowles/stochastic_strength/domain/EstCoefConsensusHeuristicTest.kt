@@ -45,7 +45,6 @@ class EstCoefConsensusHeuristicTest {
         assertEquals(expected, s.est1RM, 0.001f)
         assertEquals(0.4f, s.confidence, 0.001f)
         assertFalse(s.isUpperBound)
-        assertFalse(s.isDefinite)
     }
 
     @Test
@@ -65,12 +64,11 @@ class EstCoefConsensusHeuristicTest {
     }
 
     @Test
-    fun setSignal_tooHardWithActualReps_isDefinite() {
+    fun setSignal_tooHardWithActualReps_isHighConfidenceMeasured() {
         val s = heuristic.setSignal(set(targetWeight = 80f, targetReps = 8, actualReps = 3, feedback = SetFeedback.TOO_HARD))!!
         val expected = DefaultProgressionEngine.toOneRepMax(80f, 3)
         assertEquals(expected, s.est1RM, 0.001f)
         assertEquals(0.95f, s.confidence, 0.001f)
-        assertTrue(s.isDefinite)
         assertFalse(s.isUpperBound)
     }
 
@@ -81,7 +79,6 @@ class EstCoefConsensusHeuristicTest {
         assertEquals(expected, s.est1RM, 0.001f)
         assertEquals(0.5f, s.confidence, 0.001f)
         assertTrue(s.isUpperBound)
-        assertFalse(s.isDefinite)
     }
 
     @Test
@@ -110,7 +107,6 @@ class EstCoefConsensusHeuristicTest {
         val expected = DefaultProgressionEngine.toOneRepMax(80f, 8)
         assertEquals(expected, agg.est1RM, 0.001f)
         assertEquals(0.7f, agg.sessionConfidence, 0.001f)
-        assertFalse(agg.hasDefinite)
     }
 
     @Test
@@ -125,16 +121,6 @@ class EstCoefConsensusHeuristicTest {
         val b = DefaultProgressionEngine.toOneRepMax(70f, 6)
         val expectedEst1RM = (a * 0.7f + b * 0.85f) / (0.7f + 0.85f)
         assertEquals(expectedEst1RM, agg.est1RM, 0.001f)
-    }
-
-    @Test
-    fun aggregateSession_definiteFlagSetWhenAnySetIsTooHardWithActualReps() {
-        val sets = listOf(
-            set(targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4),
-            set(targetWeight = 75f, targetReps = 5, actualReps = 3, feedback = SetFeedback.TOO_HARD),
-        )
-        val agg = heuristic.aggregateSession(sets)!!
-        assertTrue(agg.hasDefinite)
     }
 
     @Test
@@ -166,165 +152,49 @@ class EstCoefConsensusHeuristicTest {
         assertEquals(expected, agg.est1RM, 0.001f)
     }
 
-    // Synthetic sessions to drive computeH1 directly.
+    // Synthetic sessions to drive computeEstimate directly.
     private fun sessionSignal(
         sessionId: Long,
         sessionTime: Long,
-        estCoef: Float,
+        est1RM: Float,
         sessionConfidence: Float,
-        hasDefinite: Boolean = false,
     ) = EstCoefConsensusHeuristic.SessionSignal(
         sessionId = sessionId,
         sessionTime = sessionTime,
-        estCoef = estCoef,
+        est1RM = est1RM,
         sessionConfidence = sessionConfidence,
-        hasDefinite = hasDefinite,
     )
 
     @Test
-    fun computeH1_empty_returnsNull() {
+    fun computeEstimate_empty_returnsNull() {
         val h = EstCoefConsensusHeuristic()
-        assertNull(h.computeH1(emptyList()))
+        assertNull(h.computeEstimate(emptyList()))
     }
 
     @Test
-    fun computeH1_belowMinEvidenceAndNoDefinite_returnsNull() {
-        // One RIR_2_4-like session, recency ~1.0, confidence 0.7 -> weight 0.7 < min_evidence_weight = 1.5.
-        val h = EstCoefConsensusHeuristic()
-        val signals = listOf(sessionSignal(1L, 1000L, 1.25f, 0.7f, hasDefinite = false))
-        assertNull(h.computeH1(signals))
-    }
-
-    @Test
-    fun computeH1_singleDefinitePointBypassesMinEvidence() {
-        val h = EstCoefConsensusHeuristic()
-        val signals = listOf(sessionSignal(1L, 1000L, 1.25f, 0.95f, hasDefinite = true))
-        val proposal = h.computeH1(signals)!!
-        assertEquals(1.25f, proposal.proposal, 0.001f)
-        assertEquals(1, proposal.sessionCount)
-        assertTrue(proposal.hasDefinite)
-    }
-
-    @Test
-    fun computeH1_weightedMedianIgnoresSingleOutlier() {
-        // Three near-1.0 + one freak — median picks the cluster.
+    fun computeEstimate_weightedMedianIgnoresSingleOutlier() {
+        // Three near-100 + one freak — median picks the cluster.
         val h = EstCoefConsensusHeuristic()
         val signals = listOf(
-            sessionSignal(1L, 1000L, 1.00f, 0.7f),
-            sessionSignal(2L, 1000L, 1.00f, 0.7f),
-            sessionSignal(3L, 1000L, 1.05f, 0.7f),
-            sessionSignal(4L, 1000L, 1.80f, 0.4f), // freak, low confidence
+            sessionSignal(1L, 1000L, 100.0f, 0.7f),
+            sessionSignal(2L, 1000L, 100.0f, 0.7f),
+            sessionSignal(3L, 1000L, 105.0f, 0.7f),
+            sessionSignal(4L, 1000L, 180.0f, 0.4f), // freak, low confidence
         )
-        val proposal = h.computeH1(signals)!!
-        assertTrue("median should sit in the 1.0–1.05 cluster, got ${proposal.proposal}",
-            proposal.proposal in 1.00f..1.05f)
-        assertEquals(4, proposal.sessionCount)
+        val est = h.computeEstimate(signals)!!
+        assertTrue("median should sit in the 100-105 cluster, got ${est.est1RM}",
+            est.est1RM in 100.0f..105.0f)
     }
 
-    @Test
-    fun computeH1_recencyDecayMakesRecentLowConfWeighComparableToOldHighConf() {
-        // tauHalf = 14d = 14*24*60*60*1000 ms. Two sessions:
-        // Recent low-confidence (0.4) at full recency, old high-confidence (0.85) at 28d (recency = 0.25).
-        val tauHalfMs = 14L * 24 * 60 * 60 * 1000
-        val nowT = 100_000_000L
-        val h = EstCoefConsensusHeuristic()
-        val signals = listOf(
-            sessionSignal(1L, nowT, 1.10f, 0.4f),          // weight ≈ 1.0 × 0.4 = 0.40
-            sessionSignal(2L, nowT - 2 * tauHalfMs, 1.30f, 0.85f), // weight ≈ 0.25 × 0.85 = 0.2125
-        )
-        val proposal = h.computeH1(signals)
-        // total_weight ≈ 0.61 < 1.5 and no definite point → expect null
-        assertNull(proposal)
-    }
-
-    private fun proposal(
-        proposal: Float,
-        sessionCount: Int = 3,
+    private fun estimate(
+        est1RM: Float,
+        weight: Float = 3f,
         confidence: Float = 0.8f,
-    ) = EstCoefConsensusHeuristic.H1Proposal(
-        proposal = proposal,
-        totalWeight = 3f,
-        proposalConfidence = confidence,
-        hasDefinite = false,
-        sessionCount = sessionCount,
+    ) = EstCoefConsensusHeuristic.ExerciseEstimate(
+        est1RM = est1RM,
+        weight = weight,
+        confidence = confidence,
     )
-
-    @Test
-    fun applyH2_singleExercise_passesThrough() {
-        val h = EstCoefConsensusHeuristic()
-        val result = h.applyH2(
-            mapOf(1L to proposal(1.10f, confidence = 0.7f)),
-            currentCoefficients = mapOf(1L to 1.00f),
-        )
-        val emit = result.getValue(1L)
-        assertEquals(1.10f, emit.proposal, 0.001f)
-        assertEquals(0.7f, emit.confidence, 0.001f)
-    }
-
-    @Test
-    fun applyH2_uniformDriftAboveThreshold_suppressesAll() {
-        val h = EstCoefConsensusHeuristic()
-        val result = h.applyH2(
-            mapOf(
-                1L to proposal(1.07f),
-                2L to proposal(1.08f),
-                3L to proposal(1.06f),
-            ),
-            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 1.00f),
-        )
-        assertTrue(result.isEmpty())
-    }
-
-    @Test
-    fun applyH2_uniformDriftBelowThreshold_passesThroughAll() {
-        val h = EstCoefConsensusHeuristic()
-        val result = h.applyH2(
-            mapOf(
-                1L to proposal(1.02f),
-                2L to proposal(1.01f),
-                3L to proposal(1.03f),
-            ),
-            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 1.00f),
-        )
-        assertEquals(3, result.size)
-        result.values.forEach { emit ->
-            assertEquals(0.8f, emit.confidence, 0.001f) // H1's native confidence
-        }
-    }
-
-    @Test
-    fun applyH2_outlierWithMultipleSessions_emitsBoostedConfidence() {
-        val h = EstCoefConsensusHeuristic()
-        val result = h.applyH2(
-            mapOf(
-                1L to proposal(1.01f), // sibling, flat
-                2L to proposal(0.99f), // sibling, flat
-                3L to proposal(0.96f, sessionCount = 3), // outlier
-            ),
-            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 0.75f),
-        )
-        assertEquals(1, result.size)
-        val outlier = result.getValue(3L)
-        assertEquals(0.96f, outlier.proposal, 0.001f)
-        assertEquals(1.0f, outlier.confidence, 0.001f)
-        assertTrue(outlier.metadata?.startsWith("consensus_outlier") == true)
-    }
-
-    @Test
-    fun applyH2_outlierWithSingleSession_fallsThroughToMixedPath() {
-        val h = EstCoefConsensusHeuristic()
-        val result = h.applyH2(
-            mapOf(
-                1L to proposal(1.01f, sessionCount = 3),
-                2L to proposal(0.99f, sessionCount = 3),
-                3L to proposal(0.96f, sessionCount = 1, confidence = 0.95f), // freak single
-            ),
-            currentCoefficients = mapOf(1L to 1.00f, 2L to 1.00f, 3L to 0.75f),
-        )
-        assertEquals(3, result.size)
-        // Outlier emits at H1's native confidence, not 1.0
-        assertEquals(0.95f, result.getValue(3L).confidence, 0.001f)
-    }
 
     @Test
     fun damp_proposalEqualsCurrent_emitsNothing() {
@@ -382,82 +252,25 @@ class EstCoefConsensusHeuristicTest {
     }
 
     @Test
-    fun compute_singleExerciseConsistentRir2_4_nudgesCoefficientUp() {
-        // One exercise (CHEST), four recent sessions all RIR_2_4 at 80kg×5 against baseline 80kg.
-        // current_coef = 1.00, est_coef per session ≈ toOneRepMax(80,8) / 80 ≈ 1.30.
-        val nowT = 100_000_000_000L
-        val dayMs = 24L * 60 * 60 * 1000
-        val sets = listOf(2L, 7L, 13L, 20L).flatMapIndexed { idx, dayOffset ->
-            val sessionId = (idx + 1).toLong()
-            listOf(
-                WorkoutSet(
-                    id = sessionId * 10,
-                    sessionId = sessionId,
-                    exerciseId = 1L,
-                    setNumber = 1,
-                    targetWeight = 80f,
-                    targetReps = 5,
-                    feedback = SetFeedback.RIR_2_4,
-                )
-            )
-        }
-        val input = CoefficientComputationInput(
-            sets = sets,
-            sessionTimes = mapOf(1L to nowT - 2 * dayMs, 2L to nowT - 7 * dayMs,
-                                 3L to nowT - 13 * dayMs, 4L to nowT - 20 * dayMs),
-            exerciseMuscle = mapOf(1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST),
-            baselines = mapOf(
-                (1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
-                (2L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
-                (3L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
-                (4L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 80f,
-            ),
-            currentCoefficients = mapOf(1L to 1.00f),
-        )
-        val h = EstCoefConsensusHeuristic()
-        val results = h.compute(input)
-        assertEquals(1, results.size)
-        val res = results.single()
-        assertEquals(1L, res.exerciseId)
-        assertTrue("expected nudge up, got ${res.coefficient}", res.coefficient in 1.02f..1.06f)
-    }
-
-    @Test
     fun `compute uses max sessionTime from input as now, not wall clock`() {
-        // Three sessions at newT, newT-5d, newT-10d (all RIR_2_4, conf=0.7, no definite).
-        // If the heuristic correctly uses max sessionTime (= newT) as now:
-        //   recencies ≈ 1.0, 0.78, 0.61 → weights ≈ 0.70 + 0.55 + 0.43 ≈ 1.68 > minEvidenceWeight=1.5 → results non-empty.
-        // If it incorrectly uses wall clock (≈ years past newT), all recencies ≈ 0 → weights ≈ 0 → empty.
         val newT = 1_700_000_000_000L
-        val midT = newT - 5L * 24 * 60 * 60 * 1000
-        val oldT = newT - 10L * 24 * 60 * 60 * 1000
-
-        val sets = listOf(
-            WorkoutSet(id = 1, sessionId = 1, exerciseId = 100, setNumber = 1,
-                targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
-                completedAt = oldT),
-            WorkoutSet(id = 2, sessionId = 2, exerciseId = 100, setNumber = 1,
-                targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
-                completedAt = midT),
-            WorkoutSet(id = 3, sessionId = 3, exerciseId = 100, setNumber = 1,
-                targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
-                completedAt = newT),
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        // Three exercises, one session each at newT; coefficients disagree so a proposal must emit.
+        fun s(sessionId: Long, exerciseId: Long) = WorkoutSet(
+            id = sessionId, sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = newT,
         )
+        val sets = listOf(s(1, 101), s(2, 102), s(3, 103))
         val input = CoefficientComputationInput(
             sets = sets,
-            sessionTimes = mapOf(1L to oldT, 2L to midT, 3L to newT),
-            exerciseMuscle = mapOf(100L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST),
-            baselines = mapOf(
-                (1L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 100f,
-                (2L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 100f,
-                (3L to io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST) to 100f,
-            ),
-            currentCoefficients = mapOf(100L to 1.0f),
+            sessionTimes = mapOf(1L to newT, 2L to newT, 3L to newT),
+            exerciseMuscle = mapOf(101L to muscle, 102L to muscle, 103L to muscle),
+            baselines = emptyMap(),
+            currentCoefficients = mapOf(101L to 1.0f, 102L to 1.0f, 103L to 1.2f),
         )
-
         val results = EstCoefConsensusHeuristic().compute(input)
-
-        assertTrue("expected at least one result; was empty (heuristic likely using wall clock)", results.isNotEmpty())
+        assertTrue("expected at least one result; was empty (heuristic likely using wall clock)",
+            results.isNotEmpty())
     }
 
     @Test
@@ -476,5 +289,150 @@ class EstCoefConsensusHeuristicTest {
         )
         val h = EstCoefConsensusHeuristic()
         assertTrue(h.compute(input).isEmpty())
+    }
+
+    @Test
+    fun computeEstimate_singleSession_returnsEstimateWithNoGate() {
+        // Under the old design a single 0.7-confidence session (weight 0.7 < 1.5)
+        // returned null. There is no gate now — one session is usable.
+        val h = EstCoefConsensusHeuristic()
+        val est = h.computeEstimate(listOf(sessionSignal(1L, 1000L, 120.0f, 0.7f)))!!
+        assertEquals(120.0f, est.est1RM, 0.001f)
+        assertEquals(0.7f, est.confidence, 0.001f)
+        assertTrue("weight should be positive", est.weight > 0f)
+    }
+
+    @Test
+    fun applyPeerConsensus_proposalIsEstimateOverPeerMedianImpliedBaseline() {
+        val h = EstCoefConsensusHeuristic()
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        // Three exercises, all E=100. Peers 2 and 3 have coef 1.0 -> implied baseline 100 each.
+        // Exercise 1 has coef 0.8; its proposal = E_1 / median(100,100) = 100/100 = 1.0.
+        val estimates = mapOf(
+            1L to estimate(est1RM = 100f),
+            2L to estimate(est1RM = 100f),
+            3L to estimate(est1RM = 100f),
+        )
+        val result = h.applyPeerConsensus(
+            estimates,
+            currentCoefficients = mapOf(1L to 0.8f, 2L to 1.0f, 3L to 1.0f),
+            exerciseMuscle = mapOf(1L to muscle, 2L to muscle, 3L to muscle),
+        )
+        assertEquals(1.0f, result.getValue(1L).proposal, 0.001f)
+        assertTrue(result.getValue(1L).metadata?.startsWith("peer_consensus") == true)
+        assertEquals(1.0f, result.getValue(2L).proposal, 0.001f)
+        assertEquals(1.0f, result.getValue(3L).proposal, 0.001f)
+    }
+
+    @Test
+    fun applyPeerConsensus_fewerThanTwoPeers_emitsNothing() {
+        val h = EstCoefConsensusHeuristic()
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        // Two exercises in the muscle: each has exactly one peer (< minPeers = 2).
+        val estimates = mapOf(
+            1L to estimate(est1RM = 100f),
+            2L to estimate(est1RM = 120f),
+        )
+        val result = h.applyPeerConsensus(
+            estimates,
+            currentCoefficients = mapOf(1L to 1.0f, 2L to 1.0f),
+            exerciseMuscle = mapOf(1L to muscle, 2L to muscle),
+        )
+        assertTrue("a 2-exercise muscle has <2 peers per exercise", result.isEmpty())
+    }
+
+    @Test
+    fun compute_twoWrongCoefficientsBothMoveTowardTruth() {
+        // Five CHEST exercises, identical sessions (same E). True coefficient is 1.0 for all.
+        // Exercises 1 and 2 start wrong (0.8 and 1.25); 3,4,5 are correct (1.0).
+        // Each exercise's peer median ignores one polluted peer, so both wrong ones
+        // are pulled toward 1.0 while the correct ones do not move.
+        val nowT = 100_000_000_000L
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        fun s(exerciseId: Long) = WorkoutSet(
+            id = exerciseId, sessionId = exerciseId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = nowT,
+        )
+        val ids = listOf(1L, 2L, 3L, 4L, 5L)
+        val input = CoefficientComputationInput(
+            sets = ids.map { s(it) },
+            sessionTimes = ids.associateWith { nowT },
+            exerciseMuscle = ids.associateWith { muscle },
+            baselines = emptyMap(),
+            currentCoefficients = mapOf(1L to 0.8f, 2L to 1.25f, 3L to 1.0f, 4L to 1.0f, 5L to 1.0f),
+        )
+        val results = EstCoefConsensusHeuristic().compute(input).associateBy { it.exerciseId }
+
+        // Exercise 1 (too low) moves up toward 1.0; exercise 2 (too high) moves down toward 1.0.
+        val one = results.getValue(1L).coefficient
+        val two = results.getValue(2L).coefficient
+        assertTrue("ex1 should rise meaningfully from 0.8 toward 1.0, got $one", one in 0.81f..0.99f)
+        assertTrue("ex2 should fall meaningfully from 1.25 toward 1.0, got $two", two in 1.01f..1.24f)
+        // The three correct exercises sit at peer consensus and do not move.
+        assertFalse(results.containsKey(3L))
+        assertFalse(results.containsKey(4L))
+        assertFalse(results.containsKey(5L))
+    }
+
+    @Test
+    fun compute_systemicDriftProducesNoCoefficientMovement() {
+        // Three CHEST exercises, all coef 1.0, all performing identically. Because every
+        // implied baseline matches, each proposal equals the current coefficient -> no move.
+        // This holds regardless of the absolute weight (i.e. a uniform strength shift is invisible).
+        val nowT = 100_000_000_000L
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        fun run(weight: Float): List<CoefficientResult> {
+            fun s(exerciseId: Long) = WorkoutSet(
+                id = exerciseId, sessionId = exerciseId, exerciseId = exerciseId, setNumber = 1,
+                targetWeight = weight, targetReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = nowT,
+            )
+            val ids = listOf(1L, 2L, 3L)
+            return EstCoefConsensusHeuristic().compute(
+                CoefficientComputationInput(
+                    sets = ids.map { s(it) },
+                    sessionTimes = ids.associateWith { nowT },
+                    exerciseMuscle = ids.associateWith { muscle },
+                    baselines = emptyMap(),
+                    currentCoefficients = ids.associateWith { 1.0f },
+                )
+            )
+        }
+        assertTrue("no movement at 80kg", run(80f).isEmpty())
+        assertTrue("no movement at 120kg (uniform drift invisible)", run(120f).isEmpty())
+    }
+
+    @Test
+    fun compute_atPeerConsensusEquilibrium_emitsNothing() {
+        // Coefficients already reflect each exercise's relative strength: exercise 2 is
+        // genuinely twice as strong as 1 and 3, and its session weight reflects that.
+        // At equilibrium the pass proposes no change (so it cannot chase renormalization).
+        val nowT = 100_000_000_000L
+        val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
+        fun s(exerciseId: Long, weight: Float) = WorkoutSet(
+            id = exerciseId, sessionId = exerciseId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = weight, targetReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = nowT,
+        )
+        // Same feedback at proportional weights => E_2 = 2 * E_1 = 2 * E_3.
+        // Implied baselines: E_1/1.0, E_2/2.0, E_3/1.0 all equal => every proposal == current.
+        val sets = listOf(s(1L, 50f), s(2L, 100f), s(3L, 50f))
+        val input = CoefficientComputationInput(
+            sets = sets,
+            sessionTimes = mapOf(1L to nowT, 2L to nowT, 3L to nowT),
+            exerciseMuscle = mapOf(1L to muscle, 2L to muscle, 3L to muscle),
+            baselines = emptyMap(),
+            currentCoefficients = mapOf(1L to 1.0f, 2L to 2.0f, 3L to 1.0f),
+        )
+        // toOneRepMax is not exactly linear, so E_2 may differ slightly from 2*E_1.
+        // Use minRelativeChange=0.0 to force the proposal to always be emitted so the
+        // 1% bound is always exercised (List.all{} is vacuously true on empty).
+        val current = mapOf(1L to 1.0f, 2L to 2.0f, 3L to 1.0f)
+        val results = EstCoefConsensusHeuristic(minRelativeChange = 0.0f).compute(input)
+        assertFalse("near-equilibrium still emits a proposal (toOneRepMax nonlinearity)", results.isEmpty())
+        assertTrue(
+            "every coefficient stays within 1% of its current value at equilibrium",
+            results.all {
+                kotlin.math.abs(it.coefficient - current.getValue(it.exerciseId)) < 0.01f * current.getValue(it.exerciseId)
+            },
+        )
     }
 }
