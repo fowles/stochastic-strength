@@ -39,11 +39,12 @@ class MuscleBaselineDetailViewModelTest {
     }
 
     @Test
-    fun `formatBaselineSetLine renders RIR_0_1 as target plus one with tilde`() {
+    fun `formatBaselineSetLine renders RIR_0_1 reserve rounded to target plus one with tilde`() {
         val out = formatBaselineSetLine(
             set(feedback = SetFeedback.RIR_0_1, targetReps = 10, targetWeight = 24.9477f),
             WeightUnit.LBS,
         )
+        // RESERVE_RIR_0_1 is +0.5; (10 + 0.5) rounds half-up to 11.
         assertEquals("~11@55lbs", out)
     }
 
@@ -57,12 +58,12 @@ class MuscleBaselineDetailViewModelTest {
     }
 
     @Test
-    fun `formatBaselineSetLine renders RIR_5_PLUS as target plus seven`() {
+    fun `formatBaselineSetLine renders RIR_5_PLUS as target plus six`() {
         val out = formatBaselineSetLine(
             set(feedback = SetFeedback.RIR_5_PLUS, targetReps = 5, targetWeight = 20f),
             WeightUnit.KG,
         )
-        assertEquals("~12@20.0kg", out)
+        assertEquals("~11@20.0kg", out)
     }
 
     @Test
