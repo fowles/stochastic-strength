@@ -1,9 +1,11 @@
 package io.github.fowles.stochastic_strength.domain
 
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -306,8 +308,11 @@ class EstCoefConsensusHeuristicTest {
     fun applyPeerConsensus_proposalIsEstimateOverPeerMedianImpliedBaseline() {
         val h = EstCoefConsensusHeuristic()
         val muscle = io.github.fowles.stochastic_strength.data.model.MuscleGroup.CHEST
-        // Three exercises, all E=100. Peers 2 and 3 have coef 1.0 -> implied baseline 100 each.
-        // Exercise 1 has coef 0.8; its proposal = E_1 / median(100,100) = 100/100 = 1.0.
+        // Three exercises, all E=100. Exercise 1 has coef 0.8.
+        // For exercise 1: peers 2,3 both have coef 1.0 -> implied baseline 100 each.
+        //   interpolated median(100, 100) = 100; proposal = 100/100 = 1.0.
+        // For exercises 2,3: one peer is ex1 (coef 0.8 -> baseline 125), other is the peer (coef 1.0 -> baseline 100).
+        //   interpolated median(100, 125) with equal weights = 112.5; proposal = 100/112.5 ≈ 0.8889.
         val estimates = mapOf(
             1L to estimate(est1RM = 100f),
             2L to estimate(est1RM = 100f),
@@ -320,8 +325,8 @@ class EstCoefConsensusHeuristicTest {
         )
         assertEquals(1.0f, result.getValue(1L).proposal, 0.001f)
         assertTrue(result.getValue(1L).metadata?.startsWith("peer_consensus") == true)
-        assertEquals(1.0f, result.getValue(2L).proposal, 0.001f)
-        assertEquals(1.0f, result.getValue(3L).proposal, 0.001f)
+        assertEquals(100f / 112.5f, result.getValue(2L).proposal, 0.001f)
+        assertEquals(100f / 112.5f, result.getValue(3L).proposal, 0.001f)
     }
 
     @Test
@@ -434,5 +439,110 @@ class EstCoefConsensusHeuristicTest {
                 kotlin.math.abs(it.coefficient - current.getValue(it.exerciseId)) < 0.01f * current.getValue(it.exerciseId)
             },
         )
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_singleValue_returnsThatValue() {
+        assertEquals(42f, heuristic.interpolatedWeightedMedian(listOf(42f to 1f)), 0.0001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_twoEqualWeights_returnsMidpoint() {
+        // equal weights -> midpoint blend, not a hard pick of either
+        assertEquals(110f, heuristic.interpolatedWeightedMedian(listOf(100f to 1f, 120f to 1f)), 0.0001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_twoUnequalWeights_leansTowardHeavier() {
+        // weights 0.3 (@100) and 0.5 (@130): total 0.8, target 0.4
+        // midpoints p0=0.15, p1=0.30+0.25=0.55; t=(0.4-0.15)/(0.55-0.15)=0.625
+        // value = 100 + 0.625*(130-100) = 118.75
+        assertEquals(118.75f, heuristic.interpolatedWeightedMedian(listOf(100f to 0.3f, 130f to 0.5f)), 0.001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_allEqualValues_returnsThatValue() {
+        assertEquals(50f, heuristic.interpolatedWeightedMedian(listOf(50f to 1f, 50f to 2f, 50f to 0.5f)), 0.0001f)
+    }
+
+    @Test
+    fun interpolatedWeightedMedian_isScaleEquivariant() {
+        val pts = listOf(100f to 0.3f, 130f to 0.5f, 90f to 0.2f)
+        val base = heuristic.interpolatedWeightedMedian(pts)
+        val scaled = heuristic.interpolatedWeightedMedian(pts.map { (v, w) -> (v * 3f) to w })
+        assertEquals(base * 3f, scaled, 0.001f)
+    }
+
+    @Test
+    fun peerReference_twoPeers_usesInterpolatedBlendNotSelection() {
+        val h = EstCoefConsensusHeuristic(minPeers = 2, minRelativeChange = 0.0f)
+        // Muscle CHEST, exercises 1 (target), 2 and 3 (peers). One session each.
+        // Peers imply different baselines via different weights/strengths so the
+        // data-point median would hard-pick one; the interpolated median blends.
+        val sets = listOf(
+            // target exercise 1
+            WorkoutSet(sessionId = 1L, exerciseId = 1L, setNumber = 1,
+                targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1),
+            // peer 2 — heavier evidence (measured failure => high confidence/weight)
+            WorkoutSet(sessionId = 2L, exerciseId = 2L, setNumber = 1,
+                targetWeight = 120f, targetReps = 5, actualReps = 5, feedback = SetFeedback.TOO_HARD),
+            // peer 3 — lighter evidence (RIR_5_PLUS => low confidence/weight)
+            WorkoutSet(sessionId = 3L, exerciseId = 3L, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
+        )
+        val input = CoefficientComputationInput(
+            sets = sets,
+            sessionTimes = mapOf(1L to 0L, 2L to 0L, 3L to 0L),
+            exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST, 3L to MuscleGroup.CHEST),
+            baselines = emptyMap(),
+            currentCoefficients = mapOf(1L to 1.0f, 2L to 1.0f, 3L to 1.0f),
+        )
+        val result = h.compute(input).firstOrNull { it.exerciseId == 1L }
+        assertNotNull(result)
+        // Reference is interpolatedWeightedMedian over peers 2 and 3 (both implied
+        // baselines E_j/c_j with c_j = 1). Compute it directly and confirm the
+        // proposal matches E_1 / thatReference (after damp from current 1.0).
+        val e2 = DefaultProgressionEngine.toOneRepMax(120f, 5)   // peer 2 measured failure
+        val w2 = 0.95f
+        val e3 = DefaultProgressionEngine.toOneRepMax(80f, 5 + 7) // peer 3 RIR_5_PLUS
+        val w3 = 0.4f
+        val reference = h.interpolatedWeightedMedian(listOf(e2 to w2, e3 to w3))
+        val e1 = DefaultProgressionEngine.toOneRepMax(100f, 5 + 1) // target RIR_0_1
+        val proposal = e1 / reference
+        // damp from current 1.0: step = alpha*conf*ln(proposal); conf = target session conf (0.85)
+        val step = (0.2f * 0.85f * kotlin.math.ln(proposal.toDouble())).toFloat()
+            .coerceIn(-kotlin.math.ln(1.05f), kotlin.math.ln(1.05f))
+        val expected = 1.0f * kotlin.math.exp(step.toDouble()).toFloat()
+        assertEquals(expected, result!!.coefficient, 0.0005f)
+    }
+
+    @Test
+    fun peerSupportAttenuation_thinPeers_dampensMoveRelativeToNoAttenuation() {
+        // Same scenario; target coefficient is wrong (0.7) so there is a move to make.
+        fun run(attenuation: Float?): Float {
+            val h = EstCoefConsensusHeuristic(minPeers = 2, minRelativeChange = 0.0f,
+                peerSupportFullWeight = attenuation)
+            val sets = listOf(
+                WorkoutSet(sessionId = 1L, exerciseId = 1L, setNumber = 1,
+                    targetWeight = 70f, targetReps = 5, feedback = SetFeedback.RIR_0_1),
+                WorkoutSet(sessionId = 2L, exerciseId = 2L, setNumber = 1,
+                    targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
+                WorkoutSet(sessionId = 3L, exerciseId = 3L, setNumber = 1,
+                    targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
+            )
+            val input = CoefficientComputationInput(
+                sets = sets,
+                sessionTimes = mapOf(1L to 0L, 2L to 0L, 3L to 0L),
+                exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST, 3L to MuscleGroup.CHEST),
+                baselines = emptyMap(),
+                currentCoefficients = mapOf(1L to 0.7f, 2L to 1.0f, 3L to 1.0f),
+            )
+            val r = input.let { h.compute(it) }.first { it.exerciseId == 1L }
+            return kotlin.math.abs(r.coefficient - 0.7f)
+        }
+        val moveNoAtten = run(null)
+        val moveAtten = run(100f) // threshold far above the thin peer weight (~0.8) -> heavy attenuation
+        assertTrue("attenuated move should be smaller", moveAtten < moveNoAtten)
+        assertTrue("attenuated move should be > 0", moveAtten > 0f)
     }
 }

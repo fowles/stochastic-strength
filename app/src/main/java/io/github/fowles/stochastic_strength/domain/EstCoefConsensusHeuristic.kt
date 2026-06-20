@@ -12,6 +12,7 @@ class EstCoefConsensusHeuristic(
     private val alpha: Float = 0.2f,
     private val maxLogStep: Float = ln(1.05f),
     private val minRelativeChange: Float = 0.005f,
+    private val peerSupportFullWeight: Float? = null,
 ) : CoefficientHeuristic {
 
     override val name: String = "est-coef-consensus"
@@ -181,10 +182,18 @@ class EstCoefConsensusHeuristic(
                 if (c <= 0f) continue
                 val others = peers.filter { it.id != id && it.weight > peerWeightEpsilon }
                 if (others.size < minPeers) continue
-                val reference = weightedMedian(others.map { it.impliedBaseline to it.weight })
+                val reference = interpolatedWeightedMedian(others.map { it.impliedBaseline to it.weight })
                 if (reference <= 0f) continue
                 val proposal = est.est1RM / reference
-                out[id] = EmitProposal(proposal, est.confidence, "peer_consensus:peers=${others.size}")
+                val totalOtherWeight = others.sumOf { it.weight.toDouble() }.toFloat()
+                val support = peerSupportFullWeight
+                val attenuation =
+                    if (support != null && support > 0f) minOf(1f, totalOtherWeight / support) else 1f
+                out[id] = EmitProposal(
+                    proposal,
+                    est.confidence * attenuation,
+                    "peer_consensus:peers=${others.size}",
+                )
             }
         }
         return out
@@ -207,6 +216,32 @@ class EstCoefConsensusHeuristic(
         for ((v, w) in sorted) {
             cum += w
             if (cum >= half) return v
+        }
+        return sorted.last().first
+    }
+
+    internal fun interpolatedWeightedMedian(valueWeights: List<Pair<Float, Float>>): Float {
+        if (valueWeights.isEmpty()) return 0f
+        val sorted = valueWeights.sortedBy { it.first }
+        val total = sorted.sumOf { it.second.toDouble() }.toFloat()
+        if (total <= 0f) return sorted[sorted.size / 2].first
+        val target = total / 2f
+        // weight-mass midpoint of each point along the cumulative axis
+        val positions = FloatArray(sorted.size)
+        var cum = 0f
+        for (i in sorted.indices) {
+            positions[i] = cum + sorted[i].second / 2f
+            cum += sorted[i].second
+        }
+        if (target <= positions.first()) return sorted.first().first
+        if (target >= positions.last()) return sorted.last().first
+        for (i in 0 until sorted.size - 1) {
+            val pLo = positions[i]
+            val pHi = positions[i + 1]
+            if (target in pLo..pHi) {
+                val t = (target - pLo) / (pHi - pLo)
+                return sorted[i].first + t * (sorted[i + 1].first - sorted[i].first)
+            }
         }
         return sorted.last().first
     }

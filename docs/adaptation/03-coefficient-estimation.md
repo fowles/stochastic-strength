@@ -64,9 +64,12 @@ comparing many exercises across the muscle (Layer 4) and from heavy damping
 For each exercise *i* the engine asks: "given everyone else's recent lifting, what
 should *i*'s coefficient be?" It computes, for every other exercise *j* in the
 muscle, the muscle baseline that *j*'s performance implies (`E_j / c_j`), and takes
-a weight-aware **median** of those — a peer-consensus baseline that one or two
-mis-set exercises can't skew. The proposed coefficient is then simply
-`E_i / peer_consensus_baseline`.
+an **interpolated weighted median** of those — it blends the two straddling peers at
+the half-weight crossing, so it degrades gracefully when only two or three peers are
+present rather than hard-selecting one. The proposed coefficient is then simply
+`E_i / peer_consensus_baseline`. (Peer-support attenuation — scaling down the
+proposal when total peer evidence weight is thin — exists as an optional knob but
+is off by default.)
 
 Because the comparison is relative:
 
@@ -79,20 +82,23 @@ Because the comparison is relative:
   consensus, and they converge over subsequent sessions rather than dragging
   everyone into a stuck state.
 
-If an exercise has **fewer than two peers** with recent evidence — the cold-start
-case for a brand-new user, or a muscle with very few logged exercises — there is no
-trustworthy reference, so the engine proposes nothing and the coefficient stays put
-at its seed. As soon as a couple of peers accumulate evidence, learning begins. Zero
--coefficient (unloadable: bodyweight/banded/wall-sit) exercises are excluded both as
-peers and as candidates — they have no load relationship to the baseline.
+If an exercise has **fewer than three peers** with recent evidence (`minPeers = 3`)
+— the cold-start case for a brand-new user, or a muscle with very few logged
+exercises — there is no trustworthy reference, so the engine proposes nothing and
+the coefficient stays put at its seed. As soon as enough peers accumulate evidence,
+learning begins. Zero-coefficient (unloadable: bodyweight/banded/wall-sit) exercises
+are excluded both as peers and as candidates — they have no load relationship to the
+baseline.
 
 ## Layer 5 — dampen the actual move (`damp`)
 
 Even a proposed coefficient isn't applied wholesale. The coefficient is nudged only
-a fraction of the way toward the proposal, scaled by confidence, and the size of any
-single update is capped. Tiny moves below a threshold are ignored entirely to avoid
-churn. So coefficients ease toward their learned values over many sessions rather
-than snapping.
+a fraction (`alpha = 0.6`) of the way toward the proposal, scaled by confidence and
+recency (older sessions fade with a 21-day half-life). Tiny moves below
+`minRelativeChange = 0.002` are ignored entirely to avoid churn. The size of any
+single update is capped at `maxLogStep = ln(1.10)` (~10% per session). So
+coefficients ease toward their learned values over many sessions rather than
+snapping.
 
 ## Output
 

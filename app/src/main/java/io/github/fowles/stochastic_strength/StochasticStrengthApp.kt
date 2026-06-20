@@ -36,7 +36,13 @@ class StochasticStrengthApp : Application() {
         WorkoutRepository(
             database,
             derivedState = derivedStateStore,
-            heuristic = EstCoefConsensusHeuristic(),
+            heuristic = EstCoefConsensusHeuristic(
+                alpha = 0.6f,
+                maxLogStep = kotlin.math.ln(1.10f),
+                tauHalfMs = 21L * 24L * 60L * 60L * 1000L,
+                minRelativeChange = 0.002f,
+                minPeers = 3,
+            ),
             normalizer = SeedNormalizer(),
             baselineHeuristic = LastSetAutoregulationHeuristic(),
         )
