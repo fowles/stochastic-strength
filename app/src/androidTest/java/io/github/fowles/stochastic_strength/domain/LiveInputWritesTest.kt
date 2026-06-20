@@ -37,9 +37,7 @@ class LiveInputWritesTest {
             .build()
         repository = WorkoutRepository(
             db,
-            heuristic = EstCoefConsensusHeuristic(),
-            normalizer = SeedNormalizer(),
-            baselineHeuristic = FakeBaselineHeuristic(),
+            progressionControllerFactory = { FakeProgressionController() },
         )
         runBlocking {
             db.userProfileDao().insert(

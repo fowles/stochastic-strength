@@ -40,7 +40,7 @@ class WorkoutRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())
+        repository = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
     }
 
     @After
@@ -71,17 +71,14 @@ class WorkoutRepositoryTest {
     @Test
     fun applyManualBaselineOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
-        val normalizer = fakeNormalizer("test", listOf(
-            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
-        ))
-        val repo = WorkoutRepository(db, normalizer = normalizer, baselineHeuristic = FakeBaselineHeuristic())
+        val repo = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
 
         repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 
         // Only the baseline_override input row should exist — no derived writes.
         val snap = repo.derivedState.snapshot()
         val rows = snap.allBaselineHistory()
-        assertTrue("expected no baseline_history rows; normalization must not trigger", rows.isEmpty())
+        assertTrue("expected no baseline_history rows", rows.isEmpty())
         assertTrue(snap.allMuscleGroupStrengths().isEmpty())
     }
 
@@ -145,12 +142,6 @@ class WorkoutRepositoryTest {
         assertTrue("non-excluded exercise must be available",
             planner.availableExercises.any { it.name == "Push-Up" })
     }
-
-    private fun fakeNormalizer(name: String, proposals: List<BaselineNormalizationProposal>) =
-        object : BaselineNormalizer {
-            override val name: String = name
-            override fun compute(input: BaselineNormalizationInput) = proposals
-        }
 
     @Test
     fun seedInitialWeights_writesBaselineOverrideInitialsAndPopulatesMuscleGroupStrength() = runBlocking {

@@ -1,107 +1,97 @@
-# Per-exercise coefficient estimation
+# Per-exercise coefficient adaptation (the differential mode)
 
-Source: `domain/EstCoefConsensusHeuristic.kt`
-Runs via: `WorkoutRepository` `recomputeCoefficients` (a `CoefficientHeuristic`)
+Source: `domain/ProgressionController.kt` (`RollingConservingProgressionController`), `domain/SessionSignalExtractor.kt`
+Design note: `docs/superpowers/specs/2026-06-18-common-differential-pi-controller-design.md`
+Applied by: `WorkoutRepository.applySessionProgression`
 
 A coefficient is the per-exercise multiplier that bridges the muscle baseline to a
 specific lift. The baseline says "this muscle is worth roughly *this* much"; the
 coefficient says "but for *this particular exercise* you're stronger or weaker than
-that by some factor" — a barbell press and a dumbbell fly both draw on the same
-chest baseline, but at very different absolute weights. This engine watches your
-logged sets and slowly learns each exercise's true coefficient, rather than
-trusting the seeded starting guess forever.
+that by some factor" — a barbell press and a dumbbell fly both draw on the same chest
+baseline, but at very different absolute weights. This is the **differential mode** of
+the progression controller — the half that answers "was this lift off *relative to its
+siblings* in the same muscle?" — and it slowly learns each exercise's true coefficient
+rather than trusting the seeded starting guess forever.
 
-It learns each exercise's strength **relative to its peers** in the same muscle,
-not against the stored baseline. That makes it immune to a wrong baseline: if the
-whole muscle's baseline is off, every exercise is off by the same factor, and a
-relative comparison cancels it out. Correcting that shared, systemic error is the
-job of baseline renormalization (see
-[04-coefficient-renormalization](04-coefficient-renormalization.md)), which runs on
-the very next step and re-attributes any common scale factor back into the baseline.
-The two engines are partners: this one sets the *relative shape* of a muscle's
-coefficients, renormalization sets their *global scale*.
-
-## Layer 1 — turn each set into a strength estimate (`setSignal`)
+## Step 1 — turn each set into a strength estimate (`SessionSignalExtractor`)
 
 Every completed set, based on how it felt, becomes a guess at your one-rep max for
 that exercise, tagged with a confidence and a couple of flags:
 
-- **"Lots left in the tank"** is a weak, low-confidence estimate (the engine has to
-  extrapolate far).
-- **"A couple reps left"** is moderate confidence.
-- **"Almost nothing left"** is fairly high confidence.
+- **"Lots left in the tank"** (RIR 5+) is a weak, low-confidence estimate — the engine
+  has to extrapolate far.
+- **"A couple reps left"** (RIR 2–4) is moderate confidence.
+- **"Almost nothing left"** (RIR 0–1) is fairly high confidence.
 - **"Too hard, and here's how many reps I actually got"** is the strongest, most
-  trustworthy signal — it's a *measured* near-failure.
-- **"Too hard but no rep count recorded"** is treated only as an *upper bound* — it
-  tells us you're no stronger than this, not exactly how strong.
+  trustworthy signal — a *measured* near-failure.
+- **"Too hard but no rep count recorded"** is treated only as an *upper bound* — you're
+  no stronger than this, but we don't know exactly how strong.
 - **Pain** is discarded entirely.
 
-## Layer 2 — collapse a session into one estimate per exercise (`aggregateSession`)
+Within a session those per-set estimates are confidence-weighted into one estimated
+one-rep max per exercise (`aggregateSession`). The upper-bound signals are dropped if
+the measured signals already point higher, so a fuzzy ceiling can't drag down a
+concrete reading. (This whole signal layer is shared with the baseline's
+[common mode](02-baseline-adaptation.md).)
 
-Within a session, it confidence-weights those per-set estimates into a single
-estimated one-rep max. The upper-bound (no-rep-count) signals are special: they're
-thrown out if the real, measured signals already point higher, since a fuzzy ceiling
-shouldn't drag down a concrete reading.
+## Step 2 — a smoothed estimate per exercise (the EMA filter)
 
-## Layer 3 — combine an exercise's sessions, favoring recent ones (`computeEstimate`)
+Each exercise keeps a recency-decayed running average — an exponential moving average,
+`emaBeta = 0.5` — of its log implied one-rep max, plus when it was last seen and with
+what confidence. This is the measurement filter: it smooths out a single freak session
+so one odd reading can't whip the coefficient around.
 
-Each exercise's recent sessions are blended with a recency weighting (older sessions
-fade with a roughly two-week half-life) and combined via a weighted *median* — a
-median, not an average, so one freak session can't dominate. The result is a single
-recency-biased strength estimate for the exercise, `E`, plus an evidence weight and
-an overall confidence.
+## Step 3 — the muscle's recent pool
 
-There is deliberately **no per-exercise evidence threshold**: a single recent
-session yields a usable (if low-weight) estimate. This is on purpose. The workout
-planner maximizes variety — it samples a handful of exercises from a large library
-each session — so any one exercise is rarely repeated enough to accumulate strong
-solo evidence. Robustness therefore comes not from one exercise repeating, but from
-comparing many exercises across the muscle (Layer 4) and from heavy damping
-(Layer 5).
+When a muscle is trained, the controller gathers **every loaded exercise in that
+muscle that has a recent measurement**, each weighted by recency (21-day half-life
+since you last performed it) × the confidence of that measurement. Exercises you've
+never performed — or done so long ago their weight has decayed below a tiny floor —
+sit out. Unloadable (coefficient-0) exercises are excluded; they have no load
+relationship to compare. This pool is the comparison set.
 
-## Layer 4 — compare against the muscle's peers (`applyPeerConsensus`)
+This pooling is what lets a **lone exercise still learn.** The planner favors variety,
+so most muscles see only one exercise on a given day; comparing it against the muscle's
+*recent pool* rather than only today's sets means there are always siblings to measure
+against.
 
-For each exercise *i* the engine asks: "given everyone else's recent lifting, what
-should *i*'s coefficient be?" It computes, for every other exercise *j* in the
-muscle, the muscle baseline that *j*'s performance implies (`E_j / c_j`), and takes
-an **interpolated weighted median** of those — it blends the two straddling peers at
-the half-weight crossing, so it degrades gracefully when only two or three peers are
-present rather than hard-selecting one. The proposed coefficient is then simply
-`E_i / peer_consensus_baseline`. (Peer-support attenuation — scaling down the
-proposal when total peer evidence weight is thin — exists as an optional knob but
-is off by default.)
+## Step 4 — the differential moves each coefficient
 
-Because the comparison is relative:
+For each pooled exercise the innovation is `e_i = ln(emaImplied1RM_i / (baseline ×
+coef_i))`. The controller subtracts the pool's weighted-average innovation — the same
+**common mode** that drove the baseline — to get each exercise's **differential**:
 
-- **A wrong baseline is invisible.** If the muscle baseline shifts, every `E_j`
-  shifts with it, the consensus shifts too, and the ratio cancels — coefficients
-  don't move. (The baseline's own level is handled by the baseline machinery and
-  renormalization.)
-- **A couple of mis-set coefficients self-heal.** Each exercise's reference excludes
-  itself and medians over its peers, so one or two wrong neighbors barely move the
-  consensus, and they converge over subsequent sessions rather than dragging
-  everyone into a stuck state.
+```
+differential_i = e_i − common
+```
 
-If an exercise has **fewer than three peers** with recent evidence (`minPeers = 3`)
-— the cold-start case for a brand-new user, or a muscle with very few logged
-exercises — there is no trustworthy reference, so the engine proposes nothing and
-the coefficient stays put at its seed. As soon as enough peers accumulate evidence,
-learning begins. Zero-coefficient (unloadable: bodyweight/banded/wall-sit) exercises
-are excluded both as peers and as candidates — they have no load relationship to the
-baseline.
+That differential is the part specific to the exercise: "easier or harder than its
+siblings." Each coefficient moves a fraction of it:
 
-## Layer 5 — dampen the actual move (`damp`)
+```
+Δ(log coef_i) = K_c × (w_i / w_max) × (e_i − common)      (K_c = 0.5)
+```
 
-Even a proposed coefficient isn't applied wholesale. The coefficient is nudged only
-a fraction (`alpha = 0.6`) of the way toward the proposal, scaled by confidence and
-recency (older sessions fade with a 21-day half-life). Tiny moves below
-`minRelativeChange = 0.002` are ignored entirely to avoid churn. The size of any
-single update is capped at `maxLogStep = ln(1.10)` (~10% per session). So
-coefficients ease toward their learned values over many sessions rather than
-snapping.
+The per-exercise factor `w_i / w_max` gives the freshest exercise full gain and staler
+ones proportionally less. The move is capped at ~10% per session (`maxLogStepC =
+ln(1.10)`), and moves smaller than 0.2% (`minRelativeChange`) are skipped to avoid
+churn. Coefficients therefore ease toward their learned values over many sessions
+rather than snapping.
+
+Because the comparison is **relative**, a wrong baseline is invisible: if a muscle's
+baseline is off, every innovation shifts by the same amount, the common mode absorbs
+it, and the differentials are unchanged. The baseline's own level is handled by the
+[common mode](02-baseline-adaptation.md); the coefficients only ever carry relative
+shape.
+
+## A note on which coefficients move
+
+The differential is applied to **all** the pooled exercises — not just the one you
+trained today — each scaled by its own weight. That is deliberate and load-bearing: it
+is exactly what makes the coefficient scale conserved, so no separate renormalization
+pass is needed. See [gauge conservation](04-gauge-conservation.md).
 
 ## Output
 
-A set of updated coefficients (with notes on why), which feed back into how every
-future session's weights are computed for those exercises. Any systemic, whole-muscle
-component is then reconciled into the baseline by renormalization.
+A set of updated coefficients (with notes on why), which feed into how every future
+session's weights are computed for those exercises.

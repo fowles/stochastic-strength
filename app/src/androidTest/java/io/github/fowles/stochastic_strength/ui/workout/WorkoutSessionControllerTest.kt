@@ -13,7 +13,7 @@ import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.domain.FakeBaselineHeuristic
+import io.github.fowles.stochastic_strength.domain.FakeProgressionController
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +53,7 @@ class WorkoutSessionControllerTest {
             ))
             bus = WorkoutSessionBus()
             scope = CoroutineScope(Dispatchers.Default)
-            repository = WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())
+            repository = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
             repository.derivedState.rebuild { mut ->
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))

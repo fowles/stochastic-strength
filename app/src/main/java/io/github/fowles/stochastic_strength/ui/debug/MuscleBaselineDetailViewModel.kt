@@ -47,7 +47,7 @@ data class CoefficientDeviationRow(
  * Renders a single set as "<reps>@<weight>" for the change-events feed.
  *
  * RIR feedbacks become an estimated rep count at the prescribed weight using the
- * same +1 / +3 / +7 offsets that [EstCoefConsensusHeuristic] uses to compute the
+ * same +1 / +3 / +7 offsets that [SessionSignalExtractor] uses to compute the
  * implied 1RM, prefixed with `~` to mark it as an estimate. TOO_HARD shows the
  * actual reps achieved (no tilde — it is observed, not estimated). HURT has no
  * implied rep estimate, so it renders as "hurt@<weight>". Sets with no feedback
