@@ -17,12 +17,15 @@ import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
+import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class WorkoutRepository(
     private val db: AppDatabase,
+    val derivedState: DerivedStateStore = DerivedStateStore(),
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val heuristic: CoefficientHeuristic? = null,
     private val normalizer: BaselineNormalizer? = null,
@@ -34,8 +37,8 @@ class WorkoutRepository(
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
         else emptySet()
 
-    private suspend fun effectiveCoefficientSource(): UserCoefficientSource {
-        val latest = db.coefficientHistoryDao().getLatestPerExercise()
+    private fun effectiveCoefficientSource(): UserCoefficientSource {
+        val latest = derivedState.snapshot().coefficientHistoryLatestPerExercise()
             .associate { it.exerciseId to it.coefficient }
         return UserCoefficientSource(latest)
     }
@@ -47,7 +50,7 @@ class WorkoutRepository(
     ): WorkoutPlanner {
         val excluded = excludedExerciseIds(locationId)
         val available = db.exerciseDao().getActive().filter { it.id !in excluded }
-        val dbStrengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        val dbStrengths = derivedState.snapshot().allMuscleGroupStrengths().associateBy { it.muscleGroup }
         val strengths = if (strengthOverrides.isEmpty()) dbStrengths else
             dbStrengths + strengthOverrides.mapValues { (muscle, baseline) ->
                 MuscleGroupStrength(muscleGroup = muscle, baselineWeight = baseline)
@@ -80,6 +83,7 @@ class WorkoutRepository(
         snapshot: ReplaySnapshot,
         asOf: Long,
         exerciseReductions: Map<Long, Float>,
+        scratch: MutableDerivedState,
     ) {
         val input = buildBaselineComputationInput(sessionId, snapshot, asOf, exerciseReductions)
             ?: return
@@ -94,10 +98,11 @@ class WorkoutRepository(
                 minReductionsByMuscle = input.minReductionFractions,
                 setsByMuscle = setsByMuscle,
                 asOf = asOf,
+                scratch = scratch,
             )
         }
-        recomputeCoefficients(snapshot, asOf)
-        applyBaselineNormalization(snapshot, asOf, sessionId)
+        recomputeCoefficients(snapshot, asOf, scratch)
+        applyBaselineNormalization(snapshot, asOf, sessionId, scratch)
     }
 
     private suspend fun buildBaselineComputationInput(
@@ -143,12 +148,12 @@ class WorkoutRepository(
         minReductionsByMuscle: Map<MuscleGroup, Float>,
         setsByMuscle: Map<MuscleGroup?, List<WorkoutSet>>,
         asOf: Long,
+        scratch: MutableDerivedState,
     ) {
         val current = snapshot.currentBaselines[proposal.muscleGroup] ?: return
         val rounded = WeightFormatter.round(proposal.newBaseline, weightUnit)
-        db.muscleGroupStrengthDao().upsert(
-            MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = rounded)
-        )
+        val strength = MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = rounded)
+        scratch.upsertMuscleGroupStrength(strength)
         snapshot.progressionBaselines[sessionId to proposal.muscleGroup] = current
         snapshot.currentBaselines[proposal.muscleGroup] = rounded
         val muscleFeedbacks = setsByMuscle[proposal.muscleGroup].orEmpty()
@@ -166,7 +171,7 @@ class WorkoutRepository(
             heuristicName = baselineHeuristic.name,
             heuristicMetadata = proposal.metadata,
         )
-        db.baselineHistoryDao().insert(historyRow)
+        scratch.insertBaselineHistory(historyRow)
         snapshot.baselineHistoryByMuscle.getOrPut(proposal.muscleGroup) { mutableListOf() }
             .add(historyRow)
     }
@@ -187,24 +192,27 @@ class WorkoutRepository(
         }
     }
 
-    private suspend fun recomputeCoefficients(snapshot: ReplaySnapshot, asOf: Long) {
+    private suspend fun recomputeCoefficients(
+        snapshot: ReplaySnapshot,
+        asOf: Long,
+        scratch: MutableDerivedState,
+    ) {
         val heuristic = heuristic ?: return
         val results = heuristic.compute(snapshot.filteredCoefficientInput(asOf))
         if (results.isEmpty()) return
-        val latestByExercise = db.coefficientHistoryDao().getLatestPerExercise()
+        val latestByExercise = scratch.coefficientHistoryLatestPerExercise()
             .associateBy { it.exerciseId }
         for (result in results) {
-            db.coefficientHistoryDao().insert(
-                CoefficientHistory(
-                    exerciseId = result.exerciseId,
-                    previousCoefficient = latestByExercise[result.exerciseId]?.coefficient
-                        ?: snapshot.seedCoefficients[result.exerciseId],
-                    coefficient = result.coefficient,
-                    heuristicName = heuristic.name,
-                    heuristicMetadata = result.metadata,
-                    computedAt = asOf,
-                )
+            val row = CoefficientHistory(
+                exerciseId = result.exerciseId,
+                previousCoefficient = latestByExercise[result.exerciseId]?.coefficient
+                    ?: snapshot.seedCoefficients[result.exerciseId],
+                coefficient = result.coefficient,
+                heuristicName = heuristic.name,
+                heuristicMetadata = result.metadata,
+                computedAt = asOf,
             )
+            scratch.insertCoefficientHistory(row)
             snapshot.currentCoefficients[result.exerciseId] = result.coefficient
         }
     }
@@ -213,6 +221,7 @@ class WorkoutRepository(
         snapshot: ReplaySnapshot,
         asOf: Long,
         sessionId: Long,
+        scratch: MutableDerivedState,
     ) {
         val normalizer = normalizer ?: return
         val input = snapshot.filteredNormalizationInput(asOf)
@@ -222,7 +231,7 @@ class WorkoutRepository(
         val proposals = normalizer.compute(input)
         if (proposals.isEmpty()) return
 
-        val latestCoefByExercise = db.coefficientHistoryDao().getLatestPerExercise()
+        val latestCoefByExercise = scratch.coefficientHistoryLatestPerExercise()
             .associateBy { it.exerciseId }
         for (proposal in proposals) {
             val oldBaseline = snapshot.currentBaselines[proposal.muscleGroup] ?: continue
@@ -233,9 +242,8 @@ class WorkoutRepository(
             if (newBaseline <= 0f) continue
             val mEffective = oldBaseline / newBaseline
 
-            db.muscleGroupStrengthDao().upsert(
-                MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = newBaseline)
-            )
+            val newStrength = MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = newBaseline)
+            scratch.upsertMuscleGroupStrength(newStrength)
             snapshot.currentBaselines[proposal.muscleGroup] = newBaseline
             val row = BaselineHistory(
                 sessionId = sessionId,
@@ -245,7 +253,7 @@ class WorkoutRepository(
                 changeReason = BaselineChangeReason.NORMALIZATION,
                 timestamp = asOf,
             )
-            db.baselineHistoryDao().insert(row)
+            scratch.insertBaselineHistory(row)
             snapshot.baselineHistoryByMuscle.getOrPut(proposal.muscleGroup) { mutableListOf() }.add(row)
 
             val inGroup = input.exercises.filter {
@@ -253,17 +261,16 @@ class WorkoutRepository(
             }
             for (snap in inGroup) {
                 val newCoef = snap.currentCoefficient * mEffective
-                db.coefficientHistoryDao().insert(
-                    CoefficientHistory(
-                        exerciseId = snap.exercise.id,
-                        previousCoefficient = latestCoefByExercise[snap.exercise.id]?.coefficient
-                            ?: snap.currentCoefficient,
-                        coefficient = newCoef,
-                        heuristicName = "baseline_normalization",
-                        heuristicMetadata = proposal.metadata,
-                        computedAt = asOf,
-                    )
+                val coefRow = CoefficientHistory(
+                    exerciseId = snap.exercise.id,
+                    previousCoefficient = latestCoefByExercise[snap.exercise.id]?.coefficient
+                        ?: snap.currentCoefficient,
+                    coefficient = newCoef,
+                    heuristicName = "baseline_normalization",
+                    heuristicMetadata = proposal.metadata,
+                    computedAt = asOf,
                 )
+                scratch.insertCoefficientHistory(coefRow)
                 snapshot.currentCoefficients[snap.exercise.id] = newCoef
             }
         }
@@ -281,11 +288,7 @@ class WorkoutRepository(
     suspend fun replayDerivedState(
         reductionsBySession: Map<Long, Map<Long, Float>> = emptyMap(),
     ) = replayMutex.withLock {
-        db.withTransaction {
-            db.baselineHistoryDao().deleteAll()
-            db.coefficientHistoryDao().deleteAll()
-            db.muscleGroupStrengthDao().deleteAll()
-
+        derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
             val initials = db.baselineOverrideDao().getInitials()
             val overridesBySession = db.baselineOverrideDao().getNonInitials()
@@ -293,7 +296,7 @@ class WorkoutRepository(
 
             for (init in initials) {
                 snapshot.currentBaselines[init.muscleGroup] = init.baselineWeight
-                db.muscleGroupStrengthDao().upsert(
+                scratch.upsertMuscleGroupStrength(
                     MuscleGroupStrength(muscleGroup = init.muscleGroup, baselineWeight = init.baselineWeight)
                 )
                 val row = BaselineHistory(
@@ -304,7 +307,7 @@ class WorkoutRepository(
                     changeReason = BaselineChangeReason.INITIAL,
                     timestamp = init.asOf,
                 )
-                db.baselineHistoryDao().insert(row)
+                scratch.insertBaselineHistory(row)
                 snapshot.baselineHistoryByMuscle.getOrPut(init.muscleGroup) { mutableListOf() }.add(row)
             }
 
@@ -316,7 +319,7 @@ class WorkoutRepository(
                 overridesBySession[session.id]?.forEach { o ->
                     val prev = snapshot.currentBaselines[o.muscleGroup] ?: 0f
                     snapshot.currentBaselines[o.muscleGroup] = o.baselineWeight
-                    db.muscleGroupStrengthDao().upsert(
+                    scratch.upsertMuscleGroupStrength(
                         MuscleGroupStrength(muscleGroup = o.muscleGroup, baselineWeight = o.baselineWeight)
                     )
                     val row = BaselineHistory(
@@ -327,7 +330,7 @@ class WorkoutRepository(
                         changeReason = BaselineChangeReason.OVERRIDE,
                         timestamp = o.asOf,
                     )
-                    db.baselineHistoryDao().insert(row)
+                    scratch.insertBaselineHistory(row)
                     snapshot.baselineHistoryByMuscle.getOrPut(o.muscleGroup) { mutableListOf() }.add(row)
                 }
                 applySessionProgression(
@@ -335,6 +338,7 @@ class WorkoutRepository(
                     snapshot,
                     asOf = session.endTime!!,
                     exerciseReductions = reductionsBySession[session.id] ?: emptyMap(),
+                    scratch = scratch,
                 )
             }
         }
@@ -408,10 +412,10 @@ class WorkoutRepository(
     }
 
     suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
-        db.muscleGroupStrengthDao().getAll()
+        derivedState.snapshot().allMuscleGroupStrengths()
 
     suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
-        val rows = db.coefficientHistoryDao().getMostRecent(limit)
+        val rows = derivedState.snapshot().coefficientHistoryMostRecent(limit)
         if (rows.isEmpty()) return emptyList()
         val exerciseIds = rows.map { it.exerciseId }.distinct()
         val exercisesById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
@@ -433,7 +437,7 @@ class WorkoutRepository(
 
     suspend fun getAllCoefficientRows(): List<CoefficientRow> {
         val allExercises = db.exerciseDao().getAll()
-        val latestByExercise = db.coefficientHistoryDao().getLatestPerExercise()
+        val latestByExercise = derivedState.snapshot().coefficientHistoryLatestPerExercise()
             .associateBy { it.exerciseId }
         return allExercises
             .map { exercise ->
@@ -453,10 +457,14 @@ class WorkoutRepository(
     }
 
     suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineHistory> =
-        db.baselineHistoryDao().getForMuscle(muscleGroup)
+        derivedState.snapshot().baselineHistoryForMuscle(muscleGroup)
 
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
-        db.coefficientHistoryDao().getForExercise(exerciseId)
+        derivedState.snapshot().coefficientHistoryForExercise(exerciseId)
+
+    suspend fun getLatestCoefficientPerExercise(): Map<Long, Float> =
+        derivedState.snapshot().coefficientHistoryLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
 
     fun getSeedCoefficient(exercise: Exercise): Float? =
         ExerciseCoefficients.get(exercise)

@@ -35,6 +35,7 @@ class WorkoutSessionControllerTest {
     private lateinit var bus: WorkoutSessionBus
     private lateinit var scope: CoroutineScope
     private lateinit var controller: WorkoutSessionController
+    private lateinit var repository: WorkoutRepository
 
     @Before
     fun setUp() {
@@ -50,12 +51,14 @@ class WorkoutSessionControllerTest {
                 Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
                 Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
             ))
-            db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
-            db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-
             bus = WorkoutSessionBus()
             scope = CoroutineScope(Dispatchers.Default)
-            controller = WorkoutSessionController(db, WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic()), bus, scope)
+            repository = WorkoutRepository(db, baselineHeuristic = FakeBaselineHeuristic())
+            repository.derivedState.rebuild { mut ->
+                mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+                mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
+            }
+            controller = WorkoutSessionController(db, repository, bus, scope)
             controller.initializeSession(
                 locationId = null,
                 locationName = null,

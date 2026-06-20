@@ -63,8 +63,9 @@ class WorkoutRepositoryTest {
             assertEquals(1000L, asOf)
         }
         // Must NOT write to muscle_group_strength or baseline_history — those are derived.
-        assertTrue(db.muscleGroupStrengthDao().getAll().isEmpty())
-        assertTrue(db.baselineHistoryDao().getAll().isEmpty())
+        val snap = repository.derivedState.snapshot()
+        assertTrue(snap.allMuscleGroupStrengths().isEmpty())
+        assertTrue(snap.allBaselineHistory().isEmpty())
     }
 
     @Test
@@ -78,9 +79,10 @@ class WorkoutRepositoryTest {
         repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 
         // Only the baseline_override input row should exist — no derived writes.
-        val rows = db.baselineHistoryDao().getAll()
+        val snap = repo.derivedState.snapshot()
+        val rows = snap.allBaselineHistory()
         assertTrue("expected no baseline_history rows; normalization must not trigger", rows.isEmpty())
-        assertTrue(db.muscleGroupStrengthDao().getAll().isEmpty())
+        assertTrue(snap.allMuscleGroupStrengths().isEmpty())
     }
 
     @Test
@@ -115,7 +117,7 @@ class WorkoutRepositoryTest {
 
         repository.finishSession(sessionId, exerciseReductions = emptyMap())
 
-        val logs = db.baselineHistoryDao().getAll()
+        val logs = repository.derivedState.snapshot().allBaselineHistory()
             .filter { it.changeReason == BaselineChangeReason.PROGRESSION && it.sessionId == sessionId }
         assertEquals("two exercises in same muscle group should produce one log entry", 1, logs.size)
         assertEquals(MuscleGroup.CHEST, logs[0].muscleGroup)
@@ -160,7 +162,7 @@ class WorkoutRepositoryTest {
         assertTrue("all initials must be sessionId=null", initials.all { it.sessionId == null })
 
         // replay must have populated derived muscle_group_strength for those same muscles.
-        val strengths = db.muscleGroupStrengthDao().getAll().associateBy { it.muscleGroup }
+        val strengths = repository.derivedState.snapshot().allMuscleGroupStrengths().associateBy { it.muscleGroup }
         for (initial in initials) {
             assertEquals(
                 "muscle_group_strength must match the initial for ${initial.muscleGroup}",
