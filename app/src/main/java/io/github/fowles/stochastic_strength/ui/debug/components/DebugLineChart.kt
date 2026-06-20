@@ -64,16 +64,22 @@ internal fun epochDayLabel(epochDay: Long, sdf: SimpleDateFormat): String =
 /**
  * Builds the floating marker label shown when the user holds a point.
  * Combines the x-axis label with each line-series y value at that point.
+ *
+ * Lines whose color is [excludeColor] are omitted from the value list — used to
+ * drop a drawn trend line (e.g. the prescribed-target line) so the label reports
+ * only the plotted data points. When that leaves no values, only the x label is
+ * shown.
  */
 internal fun formatLineMarkerLabel(
     targets: List<CartesianMarker.Target>,
     xLabel: (Double) -> String,
     yLabel: (Double) -> String,
+    excludeColor: Int? = null,
 ): CharSequence {
     val target = targets.firstOrNull() ?: return ""
     val x = xLabel(target.x)
-    val ys = (target as? LineCartesianLayerMarkerTarget)?.points?.map { yLabel(it.entry.y) }
-        ?: return x
+    val points = (target as? LineCartesianLayerMarkerTarget)?.points ?: return x
+    val ys = points.filter { excludeColor == null || it.color != excludeColor }.map { yLabel(it.entry.y) }
     return if (ys.isEmpty()) x else "$x • ${ys.joinToString(" / ")}"
 }
 

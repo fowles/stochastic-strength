@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
+import io.github.fowles.stochastic_strength.data.model.BaselineHistory
+import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -19,9 +21,46 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.ZoneId
 
 data class ChartPoint(val dateMs: Long, val weightKg: Float)
+
+/**
+ * Reconstructs the planner's prescribed estimated-1RM (`baseline × coefficient`)
+ * over time, sampled at [dayKeys] (the days that already have an achieved dot, so
+ * the chart's x-grid and marker stay unchanged).
+ *
+ * `baseline(day)` is the `newBaseline` of the latest [BaselineHistory] whose local
+ * day is ≤ `day`; before the first event it falls back to that event's
+ * `previousBaseline` only when positive (an INITIAL assessment has
+ * `previousBaseline == 0`, which would drag the line to zero, so those days are
+ * dropped). `coefficient(day)` is the latest [CoefficientHistory] ≤ `day`, else
+ * [seedCoefficient]. The product is the true, pre-rounding 1RM target — it is read
+ * straight from history, never from the rounded session weight.
+ *
+ * Returns empty for unloadable exercises (`seedCoefficient ≤ 0`).
+ */
+internal fun buildPrescribedPoints(
+    baselineEvents: List<BaselineHistory>,
+    coefficientEvents: List<CoefficientHistory>,
+    seedCoefficient: Float,
+    dayKeys: Collection<Long>,
+    zone: ZoneId,
+): List<ChartPoint> {
+    if (seedCoefficient <= 0f) return emptyList()
+    fun epochDay(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().toEpochDay()
+    val baselineByDay = baselineEvents.map { epochDay(it.timestamp) to it }
+    val coeffByDay = coefficientEvents.map { epochDay(it.computedAt) to it }
+    val leadingBaseline = baselineEvents.firstOrNull()?.previousBaseline?.takeIf { it > 0f }
+    return dayKeys.sorted().mapNotNull { day ->
+        val baseline = baselineByDay.lastOrNull { it.first <= day }?.second?.newBaseline
+            ?: leadingBaseline
+            ?: return@mapNotNull null
+        val coeff = coeffByDay.lastOrNull { it.first <= day }?.second?.coefficient ?: seedCoefficient
+        ChartPoint(dateMs = day * 86_400_000L, weightKg = baseline * coeff)
+    }
+}
 
 data class ExerciseSetEntry(val exerciseName: String, val set: WorkoutSet, val isTimed: Boolean = false)
 
@@ -30,6 +69,7 @@ data class ExerciseDetailState(
     val isHurt: Boolean = false,
     val primaryPoints: List<ChartPoint> = emptyList(),
     val shadowPoints: List<ChartPoint> = emptyList(),
+    val prescribedPoints: List<ChartPoint> = emptyList(),
     val weightUnit: WeightUnit = WeightUnit.KG,
     val primarySetsByDay: Map<Long, List<WorkoutSet>> = emptyMap(),
     val shadowSetsByDay: Map<Long, List<ExerciseSetEntry>> = emptyMap(),
@@ -76,9 +116,25 @@ class ExerciseDetailViewModel(
 
         val (shadowPoints, shadowSetsByDay) = computeShadowPoints(exercise, sessionStartById, zone)
 
+        val seedCoefficient = ExerciseCoefficients.byName[exercise.name] ?: 0f
+        val prescribedPoints = buildPrescribedPoints(
+            baselineEvents = repository.getBaselineEvents(exercise.primaryMuscle),
+            coefficientEvents = repository.getCoefficientEvents(exerciseId),
+            seedCoefficient = seedCoefficient,
+            // Sample over every charted day (this exercise's days plus the shadow
+            // days from related exercises). baseline × coefficient is defined on
+            // every day, and a line needs ≥2 points — sampling only this
+            // exercise's own days collapses to a single invisible point whenever
+            // it was performed on just one day. The union stays on the already
+            // plotted x-grid, so the marker / day-selection is unaffected.
+            dayKeys = primarySetsByDay.keys + shadowSetsByDay.keys,
+            zone = zone,
+        )
+
         _state.value = _state.value.copy(
             primaryPoints = primaryPoints,
             shadowPoints = shadowPoints,
+            prescribedPoints = prescribedPoints,
             primarySetsByDay = primarySetsByDay,
             shadowSetsByDay = shadowSetsByDay,
         )

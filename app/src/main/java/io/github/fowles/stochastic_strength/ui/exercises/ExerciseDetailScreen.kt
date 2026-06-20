@@ -31,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -39,6 +41,7 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
 import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.common.insets
+import com.patrykandpatrick.vico.compose.cartesian.layer.continuous
 import com.patrykandpatrick.vico.compose.cartesian.layer.point
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
@@ -176,7 +179,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
             )
 
-            if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty()) {
+            if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty() && state.prescribedPoints.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -192,6 +195,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 ExerciseChart(
                     primaryPoints = state.primaryPoints,
                     shadowPoints = state.shadowPoints,
+                    prescribedPoints = state.prescribedPoints,
                     weightUnit = state.weightUnit,
                     onDaySelected = viewModel::selectDay,
                     modifier = Modifier
@@ -219,13 +223,14 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
 private fun ExerciseChart(
     primaryPoints: List<ChartPoint>,
     shadowPoints: List<ChartPoint>,
+    prescribedPoints: List<ChartPoint>,
     weightUnit: WeightUnit,
     onDaySelected: (Long?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
 
-    LaunchedEffect(primaryPoints, shadowPoints) {
+    LaunchedEffect(primaryPoints, shadowPoints, prescribedPoints) {
         modelProducer.runTransaction {
             lineSeries {
                 if (primaryPoints.isNotEmpty()) {
@@ -238,6 +243,12 @@ private fun ExerciseChart(
                     series(
                         x = shadowPoints.map { it.dateMs / 86_400_000L },
                         y = shadowPoints.map { it.weightKg },
+                    )
+                }
+                if (prescribedPoints.isNotEmpty()) {
+                    series(
+                        x = prescribedPoints.map { it.dateMs / 86_400_000L },
+                        y = prescribedPoints.map { it.weightKg },
                     )
                 }
             }
@@ -271,13 +282,20 @@ private fun ExerciseChart(
             )
         ),
     )
+    val prescribedLine = LineCartesianLayer.rememberLine(
+        fill = LineCartesianLayer.LineFill.single(fill(primaryColor)),
+        stroke = LineCartesianLayer.LineStroke.continuous(thickness = 2.dp),
+        pointConnector = LineCartesianLayer.PointConnector.cubic(),
+    )
 
     val hasPrimary = primaryPoints.isNotEmpty()
     val hasShadow = shadowPoints.isNotEmpty()
-    val lineProvider = remember(hasPrimary, hasShadow, primaryLine, shadowLine) {
+    val hasPrescribed = prescribedPoints.isNotEmpty()
+    val lineProvider = remember(hasPrimary, hasShadow, hasPrescribed, primaryLine, shadowLine, prescribedLine) {
         LineCartesianLayer.LineProvider.series(buildList {
             if (hasPrimary) add(primaryLine)
             if (hasShadow) add(shadowLine)
+            if (hasPrescribed) add(prescribedLine)
         })
     }
 
@@ -308,7 +326,7 @@ private fun ExerciseChart(
                 currentOnDaySelected(targets.firstOrNull()?.x?.toLong())
         }
     }
-    val marker = rememberSelectionMarker(weightUnit)
+    val marker = rememberSelectionMarker(weightUnit, prescribedColor = primaryColor)
 
     CartesianChartHost(
         chart = rememberCartesianChart(
@@ -332,7 +350,7 @@ private fun ExerciseChart(
 }
 
 @Composable
-private fun rememberSelectionMarker(weightUnit: WeightUnit): DefaultCartesianMarker {
+private fun rememberSelectionMarker(weightUnit: WeightUnit, prescribedColor: Color): DefaultCartesianMarker {
     val labelBackground = rememberShapeComponent(
         fill = fill(MaterialTheme.colorScheme.surface),
         shape = CorneredShape.Pill,
@@ -346,12 +364,16 @@ private fun rememberSelectionMarker(weightUnit: WeightUnit): DefaultCartesianMar
     )
     val guideline = rememberAxisGuidelineComponent()
     val fmt = remember { DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()) }
-    val valueFormatter = remember(fmt, weightUnit) {
+    // The prescribed-target line is drawn in [prescribedColor]; exclude it so the
+    // marker reports only the plotted achieved points, not the trend line's value.
+    val excludeArgb = remember(prescribedColor) { prescribedColor.toArgb() }
+    val valueFormatter = remember(fmt, weightUnit, excludeArgb) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
             formatLineMarkerLabel(
                 targets = targets,
                 xLabel = { x -> LocalDate.ofEpochDay(x.toLong()).format(fmt) },
                 yLabel = { y -> WeightFormatter.format(y.toFloat(), weightUnit) },
+                excludeColor = excludeArgb,
             )
         }
     }
