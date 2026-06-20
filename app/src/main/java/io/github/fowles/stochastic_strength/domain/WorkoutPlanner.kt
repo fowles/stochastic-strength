@@ -14,6 +14,8 @@ import kotlin.random.Random
 
 private const val TWO_DAYS_MS = 2L * 24 * 60 * 60 * 1000
 
+enum class ReplacementTier { WEIGHTED_MUSCLE, MUSCLE, ANY }
+
 class WorkoutPlanner(
     val availableExercises: List<Exercise>,
     private val strengths: Map<MuscleGroup, MuscleGroupStrength>,
@@ -59,13 +61,32 @@ class WorkoutPlanner(
         return plan.copy(exercises = newExercises, sessionReps = sessionReps)
     }
 
-    fun pickReplacement(plan: WorkoutPlan, removedIndex: Int): PlannedExercise? {
+    fun pickReplacement(
+        plan: WorkoutPlan,
+        removedIndex: Int,
+        tiers: List<ReplacementTier> = listOf(ReplacementTier.ANY),
+    ): PlannedExercise? {
+        val removed = plan.exercises[removedIndex].exercise
         val remaining = plan.exercises.filterIndexed { i, _ -> i != removedIndex }
-        return pickFrom(candidatesFor(plan, remaining), remaining, plan.sessionReps)
+        val all = candidatesFor(plan, remaining).filter { it.id != removed.id }
+        for (tier in tiers) {
+            val filtered = when (tier) {
+                ReplacementTier.WEIGHTED_MUSCLE -> all.filter {
+                    it.primaryMuscle == removed.primaryMuscle && isLoaded(it) == isLoaded(removed)
+                }
+                ReplacementTier.MUSCLE -> all.filter { it.primaryMuscle == removed.primaryMuscle }
+                ReplacementTier.ANY -> all
+            }
+            pickFrom(filtered, remaining, plan.sessionReps)?.let { return it }
+        }
+        return null
     }
 
     fun pickAdditional(plan: WorkoutPlan): PlannedExercise? =
         pickFrom(candidatesFor(plan, plan.exercises), plan.exercises, plan.sessionReps)
+
+    private fun isLoaded(exercise: Exercise): Boolean =
+        coefficientSource.get(exercise)?.let { it > 0f } ?: false
 
     private fun pickFrom(
         candidates: List<Exercise>,
