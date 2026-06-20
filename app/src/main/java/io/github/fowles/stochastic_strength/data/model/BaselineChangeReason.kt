@@ -5,4 +5,5 @@ enum class BaselineChangeReason {
     OVERRIDE,
     PROGRESSION,
     NORMALIZATION,
+    DETRAIN,
 }

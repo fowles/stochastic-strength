@@ -18,4 +18,5 @@ data class BaselineOverride(
     val muscleGroup: MuscleGroup,
     val baselineWeight: Float,
     val asOf: Long,
+    val reason: BaselineChangeReason = BaselineChangeReason.OVERRIDE,
 )

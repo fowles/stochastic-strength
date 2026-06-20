@@ -77,4 +77,4 @@ On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation
 
 ### Database
 
-Room database (`AppDatabase`, version 11). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
+Room database (`AppDatabase`, version 16). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
