@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
@@ -23,30 +24,34 @@ internal fun SetActionsMenu(
     onStopWorkout: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    IconButton(onClick = { expanded = true }) {
-        Icon(Icons.Filled.MoreVert, contentDescription = "Set options")
-    }
-    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-        DropdownMenuItem(
-            text = { Text("Adjust weight") },
-            enabled = weightAdjustable,
-            onClick = { expanded = false; onAdjustWeight() },
-        )
-        DropdownMenuItem(
-            text = { Text("Swap — no equipment") },
-            onClick = { expanded = false; onSwapNoEquipment() },
-        )
-        DropdownMenuItem(
-            text = { Text("Swap — don't like it") },
-            onClick = { expanded = false; onSwapDislike() },
-        )
-        DropdownMenuItem(
-            text = { Text("End exercise") },
-            onClick = { expanded = false; onEndExercise() },
-        )
-        DropdownMenuItem(
-            text = { Text("Stop workout") },
-            onClick = { expanded = false; onStopWorkout() },
-        )
+    // Wrap the anchor and menu together so the DropdownMenu positions itself at
+    // the icon rather than at the (full-width) parent layout's left edge.
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "Set options")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Adjust weight") },
+                enabled = weightAdjustable,
+                onClick = { expanded = false; onAdjustWeight() },
+            )
+            DropdownMenuItem(
+                text = { Text("Swap — no equipment") },
+                onClick = { expanded = false; onSwapNoEquipment() },
+            )
+            DropdownMenuItem(
+                text = { Text("Swap — don't like it") },
+                onClick = { expanded = false; onSwapDislike() },
+            )
+            DropdownMenuItem(
+                text = { Text("End exercise") },
+                onClick = { expanded = false; onEndExercise() },
+            )
+            DropdownMenuItem(
+                text = { Text("Stop workout") },
+                onClick = { expanded = false; onStopWorkout() },
+            )
+        }
     }
 }
