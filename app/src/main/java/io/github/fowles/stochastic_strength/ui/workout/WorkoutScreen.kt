@@ -87,19 +87,29 @@ fun WorkoutScreen(
         ) {
             when (val s = state) {
                 WorkoutState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                is WorkoutState.PlanPreview -> PlanPreviewContent(
-                    state = s,
-                    weightUnit = weightUnit,
-                    onStart = viewModel::startFirstExercise,
-                    onReplace = viewModel::replaceExercise,
-                    onSetExerciseCount = viewModel::setExerciseCount,
-                    onSetRepRange = viewModel::setRepRange,
-                    onAdjustWeight = viewModel::adjustExerciseWeight,
-                    onEditLocation = { locationId ->
-                        onEditLocation(locationId)
-                    },
-                    onExerciseTap = onExerciseTap,
-                )
+                is WorkoutState.PlanPreview -> {
+                    PlanPreviewContent(
+                        state = s,
+                        weightUnit = weightUnit,
+                        onStart = viewModel::startFirstExercise,
+                        onReplace = viewModel::replaceExercise,
+                        onSetExerciseCount = viewModel::setExerciseCount,
+                        onSetRepRange = viewModel::setRepRange,
+                        onAdjustWeight = viewModel::adjustExerciseWeight,
+                        onEditLocation = { locationId ->
+                            onEditLocation(locationId)
+                        },
+                        onExerciseTap = onExerciseTap,
+                    )
+                    s.detraining?.let { prompt ->
+                        DetrainingDialog(
+                            prompt = prompt,
+                            weightUnit = weightUnit,
+                            onApply = viewModel::applyDetraining,
+                            onSkip = viewModel::skipDetraining,
+                        )
+                    }
+                }
                 is WorkoutState.ActiveSet -> {
                     var showWeightDialog by rememberSaveable(s.exerciseIndex, s.setIndex, s.warmupSetIndex) {
                         mutableStateOf(false)
