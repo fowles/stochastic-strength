@@ -9,11 +9,10 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.ui.SummaryExercise
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportController
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
-import io.github.fowles.stochastic_strength.ui.toSummarySet
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
@@ -28,36 +27,7 @@ class SummaryViewModel(
     private val app = application as StochasticStrengthApp
 
     val summary: StateFlow<WorkoutSummaryData?> = flow {
-        val profile = app.database.userProfileDao().getProfile()
-        val weightUnit = profile?.weightUnit ?: WeightUnit.KG
-        val session = app.database.workoutSessionDao().getById(sessionId)
-        val sets = app.database.workoutSetDao().getSetsForSession(sessionId)
-        val exerciseIds = sets.map { it.exerciseId }.distinct()
-        val exerciseById = exerciseIds
-            .mapNotNull { id -> app.database.exerciseDao().getById(id)?.let { id to it } }
-            .toMap()
-        val setsByExercise = sets.groupBy { it.exerciseId }
-
-        val exercises = exerciseIds.map { id ->
-            val exercise = exerciseById[id]
-            SummaryExercise(
-                name = exercise?.name ?: "Unknown",
-                exerciseId = id,
-                sets = (setsByExercise[id] ?: emptyList()).sortedBy { it.setNumber }
-                    .map { it.toSummarySet(exercise?.isTimed ?: false) },
-            )
-        }
-
-        val duration = if (session != null && session.endTime != null) {
-            (session.endTime - session.startTime) / 1000
-        } else 0L
-
-        emit(WorkoutSummaryData(
-            startTime = session?.startTime ?: 0L,
-            durationSeconds = duration,
-            exercises = exercises,
-            weightUnit = weightUnit,
-        ))
+        emit(loadWorkoutSummary(app.database, sessionId))
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     private val stravaController = StravaExportController(app.stravaExporter, app.database, app.applicationScope)

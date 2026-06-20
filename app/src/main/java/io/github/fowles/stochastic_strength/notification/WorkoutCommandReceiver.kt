@@ -25,7 +25,7 @@ class WorkoutCommandReceiver : BroadcastReceiver() {
             else -> return
         }
         app.applicationScope.launch {
-            app.workoutCommandFlow.emit(command)
+            app.workoutSessionBus.commandFlow.emit(command)
         }
     }
 }

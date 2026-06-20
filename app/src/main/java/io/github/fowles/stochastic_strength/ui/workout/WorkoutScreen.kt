@@ -99,7 +99,6 @@ fun WorkoutScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
-    val workoutCompleted by viewModel.workoutCompleted.collectAsState()
     val doneSummary by viewModel.doneSummary.collectAsState()
     val stravaState by viewModel.stravaState.collectAsState()
     val activity = LocalContext.current as android.app.Activity
@@ -127,8 +126,8 @@ fun WorkoutScreen(
         }
     }
 
-    LaunchedEffect(workoutCompleted) {
-        if (workoutCompleted) onWorkoutDone()
+    LaunchedEffect(Unit) {
+        viewModel.navigationEvent.collect { onWorkoutDone() }
     }
 
     LaunchedEffect(stravaState) {
@@ -158,7 +157,6 @@ fun WorkoutScreen(
                     onSetExerciseCount = viewModel::setExerciseCount,
                     onAdjustWeight = viewModel::adjustExerciseWeight,
                     onEditLocation = { locationId ->
-                        viewModel.onNavigatedToLocationEdit()
                         onEditLocation(locationId)
                     },
                     onExerciseTap = onExerciseTap,
@@ -505,7 +503,7 @@ private fun TimedSetContent(
     val secondsRemaining = state.timerSecondsRemaining
     val started = secondsRemaining != null
 
-    val targetProgress = if (started) secondsRemaining!! / WorkoutViewModel.TIMED_SET_SECONDS.toFloat() else 1f
+    val targetProgress = if (started) secondsRemaining!! / WorkoutSessionController.TIMED_SET_SECONDS.toFloat() else 1f
     val animatedProgress = remember { Animatable(1f) }
     LaunchedEffect(secondsRemaining) {
         animatedProgress.animateTo(
@@ -812,7 +810,7 @@ private fun RestingContent(
     val totalSets = PlannedExercise.DEFAULT_SETS
     val nextSet = state.completedSetIndex + 1
 
-    val targetProgress = state.secondsRemaining / WorkoutViewModel.REST_SECONDS.toFloat()
+    val targetProgress = state.secondsRemaining / WorkoutSessionController.REST_SECONDS.toFloat()
     val animatedProgress = remember { Animatable(targetProgress) }
     LaunchedEffect(state.secondsRemaining) {
         animatedProgress.animateTo(
