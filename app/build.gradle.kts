@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.fowles.stochastic_strength"
         minSdk = 33
         targetSdk = 36
-        versionCode = 22
-        versionName = "2.1"
+        versionCode = 23
+        versionName = "2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "STRAVA_CLIENT_ID", "\"${providers.gradleProperty("STRAVA_CLIENT_ID").getOrElse("")}\"")
