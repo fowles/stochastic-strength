@@ -198,6 +198,24 @@ class WorkoutRepository(
                     muscleGroup = muscleGroup,
                     baselineWeight = newBaseline,
                     asOf = asOf,
+                    reason = BaselineChangeReason.OVERRIDE,
+                )
+            )
+        }
+    }
+
+    suspend fun applyDetrainingReduction(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
+        if (overrides.isEmpty()) return
+        val session = db.workoutSessionDao().getById(sessionId)
+        val asOf = session?.startTime ?: System.currentTimeMillis()
+        for ((muscleGroup, newBaseline) in overrides) {
+            db.baselineOverrideDao().insert(
+                BaselineOverride(
+                    sessionId = sessionId,
+                    muscleGroup = muscleGroup,
+                    baselineWeight = newBaseline,
+                    asOf = asOf,
+                    reason = BaselineChangeReason.DETRAIN,
                 )
             )
         }
@@ -246,23 +264,25 @@ class WorkoutRepository(
                 .sortedWith(compareBy({ it.endTime!! }, { it.id }))
 
             for (session in sessions) {
-                overridesBySession[session.id]?.forEach { o ->
-                    val prev = snapshot.currentBaselines[o.muscleGroup] ?: 0f
-                    snapshot.currentBaselines[o.muscleGroup] = o.baselineWeight
-                    scratch.upsertMuscleGroupStrength(
-                        MuscleGroupStrength(muscleGroup = o.muscleGroup, baselineWeight = o.baselineWeight)
-                    )
-                    val row = BaselineHistory(
-                        sessionId = session.id,
-                        muscleGroup = o.muscleGroup,
-                        previousBaseline = prev,
-                        newBaseline = o.baselineWeight,
-                        changeReason = BaselineChangeReason.OVERRIDE,
-                        timestamp = o.asOf,
-                    )
-                    scratch.insertBaselineHistory(row)
-                    snapshot.baselineHistoryByMuscle.getOrPut(o.muscleGroup) { mutableListOf() }.add(row)
-                }
+                overridesBySession[session.id]
+                    ?.sortedBy { if (it.reason == BaselineChangeReason.DETRAIN) 0 else 1 }
+                    ?.forEach { o ->
+                        val prev = snapshot.currentBaselines[o.muscleGroup] ?: 0f
+                        snapshot.currentBaselines[o.muscleGroup] = o.baselineWeight
+                        scratch.upsertMuscleGroupStrength(
+                            MuscleGroupStrength(muscleGroup = o.muscleGroup, baselineWeight = o.baselineWeight)
+                        )
+                        val row = BaselineHistory(
+                            sessionId = session.id,
+                            muscleGroup = o.muscleGroup,
+                            previousBaseline = prev,
+                            newBaseline = o.baselineWeight,
+                            changeReason = o.reason,
+                            timestamp = o.asOf,
+                        )
+                        scratch.insertBaselineHistory(row)
+                        snapshot.baselineHistoryByMuscle.getOrPut(o.muscleGroup) { mutableListOf() }.add(row)
+                    }
                 applySessionProgression(
                     session.id,
                     snapshot,

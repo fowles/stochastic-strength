@@ -144,6 +144,48 @@ class WorkoutRepositoryTest {
     }
 
     @Test
+    fun detrainingReduction_lowersBaselineAndTagsHistory() = runBlocking {
+        // Seed initial baselines and a completed session so replay has a timeline.
+        repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
+        val chestBefore = repository.getMuscleGroupStrengths()
+            .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
+
+        val sessionId = db.workoutSessionDao().insert(
+            WorkoutSession(startTime = 1_000L, endTime = 2_000L)
+        )
+        // Detrain CHEST to 80% of its current baseline for this session.
+        repository.applyDetrainingReduction(
+            sessionId,
+            mapOf(MuscleGroup.CHEST to chestBefore * 0.8f),
+        )
+        repository.replayDerivedState()
+
+        val chestAfter = repository.getMuscleGroupStrengths()
+            .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
+        assertEquals(chestBefore * 0.8f, chestAfter, 0.01f)
+
+        val events = repository.getBaselineEvents(MuscleGroup.CHEST)
+        val detrainEvent = events.first { it.changeReason == BaselineChangeReason.DETRAIN }
+        assertEquals(sessionId, detrainEvent.sessionId)
+        assertEquals(chestBefore * 0.8f, detrainEvent.newBaseline, 0.01f)
+    }
+
+    @Test
+    fun manualOverride_winsOverDetrain_inSameSession() = runBlocking {
+        repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
+        val sessionId = db.workoutSessionDao().insert(
+            WorkoutSession(startTime = 1_000L, endTime = 2_000L)
+        )
+        repository.applyDetrainingReduction(sessionId, mapOf(MuscleGroup.CHEST to 50f))
+        repository.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 70f))
+        repository.replayDerivedState()
+
+        val chest = repository.getMuscleGroupStrengths()
+            .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
+        assertEquals(70f, chest, 0.01f)
+    }
+
+    @Test
     fun seedInitialWeights_writesBaselineOverrideInitialsAndPopulatesMuscleGroupStrength() = runBlocking {
         repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
 
