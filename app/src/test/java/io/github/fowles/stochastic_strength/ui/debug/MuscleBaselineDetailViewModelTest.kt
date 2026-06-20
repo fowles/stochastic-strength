@@ -57,12 +57,12 @@ class MuscleBaselineDetailViewModelTest {
     }
 
     @Test
-    fun `formatBaselineSetLine renders RIR_5_PLUS as target plus seven`() {
+    fun `formatBaselineSetLine renders RIR_5_PLUS as target plus six`() {
         val out = formatBaselineSetLine(
             set(feedback = SetFeedback.RIR_5_PLUS, targetReps = 5, targetWeight = 20f),
             WeightUnit.KG,
         )
-        assertEquals("~12@20.0kg", out)
+        assertEquals("~11@20.0kg", out)
     }
 
     @Test

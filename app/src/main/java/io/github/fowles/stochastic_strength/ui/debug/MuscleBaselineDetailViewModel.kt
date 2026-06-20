@@ -16,7 +16,9 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
+import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,18 +49,18 @@ data class CoefficientDeviationRow(
  * Renders a single set as "<reps>@<weight>" for the change-events feed.
  *
  * RIR feedbacks become an estimated rep count at the prescribed weight using the
- * same +1 / +3 / +7 offsets that [SessionSignalExtractor] uses to compute the
- * implied 1RM, prefixed with `~` to mark it as an estimate. TOO_HARD shows the
- * actual reps achieved (no tilde — it is observed, not estimated). HURT has no
- * implied rep estimate, so it renders as "hurt@<weight>". Sets with no feedback
- * (warmups or unfinished sets) return null and are skipped.
+ * same reserve offsets that [SessionSignalExtractor] uses to compute the implied 1RM,
+ * prefixed with `~` to mark it as an estimate. TOO_HARD shows the actual reps achieved
+ * (no tilde — it is observed, not estimated). HURT has no implied rep estimate, so it
+ * renders as "hurt@<weight>". Sets with no feedback (warmups or unfinished sets) return
+ * null and are skipped.
  */
 internal fun formatBaselineSetLine(set: WorkoutSet, weightUnit: WeightUnit): String? {
     val feedback = set.feedback ?: return null
     val repsPart = when (feedback) {
-        SetFeedback.RIR_0_1 -> "~${set.targetReps + 1}"
-        SetFeedback.RIR_2_4 -> "~${set.targetReps + 3}"
-        SetFeedback.RIR_5_PLUS -> "~${set.targetReps + 7}"
+        SetFeedback.RIR_0_1 -> "~${(set.targetReps + SessionSignalExtractor.RESERVE_RIR_0_1).roundToInt()}"
+        SetFeedback.RIR_2_4 -> "~${(set.targetReps + SessionSignalExtractor.RESERVE_RIR_2_4).roundToInt()}"
+        SetFeedback.RIR_5_PLUS -> "~${(set.targetReps + SessionSignalExtractor.RESERVE_RIR_5_PLUS).roundToInt()}"
         SetFeedback.TOO_HARD -> set.actualReps?.toString() ?: "?"
         SetFeedback.HURT -> "hurt"
     }
