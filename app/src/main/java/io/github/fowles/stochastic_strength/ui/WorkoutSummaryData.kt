@@ -17,6 +17,13 @@ data class SummarySet(
 fun WorkoutSet.toSummarySet(isTimed: Boolean) =
     SummarySet(setNumber, targetWeight, targetReps, actualReps, feedback, isTimed)
 
+/** Reps-in-reserve feedback is meaningless for timed sets (auto-recorded), so it is hidden. */
+fun SummarySet.summaryFeedbackLabel(): String? {
+    val fb = feedback?.takeUnless { isTimed && it.isRepsInReserve } ?: return null
+    if (isTimed && fb == SetFeedback.TOO_HARD) return "Too Hard"
+    return fb.displayLabel(actualReps)
+}
+
 data class SummaryExercise(val name: String, val exerciseId: Long, val sets: List<SummarySet>)
 
 data class WorkoutSummaryData(

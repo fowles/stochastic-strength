@@ -13,4 +13,6 @@ enum class SetFeedback {
 
     fun displayLabel(actualReps: Int?): String =
         if (this == TOO_HARD && actualReps != null) "Too Heavy ($actualReps)" else displayLabel
+
+    val isRepsInReserve: Boolean get() = this == RIR_0_1 || this == RIR_2_4 || this == RIR_5_PLUS
 }

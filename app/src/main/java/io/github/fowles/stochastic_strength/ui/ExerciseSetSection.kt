@@ -35,9 +35,9 @@ fun ExerciseSetSection(name: String, sets: List<SummarySet>, weightUnit: WeightU
                 text = "Set ${set.setNumber}: $weightLabel",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            set.feedback?.let { feedback ->
+            set.summaryFeedbackLabel()?.let { label ->
                 Text(
-                    text = feedback.displayLabel(set.actualReps),
+                    text = label,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
