@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -10,6 +11,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
+import io.github.fowles.stochastic_strength.domain.ReplacementTier
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -289,6 +291,10 @@ class WorkoutSessionController(
     fun undoLastSet() {
         restTimerJob?.cancel()
         val resting = _state.value as? WorkoutState.Resting ?: return
+        resting.staged?.let {
+            setState(it.undoTarget)
+            return
+        }
         val restoredExercises = resting.plan.exercises.toMutableList()
         restoredExercises[resting.exerciseIndex] =
             restoredExercises[resting.exerciseIndex].copy(sessionWeight = resting.weightAtSetStart)
@@ -374,6 +380,155 @@ class WorkoutSessionController(
         }
     }
 
+    fun setActiveSetWeight(newWeight: Float) {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        val i = current.exerciseIndex
+        val pe = current.plannedExercise
+        val w = WeightFormatter.round(newWeight, weightUnit).coerceAtLeast(WeightFormatter.minIncrement(weightUnit))
+        if (w == pe.sessionWeight) return
+        val exercises = current.plan.exercises.toMutableList()
+        exercises[i] = pe.copy(
+            sessionWeight = w,
+            warmupSets = when {
+                pe.exercise.isTimed -> emptyList()
+                current.warmupSetIndex != null -> planner?.computeWarmupSets(w) ?: pe.warmupSets
+                else -> pe.warmupSets
+            },
+        )
+        val newPlan = current.plan.copy(exercises = exercises)
+        val commitTarget = WorkoutState.ActiveSet(
+            plan = newPlan,
+            exerciseIndex = i,
+            setIndex = current.setIndex,
+            sessionId = current.sessionId,
+            warmupSetIndex = current.warmupSetIndex,
+        )
+        stageRest(current, StagedAction(
+            kind = StagedKind.ADJUST_WEIGHT,
+            undoTarget = current,
+            commitTarget = commitTarget,
+        ))
+    }
+
+    fun swapCurrentExercise(reason: ExerciseRemovalReason) {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        val i = current.exerciseIndex
+        val original = current.plannedExercise.exercise
+        val hasLogged = current.warmupSetIndex == null && current.setIndex > 0
+        val p = planner ?: return
+
+        val rejectedPlan = current.plan.copy(
+            sessionRejectedIds = current.plan.sessionRejectedIds + original.id,
+        )
+        val replacementRaw = p.pickReplacement(
+            rejectedPlan, i,
+            listOf(ReplacementTier.WEIGHTED_MUSCLE, ReplacementTier.MUSCLE, ReplacementTier.ANY),
+        )
+        val replacement = replacementRaw?.let { it.copy(originalSessionWeight = it.sessionWeight) }
+
+        val exercises = rejectedPlan.exercises.toMutableList()
+        val commitIndex: Int
+        when {
+            replacement == null && hasLogged -> {
+                commitIndex = i + 1 // keep original, advance past it
+            }
+            replacement == null -> {
+                exercises.removeAt(i)
+                commitIndex = i
+            }
+            hasLogged -> {
+                exercises.add(i + 1, replacement)
+                commitIndex = i + 1
+            }
+            else -> {
+                exercises[i] = replacement
+                commitIndex = i
+            }
+        }
+        val newPlan = rejectedPlan.copy(exercises = exercises)
+        val commitTarget = nextExerciseActiveSet(newPlan, commitIndex, current.sessionId)
+
+        stageRest(current, StagedAction(
+            kind = StagedKind.SWAP,
+            undoTarget = current,
+            commitTarget = commitTarget,
+            pendingSwap = PendingSwap(reason, original.id, sessionLocationId),
+        ))
+    }
+
+    fun stopWorkout() {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        stageRest(current, StagedAction(
+            kind = StagedKind.STOP_WORKOUT,
+            undoTarget = current,
+            commitTarget = null,
+        ))
+    }
+
+    fun endCurrentExercise() {
+        val current = _state.value as? WorkoutState.ActiveSet ?: return
+        val i = current.exerciseIndex
+        val hasLogged = current.warmupSetIndex == null && current.setIndex > 0
+        val commitTarget = if (hasLogged) {
+            nextExerciseActiveSet(current.plan, i + 1, current.sessionId)
+        } else {
+            val trimmed = current.plan.exercises.toMutableList().also { it.removeAt(i) }
+            nextExerciseActiveSet(current.plan.copy(exercises = trimmed), i, current.sessionId)
+        }
+        stageRest(current, StagedAction(
+            kind = StagedKind.END_EXERCISE,
+            undoTarget = current,
+            commitTarget = commitTarget,
+        ))
+    }
+
+    private fun stageRest(current: WorkoutState.ActiveSet, staged: StagedAction) {
+        val target = staged.commitTarget
+        setState(WorkoutState.Resting(
+            plan = target?.plan ?: current.plan,
+            exerciseIndex = target?.exerciseIndex ?: current.exerciseIndex,
+            completedSetIndex = current.setIndex,
+            sessionId = current.sessionId,
+            secondsRemaining = REST_SECONDS,
+            lastFeedback = null,
+            weightAtSetStart = current.plannedExercise.sessionWeight,
+            currentSetRowId = NO_ROW,
+            staged = staged,
+        ))
+        startRestTimer()
+    }
+
+    private fun nextExerciseActiveSet(
+        plan: WorkoutPlan,
+        index: Int,
+        sessionId: Long,
+    ): WorkoutState.ActiveSet? {
+        if (index !in plan.exercises.indices) return null
+        val ex = plan.exercises[index]
+        return WorkoutState.ActiveSet(
+            plan = plan,
+            exerciseIndex = index,
+            setIndex = 0,
+            sessionId = sessionId,
+            warmupSetIndex = if (ex.warmupSets.isNotEmpty()) 0 else null,
+        )
+    }
+
+    private suspend fun persistSwap(swap: PendingSwap, overrides: Map<MuscleGroup, Float>) {
+        when (swap.reason) {
+            ExerciseRemovalReason.DISLIKE -> {
+                val ex = database.exerciseDao().getById(swap.exerciseId) ?: return
+                database.exerciseDao().update(ex.copy(isDisliked = true))
+            }
+            ExerciseRemovalReason.NO_EQUIPMENT -> {
+                val locationId = swap.locationId ?: return
+                repository.excludeExercise(locationId, swap.exerciseId)
+            }
+            ExerciseRemovalReason.SKIP_TODAY -> Unit
+        }
+        planner = repository.buildPlanner(sessionLocationId, weightUnit, overrides)
+    }
+
     private fun startRestTimer() {
         restTimerJob?.cancel()
         restTimerJob = scope.launch {
@@ -392,6 +547,15 @@ class WorkoutSessionController(
 
     private fun advanceAfterRest() {
         val current = _state.value as? WorkoutState.Resting ?: return
+        val staged = current.staged
+        if (staged != null) {
+            scope.launch {
+                staged.pendingSwap?.let { persistSwap(it, current.plan.strengthOverrides) }
+                val target = staged.commitTarget
+                if (target != null) setState(target) else finishWorkout(current.plan, current.sessionId)
+            }
+            return
+        }
         val plan = current.plan
         val nextSet = current.completedSetIndex + 1
         when {
@@ -485,5 +649,6 @@ class WorkoutSessionController(
     companion object {
         const val REST_SECONDS = 90
         const val TIMED_SET_SECONDS = 60
+        const val NO_ROW = -1L
     }
 }

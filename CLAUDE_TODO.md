@@ -17,3 +17,9 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   `getActive()`, so an exercise later marked inactive drops out of the muscle pool and its
   coefficient stops moving / stops contributing to the gauge. Matches the prior stack's
   active-only behavior; documented here in case it ever needs revisiting.
+
+- `WorkoutSessionController.deriveNotificationState` (Resting arm) derives the
+  "Next: Set N · <name>" foreground-notification label from `completedSetIndex`/
+  `exerciseIndex` even for staged-action rests (stop-workout / end-exercise / swap /
+  adjust-weight), so the notification can momentarily read e.g. "Next: Set 2" during a
+  stop-workout rest. Cosmetic only (no crash). Make the label staged-aware later.

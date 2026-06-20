@@ -10,10 +10,12 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
+import io.github.fowles.stochastic_strength.domain.ReplacementTier
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.FakeProgressionController
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,20 +60,21 @@ class WorkoutSessionControllerTest {
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
             }
-            controller = WorkoutSessionController(db, repository, bus, scope)
-            controller.initializeSession(
-                locationId = null,
-                locationName = null,
-                preferredExerciseCount = 1,
-                preferredRepMin = 5,
-                preferredRepMax = 10,
-                weightUnit = WeightUnit.KG,
-            )
-            controller.adjustExerciseCount(1)
-            awaitStateNotLoading()
-            controller.startFirstExercise()
-            awaitState<WorkoutState.ActiveSet>()
+            startSession(1)
         }
+    }
+
+    private fun startSession(count: Int) = runBlocking {
+        controller = WorkoutSessionController(db, repository, bus, scope)
+        controller.initializeSession(
+            locationId = null, locationName = null,
+            preferredExerciseCount = count, preferredRepMin = 5, preferredRepMax = 10,
+            weightUnit = WeightUnit.KG,
+        )
+        controller.adjustExerciseCount(count)
+        awaitStateNotLoading()
+        controller.startFirstExercise()
+        awaitState<WorkoutState.ActiveSet>()
     }
 
     @After
@@ -183,5 +186,184 @@ class WorkoutSessionControllerTest {
         awaitState<WorkoutState.ActiveSet>()
         delay(100)
         assertEquals(0, db.workoutSetDao().getAll().size)
+    }
+
+    @Test
+    fun stopWorkout_landsOnRest_commitFinishes() = runBlocking<Unit> {
+        controller.stopWorkout()
+        val resting = awaitState<WorkoutState.Resting>()
+        assertNotNull(resting.staged)
+        assertEquals(StagedKind.STOP_WORKOUT, resting.staged!!.kind)
+        assertEquals(WorkoutSessionController.NO_ROW, resting.currentSetRowId)
+        controller.skipRest()
+        awaitState<WorkoutState.Done>()
+    }
+
+    @Test
+    fun stopWorkout_undoRestoresActiveSet() = runBlocking<Unit> {
+        val before = controller.state.value as WorkoutState.ActiveSet
+        controller.stopWorkout()
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        val after = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(before.exerciseIndex, after.exerciseIndex)
+        assertEquals(before.warmupSetIndex, after.warmupSetIndex)
+    }
+
+    private suspend fun toWorkingSet() {
+        var s = controller.state.value
+        while (s is WorkoutState.ActiveSet && s.warmupSetIndex != null) {
+            controller.completeWarmupSet()
+            delay(20)
+            s = controller.state.value
+        }
+    }
+
+    @Test
+    fun endExercise_noLoggedSets_singleExercise_finishesOnCommit() = runBlocking {
+        // Fresh on warmup/set 0 => no logged sets.
+        controller.endCurrentExercise()
+        val resting = awaitState<WorkoutState.Resting>()
+        assertEquals(StagedKind.END_EXERCISE, resting.staged!!.kind)
+        controller.skipRest()
+        awaitState<WorkoutState.Done>()
+        delay(100)
+        assertEquals(0, db.workoutSetDao().getAll().size) // nothing logged
+    }
+
+    @Test
+    fun endExercise_undoRestoresOriginatingSet() = runBlocking<Unit> {
+        val before = controller.state.value as WorkoutState.ActiveSet
+        controller.endCurrentExercise()
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        val after = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(before.exerciseIndex, after.exerciseIndex)
+        assertEquals(before.warmupSetIndex, after.warmupSetIndex)
+    }
+
+    @Test
+    fun endExercise_hasLoggedSets_keepsLoggedAndAdvances() = runBlocking {
+        startSession(2) // two exercises in the plan
+        toWorkingSet()
+        controller.recordFeedback(SetFeedback.RIR_2_4) // logs set 1 of exercise 0
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+        awaitState<WorkoutState.ActiveSet>() // now on exercise 0, set 2 (hasLogged)
+
+        controller.endCurrentExercise()
+        val resting = awaitState<WorkoutState.Resting>()
+        // commitTarget advances to the second exercise (index 1).
+        assertEquals(1, resting.staged!!.commitTarget!!.exerciseIndex)
+        controller.skipRest()
+        val active = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(1, active.exerciseIndex)
+        delay(100)
+        assertEquals(1, db.workoutSetDao().getAll().size) // the logged set is retained
+    }
+
+    @Test
+    fun setActiveSetWeight_stagesResumeSameSetAtNewWeight() = runBlocking {
+        toWorkingSet()
+        val active = controller.state.value as WorkoutState.ActiveSet
+        val i = active.exerciseIndex
+        val original = active.plannedExercise.sessionWeight
+        val target = original + 5f
+
+        controller.setActiveSetWeight(target)
+        val resting = awaitState<WorkoutState.Resting>()
+        assertEquals(StagedKind.ADJUST_WEIGHT, resting.staged!!.kind)
+        val commit = resting.staged!!.commitTarget!!
+        // Same set coordinates.
+        assertEquals(active.exerciseIndex, commit.exerciseIndex)
+        assertEquals(active.setIndex, commit.setIndex)
+        assertEquals(active.warmupSetIndex, commit.warmupSetIndex)
+        // New weight applied to the plan.
+        assertEquals(
+            WeightFormatter.round(target, WeightUnit.KG),
+            commit.plan.exercises[i].sessionWeight,
+        )
+        // Baseline override untouched.
+        assertTrue(commit.plan.strengthOverrides.isEmpty())
+    }
+
+    @Test
+    fun setActiveSetWeight_undoRestoresOriginalWeight() = runBlocking<Unit> {
+        toWorkingSet()
+        val active = controller.state.value as WorkoutState.ActiveSet
+        val original = active.plannedExercise.sessionWeight
+        controller.setActiveSetWeight(original + 5f)
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        val after = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(original, after.plannedExercise.sessionWeight)
+    }
+
+    @Test
+    fun endExercise_noLoggedSets_multiExercise_removesAndAdvances() = runBlocking<Unit> {
+        startSession(2)
+        val firstId = (controller.state.value as WorkoutState.ActiveSet)
+            .plannedExercise.exercise.id
+        controller.endCurrentExercise() // on warmup/set 0 of exercise 0 => no logged sets
+        val resting = awaitState<WorkoutState.Resting>()
+        val target = resting.staged!!.commitTarget!!
+        // Exercise 0 removed; the second exercise now occupies index 0.
+        assertEquals(0, target.exerciseIndex)
+        assertTrue(target.plan.exercises.none { it.exercise.id == firstId })
+        controller.skipRest()
+        awaitState<WorkoutState.ActiveSet>()
+    }
+
+    @Test
+    fun swap_noLoggedSets_replacesInPlace() = runBlocking {
+        val active = controller.state.value as WorkoutState.ActiveSet
+        val originalId = active.plannedExercise.exercise.id
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        val resting = awaitState<WorkoutState.Resting>()
+        val target = resting.staged!!.commitTarget!!
+        assertEquals(StagedKind.SWAP, resting.staged!!.kind)
+        assertEquals(0, target.exerciseIndex)
+        // Replaced in place: original gone, exactly one exercise, different id.
+        assertEquals(1, target.plan.exercises.size)
+        assertTrue(target.plan.exercises.none { it.exercise.id == originalId })
+    }
+
+    @Test
+    fun swap_commitPersistsDislike_undoDoesNot() = runBlocking {
+        val originalId = (controller.state.value as WorkoutState.ActiveSet).plannedExercise.exercise.id
+
+        // Undo path: no persistence.
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+        awaitState<WorkoutState.ActiveSet>()
+        delay(100)
+        assertEquals(false, db.exerciseDao().getById(originalId)!!.isDisliked)
+
+        // Commit path: persists.
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+        awaitState<WorkoutState.ActiveSet>()
+        delay(100)
+        assertEquals(true, db.exerciseDao().getById(originalId)!!.isDisliked)
+    }
+
+    @Test
+    fun swap_hasLoggedSets_keepsOriginalAndInsertsAfter() = runBlocking {
+        toWorkingSet()
+        controller.recordFeedback(SetFeedback.RIR_2_4) // log a set for exercise 0
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+        val active = awaitState<WorkoutState.ActiveSet>() // exercise 0, set 2 (hasLogged)
+        val originalId = active.plannedExercise.exercise.id
+
+        controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
+        val resting = awaitState<WorkoutState.Resting>()
+        val target = resting.staged!!.commitTarget!!
+        // Original kept at 0, replacement inserted at 1; commit jumps to index 1.
+        assertEquals(originalId, target.plan.exercises[0].exercise.id)
+        assertEquals(1, target.exerciseIndex)
+        assertEquals(2, target.plan.exercises.size)
     }
 }

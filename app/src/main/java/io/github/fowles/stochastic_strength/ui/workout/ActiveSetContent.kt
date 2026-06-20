@@ -44,10 +44,11 @@ internal fun ActiveSetContent(
     weightUnit: WeightUnit,
     onFeedback: (SetFeedback) -> Unit,
     onStartTimedSet: () -> Unit,
+    actions: @Composable () -> Unit = {},
 ) {
     val exercise = state.plannedExercise.exercise
     if (exercise.isTimed) {
-        TimedSetContent(state = state, onStartTimedSet = onStartTimedSet, onFeedback = onFeedback)
+        TimedSetContent(state = state, onStartTimedSet = onStartTimedSet, onFeedback = onFeedback, actions = actions)
     } else {
         ExerciseSetLayout(
             exercise = exercise,
@@ -56,6 +57,7 @@ internal fun ActiveSetContent(
             weight = state.plannedExercise.sessionWeight,
             reps = state.plannedExercise.sessionReps,
             weightUnit = weightUnit,
+            menu = actions,
         ) {
             Text("How many more reps could you have done?", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(12.dp))
@@ -69,6 +71,7 @@ private fun TimedSetContent(
     state: WorkoutState.ActiveSet,
     onStartTimedSet: () -> Unit,
     onFeedback: (SetFeedback) -> Unit,
+    actions: @Composable () -> Unit = {},
 ) {
     val exercise = state.plannedExercise.exercise
     val secondsRemaining = state.timerSecondsRemaining
@@ -86,6 +89,7 @@ private fun TimedSetContent(
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val arcColor = if (started) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -156,6 +160,10 @@ private fun TimedSetContent(
         YoutubeFormCard(exerciseName = exercise.name)
         Spacer(Modifier.height(16.dp))
     }
+        Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+            actions()
+        }
+    }
 }
 
 @Composable
@@ -166,46 +174,52 @@ internal fun ExerciseSetLayout(
     weight: Float,
     reps: Int,
     weightUnit: WeightUnit,
+    menu: @Composable () -> Unit = {},
     bottomContent: @Composable () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
-        Text(progressLabel, style = MaterialTheme.typography.titleLarge, color = progressColor)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
+            Text(progressLabel, style = MaterialTheme.typography.titleLarge, color = progressColor)
 
-        Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
 
-        Text("$reps reps", style = MaterialTheme.typography.displaySmall)
-        when {
-            weight > 0f -> {
-                Text(WeightFormatter.format(weight, weightUnit), style = MaterialTheme.typography.displaySmall)
-                if (exercise.equipment == Equipment.BARBELL) {
-                    WeightFormatter.platesPerSide(weight, weightUnit)?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
+            Text("$reps reps", style = MaterialTheme.typography.displaySmall)
+            when {
+                weight > 0f -> {
+                    Text(WeightFormatter.format(weight, weightUnit), style = MaterialTheme.typography.displaySmall)
+                    if (exercise.equipment == Equipment.BARBELL) {
+                        WeightFormatter.platesPerSide(weight, weightUnit)?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 }
+                exercise.equipment == Equipment.BODYWEIGHT -> Text(
+                    "Bodyweight",
+                    style = MaterialTheme.typography.displaySmall,
+                )
             }
-            exercise.equipment == Equipment.BODYWEIGHT -> Text(
-                "Bodyweight",
-                style = MaterialTheme.typography.displaySmall,
-            )
+
+            Spacer(Modifier.weight(1f))
+
+            bottomContent()
+            Spacer(Modifier.height(16.dp))
+            YoutubeFormCard(exerciseName = exercise.name)
+            Spacer(Modifier.height(16.dp))
         }
-
-        Spacer(Modifier.weight(1f))
-
-        bottomContent()
-        Spacer(Modifier.height(16.dp))
-        YoutubeFormCard(exerciseName = exercise.name)
-        Spacer(Modifier.height(16.dp))
+        Box(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+            menu()
+        }
     }
 }
 

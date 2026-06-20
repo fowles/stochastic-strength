@@ -16,6 +16,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -97,19 +100,51 @@ fun WorkoutScreen(
                     },
                     onExerciseTap = onExerciseTap,
                 )
-                is WorkoutState.ActiveSet -> if (s.warmupSetIndex != null) {
-                    WarmupSetContent(
-                        state = s,
-                        weightUnit = weightUnit,
-                        onDone = viewModel::completeWarmupSet,
-                    )
-                } else {
-                    ActiveSetContent(
-                        state = s,
-                        weightUnit = weightUnit,
-                        onFeedback = viewModel::recordFeedback,
-                        onStartTimedSet = viewModel::startTimedSet,
-                    )
+                is WorkoutState.ActiveSet -> {
+                    var showWeightDialog by rememberSaveable(s.exerciseIndex, s.setIndex, s.warmupSetIndex) {
+                        mutableStateOf(false)
+                    }
+                    val planned = s.plannedExercise
+                    val weightAdjustable = planned.sessionWeight > 0f && !planned.exercise.isTimed
+                    val actions: @Composable () -> Unit = {
+                        SetActionsMenu(
+                            weightAdjustable = weightAdjustable,
+                            onAdjustWeight = { showWeightDialog = true },
+                            onSwapNoEquipment = { viewModel.swapCurrentExercise(ExerciseRemovalReason.NO_EQUIPMENT) },
+                            onSwapDislike = { viewModel.swapCurrentExercise(ExerciseRemovalReason.DISLIKE) },
+                            onEndExercise = { viewModel.endCurrentExercise() },
+                            onStopWorkout = { viewModel.stopWorkout() },
+                        )
+                    }
+                    if (showWeightDialog) {
+                        WeightAdjustDialog(
+                            exerciseName = planned.exercise.name,
+                            startWeight = planned.sessionWeight,
+                            equipment = planned.exercise.equipment,
+                            weightUnit = weightUnit,
+                            onConfirm = { newWeight ->
+                                showWeightDialog = false
+                                viewModel.setActiveSetWeight(newWeight)
+                            },
+                            onDismiss = { showWeightDialog = false },
+                        )
+                    }
+                    if (s.warmupSetIndex != null) {
+                        WarmupSetContent(
+                            state = s,
+                            weightUnit = weightUnit,
+                            onDone = viewModel::completeWarmupSet,
+                            actions = actions,
+                        )
+                    } else {
+                        ActiveSetContent(
+                            state = s,
+                            weightUnit = weightUnit,
+                            onFeedback = viewModel::recordFeedback,
+                            onStartTimedSet = viewModel::startTimedSet,
+                            actions = actions,
+                        )
+                    }
                 }
                 is WorkoutState.Resting -> RestingContent(
                     state = s,

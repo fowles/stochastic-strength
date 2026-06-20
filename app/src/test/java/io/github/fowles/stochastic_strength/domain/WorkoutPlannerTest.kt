@@ -36,6 +36,7 @@ class WorkoutPlannerTest {
         recentHistory: Map<Long, List<WorkoutSet>> = emptyMap(),
         nowMs: Long = System.currentTimeMillis(),
         pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
+        coefficientSource: CoefficientSource = ExerciseCoefficients,
     ) = WorkoutPlanner(
         availableExercises = exercises,
         strengths = strengths,
@@ -45,6 +46,7 @@ class WorkoutPlannerTest {
         random = random,
         nowMs = nowMs,
         pacingEstimator = pacingEstimator,
+        coefficientSource = coefficientSource,
     )
 
     private fun nearFailureSet(exerciseId: Long, completedAt: Long, feedback: SetFeedback = SetFeedback.RIR_0_1) = WorkoutSet(
@@ -245,6 +247,61 @@ class WorkoutPlannerTest {
         )
 
         assertNull(p.pickReplacement(plan, removedIndex = 0))
+    }
+
+    @Test
+    fun pickReplacement_tiers_preferSameMuscleAndLoadedness() {
+        val removed = exercise(1, "removed", MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        val chestLoaded = exercise(2, "chestLoaded", MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        val chestUnloaded = exercise(3, "chestUnloaded", MuscleGroup.CHEST, equipment = Equipment.BODYWEIGHT)
+        val backLoaded = exercise(4, "backLoaded", MuscleGroup.BACK, equipment = Equipment.BARBELL)
+        val coeffs = object : CoefficientSource {
+            override fun get(exercise: Exercise): Float? = mapOf(
+                1L to 1.0f, 2L to 0.8f, 3L to null, 4L to 1.0f,
+            )[exercise.id]
+        }
+        val p = planner(
+            exercises = listOf(removed, chestLoaded, chestUnloaded, backLoaded),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f, MuscleGroup.BACK to 100f),
+            coefficientSource = coeffs,
+        )
+        val plan = WorkoutPlan(exercises = listOf(PlannedExercise(exercise = removed)), locationId = null, sessionReps = 8)
+
+        val tiers = listOf(ReplacementTier.WEIGHTED_MUSCLE, ReplacementTier.MUSCLE, ReplacementTier.ANY)
+        // Tier 1 (same muscle + loaded) is non-empty -> must pick chestLoaded.
+        assertEquals(chestLoaded.id, p.pickReplacement(plan, 0, tiers)!!.exercise.id)
+    }
+
+    @Test
+    fun pickReplacement_tiers_fallThroughToMuscleThenAny() {
+        val removed = exercise(1, "removed", MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+        val chestUnloaded = exercise(3, "chestUnloaded", MuscleGroup.CHEST, equipment = Equipment.BODYWEIGHT)
+        val backLoaded = exercise(4, "backLoaded", MuscleGroup.BACK, equipment = Equipment.BARBELL)
+        val coeffs = object : CoefficientSource {
+            override fun get(exercise: Exercise): Float? = mapOf(1L to 1.0f, 3L to null, 4L to 1.0f)[exercise.id]
+        }
+        val p = planner(
+            exercises = listOf(removed, chestUnloaded, backLoaded),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f, MuscleGroup.BACK to 100f),
+            coefficientSource = coeffs,
+        )
+        val plan = WorkoutPlan(exercises = listOf(PlannedExercise(exercise = removed)), locationId = null, sessionReps = 8)
+        val tiers = listOf(ReplacementTier.WEIGHTED_MUSCLE, ReplacementTier.MUSCLE, ReplacementTier.ANY)
+        // Tier 1 empty (no same-muscle loaded), Tier 2 (same muscle) -> chestUnloaded.
+        assertEquals(chestUnloaded.id, p.pickReplacement(plan, 0, tiers)!!.exercise.id)
+    }
+
+    @Test
+    fun pickReplacement_defaultAny_unchangedBehavior() {
+        val removed = exercise(1, "removed", MuscleGroup.CHEST)
+        val other = exercise(2, "other", MuscleGroup.BACK)
+        val p = planner(
+            exercises = listOf(removed, other),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f, MuscleGroup.BACK to 100f),
+        )
+        val plan = WorkoutPlan(exercises = listOf(PlannedExercise(exercise = removed)), locationId = null, sessionReps = 8)
+        // Default tiers = [ANY]; only `other` is a candidate.
+        assertEquals(other.id, p.pickReplacement(plan, 0)!!.exercise.id)
     }
 
     // ──────────────────────────────────────────────────────────────────────
