@@ -7,7 +7,8 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
  * Pure feedback → (implied 1RM, confidence) extraction, originally from the former
  * three-component coefficient estimator stack. A set's RIR bucket maps to an
  * implied 1RM assuming `targetReps + {7,3,1}` reps in reserve; TOO_HARD reads the achieved reps
- * (or, if unknown, an upper bound just under target). HURT carries no load signal.
+ * (or, if unknown, a conservative upper bound assuming only half the target reps were made, at full
+ * confidence). HURT carries no load signal.
  */
 object SessionSignalExtractor {
 
@@ -40,8 +41,8 @@ object SessionSignalExtractor {
                     )
                 } else {
                     SetSignal(
-                        est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, maxOf(1, set.targetReps - 1)),
-                        confidence = 0.5f, isUpperBound = true,
+                        est1RM = DefaultProgressionEngine.toOneRepMax(set.targetWeight, maxOf(1, set.targetReps / 2)),
+                        confidence = 0.95f, isUpperBound = true,
                     )
                 }
             }

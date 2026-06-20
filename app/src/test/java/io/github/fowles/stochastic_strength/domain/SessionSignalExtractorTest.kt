@@ -22,6 +22,22 @@ class SessionSignalExtractorTest {
     }
 
     @Test
+    fun too_hard_without_reps_assumes_half_target_reps_at_full_confidence() {
+        val s = SessionSignalExtractor.setSignal(set(100f, 10, SetFeedback.TOO_HARD, actual = null))!!
+        // No reps logged: assume half the target reps were achieved, at full confidence,
+        // still treated as an upper bound (a failure can cap the estimate, never inflate it).
+        assertEquals(DefaultProgressionEngine.toOneRepMax(100f, 5), s.est1RM, 1e-3f)
+        assertEquals(0.95f, s.confidence, 1e-6f)
+        assertTrue(s.isUpperBound)
+    }
+
+    @Test
+    fun too_hard_without_reps_floors_to_one_rep() {
+        val s = SessionSignalExtractor.setSignal(set(100f, 1, SetFeedback.TOO_HARD, actual = null))!!
+        assertEquals(DefaultProgressionEngine.toOneRepMax(100f, 1), s.est1RM, 1e-3f)
+    }
+
+    @Test
     fun hurt_yields_no_signal() {
         assertNull(SessionSignalExtractor.setSignal(set(100f, 5, SetFeedback.HURT)))
     }
