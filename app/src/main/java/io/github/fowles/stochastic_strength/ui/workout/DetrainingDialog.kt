@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.ui.components.StrengthGrid
@@ -39,13 +40,15 @@ internal fun DetrainingDialog(
     }
 
     AlertDialog(
+        modifier = Modifier.fillMaxWidth(0.95f),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         onDismissRequest = onSkip,
         title = { Text("Welcome back") },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = 600.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
