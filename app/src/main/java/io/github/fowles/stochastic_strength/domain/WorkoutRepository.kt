@@ -24,6 +24,7 @@ class WorkoutRepository(
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val heuristics: List<CoefficientHeuristic> = listOf(),
+    private val normalizers: List<BaselineNormalizer> = listOf(),
 ) {
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -70,9 +71,7 @@ class WorkoutRepository(
         val profile = db.userProfileDao().getProfile()
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
 
-        val exerciseById = exerciseIds
-            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
-            .toMap()
+        val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
 
         for (exerciseId in exerciseIds) {
             val feedbacks = sets
@@ -116,7 +115,7 @@ class WorkoutRepository(
                 )
             )
         }
-        recomputeCoefficients(asOf = triggerTime)
+        recomputeDerivedState(asOf = triggerTime, sessionId = sessionId)
     }
 
     private suspend fun sessionTriggerTime(sessionId: Long, sets: List<WorkoutSet>): Long {
@@ -169,6 +168,21 @@ class WorkoutRepository(
         )
     }
 
+    internal suspend fun buildNormalizationInput(): BaselineNormalizationInput {
+        val allExercises = db.exerciseDao().getAll()
+        val sets = db.workoutSetDao().getAll()
+        val baselines = db.muscleGroupStrengthDao().getAll()
+            .associate { it.muscleGroup to it.baselineWeight }
+        val latestCoefs = db.coefficientChangeLogDao().getLatestPerExercise()
+            .associate { it.exerciseId to it.coefficient }
+        val snapshots = allExercises.map { ex ->
+            val seed = coefficientSource.get(ex) ?: 0f
+            val current = latestCoefs[ex.id] ?: seed
+            ExerciseCoefficientSnapshot(ex, seed, current)
+        }
+        return BaselineNormalizationInput(sets = sets, exercises = snapshots, baselines = baselines)
+    }
+
     suspend fun recomputeCoefficients(asOf: Long? = null) {
         if (heuristics.isEmpty()) return
         // buildCoefficientInput reads happen outside the write transaction — safe on a single-user device where no concurrent writes occur
@@ -198,6 +212,77 @@ class WorkoutRepository(
                         computedAt = timestamp,
                     )
                 )
+            }
+        }
+    }
+
+    suspend fun recomputeDerivedState(asOf: Long? = null, sessionId: Long? = null) {
+        val resolvedAsOf = asOf ?: System.currentTimeMillis()
+        recomputeCoefficients(asOf = resolvedAsOf)
+        val resolvedSessionId = sessionId
+            ?: db.workoutSessionDao().getAll()
+                .maxByOrNull { it.endTime ?: it.startTime }?.id
+            ?: return
+        applyBaselineNormalization(
+            asOf = resolvedAsOf,
+            sessionId = resolvedSessionId,
+        )
+    }
+
+    internal suspend fun applyBaselineNormalization(asOf: Long, sessionId: Long) {
+        if (normalizers.isEmpty()) return
+        val input = buildNormalizationInput()
+        val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+        val threshold = BaselineNormalizationThreshold.forUnit(weightUnit)
+
+        // Assumes at most one proposal per muscle group across all registered normalizers.
+        // Adding a second normalizer requires per-group dedup/merge or a disjointness contract.
+        val proposals = normalizers.flatMap { it.compute(input) }
+        if (proposals.isEmpty()) return
+
+        db.withTransaction {
+            val latestCoefByExercise = db.coefficientChangeLogDao().getLatestPerExercise()
+                .associateBy { it.exerciseId }
+            for (proposal in proposals) {
+                val oldBaseline = input.baselines[proposal.muscleGroup] ?: continue
+                if (oldBaseline <= 0f || proposal.scale <= 0f) continue
+                val rawNew = oldBaseline / proposal.scale
+                val newBaseline = WeightFormatter.round(rawNew, weightUnit)
+                if (kotlin.math.abs(newBaseline - oldBaseline) < threshold) continue
+                if (newBaseline <= 0f) continue
+                val mEffective = oldBaseline / newBaseline
+
+                db.muscleGroupStrengthDao().upsert(
+                    MuscleGroupStrength(muscleGroup = proposal.muscleGroup, baselineWeight = newBaseline)
+                )
+                db.baselineChangeLogDao().insert(
+                    BaselineChangeLog(
+                        sessionId = sessionId,
+                        muscleGroup = proposal.muscleGroup,
+                        previousBaseline = oldBaseline,
+                        newBaseline = newBaseline,
+                        changeReason = BaselineChangeReason.NORMALIZATION,
+                        timestamp = asOf,
+                    )
+                )
+
+                val inGroup = input.exercises.filter {
+                    it.exercise.primaryMuscle == proposal.muscleGroup && it.currentCoefficient > 0f
+                }
+                for (snap in inGroup) {
+                    val newCoef = snap.currentCoefficient * mEffective
+                    db.coefficientChangeLogDao().insert(
+                        CoefficientChangeLog(
+                            exerciseId = snap.exercise.id,
+                            previousCoefficient = latestCoefByExercise[snap.exercise.id]?.coefficient
+                                ?: snap.currentCoefficient,
+                            coefficient = newCoef,
+                            heuristicName = "baseline_normalization",
+                            heuristicMetadata = proposal.metadata,
+                            computedAt = asOf,
+                        )
+                    )
+                }
             }
         }
     }
@@ -258,8 +343,9 @@ class WorkoutRepository(
 
     suspend fun getSessionExerciseNames(sessionId: Long): List<String> {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
-        return sets.map { it.exerciseId }.distinct()
-            .mapNotNull { db.exerciseDao().getById(it)?.name }
+        val orderedIds = sets.map { it.exerciseId }.distinct()
+        val nameById = db.exerciseDao().getByIds(orderedIds).associate { it.id to it.name }
+        return orderedIds.mapNotNull { nameById[it] }
     }
 
     suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
@@ -269,9 +355,7 @@ class WorkoutRepository(
         val rows = db.coefficientChangeLogDao().getMostRecent(limit)
         if (rows.isEmpty()) return emptyList()
         val exerciseIds = rows.map { it.exerciseId }.distinct()
-        val exercisesById = exerciseIds
-            .mapNotNull { id -> db.exerciseDao().getById(id)?.let { id to it } }
-            .toMap()
+        val exercisesById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
         return rows.mapNotNull { log ->
             val exercise = exercisesById[log.exerciseId] ?: return@mapNotNull null
             CoefficientRow(
@@ -310,9 +394,7 @@ class WorkoutRepository(
     }
 
     suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineChangeLog> =
-        db.baselineChangeLogDao().getAll()
-            .filter { it.muscleGroup == muscleGroup }
-            .sortedBy { it.timestamp }
+        db.baselineChangeLogDao().getForMuscleGroup(muscleGroup)
 
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientChangeLog> =
         db.coefficientChangeLogDao().getForExercise(exerciseId)

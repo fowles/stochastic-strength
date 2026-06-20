@@ -19,9 +19,16 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.data.model.CoefficientChangeLog
+import io.github.fowles.stochastic_strength.domain.BaselineNormalizationInput
+import io.github.fowles.stochastic_strength.domain.BaselineNormalizationProposal
+import io.github.fowles.stochastic_strength.domain.BaselineNormalizer
 import io.github.fowles.stochastic_strength.domain.CoefficientComputationInput
 import io.github.fowles.stochastic_strength.domain.CoefficientHeuristic
 import io.github.fowles.stochastic_strength.domain.CoefficientResult
+import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
+import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
+import io.github.fowles.stochastic_strength.domain.SeedNormalizer
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -262,6 +269,7 @@ class WorkoutRepositoryTest {
             )
         ))
         val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = startTime))
         db.workoutSetDao().insert(WorkoutSet(
             sessionId = sessionId,
@@ -538,5 +546,403 @@ class WorkoutRepositoryTest {
             planner.availableExercises.any { it.id == barbellId })
         assertTrue("non-excluded exercise must be available",
             planner.availableExercises.any { it.name == "Push-Up" })
+    }
+
+    private fun fakeNormalizer(name: String, proposals: List<BaselineNormalizationProposal>) =
+        object : BaselineNormalizer {
+            override val name: String = name
+            override fun compute(input: BaselineNormalizationInput) = proposals
+        }
+
+    @Test
+    fun applyBaselineNormalization_writesNothing_whenNoNormalizersRegistered() = runBlocking {
+        seedChestSession()
+        val repo = WorkoutRepository(db, normalizers = emptyList())
+
+        repo.applyBaselineNormalization(asOf = 1_000L, sessionId = 1L)
+
+        val baselineRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertEquals(0, baselineRows.size)
+    }
+
+    @Test
+    fun applyBaselineNormalization_writesNothing_whenBelowThreshold() = runBlocking {
+        val (_, sessionId) = seedChestSession()
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        // m = 0.99 -> new baseline ≈ 101.01 -> rounded to 101 -> |101-100|=1kg < 2kg threshold
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.99f, metadata = "test")
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.applyBaselineNormalization(asOf = 2_000L, sessionId = sessionId)
+
+        val baselineRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertEquals(0, baselineRows.size)
+        // baseline unchanged
+        assertEquals(100f, db.muscleGroupStrengthDao().get(MuscleGroup.CHEST)!!.baselineWeight)
+    }
+
+    @Test
+    fun applyBaselineNormalization_writesBaselineAndCoefficientLogs_whenAboveThreshold() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Incline Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val benchId = db.exerciseDao().getActive().first { it.name == "Barbell Bench Press" }.id
+        val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        // m = 0.90 -> raw new = 100 / 0.90 ≈ 111.11 -> rounded to 111 -> 11 kg > 2 kg threshold
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.90f, metadata = "n=2, m=0.9000")
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.applyBaselineNormalization(asOf = 3_000L, sessionId = sessionId)
+
+        val baselineRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertEquals(1, baselineRows.size)
+        with(baselineRows[0]) {
+            assertEquals(MuscleGroup.CHEST, muscleGroup)
+            assertEquals(100f, previousBaseline)
+            assertTrue("new baseline should be greater than old (m<1 raises baseline)", newBaseline > 100f)
+            assertEquals(sessionId, this.sessionId)
+            assertEquals(3_000L, timestamp)
+        }
+        val coefRows = db.coefficientChangeLogDao().getAll()
+            .filter { it.heuristicName == "baseline_normalization" }
+        // Both chest exercises (bench + incline) have defined seed coefficients, so both get scaled.
+        assertEquals(2, coefRows.size)
+        assertTrue(coefRows.any { it.exerciseId == benchId })
+        assertTrue(coefRows.any { it.exerciseId == inclineId })
+        assertEquals("n=2, m=0.9000", coefRows[0].heuristicMetadata)
+    }
+
+    @Test
+    fun applyBaselineNormalization_preservesSessionWeightWithinRoundingTolerance() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Incline Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val benchId = db.exerciseDao().getActive().first { it.name == "Barbell Bench Press" }.id
+        val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+
+        // Capture seed coefficients (these become the "current" coefficients used by the runner).
+        val benchSeed = ExerciseCoefficients.byName.getValue("Barbell Bench Press")
+        val inclineSeed = ExerciseCoefficients.byName.getValue("Incline Barbell Bench Press")
+        val benchWeightBefore = 100f * benchSeed
+        val inclineWeightBefore = 100f * inclineSeed
+
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.90f, metadata = null)
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.applyBaselineNormalization(asOf = 4_000L, sessionId = sessionId)
+
+        val newBaseline = db.muscleGroupStrengthDao().get(MuscleGroup.CHEST)!!.baselineWeight
+        val coefs = db.coefficientChangeLogDao().getLatestPerExercise().associateBy { it.exerciseId }
+        val benchWeightAfter = newBaseline * coefs.getValue(benchId).coefficient
+        val inclineWeightAfter = newBaseline * coefs.getValue(inclineId).coefficient
+        // Session weights are preserved exactly (mEffective is derived from the rounded baseline).
+        assertEquals(benchWeightBefore, benchWeightAfter, 1e-3f)
+        assertEquals(inclineWeightBefore, inclineWeightAfter, 1e-3f)
+    }
+
+    @Test
+    fun applyBaselineNormalization_scalesUnobservedExercisesInGroup() = runBlocking {
+        // Setup: two exercises in CHEST, only one is "observed" (has a WorkoutSet).
+        // The runner doesn't look at the input set / output set distinction directly — it just scales
+        // every CHEST exercise with a defined coefficient. That's what we're asserting.
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Incline Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val benchId = db.exerciseDao().getActive().first { it.name == "Barbell Bench Press" }.id
+        val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        // Only bench has any WorkoutSet on record.
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = benchId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+        ))
+
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.90f, metadata = null)
+        ))
+        WorkoutRepository(db, normalizers = listOf(normalizer))
+            .applyBaselineNormalization(asOf = 5_000L, sessionId = sessionId)
+
+        val coefRows = db.coefficientChangeLogDao().getAll()
+            .filter { it.heuristicName == "baseline_normalization" }
+        assertEquals(2, coefRows.size)
+        assertTrue(coefRows.any { it.exerciseId == benchId })
+        assertTrue(coefRows.any { it.exerciseId == inclineId })
+    }
+
+    @Test
+    fun recomputeDerivedState_runsCoefficientHeuristicsAndNormalizers() = runBlocking {
+        val (exerciseId, sessionId) = seedChestSession()
+        // Heuristic always emits 0.85 for the seeded exercise.
+        val heuristic = object : CoefficientHeuristic {
+            override val name = "test-heuristic"
+            override fun compute(input: CoefficientComputationInput) =
+                input.sets.map { it.exerciseId }.distinct().map { CoefficientResult(it, 0.85f) }
+        }
+        // Normalizer emits a proposal that clears the 2 kg threshold (m=0.90 on baseline 100 → new=111).
+        val normalizer = fakeNormalizer("test-normalizer", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.90f, metadata = "test")
+        ))
+        val repo = WorkoutRepository(db,
+            heuristics = listOf(heuristic),
+            normalizers = listOf(normalizer),
+        )
+
+        repo.recomputeDerivedState(asOf = 6_000L, sessionId = sessionId)
+
+        val heuristicRows = db.coefficientChangeLogDao().getAll()
+            .filter { it.heuristicName == "test-heuristic" }
+        assertEquals(1, heuristicRows.size)
+        val normRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertEquals(1, normRows.size)
+    }
+
+    @Test
+    fun recomputeDerivedState_fallsBackToMostRecentSession_whenSessionIdNotProvided() = runBlocking {
+        val (_, latestSessionId) = seedChestSession()
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.90f, metadata = null)
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.recomputeDerivedState(asOf = 7_000L, sessionId = null)
+
+        val rows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertEquals(1, rows.size)
+        assertEquals(latestSessionId, rows[0].sessionId)
+    }
+
+    @Test
+    fun recomputeDerivedState_isNoOp_whenNoSessionsExistAndSessionIdNotProvided() = runBlocking {
+        // Empty DB — no sessions, no exercises, nothing.
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.90f, metadata = null)
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.recomputeDerivedState(asOf = 8_000L, sessionId = null)
+
+        val rows = db.baselineChangeLogDao().getAll()
+        assertEquals(0, rows.size)
+    }
+
+    @Test
+    fun applySessionProgression_triggersNormalizationViaDerivedState() = runBlocking {
+        // End-to-end: progression + heuristics + normalizer in one applySessionProgression call.
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+            targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+        ))
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.90f, metadata = null)
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.applySessionProgression(sessionId)
+
+        val rows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertEquals(1, rows.size)
+        assertEquals(sessionId, rows[0].sessionId)
+    }
+
+    @Test
+    fun applyManualBaselineOverrides_doesNotTriggerNormalization() = runBlocking {
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        val normalizer = fakeNormalizer("test", listOf(
+            BaselineNormalizationProposal(MuscleGroup.CHEST, scale = 0.50f, metadata = null)
+        ))
+        val repo = WorkoutRepository(db, normalizers = listOf(normalizer))
+
+        repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
+
+        // Only the MANUAL_OVERRIDE row should exist — no NORMALIZATION row.
+        val rows = db.baselineChangeLogDao().getAll()
+        assertEquals(1, rows.size)
+        assertEquals(BaselineChangeReason.MANUAL_OVERRIDE, rows[0].changeReason)
+    }
+
+    @Test
+    fun applySessionProgression_withDriftedCoefficients_writesNormalizationRow() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Incline Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val benchId = db.exerciseDao().getActive().first { it.name == "Barbell Bench Press" }.id
+        val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+
+        // With pre-seeded drift in the coefficient log, applySessionProgression's full pipeline
+        // (progression → heuristic recompute → normalization pass) writes a NORMALIZATION row.
+        // We run 10 sessions (rather than 1) to also exercise idempotency: subsequent calls
+        // must not crash or violate invariants once the first normalization has fired.
+        val now = System.currentTimeMillis()
+        val day = 24 * 60 * 60_000L
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = benchId, coefficient = 1.20f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = inclineId, coefficient = 1.05f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+
+        val repo = WorkoutRepository(db,
+            heuristics = listOf(EstCoefConsensusHeuristic()),
+            normalizers = listOf(SeedNormalizer()),
+        )
+
+        // Run 10 sessions in which both chest exercises are completed. Target weights are asymmetric
+        // so H2 consensus suppression does not fire: bench at 80 kg drives its coefficient down from
+        // 1.20 (estCoef ≈ 1.00), while incline at 105 kg keeps its coefficient roughly stable at
+        // 1.05 (estCoef ≈ 1.05). Opposite directions prevent same-sign H2 suppression.
+        // BaselineChangeLog PROGRESSION rows are inserted per session so the heuristic finds baselines.
+        // The SeedNormalizer fires on the first session: m ≈ 0.90, newBaseline ≈ 111 → 11 kg > 2 kg.
+        var startTime = now - 10 * day
+        repeat(10) {
+            val sessionId = db.workoutSessionDao().insert(
+                WorkoutSession(startTime = startTime, endTime = startTime + 500L)
+            )
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = benchId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, actualReps = 3,
+                feedback = SetFeedback.TOO_HARD, completedAt = startTime + 100L,
+            ))
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = inclineId, setNumber = 1,
+                targetWeight = 105f, targetReps = 5, actualReps = 5,
+                feedback = SetFeedback.RIR_2_4, completedAt = startTime + 200L,
+            ))
+            repo.applySessionProgression(sessionId)
+            startTime += day
+        }
+
+        val normRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertTrue(
+            "expected at least one NORMALIZATION baseline row after 10 drifty sessions, got ${normRows.size}",
+            normRows.isNotEmpty(),
+        )
+    }
+
+    @Test
+    fun recomputeDerivedState_realStack_writesBothCoefficientHeuristicAndNormalizationLogs() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Incline Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val benchId = db.exerciseDao().getActive().first { it.name == "Barbell Bench Press" }.id
+        val inclineId = db.exerciseDao().getActive().first { it.name == "Incline Barbell Bench Press" }.id
+        db.muscleGroupStrengthDao().upsert(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+
+        // Use realistic timestamps so the est-coef heuristic's recency decay doesn't collapse evidence
+        // weight to zero. Sessions must be recent relative to System.currentTimeMillis(). We also need
+        // enough cumulative evidence weight (minEvidenceWeight = 1.5f). Each RIR_2_4 set contributes
+        // ~confidence * recency; across three recent sessions this clears the threshold.
+        val now = System.currentTimeMillis()
+        val day = 24 * 60 * 60_000L
+
+        // Pre-seed inflated current coefficients (well above seed) by writing logs directly. This simulates
+        // the state that arises from drift accumulated over many real sessions, which would otherwise take
+        // a long sequence of sessions to produce in a test.
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = benchId, coefficient = 1.20f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+        db.coefficientChangeLogDao().insert(CoefficientChangeLog(
+            exerciseId = inclineId, coefficient = 1.05f, heuristicName = "preseed",
+            heuristicMetadata = null, computedAt = now - 30 * day,
+        ))
+
+        // Seed three recent sessions with sets that have feedback. The est-coef heuristic accumulates
+        // evidence weight across sessions; with three sessions the total clears minEvidenceWeight = 1.5.
+        // SeedNormalizer sees both exercises as observed via workoutSetDao.getAll().
+        //
+        // targetWeight choices are deliberate: bench at 80 kg gives estCoef < currentCoef (1.20), while
+        // incline at 105 kg gives estCoef > currentCoef (1.05). Opposite signals prevent H2 consensus
+        // suppression (which fires when both exercises drift the same direction past ln(1.05)).
+        for (daysAgo in listOf(10L, 5L, 2L)) {
+            val start = now - daysAgo * day
+            val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = start, endTime = start + 60 * 60_000L))
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = benchId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+                completedAt = start + 30 * 60_000L,
+            ))
+            db.workoutSetDao().insert(WorkoutSet(
+                sessionId = sessionId, exerciseId = inclineId, setNumber = 1,
+                targetWeight = 105f, targetReps = 5, feedback = SetFeedback.RIR_2_4,
+                completedAt = start + 30 * 60_000L,
+            ))
+            // The est-coef heuristic looks up baselines via BaselineChangeLog(PROGRESSION) keyed by
+            // (sessionId, muscleGroup). Without this row the heuristic finds no baseline and emits nothing.
+            db.baselineChangeLogDao().insert(BaselineChangeLog(
+                sessionId = sessionId, muscleGroup = MuscleGroup.CHEST,
+                previousBaseline = 100f, newBaseline = 102f,
+                changeReason = BaselineChangeReason.PROGRESSION, timestamp = start + 30 * 60_000L,
+            ))
+        }
+
+        val repo = WorkoutRepository(db,
+            heuristics = listOf(EstCoefConsensusHeuristic()),
+            normalizers = listOf(SeedNormalizer()),
+        )
+
+        repo.recomputeDerivedState()
+
+        // Both kinds of writes must show up — this is the regression guard for "backfill ran one pass but
+        // not the other".
+        val coefHeuristicRows = db.coefficientChangeLogDao().getAll()
+            .filter { it.heuristicName == "est-coef-consensus" }
+        assertTrue("expected at least one est-coef-consensus row, got 0",
+            coefHeuristicRows.isNotEmpty())
+        val normRows = db.baselineChangeLogDao().getAll()
+            .filter { it.changeReason == BaselineChangeReason.NORMALIZATION }
+        assertTrue("expected at least one NORMALIZATION row, got 0",
+            normRows.isNotEmpty())
     }
 }

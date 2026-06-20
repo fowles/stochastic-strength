@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.ActualRepsBackfill
 import io.github.fowles.stochastic_strength.domain.EstCoefConsensusHeuristic
+import io.github.fowles.stochastic_strength.domain.SeedNormalizer
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.strava.StravaExporter
 import io.github.fowles.stochastic_strength.domain.strava.StravaJsonBuilder
@@ -29,7 +30,11 @@ class StochasticStrengthApp : Application() {
         )
     }
     val workoutRepository: WorkoutRepository by lazy {
-        WorkoutRepository(database, heuristics = listOf(EstCoefConsensusHeuristic()))
+        WorkoutRepository(
+            database,
+            heuristics = listOf(EstCoefConsensusHeuristic()),
+            normalizers = listOf(SeedNormalizer()),
+        )
     }
 
     override fun onCreate() {
@@ -51,7 +56,7 @@ class StochasticStrengthApp : Application() {
             val profile = database.userProfileDao().getProfile() ?: return@launch
             if (profile.actualRepsBackfilled) return@launch
             ActualRepsBackfill(database, profile.weightUnit).run()
-            workoutRepository.recomputeCoefficients()
+            workoutRepository.recomputeDerivedState()
             database.userProfileDao().insert(profile.copy(actualRepsBackfilled = true))
         }
     }

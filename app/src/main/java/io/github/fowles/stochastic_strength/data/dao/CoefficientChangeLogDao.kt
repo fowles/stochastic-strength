@@ -13,7 +13,15 @@ interface CoefficientChangeLogDao {
     @Query("SELECT * FROM coefficient_change_log ORDER BY id ASC")
     suspend fun getAll(): List<CoefficientChangeLog>
 
-    @Query("SELECT * FROM coefficient_change_log WHERE id IN (SELECT MAX(id) FROM coefficient_change_log GROUP BY exerciseId)")
+    @Query("""
+        SELECT c.* FROM coefficient_change_log c
+        INNER JOIN (
+            SELECT exerciseId, MAX(computedAt) AS maxComputedAt
+            FROM coefficient_change_log
+            GROUP BY exerciseId
+        ) latest ON c.exerciseId = latest.exerciseId AND c.computedAt = latest.maxComputedAt
+        GROUP BY c.exerciseId
+    """)
     suspend fun getLatestPerExercise(): List<CoefficientChangeLog>
 
     @Query("SELECT * FROM coefficient_change_log ORDER BY computedAt DESC LIMIT :limit")

@@ -10,17 +10,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,11 +25,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
+import io.github.fowles.stochastic_strength.ui.components.LoadingBox
+import io.github.fowles.stochastic_strength.ui.components.SectionHeader
+import io.github.fowles.stochastic_strength.ui.components.formatDateTime
 import io.github.fowles.stochastic_strength.ui.debug.components.CoefficientDeviationList
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugLineChart
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,27 +40,15 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
     val state by viewModel.state.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(state.muscleGroup.displayName()) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+        topBar = { BackTopAppBar(title = state.muscleGroup.displayName(), onBack = onBack) },
     ) { padding ->
         if (state.loading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator() }
+            LoadingBox(contentPadding = padding)
             return@Scaffold
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            item { SectionHeader("Baseline over time") }
+            item { SectionHeader("Baseline over time", verticalPadding = 4.dp) }
 
             item {
                 if (state.chartPoints.isEmpty()) {
@@ -82,7 +65,7 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
                 }
             }
 
-            item { SectionHeader("Coefficient vs seed") }
+            item { SectionHeader("Coefficient vs seed", verticalPadding = 4.dp) }
 
             item {
                 if (state.coefficientDeviations.isEmpty()) {
@@ -92,7 +75,7 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
                 }
             }
 
-            item { SectionHeader("Change events") }
+            item { SectionHeader("Change events", verticalPadding = 4.dp) }
 
             if (state.events.isEmpty()) {
                 item {
@@ -114,18 +97,6 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
             }
         }
     }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-    )
 }
 
 @Composable
@@ -152,9 +123,6 @@ private fun EmptyHistoryPlaceholder() {
     }
 }
 
-private val DATETIME_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a")
-
 @Composable
 private fun BaselineEventRow(event: BaselineEvent, weightUnit: WeightUnit) {
     Column(
@@ -165,9 +133,7 @@ private fun BaselineEventRow(event: BaselineEvent, weightUnit: WeightUnit) {
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = Instant.ofEpochMilli(event.timestamp)
-                    .atZone(ZoneId.systemDefault())
-                    .format(DATETIME_FORMATTER),
+                text = formatDateTime(event.timestamp),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )

@@ -889,7 +889,8 @@ private fun RestingContent(
             val weightReduced = plannedExercise.sessionWeight != state.weightAtSetStart
 
             when {
-                state.lastFeedback == SetFeedback.TOO_HARD && !state.weightReductionApplied -> {
+                state.lastFeedback == SetFeedback.TOO_HARD && !state.weightReductionApplied
+                    && !plannedExercise.exercise.isTimed -> {
                     WeightReductionCard(
                         sessionReps = plannedExercise.sessionReps,
                         sessionWeight = plannedExercise.sessionWeight,
