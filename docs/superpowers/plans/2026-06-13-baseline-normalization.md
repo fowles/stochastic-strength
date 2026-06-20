@@ -1,6 +1,6 @@
 # Baseline Normalization Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Re-attribute accumulated per-exercise coefficient drift back into per-muscle-group baselines by introducing a `BaselineNormalizer` pipeline that runs after every coefficient recompute, gated by an absolute baseline-movement threshold.
 

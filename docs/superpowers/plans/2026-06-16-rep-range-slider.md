@@ -1,6 +1,6 @@
 # Rep Range Slider Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a `RangeSlider` to the workout plan preview so users can pick a range of session reps; every change re-rolls the rep target (preferring "round" numbers) and re-prices the existing exercise list, persisting the range on `UserProfile`.
 
@@ -37,7 +37,7 @@
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/RepRangePicker.kt`
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/RepRangePickerTest.kt`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/RepRangePickerTest.kt`:
 
@@ -112,13 +112,13 @@ class RepRangePickerTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.RepRangePickerTest"`
 
 Expected: COMPILATION FAILURE — `RepRangePicker` does not exist.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/RepRangePicker.kt`:
 
@@ -142,13 +142,13 @@ object RepRangePicker {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.RepRangePickerTest"`
 
 Expected: PASS (all 9 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/RepRangePicker.kt \
@@ -163,7 +163,7 @@ git commit -m "feat(domain): RepRangePicker prefers round reps but always includ
 **Files:**
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt`
 
-- [ ] **Step 1: Add a failing test for `repriceForReps`**
+- [x] **Step 1: Add a failing test for `repriceForReps`**
 
 Append these three tests to `WorkoutPlannerTest.kt` after the existing `generateWorkout_*` tests (around line 113, before the `pickReplacement / pickAdditional` section):
 
@@ -224,13 +224,13 @@ Append these three tests to `WorkoutPlannerTest.kt` after the existing `generate
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest.repriceForReps*"`
 
 Expected: COMPILATION FAILURE — `repriceForReps` does not exist.
 
-- [ ] **Step 3: Commit the failing test**
+- [x] **Step 3: Commit the failing test**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/WorkoutPlannerTest.kt
@@ -244,7 +244,7 @@ git commit -m "test(planner): pin repriceForReps behavior (failing)"
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner.kt`
 
-- [ ] **Step 1: Replace `generateWorkout` and add `repriceForReps`**
+- [x] **Step 1: Replace `generateWorkout` and add `repriceForReps`**
 
 Currently `WorkoutPlanner.kt:46` reads:
 
@@ -279,13 +279,13 @@ Replace with these three methods (keeping the single-int form, adding the range 
 
 Note the default-argument form (`= progressionEngine.repOptions.random(random)`) is removed — all callers must pass either `sessionReps` or `(repMin, repMax)`.
 
-- [ ] **Step 2: Run repriceForReps tests to verify pass**
+- [x] **Step 2: Run repriceForReps tests to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest.repriceForReps*"`
 
 Expected: PASS (3 tests).
 
-- [ ] **Step 3: Run full planner test class for regression**
+- [x] **Step 3: Run full planner test class for regression**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"`
 
@@ -293,7 +293,7 @@ Expected: PASS (all existing tests still green — the existing tests all call `
 
 If any test fails because it called `generateWorkout()` with no argument: update that test to pass an explicit `sessionReps = 5` (or whatever value makes the assertion still hold).
 
-- [ ] **Step 4: Run full unit test suite for cross-module regressions**
+- [x] **Step 4: Run full unit test suite for cross-module regressions**
 
 Run: `./gradlew :app:testDebugUnitTest`
 
@@ -305,7 +305,7 @@ grep -rn "generateWorkout()" app/src
 
 For each hit, pass an explicit `sessionReps` argument. Re-run.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutPlanner.kt \
@@ -320,7 +320,7 @@ git commit -m "feat(planner): repriceForReps + range-aware generateWorkout overl
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/model/UserProfile.kt`
 
-- [ ] **Step 1: Add the two nullable Int fields**
+- [x] **Step 1: Add the two nullable Int fields**
 
 Replace the file contents with:
 
@@ -342,7 +342,7 @@ data class UserProfile(
 )
 ```
 
-- [ ] **Step 2: Build to confirm it compiles in isolation**
+- [x] **Step 2: Build to confirm it compiles in isolation**
 
 Run: `./gradlew :app:compileDebugKotlin`
 
@@ -350,7 +350,7 @@ Expected: BUILD FAILURE — Room schema mismatch: `expected version 14 but found
 
 This is expected because we have not bumped the DB version yet. Continue to the next task.
 
-- [ ] **Step 3: Commit (with caveat: build is broken until Task 5 lands)**
+- [x] **Step 3: Commit (with caveat: build is broken until Task 5 lands)**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/model/UserProfile.kt
@@ -366,7 +366,7 @@ git commit -m "feat(data): UserProfile gains preferredRepMin/Max fields"
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt`
 
-- [ ] **Step 1: Bump `version` and add `MIGRATION_14_15`**
+- [x] **Step 1: Bump `version` and add `MIGRATION_14_15`**
 
 In `AppDatabase.kt`, find the `@Database(... version = 14, ...)` annotation (line 39) and change:
 
@@ -402,13 +402,13 @@ Then, in the `.addMigrations(...)` call near the bottom (line 326-329), append `
                 )
 ```
 
-- [ ] **Step 2: Build to confirm compile**
+- [x] **Step 2: Build to confirm compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 
 Expected: PASS. Room will regenerate the schema export to `app/schemas/.../15.json`.
 
-- [ ] **Step 3: Verify exported schema appeared**
+- [x] **Step 3: Verify exported schema appeared**
 
 Run: `ls -la app/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/`
 
@@ -416,13 +416,13 @@ Expected output includes `14.json` and a new `15.json`.
 
 If `15.json` is missing, ensure `exportSchema = true` is set on `@Database` (it already is on line 40) and rerun `./gradlew :app:assembleDebug` to force generation.
 
-- [ ] **Step 4: Run unit tests to verify nothing JVM-side broke**
+- [x] **Step 4: Run unit tests to verify nothing JVM-side broke**
 
 Run: `./gradlew :app:testDebugUnitTest`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/data/AppDatabase.kt \
@@ -437,7 +437,7 @@ git commit -m "feat(data): schema v14->v15 adds user_profile.preferredRepMin/Max
 **Files:**
 - Modify: `app/src/androidTest/java/io/github/fowles/stochastic_strength/data/MigrationTest.kt`
 
-- [ ] **Step 1: Add the migration test**
+- [x] **Step 1: Add the migration test**
 
 Append to `MigrationTest.kt` (inside the existing `class MigrationTest`):
 
@@ -497,7 +497,7 @@ Append to `MigrationTest.kt` (inside the existing `class MigrationTest`):
 
 If the existing `MigrationTest` does not already expose `MIGRATION_14_15` (it should because `AppDatabase.Companion.MIGRATION_14_15` is `internal`), confirm visibility — `internal` is fine because the test lives in the same module.
 
-- [ ] **Step 2: Run the instrumented test**
+- [x] **Step 2: Run the instrumented test**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.data.MigrationTest.migrate14To15_addsRepRangeColumns_preservesExistingRow"`
 
@@ -505,7 +505,7 @@ Expected: PASS. Emulator must be running.
 
 If the emulator is not running, this is the one place where the user must run it manually (or start an emulator first). Continue but note the gap when reporting.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/androidTest/java/io/github/fowles/stochastic_strength/data/MigrationTest.kt
@@ -519,7 +519,7 @@ git commit -m "test(data): instrumented migration test for v14->v15"
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt`
 
-- [ ] **Step 1: Add cached `preferredRepMin/Max` fields and update `initializeSession` signature**
+- [x] **Step 1: Add cached `preferredRepMin/Max` fields and update `initializeSession` signature**
 
 In `WorkoutSessionController.kt` around line 49-52, add two new fields right after the existing `private var sessionLocationId`:
 
@@ -555,7 +555,7 @@ Then, change the `initializeSession` signature (currently lines 69-82) to accept
     }
 ```
 
-- [ ] **Step 2: Add the `setRepRange` method**
+- [x] **Step 2: Add the `setRepRange` method**
 
 Add this method right after `adjustExerciseCount` (currently lines 140-160):
 
@@ -571,7 +571,7 @@ Add this method right after `adjustExerciseCount` (currently lines 140-160):
     }
 ```
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 
@@ -579,7 +579,7 @@ Expected: BUILD FAILURE — `WorkoutViewModel.initializeSession(...)` call site 
 
 That's expected. Task 8 fixes the call site.
 
-- [ ] **Step 4: (Defer commit until Task 8 to keep build green per commit)**
+- [x] **Step 4: (Defer commit until Task 8 to keep build green per commit)**
 
 ---
 
@@ -588,7 +588,7 @@ That's expected. Task 8 fixes the call site.
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutViewModel.kt`
 
-- [ ] **Step 1: Add cached range fields, load from profile, pass to controller**
+- [x] **Step 1: Add cached range fields, load from profile, pass to controller**
 
 In `WorkoutViewModel.kt`, just after `private var preferredExerciseCount` (line 54), add:
 
@@ -629,7 +629,7 @@ In the `init` block, update the profile-loading section (around lines 57-64) to:
         }
 ```
 
-- [ ] **Step 2: Add `setRepRange` method on the ViewModel**
+- [x] **Step 2: Add `setRepRange` method on the ViewModel**
 
 Add this method right after `setExerciseCount` (currently lines 96-105):
 
@@ -649,19 +649,19 @@ Add this method right after `setExerciseCount` (currently lines 96-105):
     }
 ```
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 
 Expected: PASS.
 
-- [ ] **Step 4: Run unit tests**
+- [x] **Step 4: Run unit tests**
 
 Run: `./gradlew :app:testDebugUnitTest`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Tasks 7 and 8 together**
+- [x] **Step 5: Commit Tasks 7 and 8 together**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt \
@@ -676,7 +676,7 @@ git commit -m "feat(workout): controller+VM thread rep range through initializeS
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/PlanPreviewContent.kt`
 
-- [ ] **Step 1: Add the new callback parameter and the RangeSlider**
+- [x] **Step 1: Add the new callback parameter and the RangeSlider**
 
 In `PlanPreviewContent.kt`, update the function signature (lines 55-65) to add `onSetRepRange`:
 
@@ -802,7 +802,7 @@ private const val REP_RANGE_MAX = 20
 
 (The `steps` value is the number of *discrete positions between* the endpoints, so for `[1, 20]` with every integer addressable we want `20 - 1 - 1 = 18` steps. This matches the existing exercise-count slider's pattern of `MAX_EXERCISE_COUNT - 2` for endpoints inclusive.)
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 
@@ -810,7 +810,7 @@ Expected: BUILD FAILURE — `WorkoutScreen.kt` calls `PlanPreviewContent(...)` w
 
 That's expected. Task 10 wires the screen.
 
-- [ ] **Step 3: (Defer commit until Task 10)**
+- [x] **Step 3: (Defer commit until Task 10)**
 
 ---
 
@@ -819,7 +819,7 @@ That's expected. Task 10 wires the screen.
 **Files:**
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutScreen.kt`
 
-- [ ] **Step 1: Pass the callback into `PlanPreviewContent`**
+- [x] **Step 1: Pass the callback into `PlanPreviewContent`**
 
 In `WorkoutScreen.kt` around line 87-98, add `onSetRepRange = viewModel::setRepRange` to the `PlanPreviewContent` call:
 
@@ -839,25 +839,25 @@ In `WorkoutScreen.kt` around line 87-98, add `onSetRepRange = viewModel::setRepR
                 )
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `./gradlew :app:compileDebugKotlin`
 
 Expected: PASS.
 
-- [ ] **Step 3: Run unit tests**
+- [x] **Step 3: Run unit tests**
 
 Run: `./gradlew :app:testDebugUnitTest`
 
 Expected: PASS.
 
-- [ ] **Step 4: Build full debug APK**
+- [x] **Step 4: Build full debug APK**
 
 Run: `./gradlew :app:assembleDebug`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Tasks 9 and 10 together**
+- [x] **Step 5: Commit Tasks 9 and 10 together**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/PlanPreviewContent.kt \
@@ -873,13 +873,13 @@ git commit -m "feat(ui): RangeSlider for rep target on workout plan preview"
 
 **Files:** None — manual verification.
 
-- [ ] **Step 1: Install the debug build**
+- [x] **Step 1: Install the debug build**
 
 Run: `./gradlew :app:installDebug`
 
 Expected: install succeeds.
 
-- [ ] **Step 2: Launch and verify the plan preview shows two sliders**
+- [x] **Step 2: Launch and verify the plan preview shows two sliders**
 
 1. Open the app, tap "Start Workout".
 2. The plan preview should show:
@@ -887,19 +887,19 @@ Expected: install succeeds.
    - A new "Fewer reps / More reps" range slider (two thumbs), defaulting to `[5, 10]`.
 3. The per-exercise rows should each show `3 sets × N reps`, where `N ∈ {5, 8, 10}`.
 
-- [ ] **Step 3: Drag the range slider and confirm re-roll**
+- [x] **Step 3: Drag the range slider and confirm re-roll**
 
 1. Drag the right thumb to roughly `15`, release.
 2. The per-exercise rows should update — `N` should now be drawn from `{5, 8, 10, 12, 15}`.
 3. Drag both thumbs together to `8`, release.
 4. Every exercise row should now show `3 sets × 8 reps` and weights should be lower than at `5 reps`.
 
-- [ ] **Step 4: Kill and relaunch — confirm persistence**
+- [x] **Step 4: Kill and relaunch — confirm persistence**
 
 1. Force-stop the app, then re-open it and start another workout.
 2. The new range slider thumbs should be at the last values you set (not back to `[5, 10]`).
 
-- [ ] **Step 5: Report**
+- [x] **Step 5: Report**
 
 If any of the above fails, fix it. If all pass, the feature is verified. No commit needed for this task.
 
@@ -909,25 +909,25 @@ If any of the above fails, fix it. If all pass, the feature is verified. No comm
 
 **Files:** None — verification.
 
-- [ ] **Step 1: Run full unit test suite**
+- [x] **Step 1: Run full unit test suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 
 Expected: PASS.
 
-- [ ] **Step 2: Run lint**
+- [x] **Step 2: Run lint**
 
 Run: `./gradlew :app:lint`
 
 Expected: PASS (or only pre-existing warnings).
 
-- [ ] **Step 3: Run instrumented migration tests**
+- [x] **Step 3: Run instrumented migration tests**
 
 Run: `./gradlew :app:connectedAndroidTest --tests "io.github.fowles.stochastic_strength.data.MigrationTest"`
 
 Expected: PASS.
 
-- [ ] **Step 4: Update memory**
+- [x] **Step 4: Update memory**
 
 Add a one-line entry to `/Users/mfk/.claude/projects/-Users-mfk-dev-stochastic-strength/memory/MEMORY.md` under the existing list:
 

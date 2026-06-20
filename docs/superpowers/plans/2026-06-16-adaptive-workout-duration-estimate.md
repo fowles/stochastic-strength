@@ -1,6 +1,6 @@
 # Adaptive Workout Duration Estimate Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the constant-driven per-exercise time estimate in `WorkoutPlan` with a per-exercise mean of recent wall-clock observations, falling back to the existing formula when there's no usable history.
 

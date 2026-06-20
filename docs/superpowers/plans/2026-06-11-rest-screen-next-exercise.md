@@ -1,6 +1,6 @@
 # Rest Screen: Next Exercise Preview — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** During the rest between sets, show a titled card with the upcoming exercise's weight and plate breakdown — "Reduced weight" when weight was just lowered, "Warm up" or "Next up" after the last set of an exercise.
 

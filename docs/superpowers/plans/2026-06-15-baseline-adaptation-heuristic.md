@@ -1,6 +1,6 @@
 # Baseline adaptation heuristic implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace `DefaultProgressionEngine.computeNextBaseline` (bracket-score per-feedback heuristic) with a `BaselineHeuristic` interface and a default `EstBaselineConsensusHeuristic` that targets the session's implied 1RM, with asymmetric caps, a multi-session safety layer, and a one-increment floor when the cap binds.
 

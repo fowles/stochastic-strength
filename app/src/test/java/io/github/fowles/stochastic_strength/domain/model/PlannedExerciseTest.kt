@@ -8,65 +8,22 @@ import org.junit.Test
 
 class PlannedExerciseTest {
 
-    private fun exercise(
-        isTimed: Boolean = false,
-        isUnilateral: Boolean = false,
-    ) = Exercise(
+    private fun exercise() = Exercise(
         id = 1L,
         name = "Ex",
         primaryMuscle = MuscleGroup.CHEST,
         equipment = Equipment.BARBELL,
-        isTimed = isTimed,
-        isUnilateral = isUnilateral,
     )
 
     @Test
-    fun `estimatedSeconds uses formula when override is null`() {
-        val pe = PlannedExercise(exercise = exercise(), warmupSets = emptyList())
-        // 3 sets × 135s + 0 warmups = 405
-        assertEquals(405, pe.estimatedSeconds)
+    fun estimatedSeconds_defaultsToZero() {
+        val pe = PlannedExercise(exercise = exercise())
+        assertEquals(0, pe.estimatedSeconds)
     }
 
     @Test
-    fun `estimatedSeconds uses formula plus warmups when override is null`() {
-        val pe = PlannedExercise(
-            exercise = exercise(),
-            warmupSets = listOf(WarmupSet(40f, 8), WarmupSet(60f, 5)),
-        )
-        // 3 × 135 + 2 × 60 = 525
-        assertEquals(525, pe.estimatedSeconds)
-    }
-
-    @Test
-    fun `estimatedSeconds returns override when present`() {
-        val pe = PlannedExercise(
-            exercise = exercise(),
-            estimatedSecondsOverride = 612,
-        )
+    fun estimatedSeconds_isStoredFromConstructor() {
+        val pe = PlannedExercise(exercise = exercise(), estimatedSeconds = 612)
         assertEquals(612, pe.estimatedSeconds)
-    }
-
-    @Test
-    fun `estimatedSeconds override wins regardless of warmup count`() {
-        val pe = PlannedExercise(
-            exercise = exercise(),
-            warmupSets = listOf(WarmupSet(40f, 8), WarmupSet(60f, 5)),
-            estimatedSecondsOverride = 800,
-        )
-        assertEquals(800, pe.estimatedSeconds)
-    }
-
-    @Test
-    fun `estimatedSeconds for timed exercise uses 90s per set`() {
-        val pe = PlannedExercise(exercise = exercise(isTimed = true))
-        // 3 × 90 + 0 warmups = 270
-        assertEquals(270, pe.estimatedSeconds)
-    }
-
-    @Test
-    fun `estimatedSeconds for unilateral exercise uses 180s per set`() {
-        val pe = PlannedExercise(exercise = exercise(isUnilateral = true))
-        // 3 × 180 + 0 warmups = 540
-        assertEquals(540, pe.estimatedSeconds)
     }
 }
