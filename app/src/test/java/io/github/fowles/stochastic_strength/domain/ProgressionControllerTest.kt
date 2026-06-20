@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.domain
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.exp
@@ -87,13 +88,32 @@ class ProgressionControllerTest {
 
     @Test
     fun hurt_backsOffBaseline_andSkipsCoefficients() {
-        val baseline = 100f
+        val baseline = 101f // 101 * 0.85 = 85.85 -> off the 2.5 kg grid (old code rounded to 85.0)
         val coefs = mapOf(1L to 1.0f)
         val in0 = input(1000, listOf(obs(1, baseline * 1.5f)), baseline, coefs)
             .copy(hurtMuscles = setOf(m))
         val out = controller().step(in0)
-        assertEquals(WeightFormatter.round(baseline * 0.85f, unit), out.baselineUpdates.single().newBaseline, 1e-3f)
+        val nb = out.baselineUpdates.single().newBaseline
+        assertEquals("hurt backs off by exactly hurtFactor", baseline * 0.85f, nb, 1e-3f)
+        assertNotEquals("hurt back-off must NOT snap to grid", WeightFormatter.round(nb, unit), nb)
         assertTrue("hurt suppresses coefficient moves", out.coefficientUpdates.isEmpty())
+    }
+
+    @Test
+    fun progression_storesUnroundedBaseline() {
+        val baseline = 100f
+        val coefs = mapOf(1L to 1.0f)
+        // Single exercise reading 10% above prescription => common = ln(1.10), differential = 0.
+        val o = listOf(obs(1, baseline * 1.0f * 1.10f))
+        val out = controller().step(input(1000, o, baseline, coefs))
+        val nb = out.baselineUpdates.single().newBaseline
+        val expectedRaw = baseline * exp(0.5f * ln(1.10f)) // kB * common, unclamped
+        assertEquals("baseline stored at full precision", expectedRaw, nb, 1e-3f)
+        assertNotEquals(
+            "must NOT snap to the weight grid",
+            WeightFormatter.round(expectedRaw, unit),
+            nb,
+        )
     }
 
     @Test
