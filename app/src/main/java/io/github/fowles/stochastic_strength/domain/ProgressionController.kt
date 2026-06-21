@@ -58,6 +58,10 @@ data class ProgressionControllerConfig(
     val maxLogStepC: Float = ln(1.10f),
     val hurtFactor: Float = 0.85f,
     val minRelativeChange: Float = 0.002f,
+    /** Differential gain at full bracket confidence (snap). Interpolated from [kC]. */
+    val kCSnap: Float = 1.0f,
+    /** Differential log-step clamp at full bracket confidence (snap). Interpolated from [maxLogStepC]. */
+    val maxLogStepCSnap: Float = ln(2f),
 )
 
 /**
@@ -86,6 +90,8 @@ class RollingConservingProgressionController(
     override fun step(input: ProgressionStepInput): ProgressionStepOutput {
         val baselineUpdates = mutableListOf<BaselineUpdate>()
         val coefficientUpdates = mutableListOf<CoefficientUpdate>()
+
+        val bracketConfById = input.observations.associate { it.exerciseId to it.bracketConfidence }
 
         for (o in input.observations) {
             if (o.est1RM <= 0f) continue
@@ -129,15 +135,19 @@ class RollingConservingProgressionController(
 
             val maxW = pooled.maxOf { it.third }
             for ((id, e, w) in pooled) {
-                val gain = w / maxW // freshest gets full K_c; staler proportionally less. Preserves sum-zero.
-                val dLogC = (config.kC * gain * (e - common)).coerceIn(-config.maxLogStepC, config.maxLogStepC)
+                val gain = w / maxW // freshest gets full K_c; staler proportionally less.
+                val s = (bracketConfById[id] ?: 0f).coerceIn(0f, 1f) // snap scale; 0 for ordinary sessions
+                val kCeff = config.kC + (config.kCSnap - config.kC) * s
+                val maxStep = config.maxLogStepC + (config.maxLogStepCSnap - config.maxLogStepC) * s
+                val dLogC = (kCeff * gain * (e - common)).coerceIn(-maxStep, maxStep)
                 val cOld = input.coefficients.getValue(id)
                 val cNew = cOld * exp(dLogC)
                 // Suppressing near-zero moves relaxes the per-session sum-zero invariant slightly;
                 // the residual gauge drift stays bounded (see ProgressionControllerSimulationTest's
-                // coefInflation ceiling). Do not "fix" this by removing the skip.
+                // coefInflation ceiling). The bracket snap amplifies one term the same way the clamp
+                // does — bounded drift, not exact conservation. Do not "fix" this by recentering.
                 if (abs(cNew - cOld) <= config.minRelativeChange * cOld) continue
-                coefficientUpdates.add(CoefficientUpdate(id, cNew, "pi:d=${fmt(e - common)},w=${fmt(gain)}"))
+                coefficientUpdates.add(CoefficientUpdate(id, cNew, "pi:d=${fmt(e - common)},w=${fmt(gain)},s=${fmt(s)}"))
             }
         }
         return ProgressionStepOutput(baselineUpdates, coefficientUpdates)

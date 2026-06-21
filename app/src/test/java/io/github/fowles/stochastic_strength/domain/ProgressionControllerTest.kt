@@ -162,4 +162,27 @@ class ProgressionControllerTest {
             assertTrue("baseline never rises on a net-negative session", it.newBaseline <= baseline)
         }
     }
+
+    @Test
+    fun bracketSnap_movesCoefFartherThanClampedPath_inOneSession() {
+        val baseline = 100f
+        val coefs = mapOf(1L to 1.0f, 2L to 1.0f)
+        val lowEst = baseline * 1.0f * 0.45f // id1 reads ~45% of prescription (a hard drop-cascade)
+
+        fun run(bracket: Float): Float {
+            val o = listOf(
+                ProgressionObservation(1, m, lowEst, 0.95f, bracketConfidence = bracket),
+                obs(2, baseline), // peer on-target
+            )
+            return controller().step(input(1000, o, baseline, coefs))
+                .coefficientUpdates.single { it.exerciseId == 1L }.coefficient
+        }
+
+        val plainC1 = run(0f)
+        val snapC1 = run(0.95f)
+
+        assertTrue("no-bracket path is limited by the ~10% clamp", plainC1 > 0.88f)
+        assertTrue("bracket snaps well past the 10% clamp", snapC1 < 0.80f)
+        assertTrue("snap moves strictly further down than the clamped path", snapC1 < plainC1)
+    }
 }
