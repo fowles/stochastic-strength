@@ -148,4 +148,66 @@ class SessionSignalExtractorTest {
     fun only_hurt_sets_yield_null() {
         assertNull(SessionSignalExtractor.aggregateSession(listOf(set(100f, 5, SetFeedback.HURT))))
     }
+
+    // ---- bracket path ------------------------------------------------------------------------------
+
+    @Test
+    fun drop_cascade_anchors_on_heaviest_completed_set_not_top_weight() {
+        // 55 fail(2) -> 35 fail(2) -> 20 completed RIR_0_1. Capacity ~ the 20 set, not 55.
+        val agg = SessionSignalExtractor.aggregateSession(
+            listOf(
+                set(55f, 10, SetFeedback.TOO_HARD, actual = 2, setNumber = 1),
+                set(35f, 10, SetFeedback.TOO_HARD, actual = 2, setNumber = 2),
+                set(20f, 10, SetFeedback.RIR_0_1, setNumber = 3),
+            ),
+        )!!
+        // est1RM = heaviest completed (20 @ 10 + 0.5 reserve), capped by the 35 fail ceiling (not binding here).
+        assertEquals(oneRm(20f, 10.5f), agg.est1RM, 1e-2f)
+        // Far below what the old top-weight path would have produced.
+        assertTrue(agg.est1RM < oneRm(55f, 2f))
+        assertEquals(0.95f, agg.bracketConfidence, 1e-6f)
+        assertEquals(0.95f, agg.sessionConfidence, 1e-6f)
+    }
+
+    @Test
+    fun all_failed_cascade_estimates_from_lightest_failed_set() {
+        // Even the lightest weight failed -> strong downward estimate from that set's achieved reps.
+        val agg = SessionSignalExtractor.aggregateSession(
+            listOf(
+                set(55f, 10, SetFeedback.TOO_HARD, actual = 2, setNumber = 1),
+                set(35f, 10, SetFeedback.TOO_HARD, actual = 3, setNumber = 2),
+                set(20f, 10, SetFeedback.TOO_HARD, actual = 4, setNumber = 3),
+            ),
+        )!!
+        assertEquals(oneRm(20f, 4f), agg.est1RM, 1e-2f)
+        assertEquals(0.95f, agg.bracketConfidence, 1e-6f)
+    }
+
+    @Test
+    fun top_failure_without_a_drop_keeps_old_path_and_zero_bracket_confidence() {
+        // All sets at the same weight, last fails: existing same-weight behavior, NOT a bracket.
+        val agg = SessionSignalExtractor.aggregateSession(
+            listOf(
+                set(100f, 5, SetFeedback.RIR_0_1, setNumber = 1),
+                set(100f, 5, SetFeedback.RIR_0_1, setNumber = 2),
+                set(100f, 5, SetFeedback.TOO_HARD, actual = 2, setNumber = 3),
+            ),
+        )!!
+        assertEquals(0f, agg.bracketConfidence, 1e-6f)
+        assertTrue(agg.est1RM < oneRm(100f, 5f) * 0.99f) // unchanged downward behavior
+    }
+
+    @Test
+    fun voluntary_deload_without_failure_is_not_a_bracket() {
+        // Existing reduced_weight_sets_are_ignored scenario must keep zero bracket confidence.
+        val agg = SessionSignalExtractor.aggregateSession(
+            listOf(
+                set(100f, 5, SetFeedback.RIR_0_1, setNumber = 1),
+                set(100f, 5, SetFeedback.RIR_0_1, setNumber = 2),
+                set(80f, 5, SetFeedback.RIR_5_PLUS, setNumber = 3),
+            ),
+        )!!
+        assertEquals(0f, agg.bracketConfidence, 1e-6f)
+        assertEquals(oneRm(100f, 5.5f), agg.est1RM, 1e-2f)
+    }
 }
