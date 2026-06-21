@@ -218,7 +218,7 @@ class ProgressionControllerSimulationTest {
 
             val observations = thisSessionSets.groupBy { it.exerciseId }.mapNotNull { (id, sets) ->
                 SessionSignalExtractor.aggregateSession(sets)?.let {
-                    ProgressionObservation(id, exMuscle.getValue(id), it.est1RM, it.sessionConfidence)
+                    ProgressionObservation(id, exMuscle.getValue(id), it.est1RM, it.sessionConfidence, it.bracketConfidence)
                 }
             }
             val hurtMuscles = thisSessionSets
