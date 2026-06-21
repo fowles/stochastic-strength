@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
 
@@ -161,6 +162,54 @@ class ProgressionControllerTest {
         out.baselineUpdates.forEach {
             assertTrue("baseline never rises on a net-negative session", it.newBaseline <= baseline)
         }
+    }
+
+    @Test
+    fun robustCommon_loneLowOutlier_leavesBaselineNearlyFlat() {
+        val c = controller()
+        val ids = listOf(1L, 2L, 3L)
+        val baseline = 100f
+        val coefs = mapOf(1L to 1.0f, 2L to 1.0f, 3L to 1.0f)
+        // Two calm on-target lifts, one reading ~half (a lone bracket-style outlier).
+        val observations = listOf(
+            obs(1L, est1RM = 100f, conf = 0.9f),
+            obs(2L, est1RM = 100f, conf = 0.9f),
+            obs(3L, est1RM = 55f, conf = 0.9f),
+        )
+        val out = c.step(
+            ProgressionStepInput(
+                now = 0L, observations = observations,
+                baselines = mapOf(m to baseline), coefficients = coefs,
+                muscleExercises = mapOf(m to ids),
+                hurtMuscles = emptySet(), weightUnit = WeightUnit.KG,
+            ),
+        )
+        val newBaseline = out.baselineUpdates.firstOrNull { it.muscleGroup == m }?.newBaseline ?: baseline
+        // Lone outlier rejected: baseline moves < 5%, not the ~10% a plain mean would pull.
+        assertTrue("baseline moved too far for a lone outlier: $newBaseline", abs(newBaseline - baseline) / baseline < 0.05f)
+        // The drop lands in exercise 3's coefficient.
+        val c3 = out.coefficientUpdates.firstOrNull { it.exerciseId == 3L }?.coefficient ?: 1.0f
+        assertTrue("outlier coef should drop: $c3", c3 < 0.98f)
+    }
+
+    @Test
+    fun robustCommon_unanimousDrop_movesBaseline() {
+        val c = controller()
+        val ids = listOf(1L, 2L, 3L)
+        val baseline = 100f
+        val coefs = mapOf(1L to 1.0f, 2L to 1.0f, 3L to 1.0f)
+        // All three read ~30% low together -> consensus -> baseline drops.
+        val observations = ids.map { obs(it, est1RM = 70f, conf = 0.9f) }
+        val out = c.step(
+            ProgressionStepInput(
+                now = 0L, observations = observations,
+                baselines = mapOf(m to baseline), coefficients = coefs,
+                muscleExercises = mapOf(m to ids),
+                hurtMuscles = emptySet(), weightUnit = WeightUnit.KG,
+            ),
+        )
+        val newBaseline = out.baselineUpdates.firstOrNull { it.muscleGroup == m }?.newBaseline ?: baseline
+        assertTrue("unanimous drop should move baseline down: $newBaseline", newBaseline < baseline * 0.97f)
     }
 
     @Test

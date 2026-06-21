@@ -64,6 +64,10 @@ data class ProgressionControllerConfig(
     val kCSnap: Float = 1.0f,
     /** Differential log-step clamp at full bracket confidence (snap). Interpolated from [maxLogStepC]. */
     val maxLogStepCSnap: Float = ln(2f),
+    /** Huber threshold (log space) above which a pool member is treated as an outlier. */
+    val huberDelta: Float = ln(1.15f),
+    /** Reweighting iterations for the robust common mode and the reclaimer. */
+    val robustIterations: Int = 3,
 )
 
 /**
@@ -126,8 +130,9 @@ class RollingConservingProgressionController(
             }
             if (pooled.isEmpty()) continue
 
-            val wsum = pooled.sumOf { it.third.toDouble() }.toFloat()
-            val common = if (wsum > 0f) pooled.sumOf { (it.second * it.third).toDouble() }.toFloat() / wsum else 0f
+            val common = RobustCenter.of(
+                pooled.map { it.second }, pooled.map { it.third }, config.huberDelta, config.robustIterations,
+            )
 
             val dLogB = (config.kB * common).coerceIn(-config.maxLogStepB, config.maxLogStepB)
             val bNew = b * exp(dLogB)
