@@ -13,6 +13,8 @@ data class ProgressionObservation(
     val muscle: MuscleGroup,
     val est1RM: Float,
     val confidence: Float,
+    /** >0 only for a demonstrated drop-cascade; scales the differential step (snap). */
+    val bracketConfidence: Float = 0f,
 )
 
 data class ProgressionStepInput(
