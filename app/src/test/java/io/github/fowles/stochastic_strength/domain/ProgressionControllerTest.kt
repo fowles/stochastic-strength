@@ -252,6 +252,55 @@ class ProgressionControllerTest {
     }
 
     @Test
+    fun reclaim_collectiveDrift_movesIntoBaseline_preservingProducts() {
+        val c = controller()
+        val muscle = MuscleGroup.QUADS
+        val ids = listOf(1L, 2L, 3L)
+        val baseline = 100f
+        val seeds = mapOf(1L to 1.0f, 2L to 1.0f, 3L to 1.0f)
+        // All coefficients have drifted ~25% below seed (a baseline that was too high, corrected
+        // one lift at a time over prior sessions). No new session signal this step (no observations
+        // for these ids) -> only the reclaimer acts.
+        val drifted = mapOf(1L to 0.75f, 2L to 0.78f, 3L to 0.72f)
+        val out = c.step(
+            ProgressionStepInput(
+                now = 0L, observations = emptyList(),
+                baselines = mapOf(muscle to baseline), coefficients = drifted,
+                muscleExercises = mapOf(muscle to ids), seedCoefficients = seeds,
+                hurtMuscles = emptySet(), weightUnit = WeightUnit.KG,
+            ),
+        )
+        val nb = out.baselineUpdates.firstOrNull { it.muscleGroup == muscle }?.newBaseline ?: baseline
+        assertTrue("baseline should drop toward the collective drift: $nb", nb < baseline)
+        // Products preserved: baseline*coef unchanged for each exercise after the gauge shift.
+        ids.forEach { id ->
+            val nc = out.coefficientUpdates.firstOrNull { it.exerciseId == id }?.coefficient ?: drifted.getValue(id)
+            assertEquals("product preserved for $id", baseline * drifted.getValue(id), nb * nc, baseline * 0.01f)
+        }
+    }
+
+    @Test
+    fun reclaim_loneOffset_isNotReclaimed() {
+        val c = controller()
+        val muscle = MuscleGroup.QUADS
+        val ids = listOf(1L, 2L, 3L)
+        val baseline = 100f
+        val seeds = mapOf(1L to 1.0f, 2L to 1.0f, 3L to 1.0f)
+        // One genuinely-hard exercise sits low; the other two are at seed. Robust center ~0 -> no reclaim.
+        val coefs = mapOf(1L to 0.5f, 2L to 1.0f, 3L to 1.0f)
+        val out = c.step(
+            ProgressionStepInput(
+                now = 0L, observations = emptyList(),
+                baselines = mapOf(muscle to baseline), coefficients = coefs,
+                muscleExercises = mapOf(muscle to ids), seedCoefficients = seeds,
+                hurtMuscles = emptySet(), weightUnit = WeightUnit.KG,
+            ),
+        )
+        val nb = out.baselineUpdates.firstOrNull { it.muscleGroup == muscle }?.newBaseline ?: baseline
+        assertTrue("lone low coef must not drag the baseline: $nb", abs(nb - baseline) / baseline < 0.01f)
+    }
+
+    @Test
     fun bracketSnap_movesCoefFartherThanClampedPath_inOneSession() {
         val baseline = 100f
         val coefs = mapOf(1L to 1.0f, 2L to 1.0f)

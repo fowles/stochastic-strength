@@ -70,6 +70,8 @@ data class ProgressionControllerConfig(
     val huberDelta: Float = ln(1.15f),
     /** Reweighting iterations for the robust common mode and the reclaimer. */
     val robustIterations: Int = 3,
+    /** Fraction of collective coefficient drift re-based into the baseline per session (0..1). */
+    val reclaimRate: Float = 0.1f,
 )
 
 /**
@@ -112,7 +114,12 @@ class RollingConservingProgressionController(
             lastTime[o.exerciseId] = input.now
         }
 
-        val trainedMuscles = input.observations.map { it.muscle }.toSet() + input.hurtMuscles
+        val observedMuscles = input.observations.map { it.muscle }.toSet()
+        // Also include any muscle that has at least one exercise with a seed coefficient — the
+        // reclaimer must run for those even when they weren't trained this session.
+        val reclaimMuscles = if (input.seedCoefficients.isEmpty()) emptySet() else
+            input.muscleExercises.filterValues { ids -> ids.any { id -> input.seedCoefficients.containsKey(id) } }.keys
+        val trainedMuscles = observedMuscles + input.hurtMuscles + reclaimMuscles
         for (m in trainedMuscles) {
             val b = input.baselines[m] ?: continue
             if (b <= 0f) continue
@@ -123,47 +130,74 @@ class RollingConservingProgressionController(
                 continue
             }
 
-            val pooled = input.muscleExercises[m].orEmpty().mapNotNull { id ->
-                val le = emaLogEst[id] ?: return@mapNotNull null
-                val c = input.coefficients[id] ?: return@mapNotNull null
-                if (c <= 0f) return@mapNotNull null
-                val age = (input.now - (lastTime[id] ?: input.now)).coerceAtLeast(0L)
-                val w = exp(-age * ln2 / config.halfLifeMs).toFloat() * (lastConf[id] ?: 0f)
-                if (w <= 1e-6f) return@mapNotNull null
-                Triple(id, le - ln(b * c), w)
+            // Pool is only computed for muscles observed this session; for reclaim-only muscles the
+            // PI block is skipped (pooled stays empty) to avoid spurious updates from stale EMA state.
+            val pooled = if (m !in observedMuscles) emptyList() else
+                input.muscleExercises[m].orEmpty().mapNotNull { id ->
+                    val le = emaLogEst[id] ?: return@mapNotNull null
+                    val c = input.coefficients[id] ?: return@mapNotNull null
+                    if (c <= 0f) return@mapNotNull null
+                    val age = (input.now - (lastTime[id] ?: input.now)).coerceAtLeast(0L)
+                    val w = exp(-age * ln2 / config.halfLifeMs).toFloat() * (lastConf[id] ?: 0f)
+                    if (w <= 1e-6f) return@mapNotNull null
+                    Triple(id, le - ln(b * c), w)
+                }
+
+            // Working copies; the reclaimer below re-bases these as a product-preserving gauge shift.
+            var bWork = b
+            val cWork = input.muscleExercises[m].orEmpty()
+                .mapNotNull { id -> input.coefficients[id]?.let { id to it } }
+                .filter { it.second > 0f }
+                .toMap().toMutableMap()
+
+            if (pooled.isNotEmpty()) {
+                val wsum = pooled.sumOf { it.third.toDouble() }.toFloat()
+                val common = RobustCenter.of(
+                    pooled.map { it.second }, pooled.map { it.third }, config.huberDelta, config.robustIterations,
+                )
+                val massConf =
+                    if (wsum > 0f) {
+                        pooled.sumOf { (bracketConfById[it.first] ?: 0f).toDouble() * it.third }.toFloat() / wsum
+                    } else {
+                        0f
+                    }
+                val maxStepB = config.maxLogStepB + (config.maxLogStepBSnap - config.maxLogStepB) * massConf
+                val dLogB = (config.kB * common).coerceIn(-maxStepB, maxStepB)
+                bWork = b * exp(dLogB)
+
+                val maxW = pooled.maxOf { it.third }
+                for ((id, e, w) in pooled) {
+                    val gain = w / maxW
+                    val s = (bracketConfById[id] ?: 0f).coerceIn(0f, 1f)
+                    val kCeff = config.kC + (config.kCSnap - config.kC) * s
+                    val maxStep = config.maxLogStepC + (config.maxLogStepCSnap - config.maxLogStepC) * s
+                    val dLogC = (kCeff * gain * (e - common)).coerceIn(-maxStep, maxStep)
+                    cWork[id]?.let { cWork[id] = it * exp(dLogC) }
+                }
             }
-            if (pooled.isEmpty()) continue
 
-            val common = RobustCenter.of(
-                pooled.map { it.second }, pooled.map { it.third }, config.huberDelta, config.robustIterations,
-            )
-
-            val wsum = pooled.sumOf { it.third.toDouble() }.toFloat()
-            val massConf = if (wsum > 0f) {
-                pooled.sumOf { (bracketConfById[it.first] ?: 0f).toDouble() * it.third }.toFloat() / wsum
-            } else 0f
-            val maxStepB = config.maxLogStepB + (config.maxLogStepBSnap - config.maxLogStepB) * massConf
-            val dLogB = (config.kB * common).coerceIn(-maxStepB, maxStepB)
-            val bNew = b * exp(dLogB)
-            if (bNew != b && bNew > 0f) {
-                baselineUpdates.add(BaselineUpdate(m, bNew, "pi:n=${pooled.size},common=${fmt(common)}"))
+            // Cross-session reclaim: move collective coef/seed drift into the baseline (products preserved).
+            val offsets = cWork.mapNotNull { (id, cur) ->
+                val seed = input.seedCoefficients[id] ?: return@mapNotNull null
+                if (seed > 0f && cur > 0f) ln(cur / seed) else null
+            }
+            if (offsets.isNotEmpty()) {
+                val center = RobustCenter.of(offsets, List(offsets.size) { 1f }, config.huberDelta, config.robustIterations)
+                val shift = config.reclaimRate * center
+                if (abs(shift) > 1e-6f) {
+                    bWork *= exp(shift)
+                    for (id in cWork.keys.toList()) cWork[id] = cWork.getValue(id) * exp(-shift)
+                }
             }
 
-            val maxW = pooled.maxOf { it.third }
-            for ((id, e, w) in pooled) {
-                val gain = w / maxW // freshest gets full K_c; staler proportionally less.
-                val s = (bracketConfById[id] ?: 0f).coerceIn(0f, 1f) // snap scale; 0 for ordinary sessions
-                val kCeff = config.kC + (config.kCSnap - config.kC) * s
-                val maxStep = config.maxLogStepC + (config.maxLogStepCSnap - config.maxLogStepC) * s
-                val dLogC = (kCeff * gain * (e - common)).coerceIn(-maxStep, maxStep)
+            if (bWork != b && bWork > 0f) {
+                val tag = if (pooled.isEmpty()) "reclaim" else "pi:n=${pooled.size}"
+                baselineUpdates.add(BaselineUpdate(m, bWork, tag))
+            }
+            for ((id, cNew) in cWork) {
                 val cOld = input.coefficients.getValue(id)
-                val cNew = cOld * exp(dLogC)
-                // Suppressing near-zero moves relaxes the per-session sum-zero invariant slightly;
-                // the residual gauge drift stays bounded (see ProgressionControllerSimulationTest's
-                // coefInflation ceiling). The bracket snap amplifies one term the same way the clamp
-                // does — bounded drift, not exact conservation. Do not "fix" this by recentering.
                 if (abs(cNew - cOld) <= config.minRelativeChange * cOld) continue
-                coefficientUpdates.add(CoefficientUpdate(id, cNew, "pi:d=${fmt(e - common)},w=${fmt(gain)},s=${fmt(s)}"))
+                coefficientUpdates.add(CoefficientUpdate(id, cNew, "pi:c=${fmt(cNew)}"))
             }
         }
         return ProgressionStepOutput(baselineUpdates, coefficientUpdates)
