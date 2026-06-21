@@ -64,6 +64,8 @@ data class ProgressionControllerConfig(
     val kCSnap: Float = 1.0f,
     /** Differential log-step clamp at full bracket confidence (snap). Interpolated from [maxLogStepC]. */
     val maxLogStepCSnap: Float = ln(2f),
+    /** Baseline log-step clamp at full common-mode confidence (unanimous high-confidence drop). */
+    val maxLogStepBSnap: Float = ln(2f),
     /** Huber threshold (log space) above which a pool member is treated as an outlier. */
     val huberDelta: Float = ln(1.15f),
     /** Reweighting iterations for the robust common mode and the reclaimer. */
@@ -102,8 +104,10 @@ class RollingConservingProgressionController(
         for (o in input.observations) {
             if (o.est1RM <= 0f) continue
             val le = ln(o.est1RM)
+            val s = o.bracketConfidence.coerceIn(0f, 1f)
+            val betaEff = config.emaBeta + (1f - config.emaBeta) * s
             emaLogEst[o.exerciseId] =
-                emaLogEst[o.exerciseId]?.let { (1f - config.emaBeta) * it + config.emaBeta * le } ?: le
+                emaLogEst[o.exerciseId]?.let { (1f - betaEff) * it + betaEff * le } ?: le
             lastConf[o.exerciseId] = o.confidence
             lastTime[o.exerciseId] = input.now
         }
@@ -134,7 +138,12 @@ class RollingConservingProgressionController(
                 pooled.map { it.second }, pooled.map { it.third }, config.huberDelta, config.robustIterations,
             )
 
-            val dLogB = (config.kB * common).coerceIn(-config.maxLogStepB, config.maxLogStepB)
+            val wsum = pooled.sumOf { it.third.toDouble() }.toFloat()
+            val massConf = if (wsum > 0f) {
+                pooled.sumOf { (bracketConfById[it.first] ?: 0f).toDouble() * it.third }.toFloat() / wsum
+            } else 0f
+            val maxStepB = config.maxLogStepB + (config.maxLogStepBSnap - config.maxLogStepB) * massConf
+            val dLogB = (config.kB * common).coerceIn(-maxStepB, maxStepB)
             val bNew = b * exp(dLogB)
             if (bNew != b && bNew > 0f) {
                 baselineUpdates.add(BaselineUpdate(m, bNew, "pi:n=${pooled.size},common=${fmt(common)}"))

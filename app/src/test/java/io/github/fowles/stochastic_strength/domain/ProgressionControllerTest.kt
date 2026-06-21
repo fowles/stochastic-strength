@@ -212,6 +212,45 @@ class ProgressionControllerTest {
         assertTrue("unanimous drop should move baseline down: $newBaseline", newBaseline < baseline * 0.97f)
     }
 
+    private fun daysMs(days: Int): Long = days.toLong() * 24L * 60L * 60L * 1000L
+
+    @Test
+    fun confidenceBypassesEma_singleSessionReachesBracketReading() {
+        val muscle = MuscleGroup.QUADS
+        val ids = listOf(1L, 2L, 3L)
+        val baseline = 100f
+        val coefs = mapOf(1L to 1.0f, 2L to 1.0f, 3L to 1.0f)
+        fun runWith(bracket: Float): Float {
+            val c = controller()
+            // Prime EMA on-target so the smoothing would otherwise halve a new reading.
+            c.step(
+                ProgressionStepInput(
+                    now = 0L, observations = ids.map { obs(it, est1RM = 100f, conf = 0.9f) },
+                    baselines = mapOf(muscle to baseline), coefficients = coefs,
+                    muscleExercises = mapOf(muscle to ids), hurtMuscles = emptySet(), weightUnit = WeightUnit.KG,
+                ),
+            )
+            val out = c.step(
+                ProgressionStepInput(
+                    now = daysMs(7), observations = listOf(
+                        obs(1L, est1RM = 100f, conf = 0.9f),
+                        obs(2L, est1RM = 100f, conf = 0.9f),
+                        ProgressionObservation(3L, muscle, 50f, 0.95f, bracket),
+                    ),
+                    baselines = mapOf(muscle to baseline), coefficients = coefs,
+                    muscleExercises = mapOf(muscle to ids), hurtMuscles = emptySet(), weightUnit = WeightUnit.KG,
+                ),
+            )
+            return out.coefficientUpdates.first { it.exerciseId == 3L }.coefficient
+        }
+        // With EMA bypass (bracket=0.95) the coef reaches much closer to the 50/100=0.5 reading
+        // than the smoothed (bracket=0) path does in one session.
+        val snapped = runWith(0.95f)
+        val smoothed = runWith(0f)
+        assertTrue("snap should land lower than smoothed: snap=$snapped smoothed=$smoothed", snapped < smoothed)
+        assertTrue("snap should approach the 0.5 reading: $snapped", snapped < 0.62f)
+    }
+
     @Test
     fun bracketSnap_movesCoefFartherThanClampedPath_inOneSession() {
         val baseline = 100f
