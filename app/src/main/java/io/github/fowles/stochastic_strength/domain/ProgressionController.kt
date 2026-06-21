@@ -24,6 +24,8 @@ data class ProgressionStepInput(
     val coefficients: Map<Long, Float>,
     /** Every loaded (coefficient > 0) exercise id per muscle — the rolling pool. */
     val muscleExercises: Map<MuscleGroup, List<Long>>,
+    /** Seed (default) coefficient per loaded exercise — reference for the geomean reclaimer. */
+    val seedCoefficients: Map<Long, Float> = emptyMap(),
     /** Muscles with a HURT set this session — baseline backs off, overriding the PI update. */
     val hurtMuscles: Set<MuscleGroup>,
     val weightUnit: WeightUnit,

@@ -115,6 +115,7 @@ class WorkoutRepository(
                 baselines = snapshot.currentBaselines.toMap(),
                 coefficients = snapshot.currentCoefficients.toMap(),
                 muscleExercises = muscleExercises,
+                seedCoefficients = snapshot.seedCoefficients,
                 hurtMuscles = hurtMuscles,
                 weightUnit = weightUnit,
             ),
