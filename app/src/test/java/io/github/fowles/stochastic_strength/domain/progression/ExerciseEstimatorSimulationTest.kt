@@ -1,4 +1,4 @@
-package io.github.fowles.stochastic_strength.domain
+package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -6,6 +6,12 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
+import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
+import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
+import io.github.fowles.stochastic_strength.domain.RepRangePicker
+import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,10 +20,11 @@ import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.pow
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
- * Param-lock simulation test for the production [RollingConservingProgressionController].
+ * Param-lock simulation test for the per-exercise [ExerciseEstimateUpdater] + [MuscleStrengthProjector].
  *
  * Drives the real exercise library + real planner (bands removed, all other equipment kept) through
  * 120+30 sessions with perturbed coefficients, mid-set weight drops, and multiple muscle groups.
@@ -25,22 +32,17 @@ import kotlin.random.Random
  *
  * The synthetic lifter models cross-set fatigue: each successive set within an exercise loses
  * [fatiguePerSet] of effective 1RM, so the last (most fatigued) set is the governing one. Reps are
- * drawn from the full allowed `[1, 20]` range. Because the asymmetric signal centers the last set on
- * RIR_0_1, the prescribed weight correctly settles BELOW the fresh 1RM — at the last set's fatigued
- * effective 1RM — so the convergence/jitter targets are measured about that fatigued steady state.
+ * drawn from the full allowed [1, 20] range. The estimator-based prescription correctly settles at
+ * the last set's fatigued effective 1RM, so convergence/jitter targets are measured about that
+ * fatigued steady state.
  *
- * The primary locked assert is behavioral and validated UNDER REALISTIC GROWTH: with the lifter
- * getting stronger each session, the Option-2 up-push tracks genuine gains, so the last full-weight
- * (most-fatigued) set settles near RIR_0_1 (a small positive reserve on average) with failures a
- * clear minority. Against a STATIC lifter the gauge-conservation law would instead force a high
- * steady-state failure rate, so the static run is checked only for non-divergence (finite metrics +
- * bounded prescribed error), not failure rate. The gauge-conservation ceiling is unchanged.
- * None of these may be loosened without a documented design decision; a violation means the harness
- * diverges from the validated prototype — investigate before adjusting.
+ * The constants in [EstimatorConfig] are the sole tuning surface; they are pinned here.
  */
-class ProgressionControllerSimulationTest {
+class ExerciseEstimatorSimulationTest {
 
     private val unit = WeightUnit.KG
+    private val updater = ExerciseEstimateUpdater()
+    private val projector = MuscleStrengthProjector()
 
     /** Fraction of effective 1RM lost per additional set within an exercise (cross-set fatigue). */
     private val fatiguePerSet = 0.03f
@@ -84,13 +86,12 @@ class ProgressionControllerSimulationTest {
         val convSessions: Int,    // sessions until mean error over ever-trained exercises <= 10%
         val trainedEndErr: Float, // tail mean prescribed error over well-trained (>=3 sessions) exercises (%)
         val jitter: Float,        // tail std of prescribed/true over well-trained exercises (%)
-        val coefInflation: Float, // geomean(coef/seedCoef) over loaded — 1.0 = no gauge creep
         val lastSetRir: Float,    // tail mean (achievable reps - target) on the last full-weight set
         val failRate: Float,      // tail fraction of last full-weight sets that failed
     )
 
     private fun metricsFinite(m: RMetrics) = listOf(
-        m.trainedEndErr, m.jitter, m.coefInflation, m.lastSetRir, m.failRate,
+        m.trainedEndErr, m.jitter, m.lastSetRir, m.failRate,
     ).none { it.isNaN() || it.isInfinite() }
 
     // ---- multi-seed list ------------------------------------------------------------------------
@@ -126,6 +127,7 @@ class ProgressionControllerSimulationTest {
         val loaded = library.filter { seedCoef.getValue(it.id) > 0f }
         val exMuscle = library.associate { it.id to it.primaryMuscle }
         val musclesLoaded = loaded.map { it.primaryMuscle }.toSet()
+        val muscleExercises = loaded.groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
 
         // True coefficients: seed slightly off (lognormal ~8%), with a few big outliers.
         val outlierFactors = listOf(1.5f, 0.6f, 1.4f, 0.65f)
@@ -138,27 +140,38 @@ class ProgressionControllerSimulationTest {
         }
         val trueBaseline = trueBaselines.filterKeys { it in musclesLoaded }
 
-        val baselines = trueBaseline.mapValues { it.value * seedBaselineFactor }.toMutableMap()
-        val coefs = seedCoef.toMutableMap()
+        // Per-exercise estimates: seed from seedBaselineFactor * trueBaseline_muscle * seedCoef at t=0.
+        val estimates = mutableMapOf<Long, ExerciseEstimate>()
+        for (ex in loaded) {
+            val m = ex.primaryMuscle
+            val tb = trueBaseline[m] ?: continue
+            val c = seedCoef.getValue(ex.id)
+            estimates[ex.id] = ExerciseEstimate.seed(seedBaselineFactor * tb * c, at = 0L)
+        }
+
         val trainCount = mutableMapOf<Long, Int>()
         var t = 0L
         var convAt = -1
 
-        val controller = RollingConservingProgressionController()
-        val muscleExercises = loaded.groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
-
         val tailRatio = loaded.associate { it.id to mutableListOf<Float>() }
         val tailTrainedErr = mutableListOf<Float>()
-        val tailLastSetRir = mutableListOf<Float>() // (achievable reps - target) on the last full-weight set
-        val tailLastSetFail = mutableListOf<Float>() // 1f if that set failed, else 0f
+        val tailLastSetRir = mutableListOf<Float>()
+        val tailLastSetFail = mutableListOf<Float>()
 
         fun gMulAt(s: Int): Float = Math.pow(1.0 + growthPerSession, s.toDouble()).toFloat()
-        // Steady-state target: the last (most fatigued) set's effective 1RM — where RIR_0_1 lands.
+        // Steady-state target: the last (most fatigued) set's effective 1RM.
         val steadyFactor = 1f - fatiguePerSet * (PlannedExercise.DEFAULT_SETS - 1)
+
+        fun prescribedE1rmOf(id: Long, m: MuscleGroup): Float {
+            val proj = projector.project(estimates, seedCoef, muscleExercises.getValue(m), now = t)
+            return proj.effectiveE1rm[id] ?: return 0f
+        }
+
         fun errOf(id: Long, gMul: Float): Float {
             val m = exMuscle.getValue(id)
             val target1RM = trueBaseline.getValue(m) * gMul * trueCoef.getValue(id) * steadyFactor
-            return abs(baselines.getValue(m) * coefs.getValue(id) - target1RM) / target1RM
+            val prescribed = prescribedE1rmOf(id, m)
+            return abs(prescribed - target1RM) / target1RM
         }
 
         val total = sessions + tail
@@ -171,17 +184,18 @@ class ProgressionControllerSimulationTest {
             // Real planner selection (bands already removed), capped at 5 exercises this workout.
             val selected = WorkoutGenerator.generate(WorkoutGenerator.Input(library, rng)).take(5)
 
-            val thisSessionSets = mutableListOf<WorkoutSet>()
-            val reductions = mutableMapOf<Long, Float>()
+            val thisSessionSets = mutableMapOf<Long, MutableList<WorkoutSet>>()
             for (pe in selected) {
                 val ex = pe.exercise
-                val c = coefs[ex.id] ?: 0f
-                if (c <= 0f) continue // bodyweight / unloadable: in the workout but no load signal
+                val c = seedCoef[ex.id] ?: 0f
+                if (c <= 0f) continue // bodyweight / unloadable: no load signal
                 val m = ex.primaryMuscle
-                val b = baselines[m] ?: continue
-                val w0 = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(b * c, reps), unit)
+                val proj = projector.project(estimates, seedCoef, muscleExercises.getValue(m), now = t)
+                val e1rm = proj.effectiveE1rm[ex.id] ?: continue
+                val w0 = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(e1rm, reps), unit)
                 if (w0 <= 0f) continue
                 val true1RM = trueBaseline.getValue(m) * gMul * trueCoef.getValue(ex.id)
+                val exSets = mutableListOf<WorkoutSet>()
                 var w = w0
                 var lastFullReps: Double? = null
                 for (setNum in 1..PlannedExercise.DEFAULT_SETS) {
@@ -191,22 +205,20 @@ class ProgressionControllerSimulationTest {
                     if (w >= w0 - 1e-3f) {
                         lastFullReps = achievableReps(w, setTrue1RM, noise)
                     }
-                    thisSessionSets.add(
+                    exSets.add(
                         WorkoutSet(
                             sessionId = sid, exerciseId = ex.id, setNumber = setNum,
                             targetWeight = w, targetReps = reps, actualReps = ar, feedback = fb,
                         ),
                     )
-                    // Mid-set drop: a failed set reduces the weight for the remaining sets.
                     if (fb == SetFeedback.TOO_HARD && setNum < PlannedExercise.DEFAULT_SETS) {
                         w = maxOf(0.5f, WeightFormatter.round(
                             DefaultProgressionEngine.scaleReps(w, from = maxOf(1, ar ?: 1), to = reps), unit,
                         ))
                     }
                 }
-                if (w < w0) {
-                    reductions[ex.id] = (w0 - w) / w0
-                }
+                thisSessionSets[ex.id] = exSets
+
                 if (s >= sessions) {
                     lastFullReps?.let {
                         tailLastSetRir.add((it - reps).toFloat())
@@ -216,34 +228,34 @@ class ProgressionControllerSimulationTest {
                 trainCount.merge(ex.id, 1, Int::plus)
             }
 
-            val observations = thisSessionSets.groupBy { it.exerciseId }.mapNotNull { (id, sets) ->
-                SessionSignalExtractor.aggregateSession(sets)?.let {
-                    ProgressionObservation(id, exMuscle.getValue(id), it.est1RM, it.sessionConfidence, it.bracketConfidence)
+            // Fold each exercise's sets into its estimate.
+            for ((id, sets) in thisSessionSets) {
+                SessionSignalExtractor.aggregateSession(sets)?.let { agg ->
+                    estimates[id] = updater.fold(estimates.getValue(id), agg.est1RM, agg.bracketConfidence, t)
                 }
             }
-            val hurtMuscles = thisSessionSets
-                .filter { it.feedback == SetFeedback.HURT }
-                .mapNotNull { exMuscle[it.exerciseId] }.toSet()
-            val out = controller.step(
-                ProgressionStepInput(
-                    now = t, observations = observations,
-                    baselines = baselines.toMap(), coefficients = coefs.toMap(),
-                    muscleExercises = muscleExercises, seedCoefficients = seedCoef,
-                    hurtMuscles = hurtMuscles, weightUnit = unit,
-                ),
-            )
-            out.baselineUpdates.forEach { baselines[it.muscleGroup] = it.newBaseline }
-            out.coefficientUpdates.forEach { coefs[it.exerciseId] = it.coefficient }
 
             val trained = loaded.map { it.id }.filter { (trainCount[it] ?: 0) >= 1 }
             if (convAt < 0 && trained.isNotEmpty() && trained.map { errOf(it, gMul) }.average() <= 0.10) convAt = s
 
             if (s >= sessions) {
-                val well = loaded.map { it.id }.filter { (trainCount[it] ?: 0) >= 3 }
+                // "Well-trained" for the tracking metric: exercises with currently-active estimates
+                // (decayed confidence ≥ confidentThreshold). This matches the estimator's own
+                // definition of "I know this exercise" — stale estimates fall back to sibling
+                // prediction and are excluded from the per-exercise tracking error.
+                val config = EstimatorConfig()
+                val well = loaded.filter { ex ->
+                    val est = estimates[ex.id] ?: return@filter false
+                    val age = (t - est.updatedAt).coerceAtLeast(0L)
+                    val decayedConf = est.confidence * Math.pow(0.5, age.toDouble() / config.halfLifeMs).toFloat()
+                    decayedConf >= config.confidentThreshold
+                }.map { it.id }
                 if (well.isNotEmpty()) tailTrainedErr.add(well.map { errOf(it, gMul) }.average().toFloat() * 100f)
                 loaded.forEach { ex ->
                     val m = ex.primaryMuscle
-                    tailRatio.getValue(ex.id).add(baselines.getValue(m) * coefs.getValue(ex.id) / (trueBaseline.getValue(m) * gMul * trueCoef.getValue(ex.id) * steadyFactor))
+                    val trueTarget = trueBaseline.getValue(m) * gMul * trueCoef.getValue(ex.id) * steadyFactor
+                    val prescribed = prescribedE1rmOf(ex.id, m)
+                    tailRatio.getValue(ex.id).add(prescribed / trueTarget)
                 }
             }
         }
@@ -253,17 +265,14 @@ class ProgressionControllerSimulationTest {
             val xs = tailRatio.getValue(id)
             if (xs.size < 2) 0f else {
                 val mean = xs.average().toFloat()
-                kotlin.math.sqrt(xs.map { (it - mean) * (it - mean) }.average().toFloat()) * 100f
+                sqrt(xs.map { (it - mean) * (it - mean) }.average().toFloat()) * 100f
             }
         }.let { if (it.isEmpty()) 0f else it.average().toFloat() }
-
-        val coefInflation = exp(loaded.map { ln(coefs.getValue(it.id) / seedCoef.getValue(it.id)).toDouble() }.average()).toFloat()
 
         return RMetrics(
             convSessions = if (convAt < 0) total else convAt,
             trainedEndErr = tailTrainedErr.average().toFloat(),
             jitter = jitter,
-            coefInflation = coefInflation,
             lastSetRir = if (tailLastSetRir.isEmpty()) Float.NaN else tailLastSetRir.average().toFloat(),
             failRate = if (tailLastSetFail.isEmpty()) Float.NaN else tailLastSetFail.average().toFloat(),
         )
@@ -272,11 +281,10 @@ class ProgressionControllerSimulationTest {
     // ---- locked asserts -------------------------------------------------------------------------
 
     @Test
-    fun production_gains_settle_last_set_near_rir01() {
-        // Validated under realistic strengthening: the Option-2 up-push tracks genuine gains, so the
-        // last (fatigued) set settles near RIR_0_1 with failures a clear minority. A gauge-conserving
-        // controller against a STATIC lifter would instead force a high steady-state failure rate, so
-        // the static case below is checked only for non-divergence, not failure rate.
+    fun gains_settle_last_set_near_rir01() {
+        // Validated under realistic strengthening: the estimator's asymmetric up/down weights track
+        // genuine gains so the last (fatigued) set settles near RIR_0_1 with failures a clear minority.
+        // The static case below is checked only for non-divergence, not failure rate.
         val growRows = seeds.map {
             simulateRealistic(0.8f, it, sessions = 120, tail = 30, growthPerSession = behavioralGrowth)
         }
@@ -288,8 +296,7 @@ class ProgressionControllerSimulationTest {
         assertTrue("lastSetRir $rir outside RIR_0_1 band", rir in 0.0f..1.5f)
         assertTrue("failRate ${avg { it.failRate }} too high", avg { it.failRate } <= 0.20f)
 
-        // Stability about the moving target (lag is expected and is the reserve, so trainedErr is
-        // asserted only on the static run, not here).
+        // Stability.
         val convSess = growRows.map { it.convSessions }.average()
         assertTrue("convergence $convSess > budget", convSess <= 12.0)
         assertTrue("jitter ${avg { it.jitter }} > ceiling", avg { it.jitter } <= 1.5f)
@@ -304,53 +311,131 @@ class ProgressionControllerSimulationTest {
     }
 
     @Test
-    fun production_gains_conserve_gauge_under_strengthening() {
+    fun muscle_aggregate_tracks_truth_under_growth() {
+        // For growth in {0.0, 0.002, 0.004}: tail mean prescribed error over well-trained exercises <= 8%.
         for (growth in listOf(0.0f, 0.002f, 0.004f)) {
             val rows = seeds.map { simulateRealistic(1.0f, it, sessions = 120, tail = 30, growthPerSession = growth) }
-            val infl = rows.map { it.coefInflation }.average()
-            assertTrue("coefInflation $infl drifted at growth=$growth", infl in 0.97..1.03) // doc: ~1.00
+            val tailErr = rows.map { it.trainedEndErr }.average()
+            assertTrue("tail prescribed error $tailErr > 8% at growth=$growth", tailErr <= 8.0)
         }
     }
 
     @Test
-    fun too_high_baseline_revealed_in_turn_converges_down() {
-        // One muscle (QUADS), 3 loaded lifts, true coefficients = seeds, baseline starts 60% too high.
-        // Each session ONE lift is prescribed and brackets low (drop-cascade); over rounds the baseline
-        // must fall toward truth and the coefficient geomean must return toward 1.0 (drift reclaimed,
-        // not stranded in the coefficients).
+    fun cold_exercise_with_trained_siblings_is_prescribed_near_truth() {
+        // One muscle (QUADS), 3 loaded lifts; train 2 to convergence, leave 1 untrained.
+        // The untrained lift's projected effectiveE1rm must be within 12% of its true capacity.
         val muscle = MuscleGroup.QUADS
-        val ids = listOf(101L, 102L, 103L)
-        val seedCoef = mapOf(101L to 1.0f, 102L to 0.6f, 103L to 0.4f)
-        val trueBaseline = 130f
-        val baselines = mutableMapOf(muscle to trueBaseline * 1.6f) // 60% too high
-        val coefs = seedCoef.toMutableMap()
-        val controller = RollingConservingProgressionController()
-        val muscleExercises = mapOf(muscle to ids)
+        // Use real QUADS exercises with known seed coefficients.
+        val library = ExerciseLibrary.exercises
+            .mapIndexed { i, e -> e.copy(id = (i + 1).toLong()) }
+            .filter { it.equipment != Equipment.BAND && it.primaryMuscle == muscle }
+        val loaded = library.filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
+        assertTrue("need at least 3 loaded QUADS exercises", loaded.size >= 3)
 
-        var t = 0L
-        repeat(18) { round ->
-            t += daysMs(3)
-            val id = ids[round % ids.size]
-            val target1RM = trueBaseline * seedCoef.getValue(id) // true capacity for this lift
-            // High-confidence bracket reading at true capacity.
-            val obs = listOf(ProgressionObservation(id, muscle, target1RM, 0.95f, 0.95f))
-            val out = controller.step(
-                ProgressionStepInput(
-                    now = t, observations = obs,
-                    baselines = baselines.toMap(), coefficients = coefs.toMap(),
-                    muscleExercises = muscleExercises, seedCoefficients = seedCoef,
-                    hurtMuscles = emptySet(), weightUnit = unit,
-                ),
-            )
-            out.baselineUpdates.forEach { baselines[it.muscleGroup] = it.newBaseline }
-            out.coefficientUpdates.forEach { coefs[it.exerciseId] = it.coefficient }
+        val ex1 = loaded[0]; val ex2 = loaded[1]; val ex3 = loaded[2]
+        val seedCoef = mapOf(
+            ex1.id to (ExerciseCoefficients.byName[ex1.name] ?: 1f),
+            ex2.id to (ExerciseCoefficients.byName[ex2.name] ?: 1f),
+            ex3.id to (ExerciseCoefficients.byName[ex3.name] ?: 1f),
+        )
+        val trueBaseline = 130f
+        val trueCoef = seedCoef // use seed as truth for this focused test
+
+        // Seed all three estimates.
+        val estimates = mutableMapOf<Long, ExerciseEstimate>()
+        for ((id, c) in seedCoef) {
+            estimates[id] = ExerciseEstimate.seed(trueBaseline * c, at = 0L)
         }
 
-        val finalBaseline = baselines.getValue(muscle)
-        val inflation = exp(ids.map { ln(coefs.getValue(it) / seedCoef.getValue(it)).toDouble() }.average()).toFloat()
-        // Baseline converged most of the way down from 1.6x toward 1.0x truth.
-        assertTrue("baseline did not converge down: ${finalBaseline / trueBaseline}", finalBaseline < trueBaseline * 1.20f)
-        // Drift was reclaimed into the baseline, not stranded in collapsed coefficients.
-        assertTrue("coef geomean stranded low: $inflation", inflation > 0.90f)
+        val muscleIds = listOf(ex1.id, ex2.id, ex3.id)
+        val reps = 10
+        val gauss = java.util.Random(42L)
+        val repNoiseStd = 1.0
+        var t = 0L
+
+        // Train ex1 and ex2 for 20 sessions each; leave ex3 untrained.
+        repeat(20) { s ->
+            t += daysMs(3)
+            val sid = s.toLong()
+            for (ex in listOf(ex1, ex2)) {
+                val proj = projector.project(estimates, seedCoef, muscleIds, now = t)
+                val e1rm = proj.effectiveE1rm[ex.id] ?: continue
+                val w0 = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(e1rm, reps), unit)
+                if (w0 <= 0f) continue
+                val true1RM = trueBaseline * trueCoef.getValue(ex.id)
+                val exSets = mutableListOf<WorkoutSet>()
+                var w = w0
+                for (setNum in 1..PlannedExercise.DEFAULT_SETS) {
+                    val noise = gauss.nextGaussian() * repNoiseStd
+                    val setTrue1RM = true1RM * (1f - fatiguePerSet * (setNum - 1))
+                    val (fb, ar) = feedbackFor(w, setNum, setTrue1RM, noise)
+                    exSets.add(
+                        WorkoutSet(
+                            sessionId = sid, exerciseId = ex.id, setNumber = setNum,
+                            targetWeight = w, targetReps = reps, actualReps = ar, feedback = fb,
+                        ),
+                    )
+                    if (fb == SetFeedback.TOO_HARD && setNum < PlannedExercise.DEFAULT_SETS) {
+                        w = maxOf(0.5f, WeightFormatter.round(
+                            DefaultProgressionEngine.scaleReps(w, from = maxOf(1, ar ?: 1), to = reps), unit,
+                        ))
+                    }
+                }
+                SessionSignalExtractor.aggregateSession(exSets)?.let { agg ->
+                    estimates[ex.id] = updater.fold(estimates.getValue(ex.id), agg.est1RM, agg.bracketConfidence, t)
+                }
+            }
+        }
+
+        // Now read the projection for the untrained ex3.
+        val proj = projector.project(estimates, seedCoef, muscleIds, now = t)
+        val trueCap3 = trueBaseline * trueCoef.getValue(ex3.id)
+        val prescribed3 = proj.effectiveE1rm[ex3.id] ?: 0f
+        val err = abs(prescribed3 - trueCap3) / trueCap3
+        assertTrue("cold exercise ${ex3.name} prescribed ${prescribed3} vs true ${trueCap3} (err=${err * 100}%)", err <= 0.12f)
+    }
+
+    @Test
+    fun failure_drops_next_prescription_below_failed_weight() {
+        // Fold a clear failure (bracketConfidence 0.95) into one exercise.
+        // The next projected prescription weight must be below the failed weight.
+        val muscle = MuscleGroup.QUADS
+        val library = ExerciseLibrary.exercises
+            .mapIndexed { i, e -> e.copy(id = (i + 1).toLong()) }
+            .filter { it.equipment != Equipment.BAND && it.primaryMuscle == muscle }
+        val loaded = library.filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
+        assertTrue("need at least 1 loaded QUADS exercise", loaded.isNotEmpty())
+
+        val ex = loaded.first()
+        val c = ExerciseCoefficients.byName[ex.name] ?: 1f
+        val seedCoef = mapOf(ex.id to c)
+        val trueBaseline = 130f
+        val e1rmEstimate = trueBaseline * c
+
+        // Seed a fresh estimate at e1rmEstimate (no confidence yet).
+        val estimates = mutableMapOf(ex.id to ExerciseEstimate.seed(e1rmEstimate, at = 0L))
+        val muscleIds = listOf(ex.id)
+        val reps = 10
+        val t0 = daysMs(1)
+
+        // The failed weight is what the estimate prescribes for 10 reps.
+        val proj0 = projector.project(estimates, seedCoef, muscleIds, now = t0)
+        val e1rmBefore = proj0.effectiveE1rm.getValue(ex.id)
+        val failedWeight = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(e1rmBefore, reps), unit)
+
+        // Fold a clear failure: est1RM well below current (70% of prescribed), bracketConfidence 0.95.
+        val clearFailureEst1RM = e1rmBefore * 0.70f
+        estimates[ex.id] = updater.fold(estimates.getValue(ex.id), clearFailureEst1RM, 0.95f, t0)
+
+        // Next projected prescription weight must be below the failed weight.
+        val t1 = t0 + daysMs(3)
+        val proj1 = projector.project(estimates, seedCoef, muscleIds, now = t1)
+        val nextE1rm = proj1.effectiveE1rm.getValue(ex.id)
+        val nextWeight = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(nextE1rm, reps), unit)
+
+        assertTrue(
+            "next weight $nextWeight should be below failed weight $failedWeight after bracketConfidence=0.95 fold",
+            nextWeight < failedWeight,
+        )
     }
 }
