@@ -20,15 +20,20 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimateUpdater
+import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.math.abs
+import kotlin.math.ln
 
 class WorkoutRepository(
     private val db: AppDatabase,
     val derivedState: DerivedStateStore = DerivedStateStore(),
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
-    private val progressionControllerFactory: () -> ProgressionController,
 ) {
     private val replayMutex = Mutex()
 
@@ -82,109 +87,110 @@ class WorkoutRepository(
         sessionId: Long,
         snapshot: ReplaySnapshot,
         asOf: Long,
-        controller: ProgressionController,
         scratch: MutableDerivedState,
     ) {
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
         if (sets.isEmpty()) return
 
-        val exerciseIds = sets.map { it.exerciseId }.distinct()
-        val exerciseById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
-        val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
-        val sessionReps = sets.firstOrNull { exerciseById[it.exerciseId]?.isTimed != true }?.targetReps ?: 5
-        val exerciseMuscle = snapshot.exerciseMuscle
+        val updater = ExerciseEstimateUpdater()
+        val projector = MuscleStrengthProjector()
 
-        val observations = sets.groupBy { it.exerciseId }.mapNotNull { (id, exSets) ->
-            val muscle = exerciseMuscle[id] ?: return@mapNotNull null
-            if ((snapshot.currentCoefficients[id] ?: 0f) <= 0f) return@mapNotNull null
-            SessionSignalExtractor.aggregateSession(exSets)?.let {
-                ProgressionObservation(id, muscle, it.est1RM, it.sessionConfidence, it.bracketConfidence)
+        // HURT first (muscle-level): for any hurt muscle, hurt every loaded exercise estimate in it.
+        val hurtMuscles = sets.filter { it.feedback == SetFeedback.HURT }
+            .mapNotNull { snapshot.exerciseMuscle[it.exerciseId] }.toSet()
+        for (m in hurtMuscles) {
+            for (id in snapshot.muscleExerciseIds[m].orEmpty()) {
+                snapshot.currentEstimates[id]?.let {
+                    snapshot.currentEstimates[id] = updater.hurt(it, asOf)
+                }
             }
         }
-        // HURT is muscle-level and coefficient-independent (matches prior LastSetAutoregulation): any pain backs the baseline off.
-        val hurtMuscles = sets.filter { it.feedback == SetFeedback.HURT }
-            .mapNotNull { exerciseMuscle[it.exerciseId] }.toSet()
-        val muscleExercises = snapshot.currentCoefficients.filterValues { it > 0f }.keys
-            .mapNotNull { id -> exerciseMuscle[id]?.let { it to id } }
-            .groupBy({ it.first }, { it.second })
 
-        val output = controller.step(
-            ProgressionStepInput(
-                now = asOf,
-                observations = observations,
-                baselines = snapshot.currentBaselines.toMap(),
-                coefficients = snapshot.currentCoefficients.toMap(),
-                muscleExercises = muscleExercises,
-                seedCoefficients = snapshot.seedCoefficients,
-                hurtMuscles = hurtMuscles,
-                weightUnit = weightUnit,
-            ),
-        )
-
-        val setsByMuscle = sets.groupBy { exerciseMuscle[it.exerciseId] }
-        for (update in output.baselineUpdates) {
-            writeBaselineUpdate(update, sessionId, snapshot, sessionReps, setsByMuscle, asOf, controller.name, scratch)
+        // Per-exercise fold from the session aggregate.
+        val affectedMuscles = mutableSetOf<MuscleGroup>()
+        sets.groupBy { it.exerciseId }.forEach { (id, exSets) ->
+            if ((snapshot.seedCoefficients[id] ?: 0f) <= 0f) return@forEach
+            val agg = SessionSignalExtractor.aggregateSession(exSets) ?: return@forEach
+            val prior = snapshot.currentEstimates[id] ?: return@forEach
+            snapshot.currentEstimates[id] = updater.fold(prior, agg.est1RM, agg.bracketConfidence, asOf)
+            snapshot.exerciseMuscle[id]?.let { affectedMuscles.add(it) }
         }
-        writeCoefficientUpdates(output.coefficientUpdates, snapshot, asOf, controller.name, scratch)
+        // Also project muscles that had HURT updates.
+        affectedMuscles.addAll(hurtMuscles)
+
+        // Write display projections for affected muscles.
+        for (m in affectedMuscles) {
+            val exerciseIds = snapshot.muscleExerciseIds[m] ?: continue
+            val projection = projector.project(
+                estimates = snapshot.currentEstimates,
+                seedCoef = snapshot.seedCoefficients,
+                muscleExerciseIds = exerciseIds,
+                now = asOf,
+            )
+            writeLevelUpdate(m, projection.level, sessionId, asOf, scratch)
+            writeDerivedCoefficients(
+                muscleExerciseIds = exerciseIds,
+                derivedCoef = projection.derivedCoef,
+                snapshot = snapshot,
+                asOf = asOf,
+                scratch = scratch,
+            )
+        }
     }
 
-    private fun writeBaselineUpdate(
-        update: BaselineUpdate,
+    private fun writeLevelUpdate(
+        muscle: MuscleGroup,
+        level: Float,
         sessionId: Long,
-        snapshot: ReplaySnapshot,
-        sessionReps: Int,
-        setsByMuscle: Map<MuscleGroup?, List<WorkoutSet>>,
         asOf: Long,
-        heuristicName: String,
         scratch: MutableDerivedState,
     ) {
-        val current = snapshot.currentBaselines[update.muscleGroup] ?: return
-        val newBaseline = update.newBaseline
-        if (newBaseline <= 0f || newBaseline == current) return
-        scratch.upsertMuscleGroupStrength(
-            MuscleGroupStrength(muscleGroup = update.muscleGroup, baselineWeight = newBaseline),
-        )
-        snapshot.progressionBaselines[sessionId to update.muscleGroup] = current
-        snapshot.currentBaselines[update.muscleGroup] = newBaseline
-        val muscleFeedbacks = setsByMuscle[update.muscleGroup].orEmpty().mapNotNull { it.feedback }
-        val historyRow = BaselineHistory(
-            sessionId = sessionId,
-            muscleGroup = update.muscleGroup,
-            previousBaseline = current,
-            newBaseline = newBaseline,
-            changeReason = BaselineChangeReason.PROGRESSION,
-            feedbacks = muscleFeedbacks.joinToString(",") { it.name }.ifEmpty { null },
-            sessionReps = sessionReps,
-            minReductionFraction = null,
-            timestamp = asOf,
-            heuristicName = heuristicName,
-            heuristicMetadata = update.metadata,
-        )
-        scratch.insertBaselineHistory(historyRow)
-        snapshot.baselineHistoryByMuscle.getOrPut(update.muscleGroup) { mutableListOf() }.add(historyRow)
+        if (level <= 0f) return
+        val current = scratch.muscleGroupStrength(muscle)?.baselineWeight
+        scratch.upsertMuscleGroupStrength(MuscleGroupStrength(muscleGroup = muscle, baselineWeight = level))
+        if (current == null || current != level) {
+            scratch.insertBaselineHistory(
+                BaselineHistory(
+                    sessionId = sessionId,
+                    muscleGroup = muscle,
+                    previousBaseline = current ?: 0f,
+                    newBaseline = level,
+                    changeReason = BaselineChangeReason.PROGRESSION,
+                    feedbacks = null,
+                    sessionReps = null,
+                    minReductionFraction = null,
+                    timestamp = asOf,
+                    heuristicName = "per-exercise-estimate",
+                    heuristicMetadata = null,
+                )
+            )
+        }
     }
 
-    private fun writeCoefficientUpdates(
-        updates: List<CoefficientUpdate>,
+    private fun writeDerivedCoefficients(
+        muscleExerciseIds: List<Long>,
+        derivedCoef: Map<Long, Float>,
         snapshot: ReplaySnapshot,
         asOf: Long,
-        heuristicName: String,
         scratch: MutableDerivedState,
     ) {
-        if (updates.isEmpty()) return
         val latestByExercise = scratch.coefficientHistoryLatestPerExercise().associateBy { it.exerciseId }
-        for (update in updates) {
+        for (id in muscleExerciseIds) {
+            val coef = derivedCoef[id] ?: continue
+            val last = snapshot.lastWrittenCoef[id]
+            // Epsilon-dedupe: only write when the coefficient changed materially.
+            if (last != null && abs(coef - last) / last.coerceAtLeast(1e-6f) < 1e-4f) continue
             val row = CoefficientHistory(
-                exerciseId = update.exerciseId,
-                previousCoefficient = latestByExercise[update.exerciseId]?.coefficient
-                    ?: snapshot.seedCoefficients[update.exerciseId],
-                coefficient = update.coefficient,
-                heuristicName = heuristicName,
-                heuristicMetadata = update.metadata,
+                exerciseId = id,
+                previousCoefficient = latestByExercise[id]?.coefficient
+                    ?: snapshot.seedCoefficients[id],
+                coefficient = coef,
+                heuristicName = "per-exercise-estimate",
+                heuristicMetadata = null,
                 computedAt = asOf,
             )
             scratch.insertCoefficientHistory(row)
-            snapshot.currentCoefficients[update.exerciseId] = update.coefficient
+            snapshot.lastWrittenCoef[id] = coef
         }
     }
 
@@ -238,60 +244,42 @@ class WorkoutRepository(
     ) = replayMutex.withLock {
         derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
-            val controller = progressionControllerFactory()
-            val initials = db.baselineOverrideDao().getInitials()
-            val overridesBySession = db.baselineOverrideDao().getNonInitials()
-                .groupBy { it.sessionId!! }
+            val config = EstimatorConfig()
 
+            // Init from per-exercise strength overrides (sessionId = null rows).
+            val initials = db.exerciseStrengthOverrideDao().getInitials()
             for (init in initials) {
-                snapshot.currentBaselines[init.muscleGroup] = init.baselineWeight
-                scratch.upsertMuscleGroupStrength(
-                    MuscleGroupStrength(muscleGroup = init.muscleGroup, baselineWeight = init.baselineWeight)
-                )
-                val row = BaselineHistory(
-                    sessionId = null,
-                    muscleGroup = init.muscleGroup,
-                    previousBaseline = 0f,
-                    newBaseline = init.baselineWeight,
-                    changeReason = BaselineChangeReason.INITIAL,
-                    timestamp = init.asOf,
-                )
-                scratch.insertBaselineHistory(row)
-                snapshot.baselineHistoryByMuscle.getOrPut(init.muscleGroup) { mutableListOf() }.add(row)
+                snapshot.currentEstimates[init.exerciseId] = ExerciseEstimate.seed(init.e1rm, at = init.asOf)
             }
+
+            // Group non-initial per-exercise overrides by sessionId.
+            val exerciseOverridesBySession = db.exerciseStrengthOverrideDao().getNonInitials()
+                .groupBy { it.sessionId!! }
 
             val sessions = db.workoutSessionDao().getAll()
                 .filter { it.endTime != null }
                 .sortedWith(compareBy({ it.endTime!! }, { it.id }))
 
             for (session in sessions) {
-                overridesBySession[session.id]
-                    ?.sortedBy { if (it.reason == BaselineChangeReason.DETRAIN) 0 else 1 }
-                    ?.forEach { o ->
-                        val prev = snapshot.currentBaselines[o.muscleGroup] ?: 0f
-                        snapshot.currentBaselines[o.muscleGroup] = o.baselineWeight
-                        scratch.upsertMuscleGroupStrength(
-                            MuscleGroupStrength(muscleGroup = o.muscleGroup, baselineWeight = o.baselineWeight)
-                        )
-                        val row = BaselineHistory(
-                            sessionId = session.id,
-                            muscleGroup = o.muscleGroup,
-                            previousBaseline = prev,
-                            newBaseline = o.baselineWeight,
-                            changeReason = o.reason,
-                            timestamp = o.asOf,
-                        )
-                        scratch.insertBaselineHistory(row)
-                        snapshot.baselineHistoryByMuscle.getOrPut(o.muscleGroup) { mutableListOf() }.add(row)
-                    }
+                // Apply per-exercise override rows for this session first (manual/detrain adjustments).
+                exerciseOverridesBySession[session.id]?.forEach { o ->
+                    snapshot.currentEstimates[o.exerciseId] = ExerciseEstimate(
+                        lnE = ln(o.e1rm),
+                        confidence = config.confidentThreshold,
+                        updatedAt = o.asOf,
+                    )
+                }
+
                 applySessionProgression(
-                    session.id,
-                    snapshot,
+                    sessionId = session.id,
+                    snapshot = snapshot,
                     asOf = session.endTime!!,
-                    controller = controller,
                     scratch = scratch,
                 )
             }
+
+            // Store the final estimate map for the live planner (Task 8 reads it).
+            scratch.putExerciseEstimates(snapshot.currentEstimates.toMap())
         }
     }
 

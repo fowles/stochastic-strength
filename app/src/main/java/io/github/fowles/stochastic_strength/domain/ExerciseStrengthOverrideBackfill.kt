@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain
 
+import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
@@ -29,8 +30,10 @@ class ExerciseStrengthOverrideBackfill(private val db: AppDatabase) {
                 }
         val exercises = db.exerciseDao().getAll()
         val rows = planBackfill(alreadyDone = false, muscleOverrides = muscleOverrides, exercises = exercises)
-        for (row in rows) db.exerciseStrengthOverrideDao().insert(row)
-        db.userProfileDao().insert(profile.copy(perExerciseSeedsBackfilled = true))
+        db.withTransaction {
+            for (row in rows) db.exerciseStrengthOverrideDao().insert(row)
+            db.userProfileDao().insert(profile.copy(perExerciseSeedsBackfilled = true))
+        }
     }
 }
 

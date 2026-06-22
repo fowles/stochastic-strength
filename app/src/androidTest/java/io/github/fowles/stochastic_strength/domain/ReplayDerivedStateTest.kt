@@ -38,10 +38,7 @@ class ReplayDerivedStateTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(
-            db,
-            progressionControllerFactory = { FakeProgressionController() },
-        )
+        repository = WorkoutRepository(db)
     }
 
     @After
@@ -141,10 +138,7 @@ class ReplayDerivedStateTest {
         // Uses the REAL RollingConservingProgressionController (not the fake) to assert real
         // progression: 3 sessions of consistently-easy (RIR_5_PLUS) feedback on Barbell Bench
         // Press at the prescribed weight must drive the baseline strictly upward each session.
-        val realRepository = WorkoutRepository(
-            db,
-            progressionControllerFactory = { RollingConservingProgressionController() },
-        )
+        val realRepository = WorkoutRepository(db)
 
         db.userProfileDao().insert(UserProfile(
             sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))

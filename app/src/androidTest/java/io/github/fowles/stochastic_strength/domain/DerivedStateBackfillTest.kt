@@ -37,10 +37,7 @@ class DerivedStateBackfillTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(
-            db,
-            progressionControllerFactory = { FakeProgressionController() },
-        )
+        repository = WorkoutRepository(db)
     }
 
     @After

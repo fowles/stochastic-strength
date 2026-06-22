@@ -49,10 +49,7 @@ class FatigueNoDownwardBiasReplayTest {
         // high-rep fatigue) holds because innovations are symmetric in log space: TOO_HARD at
         // targetReps-1 on a weight that equals the baseline implies est1RM ≈ baseline, so the
         // common-mode innovation is near zero and the baseline is not penalised.
-        repository = WorkoutRepository(
-            db,
-            progressionControllerFactory = { RollingConservingProgressionController() },
-        )
+        repository = WorkoutRepository(db)
     }
 
     @After

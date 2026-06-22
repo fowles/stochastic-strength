@@ -40,7 +40,7 @@ class WorkoutRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
+        repository = WorkoutRepository(db)
     }
 
     @After
@@ -71,7 +71,7 @@ class WorkoutRepositoryTest {
     @Test
     fun applyManualBaselineOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
-        val repo = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
+        val repo = WorkoutRepository(db)
 
         repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
 

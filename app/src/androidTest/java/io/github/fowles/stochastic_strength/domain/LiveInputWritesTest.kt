@@ -35,10 +35,7 @@ class LiveInputWritesTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(
-            db,
-            progressionControllerFactory = { FakeProgressionController() },
-        )
+        repository = WorkoutRepository(db)
         runBlocking {
             db.userProfileDao().insert(
                 UserProfile(

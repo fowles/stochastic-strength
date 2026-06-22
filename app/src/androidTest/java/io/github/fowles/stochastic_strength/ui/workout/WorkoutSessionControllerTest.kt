@@ -15,7 +15,6 @@ import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.DetrainingModel
-import io.github.fowles.stochastic_strength.domain.FakeProgressionController
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -57,7 +56,7 @@ class WorkoutSessionControllerTest {
             ))
             bus = WorkoutSessionBus()
             scope = CoroutineScope(Dispatchers.Default)
-            repository = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
+            repository = WorkoutRepository(db)
             repository.derivedState.rebuild { mut ->
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
@@ -366,7 +365,7 @@ class WorkoutSessionControllerTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
         ))
-        val freshRepo = WorkoutRepository(freshDb, progressionControllerFactory = { FakeProgressionController() })
+        val freshRepo = WorkoutRepository(freshDb)
         freshRepo.derivedState.rebuild { mut ->
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
@@ -414,7 +413,7 @@ class WorkoutSessionControllerTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
         ))
-        val freshRepo = WorkoutRepository(freshDb, progressionControllerFactory = { FakeProgressionController() })
+        val freshRepo = WorkoutRepository(freshDb)
         freshRepo.derivedState.rebuild { mut ->
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
@@ -455,7 +454,7 @@ class WorkoutSessionControllerTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
         ))
-        val freshRepo = WorkoutRepository(freshDb, progressionControllerFactory = { FakeProgressionController() })
+        val freshRepo = WorkoutRepository(freshDb)
         freshRepo.derivedState.rebuild { mut ->
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
