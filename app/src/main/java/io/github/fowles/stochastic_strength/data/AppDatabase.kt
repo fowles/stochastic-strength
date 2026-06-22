@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import io.github.fowles.stochastic_strength.data.dao.BaselineOverrideDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.ExerciseHurtStateDao
+import io.github.fowles.stochastic_strength.data.dao.ExerciseStrengthOverrideDao
 import io.github.fowles.stochastic_strength.data.dao.KnownLocationDao
 import io.github.fowles.stochastic_strength.data.dao.LocationExcludedExerciseDao
 import io.github.fowles.stochastic_strength.data.dao.UserProfileDao
@@ -18,6 +19,7 @@ import io.github.fowles.stochastic_strength.data.dao.WorkoutSetDao
 import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
+import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.UserProfile
@@ -35,8 +37,9 @@ import kotlinx.coroutines.CoroutineScope
         UserProfile::class,
         BaselineOverride::class,
         ExerciseHurtState::class,
+        ExerciseStrengthOverride::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -49,6 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun baselineOverrideDao(): BaselineOverrideDao
     abstract fun exerciseHurtStateDao(): ExerciseHurtStateDao
+    abstract fun exerciseStrengthOverrideDao(): ExerciseStrengthOverrideDao
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2, 3) {
@@ -320,6 +324,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `exercise_strength_override` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`sessionId` INTEGER, `exerciseId` INTEGER NOT NULL, " +
+                        "`e1rm` REAL NOT NULL, `asOf` INTEGER NOT NULL, `reason` TEXT NOT NULL)"
+                )
+                db.execSQL(
+                    "ALTER TABLE `user_profile` ADD COLUMN `perExerciseSeedsBackfilled` INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
@@ -342,7 +360,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
                     MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
-                    MIGRATION_14_15, MIGRATION_15_16,
+                    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                 )
                 .build()
     }
