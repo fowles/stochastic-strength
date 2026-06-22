@@ -285,7 +285,7 @@ class WorkoutSessionControllerTest {
             commit.plan.exercises[i].sessionWeight,
         )
         // Baseline override untouched.
-        assertTrue(commit.plan.strengthOverrides.isEmpty())
+        assertTrue(commit.plan.exerciseOverrides.isEmpty())
     }
 
     @Test

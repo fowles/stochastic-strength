@@ -4,7 +4,6 @@ import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
-import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
@@ -51,15 +50,19 @@ class WorkoutRepository(
     suspend fun buildPlanner(
         locationId: Long?,
         weightUnit: WeightUnit,
-        strengthOverrides: Map<MuscleGroup, Float> = emptyMap(),
+        exerciseOverrides: Map<Long, Float> = emptyMap(),
     ): WorkoutPlanner {
         val excluded = excludedExerciseIds(locationId)
         val available = db.exerciseDao().getActive().filter { it.id !in excluded }
-        val dbStrengths = derivedState.snapshot().allMuscleGroupStrengths().associateBy { it.muscleGroup }
-        val strengths = if (strengthOverrides.isEmpty()) dbStrengths else
-            dbStrengths + strengthOverrides.mapValues { (muscle, baseline) ->
-                MuscleGroupStrength(muscleGroup = muscle, baselineWeight = baseline)
-            }
+        val estimates = derivedState.snapshot().exerciseEstimates()
+        val seedCoef = available.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
+        val muscleIds = available.filter { (seedCoef[it.id] ?: 0f) > 0f }
+            .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
+        val now = System.currentTimeMillis()
+        val projector = MuscleStrengthProjector()
+        val prescribedE1rm = muscleIds.flatMap { (_, ids) ->
+            projector.project(estimates, seedCoef, ids, now).effectiveE1rm.entries.map { it.key to it.value }
+        }.toMap()
         val history = if (available.isNotEmpty())
             db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
                 .groupBy { it.exerciseId }
@@ -74,13 +77,14 @@ class WorkoutRepository(
         val pacingEstimator = ExercisePacingEstimator.build(recentSessions, recentSets, exercisesById)
         return WorkoutPlanner(
             availableExercises = available,
-            strengths = strengths,
+            prescribedE1rm = prescribedE1rm,
             recentHistory = history,
             weightUnit = weightUnit,
             locationId = locationId,
             coefficientSource = effectiveCoefficients,
             progressionEngine = progressionEngine,
             pacingEstimator = pacingEstimator,
+            exerciseE1rmOverrides = exerciseOverrides,
         )
     }
 
@@ -195,38 +199,40 @@ class WorkoutRepository(
         }
     }
 
-    suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
+    suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<Long, Float>) {
         if (overrides.isEmpty()) return
         val session = db.workoutSessionDao().getById(sessionId)
         val asOf = session?.startTime ?: System.currentTimeMillis()
-        for ((muscleGroup, newBaseline) in overrides) {
-            db.baselineOverrideDao().insert(
-                BaselineOverride(
+        for ((exerciseId, e1rm) in overrides) {
+            db.exerciseStrengthOverrideDao().insert(
+                ExerciseStrengthOverride(
                     sessionId = sessionId,
-                    muscleGroup = muscleGroup,
-                    baselineWeight = newBaseline,
+                    exerciseId = exerciseId,
+                    e1rm = e1rm,
                     asOf = asOf,
                     reason = BaselineChangeReason.OVERRIDE,
                 )
             )
         }
+        replayDerivedState()
     }
 
-    suspend fun applyDetrainingReduction(sessionId: Long, overrides: Map<MuscleGroup, Float>) {
+    suspend fun applyDetrainingReduction(sessionId: Long, overrides: Map<Long, Float>) {
         if (overrides.isEmpty()) return
         val session = db.workoutSessionDao().getById(sessionId)
         val asOf = session?.startTime ?: System.currentTimeMillis()
-        for ((muscleGroup, newBaseline) in overrides) {
-            db.baselineOverrideDao().insert(
-                BaselineOverride(
+        for ((exerciseId, e1rm) in overrides) {
+            db.exerciseStrengthOverrideDao().insert(
+                ExerciseStrengthOverride(
                     sessionId = sessionId,
-                    muscleGroup = muscleGroup,
-                    baselineWeight = newBaseline,
+                    exerciseId = exerciseId,
+                    e1rm = e1rm,
                     asOf = asOf,
                     reason = BaselineChangeReason.DETRAIN,
                 )
             )
         }
+        replayDerivedState()
     }
 
     /**

@@ -41,14 +41,15 @@ class WorkoutPlanTest {
 
     @Test
     fun effectiveOverrides_mergesWithManualWinning() {
+        // exerciseOverrides win over detrainOverrides for the same key (exercise id)
         val plan = WorkoutPlan(
             exercises = emptyList(),
             locationId = null,
-            strengthOverrides = mapOf(MuscleGroup.CHEST to 70f),
-            detrainOverrides = mapOf(MuscleGroup.CHEST to 50f, MuscleGroup.BACK to 60f),
+            exerciseOverrides = mapOf(1L to 70f),
+            detrainOverrides = mapOf(1L to 50f, 2L to 60f),
         )
         assertEquals(
-            mapOf(MuscleGroup.CHEST to 70f, MuscleGroup.BACK to 60f),
+            mapOf(1L to 70f, 2L to 60f),
             plan.effectiveOverrides,
         )
     }
@@ -56,6 +57,6 @@ class WorkoutPlanTest {
     @Test
     fun effectiveOverrides_emptyByDefault() {
         val plan = WorkoutPlan(exercises = emptyList(), locationId = null)
-        assertEquals(emptyMap<MuscleGroup, Float>(), plan.effectiveOverrides)
+        assertEquals(emptyMap<Long, Float>(), plan.effectiveOverrides)
     }
 }

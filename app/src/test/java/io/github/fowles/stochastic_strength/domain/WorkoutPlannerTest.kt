@@ -16,6 +16,19 @@ import org.junit.Test
 import kotlin.math.abs
 import kotlin.random.Random
 
+// Helper: convert the old per-muscle strengths into per-exercise e1rm using seed coefficients.
+private fun strengthsToPrescribedE1rm(
+    exercises: List<Exercise>,
+    strengths: Map<MuscleGroup, MuscleGroupStrength>,
+    coefficientSource: CoefficientSource,
+): Map<Long, Float> =
+    exercises.mapNotNull { ex ->
+        val baseline = strengths[ex.primaryMuscle]?.baselineWeight ?: return@mapNotNull null
+        val coef = coefficientSource.get(ex) ?: return@mapNotNull null
+        if (coef <= 0f) return@mapNotNull null
+        ex.id to baseline * coef
+    }.toMap()
+
 class WorkoutPlannerTest {
 
     private fun exercise(
@@ -39,7 +52,7 @@ class WorkoutPlannerTest {
         coefficientSource: CoefficientSource = ExerciseCoefficients,
     ) = WorkoutPlanner(
         availableExercises = exercises,
-        strengths = strengths,
+        prescribedE1rm = strengthsToPrescribedE1rm(exercises, strengths, coefficientSource),
         recentHistory = recentHistory,
         weightUnit = WeightUnit.KG,
         locationId = null,
@@ -305,28 +318,28 @@ class WorkoutPlannerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // deriveBaselineFromSessionWeight round-trip
+    // e1rmFromSessionWeight round-trip
     // ──────────────────────────────────────────────────────────────────────
 
     @Test
-    fun deriveBaselineFromSessionWeight_roundTrip() {
+    fun e1rmFromSessionWeight_roundTrip() {
         val ex = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
-        val baseline = 100f
+        val e1rm = 100f
         val sessionReps = 5
         val pe = PlannedExercise(
             exercise = ex,
             sessionWeight = WeightFormatter.round(
-                DefaultProgressionEngine.fromOneRepMax(baseline, sessionReps), WeightUnit.KG
+                DefaultProgressionEngine.fromOneRepMax(e1rm, sessionReps), WeightUnit.KG
             ),
             sessionReps = sessionReps,
         )
         val p = planner()
 
-        val derivedBaseline = p.deriveBaselineFromSessionWeight(pe.sessionWeight, pe)
-        val recomputed = p.recomputeExercise(pe, derivedBaseline)
+        val derivedE1rm = p.e1rmFromSessionWeight(pe.sessionWeight, pe.sessionReps)
+        val recomputed = p.recomputeExercise(pe, derivedE1rm)
 
         // Round-trip should reproduce the original session weight within one rounding unit
-        assertEquals("session weight should survive derive→recompute round-trip",
+        assertEquals("session weight should survive e1rmFromSessionWeight→recompute round-trip",
             pe.sessionWeight, recomputed.sessionWeight, 1.0f)
     }
 
