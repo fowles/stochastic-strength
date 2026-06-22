@@ -4,7 +4,7 @@
 
 **Goal:** Replace the gauge-conserving `RollingConservingProgressionController` with a per-exercise strength estimate (point + confidence) that updates locally, pools across siblings at read time, and removes the muscle-baseline×coefficient identifiability problem.
 
-**Architecture:** Each loaded exercise holds a derived `ExerciseEstimate { lnE, confidence, updatedAt }`, folded from session signals by a pure `ExerciseEstimateUpdater`. A pure `MuscleStrengthProjector` turns the estimate map into the existing display/prescription projections (`MuscleGroupStrength` = muscle level `L`, and a derived per-exercise coefficient `E_used / L`) so `baseline × coef == E_used` and the planner + UI read surface are unchanged. Persisted seeds/overrides move from muscle-granular (`baseline_override`) to exercise-granular (`exercise_strength_override`), seeded by a one-time Kotlin backfill that expands each muscle row via the seed coefficients.
+**Architecture:** Each loaded exercise holds a derived `ExerciseEstimate { lnE, confidence, updatedAt }`, folded from session signals by a pure `ExerciseEstimateUpdater` and stored in `DerivedStateStore` (replayable, in-memory). At plan-build time, `WorkoutRepository.buildPlanner` reads the current estimate map and runs the pure `MuscleStrengthProjector` **live** (with the current clock, so confidence decay is fresh) to compute each exercise's prescription `effectiveE1rm`, which it passes to `WorkoutPlanner`. Replay also writes the muscle level `L` into `MuscleGroupStrength` and a derived per-exercise coefficient into `coefficient_history` purely for the display/history surface (those are cosmetic; the planner does not read them). Persisted seeds/overrides move from muscle-granular (`baseline_override`) to exercise-granular (`exercise_strength_override`), seeded by a one-time Kotlin backfill that expands each muscle row via the seed coefficients.
 
 **Tech Stack:** Kotlin, Android, Room (SQLite), Jetpack Compose, JUnit4 (JVM unit tests + instrumented `androidTest` for migrations).
 
@@ -18,9 +18,7 @@
 - Strength math is multiplicative: all estimate updates and pooling happen in **log space**. 1RM conversions use `DefaultProgressionEngine.rawToOneRepMax` / `rawFromOneRepMax`.
 - Tuning constants live in `EstimatorConfig` with the defaults given in Task 1; do not scatter magic numbers.
 
-**Spec:** `docs/superpowers/specs/2026-06-21-per-exercise-estimate-progression-design.md`.
-
-**Deviation from spec (intentional, lower-risk):** the spec says `WorkoutPlanner.weightForExercise` calls `SiblingPredictor` live. This plan instead projects the predictor output into the existing `MuscleGroupStrength`/coefficient views at replay time (with a launch-time decay pass), leaving the planner weight formula unchanged. Prescriptions are identical (`baseline × coef == E_used`). The pure `SiblingPredictor`/`MuscleStrengthProjector` logic is unchanged; only its call site differs.
+**Spec:** `docs/superpowers/specs/2026-06-21-per-exercise-estimate-progression-design.md`. This plan implements the spec's live-planner read path: `buildPlanner` computes prescriptions from the estimate map via `MuscleStrengthProjector` at plan-build time. `MuscleGroupStrength`/`coefficient_history` are still written at replay, but only as display/history projections — the planner never reads them for the weight calc.
 
 ---
 
@@ -40,8 +38,9 @@ Modified files:
 - `data/AppDatabase.kt` — v17, `Migration_16_17`, register entity + DAO + migration.
 - `data/model/UserProfile.kt` — add `perExerciseSeedsBackfilled` flag.
 - `domain/ReplaySnapshot.kt` — carry `currentEstimates`.
-- `domain/WorkoutRepository.kt` — replay rewire, `seedInitialWeights`, `applyManualBaselineOverrides`, `applyDetrainingReduction`, `buildPlanner` override param.
-- `domain/WorkoutPlanner.kt` — per-exercise e1rm overrides; replace `deriveBaselineFromSessionWeight`/`recomputeExercise`.
+- `domain/derived/DerivedStateStore.kt` — expose the per-exercise `ExerciseEstimate` map in `Snapshot`/`MutableDerivedState` so `buildPlanner` can read it live.
+- `domain/WorkoutRepository.kt` — replay rewire, `seedInitialWeights`, `applyManualBaselineOverrides`, `applyDetrainingReduction`, `buildPlanner` computes prescriptions live via the projector.
+- `domain/WorkoutPlanner.kt` — takes a `prescribedE1rm: Map<Long, Float>` (live projector output) + per-exercise overrides; replaces `strengths`-based weight calc; replaces `deriveBaselineFromSessionWeight`/`recomputeExercise`.
 - `domain/StartingWeights.kt` — `exerciseSeedE1rm` mechanism + fallback.
 - `domain/DerivedStateBackfill.kt` — run the override backfill.
 - `domain/model/WorkoutPlan.kt` — `exerciseOverrides: Map<Long, Float>`.
@@ -921,6 +920,7 @@ jj new
 This is the core integration. After it, the app prescribes from per-exercise estimates while the UI read surface (MuscleGroupStrength + coefficient projections) keeps working.
 
 **Files:**
+- Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/derived/DerivedStateStore.kt` (expose the estimate map)
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/ReplaySnapshot.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt` (`replayDerivedState`, `applySessionProgression`, helpers)
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/StochasticStrengthApp.kt` (remove `progressionControllerFactory`)
@@ -928,7 +928,9 @@ This is the core integration. After it, the app prescribes from per-exercise est
 
 **Interfaces:**
 - Consumes: `ExerciseEstimateUpdater`, `MuscleStrengthProjector`, `ExerciseEstimate`, `EstimatorConfig`, `SessionSignalExtractor`, `ExerciseStrengthOverrideDao`.
-- Produces: replay that maintains `ReplaySnapshot.currentEstimates: MutableMap<Long, ExerciseEstimate>` and projects `MuscleGroupStrength` + `coefficient_history` rows for display, with prescriptions satisfying `baseline × coef == effectiveE1rm`.
+- Produces:
+  - `DerivedStateStore.Snapshot.exerciseEstimates(): Map<Long, ExerciseEstimate>` and `MutableDerivedState.putExerciseEstimates(map)` so the live planner (Task 8) can read estimates.
+  - replay that maintains `ReplaySnapshot.currentEstimates: MutableMap<Long, ExerciseEstimate>`, writes that map into the store snapshot, and writes `MuscleGroupStrength` + `coefficient_history` rows for display only.
 
 Implementation outline (replace the controller usage):
 
@@ -962,11 +964,15 @@ Implementation outline (replace the controller usage):
    }
    ```
 
-5. **Projection + display writes** (run after each session, and a final pass at end of replay with `now = System.currentTimeMillis()` for freshness): for each muscle, call `MuscleStrengthProjector.project(currentEstimates, seedCoefficients, muscleExerciseIds[m], now)` and:
-   - `scratch.upsertMuscleGroupStrength(MuscleGroupStrength(m, projection.level))`.
-   - For each exercise, insert a `CoefficientHistory` row with `coefficient = projection.derivedCoef[id]`, `computedAt = now`, `heuristicName = "per-exercise-estimate"`. To keep the history readable, write one row per exercise only when the projected coefficient changed beyond a small epsilon from the previously written one (track last-written per exercise in the snapshot). Also write a `BaselineHistory` row per muscle when `level` changes (reuse the existing `writeBaselineUpdate` shape, `heuristicName = "per-exercise-estimate"`).
+5. **Store the estimate map for the live planner:** at the end of `rebuild`, call `scratch.putExerciseEstimates(snapshot.currentEstimates.toMap())` so `buildPlanner` (Task 8) can read it from `derivedState.snapshot().exerciseEstimates()`.
 
-6. **`StochasticStrengthApp.kt`**: remove `progressionControllerFactory = { RollingConservingProgressionController() }` and the constructor param (Task 9 deletes the type). For this task, change the factory to a no-op or remove the param if the repository no longer takes it. Simplest: drop the `controller`/`progressionControllerFactory` from `WorkoutRepository`'s constructor and all call sites.
+6. **Display-only projection writes** (run after each session; the planner does NOT read these — they feed `StrengthGrid`/history/debug): for each affected muscle, call `MuscleStrengthProjector.project(currentEstimates, seedCoefficients, muscleExerciseIds[m], now = asOf)` and:
+   - `scratch.upsertMuscleGroupStrength(MuscleGroupStrength(m, projection.level))`.
+   - For each exercise, insert a `CoefficientHistory` row with `coefficient = projection.derivedCoef[id]`, `computedAt = asOf`, `heuristicName = "per-exercise-estimate"`. Write a row only when the projected coefficient changed beyond a small epsilon from the previously written one (track via `snapshot.lastWrittenCoef`). Also write a `BaselineHistory` row per muscle when `level` changes (reuse the existing `writeBaselineUpdate` shape, `heuristicName = "per-exercise-estimate"`).
+
+7. **`StochasticStrengthApp.kt`**: remove `progressionControllerFactory = { RollingConservingProgressionController() }` and the constructor param (Task 9 deletes the type). Drop the `controller`/`progressionControllerFactory` from `WorkoutRepository`'s constructor and all call sites.
+
+8. **`DerivedStateStore`**: add `private val exerciseEstimates: Map<Long, ExerciseEstimate>` to `Snapshot` with accessor `fun exerciseEstimates(): Map<Long, ExerciseEstimate> = exerciseEstimates`; add a backing mutable map + `fun putExerciseEstimates(map: Map<Long, ExerciseEstimate>)` to `MutableDerivedState`; thread it through `toSnapshot()` and `Snapshot.empty()` (empty map).
 
 - [ ] **Step 1: Write the failing test (pure projection invariant)**
 
@@ -980,7 +986,7 @@ import kotlin.math.ln
 class ReplayProjectionTest {
     @Test
     fun projectionPreservesPrescriptionIdentity() {
-        // baseline (level) * derivedCoef == effectiveE1rm for every exercise -> planner formula holds.
+        // level * derivedCoef == effectiveE1rm for every exercise -> display projection is internally consistent.
         val estimates = mapOf(
             10L to ExerciseEstimate(ln(100f), confidence = 6f, updatedAt = 0L),
             11L to ExerciseEstimate(ln(58f), confidence = 3f, updatedAt = 0L),
@@ -1013,16 +1019,18 @@ Add `currentEstimates` and `muscleExerciseIds` (computed in `loadStaticFromDb` f
     val lastWrittenCoef: MutableMap<Long, Float> = mutableMapOf()
 ```
 
-- [ ] **Step 4: Rewrite `applySessionProgression` and the projection in `WorkoutRepository`**
+- [ ] **Step 4: Expose the estimate map in `DerivedStateStore`** (outline item 8) — add `exerciseEstimates` to `Snapshot` (+ accessor), `putExerciseEstimates` to `MutableDerivedState`, thread through `toSnapshot()`/`empty()`.
 
-Replace the controller `step` call and the baseline/coefficient bookkeeping with the per-exercise fold + projection described in the outline. Remove `controller`/`progressionControllerFactory` from the repository and `StochasticStrengthApp`. Keep `writeBaselineUpdate`'s `BaselineHistory` insertion (used by the baseline chart) but feed it the projected `level`. Write `CoefficientHistory` rows from `projection.derivedCoef` with epsilon-dedupe via `snapshot.lastWrittenCoef`.
+- [ ] **Step 5: Rewrite `applySessionProgression` and the projection in `WorkoutRepository`**
 
-- [ ] **Step 5: Build and run the full unit suite**
+Replace the controller `step` call and the baseline/coefficient bookkeeping with the per-exercise fold + display projection (outline items 4, 6). Store the final estimate map via `scratch.putExerciseEstimates(...)` (outline item 5). Remove `controller`/`progressionControllerFactory` from the repository and `StochasticStrengthApp`. Keep `writeBaselineUpdate`'s `BaselineHistory` insertion (used by the baseline chart) but feed it the projected `level`. Write `CoefficientHistory` rows from `projection.derivedCoef` with epsilon-dedupe via `snapshot.lastWrittenCoef`.
+
+- [ ] **Step 6: Build and run the full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: compiles; pre-existing progression tests may now fail (they reference the deleted controller) — that is expected and handled in Tasks 9–10. Confirm the NEW tests (Tasks 1–3, 5, 6) pass. If other modules fail to compile due to the removed controller param, fix call sites in this task.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 jj describe -m "feat: replay maintains per-exercise estimates and projects display views
@@ -1152,10 +1160,10 @@ jj new
 
 **Interfaces:**
 - `WorkoutPlan.exerciseOverrides: Map<Long, Float>` (per-exercise e1rm) replaces `strengthOverrides`/`detrainOverrides` maps; `effectiveOverrides: Map<Long, Float>`.
-- `WorkoutPlanner` gains `exerciseE1rmOverrides: Map<Long, Float>` (constructor param); `weightForExercise` uses an override when present.
+- `WorkoutPlanner` constructor: replace `strengths: Map<MuscleGroup, MuscleGroupStrength>` with `prescribedE1rm: Map<Long, Float>` (the live projector output) and add `exerciseE1rmOverrides: Map<Long, Float> = emptyMap()`. `weightForExercise` uses `exerciseE1rmOverrides[id] ?: prescribedE1rm[id]`.
 - `WorkoutPlanner.e1rmFromSessionWeight(weight, reps): Float = progressionEngine.toOneRepMax(weight, reps)` replaces `deriveBaselineFromSessionWeight`.
 - `WorkoutPlanner.recomputeExercise(pe, newE1rmKg)` (takes an e1rm, applies only to that exercise).
-- `buildPlanner(locationId, weightUnit, exerciseOverrides: Map<Long, Float> = emptyMap())`.
+- `buildPlanner(locationId, weightUnit, exerciseOverrides: Map<Long, Float> = emptyMap())` computes `prescribedE1rm` live via `MuscleStrengthProjector` over `derivedState.snapshot().exerciseEstimates()`.
 - `applyManualBaselineOverrides(sessionId, overrides: Map<Long, Float>)` and `applyDetrainingReduction(sessionId, overrides: Map<Long, Float>)` write `ExerciseStrengthOverride` rows.
 
 Key semantic change: editing one exercise's weight sets only that exercise's e1rm. `adjustExerciseWeight` no longer recomputes sibling weights. Detraining still applies uniformly, but now per exercise: it scales each loaded exercise's *current prescribed e1rm* by the factor.
@@ -1183,9 +1191,12 @@ class WorkoutPlannerOverrideTest {
         equipment = Equipment.BARBELL, isDisliked = false, isUnilateral = false, isTimed = false,
     )
 
+    // Live projector output for the two lifts (Barbell Bench 100, Incline 68 = 0.85*80-ish).
+    private val prescribed = mapOf(1L to 100f, 2L to 68f)
+
     private fun planner(overrides: Map<Long, Float>) = WorkoutPlanner(
         availableExercises = listOf(ex(1, "Barbell Bench Press"), ex(2, "Incline Barbell Bench Press")),
-        strengths = mapOf(MuscleGroup.CHEST to MuscleGroupStrength(MuscleGroup.CHEST, 80f)),
+        prescribedE1rm = prescribed,
         recentHistory = emptyMap(),
         weightUnit = WeightUnit.KG,
         locationId = null,
@@ -1196,7 +1207,6 @@ class WorkoutPlannerOverrideTest {
     @Test
     fun exerciseOverrideAffectsOnlyThatExercise() {
         val base = planner(emptyMap())
-        val pe1 = base.generateWorkout(5).exercises // sanity that it builds
         // Override exercise 1's e1rm to 120; exercise 2 must be unchanged vs no-override planner.
         val overridden = planner(mapOf(1L to 120f))
         val w1NoOverride = base.weightForExerciseTest(ex(1, "Barbell Bench Press"), 5)
@@ -1217,19 +1227,19 @@ Expected: FAIL — `exerciseE1rmOverrides` param unresolved.
 
 - [ ] **Step 3: Update `WorkoutPlanner`**
 
-- Add constructor param `private val exerciseE1rmOverrides: Map<Long, Float> = emptyMap()`.
+- Replace the `strengths` constructor param with `private val prescribedE1rm: Map<Long, Float>` and add `private val exerciseE1rmOverrides: Map<Long, Float> = emptyMap()`.
 - In `weightForExercise`:
 ```kotlin
     private fun weightForExercise(exercise: Exercise, sessionReps: Int): Float {
         val coeff = coefficientSource.get(exercise) ?: return 0f
-        if (coeff <= 0f) return 0f
-        val e1rm = exerciseE1rmOverrides[exercise.id]
-            ?: ((strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f) * coeff)
+        if (coeff <= 0f) return 0f // unloadable (bodyweight/banded): no prescription
+        val e1rm = exerciseE1rmOverrides[exercise.id] ?: prescribedE1rm[exercise.id] ?: return 0f
         if (e1rm <= 0f) return 0f
         return WeightFormatter.round(progressionEngine.fromOneRepMax(e1rm, sessionReps), weightUnit)
     }
     internal fun weightForExerciseTest(exercise: Exercise, sessionReps: Int) = weightForExercise(exercise, sessionReps)
 ```
+- `coefficientSource` is still consumed for the loaded/unloaded classification used by `isLoaded`/replacement tiers; keep it.
 - Replace `deriveBaselineFromSessionWeight` with:
 ```kotlin
     fun e1rmFromSessionWeight(sessionWeight: Float, sessionReps: Int): Float =
@@ -1256,7 +1266,20 @@ data class WorkoutPlan(
 
 - [ ] **Step 5: Update `buildPlanner` and override writers in `WorkoutRepository`**
 
-- `buildPlanner(locationId, weightUnit, exerciseOverrides: Map<Long, Float> = emptyMap())`: pass `exerciseE1rmOverrides = exerciseOverrides` into `WorkoutPlanner`; drop the muscle `strengths` override-merge (still pass `strengths = dbStrengths`).
+- `buildPlanner(locationId, weightUnit, exerciseOverrides: Map<Long, Float> = emptyMap())`: compute the live prescription map and pass it plus the overrides into `WorkoutPlanner` (drop the `strengths` arg entirely):
+```kotlin
+        val estimates = derivedState.snapshot().exerciseEstimates()
+        val seedCoef = available.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
+        val muscleIds = available.filter { (seedCoef[it.id] ?: 0f) > 0f }
+            .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
+        val now = System.currentTimeMillis()
+        val projector = MuscleStrengthProjector()
+        val prescribedE1rm = muscleIds.flatMap { (_, ids) ->
+            projector.project(estimates, seedCoef, ids, now).effectiveE1rm.entries.map { it.key to it.value }
+        }.toMap()
+        // ... WorkoutPlanner(prescribedE1rm = prescribedE1rm, exerciseE1rmOverrides = exerciseOverrides, ...)
+```
+Remove the now-unused `dbStrengths`/`strengths` block. (`MuscleGroupStrength` is still written at replay for display, just not read here.)
 - `applyManualBaselineOverrides(sessionId, overrides: Map<Long, Float>)`:
 ```kotlin
         for ((exerciseId, e1rm) in overrides) {
@@ -1447,6 +1470,6 @@ jj new
 ## Self-Review Notes (for the implementer)
 
 - **Spec coverage:** per-exercise estimate (T1), read-time pooling/Goal 2 (T2, T10), asymmetric down-tracking/Goal 3 (T1, T10), per-exercise persisted overrides + migration (T3–T5, T8), per-exercise seeding mechanism + fallback (T7), deletions (T9), test rewrite incl. kept/added asserts (T10), read-site audit (T11).
-- **Deviation:** prescription via replay projection rather than a live `SiblingPredictor` call in the planner (documented in the header). The pure pooling logic is identical; only the call site differs. If the reviewer prefers the spec's live-planner wiring, Task 6's projection step is replaced by threading `currentEstimates` into `buildPlanner`/`WorkoutPlanner` and calling `MuscleStrengthProjector` at plan time.
+- **Read path:** spec-faithful live planner — `buildPlanner` runs `MuscleStrengthProjector` over the stored estimate map at plan-build time (fresh clock → fresh confidence decay). `MuscleGroupStrength`/`coefficient_history` are written at replay for display/history only and are never read for the weight calc.
 - **Curated seeds are out of scope** (mechanism + fallback only): `StartingWeights.exerciseSeedE1rm` returns null today.
 - **Tuning surface:** `EstimatorConfig` only. Behavioral asserts in T10 are the lock; tune constants, never loosen asserts without a documented decision.
