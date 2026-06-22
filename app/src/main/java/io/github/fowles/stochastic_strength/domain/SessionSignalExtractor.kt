@@ -11,13 +11,10 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
  * weight doable for exactly `targetReps` reps, so RIR_0_1 — the intended target effort — is only a
  * small up-signal (Option 2: progressive overload, gently), not a large one.
  *
- * Within one exercise, sets aggregate asymmetrically over the full-weight sets, weighted by
- * `confidence x setNumber` so the last (most-fatigued) set dominates:
- *   - no failure: the weighted-mean reserve nudges the baseline up;
- *   - any failure: the worst shortfall dominates, only *softened* by the non-failing sets, and the
- *     result is capped at zero — a session containing a failure can never grow the weight. How much
- *     the good sets soften the down-pull scales with the rep target (low reps strict, high reps
- *     forgiving) via [softening].
+ * Within one exercise, sets aggregate via a recency EMA over the full-weight sets so the last
+ * (most-fatigued) set naturally dominates. A session containing any full-weight failure is capped
+ * at zero deviation — it can never grow the weight. When weights change mid-session (a drop), the
+ * bracket path handles it, anchoring on the heaviest completed set.
  *
  * Dropped/reduced-weight sets carry no signal; the failure that triggered the drop is itself a
  * full-weight TOO_HARD set and is already captured. HURT carries no load signal.
@@ -31,6 +28,12 @@ object SessionSignalExtractor {
     /** Confidence flag for a demonstrated drop-cascade (failure at top weight + a completed lighter set). */
     const val BRACKET_CONFIDENCE = 0.95f
 
+    /**
+     * EMA recency weight for aggregating same-weight sets. Higher = last set dominates more.
+     * Tuning surface for last-set dominance vs. multi-set averaging.
+     */
+    const val RECENCY_BETA = 0.88f
+
     data class SetSignal(val repDeviation: Float, val confidence: Float, val isFailure: Boolean)
 
     data class SessionAggregate(
@@ -38,9 +41,6 @@ object SessionSignalExtractor {
         val sessionConfidence: Float,
         val bracketConfidence: Float = 0f,
     )
-
-    /** Rep-scaled softening of a failure's down-pull: strict at low reps, forgiving at high reps. */
-    fun softening(reps: Int): Float = 0.10f + 0.70f * (reps.coerceIn(1, 20) - 1) / 19f
 
     fun setSignal(set: WorkoutSet): SetSignal? {
         val feedback = set.feedback ?: return null
@@ -75,29 +75,20 @@ object SessionSignalExtractor {
             .mapNotNull { s -> setSignal(s)?.let { s to it } }
         if (contributions.isEmpty()) return null
 
-        val targetReps = contributions.first().first.targetReps
-        fun weightOf(s: WorkoutSet, sig: SetSignal) = sig.confidence * s.setNumber
+        val ordered = contributions.sortedBy { it.first.setNumber }
+        val targetReps = ordered.first().first.targetReps
 
-        val reserves = contributions.filter { !it.second.isFailure }
-        val fails = contributions.filter { it.second.isFailure }
-
-        val upWsum = reserves.sumOf { weightOf(it.first, it.second).toDouble() }.toFloat()
-        val upAgg = if (upWsum > 0f) {
-            reserves.sumOf { (it.second.repDeviation * weightOf(it.first, it.second)).toDouble() }
-                .toFloat() / upWsum
-        } else {
-            0f
+        // Recency EMA across the same-weight sets: the last (most-fatigued) set dominates, so the
+        // estimate tracks last-set capacity (where RIR_0_1 should land) rather than the multi-set mean.
+        var offset = ordered.first().second.repDeviation
+        for (i in 1 until ordered.size) {
+            offset = (1f - RECENCY_BETA) * offset + RECENCY_BETA * ordered[i].second.repDeviation
         }
+        // Goal 3 safety: a session containing any full-weight failure can never grow the weight.
+        if (ordered.any { it.second.isFailure }) offset = minOf(0f, offset)
 
-        val aggOffset = if (fails.isEmpty()) {
-            upAgg
-        } else {
-            val worstFail = fails.minOf { it.second.repDeviation }
-            minOf(0f, worstFail + softening(targetReps) * upAgg)
-        }
-
-        val est1RM = DefaultProgressionEngine.rawToOneRepMax(w0, targetReps + aggOffset)
-        val sessionConfidence = contributions.maxOf { it.second.confidence }
+        val est1RM = DefaultProgressionEngine.rawToOneRepMax(w0, targetReps + offset)
+        val sessionConfidence = ordered.maxOf { it.second.confidence }
         return SessionAggregate(est1RM = est1RM, sessionConfidence = sessionConfidence)
     }
 

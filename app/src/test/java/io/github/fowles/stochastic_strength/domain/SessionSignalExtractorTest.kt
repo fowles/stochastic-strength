@@ -46,19 +46,6 @@ class SessionSignalExtractorTest {
         assertNull(SessionSignalExtractor.setSignal(set(100f, 5, SetFeedback.HURT)))
     }
 
-    // ---- softening -------------------------------------------------------------------------------
-
-    @Test
-    fun softening_spans_full_rep_range_monotonically() {
-        assertEquals(0.10f, SessionSignalExtractor.softening(1), 1e-4f)
-        assertEquals(0.80f, SessionSignalExtractor.softening(20), 1e-4f)
-        assertTrue(SessionSignalExtractor.softening(5) < SessionSignalExtractor.softening(10))
-        assertTrue(SessionSignalExtractor.softening(10) < SessionSignalExtractor.softening(15))
-        // out-of-range clamps
-        assertEquals(0.10f, SessionSignalExtractor.softening(0), 1e-4f)
-        assertEquals(0.80f, SessionSignalExtractor.softening(25), 1e-4f)
-    }
-
     // ---- aggregateSession --------------------------------------------------------------------------
 
     @Test

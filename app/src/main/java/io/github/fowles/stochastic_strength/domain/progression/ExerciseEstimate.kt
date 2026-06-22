@@ -33,9 +33,9 @@ data class EstimatorConfig(
     /** Cap on confidence so a long-trained exercise keeps a floor learning rate (EMA-like). */
     val confidenceCap: Float = 6f,
     /** Observation weight for an up-signal (gentle progressive overload). */
-    val wUp: Float = 1.5f,
+    val wUp: Float = 1.48f,
     /** Observation weight for a down-signal (fast tracking so a failed weight is not re-prescribed). */
-    val wDown: Float = 4.0f,
+    val wDown: Float = 3.0f,
     /** Down-signal weight at full bracketConfidence (demonstrated drop-cascade); interpolated from [wDown]. */
     val wDownSnap: Float = 8f,
     /** HURT multiplies the estimate by this factor. */
