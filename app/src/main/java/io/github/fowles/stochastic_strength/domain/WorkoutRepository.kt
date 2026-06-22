@@ -7,6 +7,7 @@ import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -284,18 +285,14 @@ class WorkoutRepository(
     }
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
-        db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit))
-        for (muscle in MuscleGroup.entries) {
-            val baseline = StartingWeights.baseline(sex, strengthLevel, muscle)
-            if (baseline > 0f) {
-                db.baselineOverrideDao().deleteInitialFor(muscle)
-                db.baselineOverrideDao().insert(
-                    BaselineOverride(
-                        sessionId = null,
-                        muscleGroup = muscle,
-                        baselineWeight = baseline,
-                        asOf = 0L,
-                    )
+        db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit, perExerciseSeedsBackfilled = true))
+        val exercises = db.exerciseDao().getAll()
+        for (ex in exercises) {
+            val e1rm = StartingWeights.seedInitialE1rm(sex, strengthLevel, ex)
+            if (e1rm > 0f) {
+                db.exerciseStrengthOverrideDao().deleteInitialFor(ex.id)
+                db.exerciseStrengthOverrideDao().insert(
+                    ExerciseStrengthOverride(sessionId = null, exerciseId = ex.id, e1rm = e1rm, asOf = 0L)
                 )
             }
         }
