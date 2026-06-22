@@ -14,17 +14,9 @@ import org.junit.Test
  * + [SessionSignalExtractor] for both the drop-cascade (55 fail -> 35 fail -> 20 complete) and the
  * all-failed (55 -> 35 -> 20 all fail) variants.
  *
- * Setup: a 230 lb quad baseline with per-user coefficients back-solved so the 10-rep prescriptions
- * match the real on-device starts (Bulgarian Split Squat 55 lb, Goblet Squat 65 lb; Barbell = 1.0
- * reference). The per-exercise EMA is primed by one prior on-target session (we cannot pull the real
- * EMA history from a non-debuggable release build). Barbell and Goblet are trained on-target that
- * session, so Bulgarian is the lone outlier.
- *
- * These asserts pin the *accepted* behavior, including the deliberately-tolerated quad baseline dip
- * (~7% drop-cascade, ~10% all-failed): the bracket estimator feeds an accurate-and-low Bulgarian est1RM
- * at high confidence into the unchanged common-mode term, so the whole quad baseline backs off for one
- * session before recovering. This was an explicit "leave it" decision (2026-06-21); a future change
- * that shrinks the dip should update these numbers with a documented rationale.
+ * Asserts on next prescriptions (the only user-visible quantity): a lone Bulgarian bracket drops
+ * Bulgarian to its demonstrated capacity while Goblet's prescription holds or rises; the baseline
+ * is not dragged by the outlier.
  */
 class BulgarianBracketCharacterizationTest {
 
@@ -52,23 +44,21 @@ class BulgarianBracketCharacterizationTest {
         now = now, observations = obs,
         baselines = mapOf(quads to baselineKg), coefficients = seedCoefs,
         muscleExercises = mapOf(quads to listOf(barbell, goblet, bulgarian)),
+        seedCoefficients = seedCoefs,
         hurtMuscles = emptySet(), weightUnit = unit,
     )
 
     /** On-target observation: est1RM equals the prescription's implied 1RM, so EMA reads "as expected". */
     private fun onTarget(id: Long) = ProgressionObservation(id, quads, baselineKg * seedCoefs.getValue(id), 0.85f)
 
-    private fun nextBulgarianLb(newBaselineKg: Float, newBulgarianCoef: Float): Float =
-        showLb(WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(newBaselineKg * newBulgarianCoef, 10), unit))
+    private fun nextLb(id: Long, newBaselineKg: Float, newCoef: Float): Float =
+        showLb(WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(newBaselineKg * newCoef, 10), unit))
 
     private data class Result(
         val bulgarianEst1RmLb: Float,
         val bracketConfidence: Float,
-        val outputBaselineLb: Float,
-        val barbellCoef: Float,
-        val gobletCoef: Float,
-        val bulgarianCoef: Float,
         val nextBulgarianLb: Float,
+        val nextGobletLb: Float,
         val oldBulgarianLb: Float,
         val oldGobletLb: Float,
     )
@@ -95,13 +85,10 @@ class BulgarianBracketCharacterizationTest {
         return Result(
             bulgarianEst1RmLb = showLb(bulgAgg.est1RM),
             bracketConfidence = bulgAgg.bracketConfidence,
-            outputBaselineLb = showLb(newBaselineKg),
-            barbellCoef = coef(barbell),
-            gobletCoef = coef(goblet),
-            bulgarianCoef = coef(bulgarian),
-            nextBulgarianLb = nextBulgarianLb(newBaselineKg, coef(bulgarian)),
-            oldBulgarianLb = nextBulgarianLb(baselineKg, seedCoefs.getValue(bulgarian)),
-            oldGobletLb = showLb(WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(baselineKg * seedCoefs.getValue(goblet), 10), unit)),
+            nextBulgarianLb = nextLb(bulgarian, newBaselineKg, coef(bulgarian)),
+            nextGobletLb = nextLb(goblet, newBaselineKg, coef(goblet)),
+            oldBulgarianLb = nextLb(bulgarian, baselineKg, seedCoefs.getValue(bulgarian)),
+            oldGobletLb = nextLb(goblet, baselineKg, seedCoefs.getValue(goblet)),
         )
     }
 
@@ -122,14 +109,9 @@ class BulgarianBracketCharacterizationTest {
         // est1RM anchors on the completed 20 lb set, far below the 55 lb top set.
         assertEquals(38.0f, r.bulgarianEst1RmLb, 0.5f)
         assertEquals(0.95f, r.bracketConfidence, 1e-6f)
-        // Bulgarian coefficient snaps down hard; peers tick up to conserve the gauge.
-        assertEquals(0.289f, r.bulgarianCoef, 0.005f)
-        assertTrue("Barbell peer compensates up", r.barbellCoef > 1.00f)
-        assertTrue("Goblet peer compensates up", r.gobletCoef > 0.4319f)
-        // Accepted one-session quad baseline dip (~7%), recovers next sessions.
-        assertEquals(213.8f, r.outputBaselineLb, 1.0f)
-        // Next 10-rep Bulgarian prescription drops a real step (55 -> 40 lb).
-        assertEquals(40.0f, r.nextBulgarianLb, 0.5f)
+        // Outcome spec: Bulgarian lands near the demonstrated ~20 lb; Goblet keeps moving up.
+        assertTrue("next Bulgarian ${r.nextBulgarianLb} should be near 20 lb", r.nextBulgarianLb <= 25.0f)
+        assertTrue("next Goblet ${r.nextGobletLb} should be >= last (65)", r.nextGobletLb >= 65.0f)
     }
 
     @Test
@@ -149,14 +131,41 @@ class BulgarianBracketCharacterizationTest {
         // est1RM comes from the lightest failed set's achieved reps -> lower than the drop-cascade.
         assertEquals(26.7f, r.bulgarianEst1RmLb, 0.5f)
         assertEquals(0.95f, r.bracketConfidence, 1e-6f)
-        // Harder failure -> deeper coefficient cut than the drop-cascade variant.
-        assertEquals(0.259f, r.bulgarianCoef, 0.005f)
-        assertTrue("all-failed cuts deeper than drop-cascade", r.bulgarianCoef < 0.289f)
-        assertTrue("Barbell peer compensates up", r.barbellCoef > 1.00f)
-        assertTrue("Goblet peer compensates up", r.gobletCoef > 0.4319f)
-        // Accepted one-session quad baseline dip (~10%), larger than the drop-cascade case.
-        assertEquals(207.2f, r.outputBaselineLb, 1.0f)
-        // Next 10-rep Bulgarian prescription drops further than the drop-cascade case (55 -> 30 lb).
-        assertEquals(30.0f, r.nextBulgarianLb, 0.5f)
+        // Outcome spec: Bulgarian lands "near 20"; Goblet holds/up. One bracket session reaches 25 lb
+        // (per-session differential clamp + 5-lb grid collapse it to the drop-cascade step); the deeper
+        // all-failed est1RM converges the rest of the way to 20 on a second bracket session.
+        assertTrue("next Bulgarian ${r.nextBulgarianLb} should be near 20 lb", r.nextBulgarianLb <= 25.0f)
+        assertTrue("next Goblet ${r.nextGobletLb} should be >= last (65)", r.nextGobletLb >= 65.0f)
+    }
+
+    @Test
+    fun unanimous_drop_moves_baseline_not_just_coefficients() {
+        // All three quad lifts bracket ~30% low together in one session: shared signal -> baseline drops.
+        val c = RollingConservingProgressionController()
+        c.step(input(0L, listOf(onTarget(barbell), onTarget(goblet), onTarget(bulgarian))))
+        fun lowObs(id: Long) = ProgressionObservation(id, quads, baselineKg * seedCoefs.getValue(id) * 0.70f, 0.95f, 0.95f)
+        val out = c.step(input(7L * 24 * 60 * 60 * 1000, listOf(lowObs(barbell), lowObs(goblet), lowObs(bulgarian))))
+        val nb = out.baselineUpdates.first { it.muscleGroup == quads }.newBaseline
+        assertTrue("unanimous drop should pull the baseline down: ${showLb(nb)}", nb < baselineKg * 0.95f)
+    }
+
+    @Test
+    fun drift_in_turn_converges_baseline_over_sessions() {
+        // A too-high baseline reveals itself one lift per session via brackets; the reclaimer should
+        // pull the collective coefficient drift back into the baseline rather than leaving it stuck.
+        val c = RollingConservingProgressionController()
+        c.step(input(0L, listOf(onTarget(barbell), onTarget(goblet), onTarget(bulgarian))))
+        val order = listOf(bulgarian, goblet, barbell)
+        var lastBaseline = baselineKg
+        order.forEachIndexed { i, id ->
+            val now = (7L + i) * 24 * 60 * 60 * 1000
+            // The one lift trained this session brackets ~30% low; the others are not retrained.
+            val bracket = ProgressionObservation(id, quads, baselineKg * seedCoefs.getValue(id) * 0.70f, 0.95f, 0.95f)
+            val out = c.step(input(now, listOf(bracket)))
+            out.baselineUpdates.firstOrNull { it.muscleGroup == quads }?.let { lastBaseline = it.newBaseline }
+            // Note: input(...) always passes the same seedCoefs as current coefficients, so this models
+            // the SIGN of the reclaim, not a full closed loop; convergence direction is what we assert.
+        }
+        assertTrue("baseline should trend down as drift is reclaimed: ${showLb(lastBaseline)}", lastBaseline < baselineKg)
     }
 }
