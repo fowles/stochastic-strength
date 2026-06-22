@@ -301,6 +301,48 @@ class ProgressionControllerTest {
     }
 
     @Test
+    fun reclaim_subThresholdDrift_preservesProductsAcrossSessions() {
+        // Use DEFAULT config (minRelativeChange = 0.002) to exercise the pre-fix bug path.
+        // Three exercises with coefficients ~1.5% below seed: the collective shift is ~-0.015,
+        // so reclaimRate(0.1) * center ≈ -0.0015, which is below minRelativeChange(0.002).
+        // Pre-fix: baseline drifts each round while per-coef counter-moves are suppressed -> product leaks.
+        // Post-fix: reclaim is skipped entirely (shift below threshold) -> products are exactly preserved.
+        val c = RollingConservingProgressionController() // DEFAULT config
+        val muscle = MuscleGroup.QUADS
+        val ids = listOf(1L, 2L, 3L)
+        val baseline0 = 100f
+        val seeds = mapOf(1L to 1.0f, 2L to 1.0f, 3L to 1.0f)
+        val coefs0 = mapOf(1L to 0.985f, 2L to 0.985f, 3L to 0.985f) // ~1.5% below seed
+
+        // Original products.
+        val origProducts = ids.associateWith { id -> baseline0 * coefs0.getValue(id) }
+
+        var curBaseline = baseline0
+        var curCoefs = coefs0.toMutableMap()
+
+        repeat(5) { round ->
+            val out = c.step(
+                ProgressionStepInput(
+                    now = round.toLong() * 1000L, observations = emptyList(),
+                    baselines = mapOf(muscle to curBaseline), coefficients = curCoefs,
+                    muscleExercises = mapOf(muscle to ids), seedCoefficients = seeds,
+                    hurtMuscles = emptySet(), weightUnit = WeightUnit.KG,
+                ),
+            )
+            out.baselineUpdates.firstOrNull { it.muscleGroup == muscle }?.let { curBaseline = it.newBaseline }
+            out.coefficientUpdates.forEach { curCoefs[it.exerciseId] = it.coefficient }
+        }
+
+        ids.forEach { id ->
+            val product = curBaseline * curCoefs.getValue(id)
+            assertEquals(
+                "product for exercise $id must be preserved across 5 reclaim-only rounds",
+                origProducts.getValue(id), product, origProducts.getValue(id) * 0.001f,
+            )
+        }
+    }
+
+    @Test
     fun bracketSnap_movesCoefFartherThanClampedPath_inOneSession() {
         val baseline = 100f
         val coefs = mapOf(1L to 1.0f, 2L to 1.0f)

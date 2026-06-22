@@ -16,7 +16,7 @@ import org.junit.Test
  *
  * Asserts on next prescriptions (the only user-visible quantity): a lone Bulgarian bracket drops
  * Bulgarian to its demonstrated capacity while Goblet's prescription holds or rises; the baseline
- * is not dragged by the outlier.
+ * is not dragged by a lone outlier.
  */
 class BulgarianBracketCharacterizationTest {
 

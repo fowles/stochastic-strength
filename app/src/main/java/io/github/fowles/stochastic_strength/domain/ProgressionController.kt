@@ -168,9 +168,9 @@ class RollingConservingProgressionController(
                 val maxW = pooled.maxOf { it.third }
                 for ((id, e, w) in pooled) {
                     val gain = w / maxW
-                    val s = (bracketConfById[id] ?: 0f).coerceIn(0f, 1f)
-                    val kCeff = config.kC + (config.kCSnap - config.kC) * s
-                    val maxStep = config.maxLogStepC + (config.maxLogStepCSnap - config.maxLogStepC) * s
+                    val snapScale = (bracketConfById[id] ?: 0f).coerceIn(0f, 1f)
+                    val kCeff = config.kC + (config.kCSnap - config.kC) * snapScale
+                    val maxStep = config.maxLogStepC + (config.maxLogStepCSnap - config.maxLogStepC) * snapScale
                     val dLogC = (kCeff * gain * (e - common)).coerceIn(-maxStep, maxStep)
                     cWork[id]?.let { cWork[id] = it * exp(dLogC) }
                 }
@@ -184,7 +184,7 @@ class RollingConservingProgressionController(
             if (offsets.isNotEmpty()) {
                 val center = RobustCenter.of(offsets, List(offsets.size) { 1f }, config.huberDelta, config.robustIterations)
                 val shift = config.reclaimRate * center
-                if (abs(shift) > 1e-6f) {
+                if (abs(shift) > config.minRelativeChange) {
                     bWork *= exp(shift)
                     for (id in cWork.keys.toList()) cWork[id] = cWork.getValue(id) * exp(-shift)
                 }
