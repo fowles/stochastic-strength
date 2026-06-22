@@ -228,7 +228,8 @@ class ProgressionControllerSimulationTest {
                 ProgressionStepInput(
                     now = t, observations = observations,
                     baselines = baselines.toMap(), coefficients = coefs.toMap(),
-                    muscleExercises = muscleExercises, hurtMuscles = hurtMuscles, weightUnit = unit,
+                    muscleExercises = muscleExercises, seedCoefficients = seedCoef,
+                    hurtMuscles = hurtMuscles, weightUnit = unit,
                 ),
             )
             out.baselineUpdates.forEach { baselines[it.muscleGroup] = it.newBaseline }
@@ -309,5 +310,47 @@ class ProgressionControllerSimulationTest {
             val infl = rows.map { it.coefInflation }.average()
             assertTrue("coefInflation $infl drifted at growth=$growth", infl in 0.97..1.03) // doc: ~1.00
         }
+    }
+
+    @Test
+    fun too_high_baseline_revealed_in_turn_converges_down() {
+        // One muscle (QUADS), 3 loaded lifts, true coefficients = seeds, baseline starts 60% too high.
+        // Each session ONE lift is prescribed and brackets low (drop-cascade); over rounds the baseline
+        // must fall toward truth and the coefficient geomean must return toward 1.0 (drift reclaimed,
+        // not stranded in the coefficients).
+        val muscle = MuscleGroup.QUADS
+        val ids = listOf(101L, 102L, 103L)
+        val seedCoef = mapOf(101L to 1.0f, 102L to 0.6f, 103L to 0.4f)
+        val trueBaseline = 130f
+        val baselines = mutableMapOf(muscle to trueBaseline * 1.6f) // 60% too high
+        val coefs = seedCoef.toMutableMap()
+        val controller = RollingConservingProgressionController()
+        val muscleExercises = mapOf(muscle to ids)
+
+        var t = 0L
+        repeat(18) { round ->
+            t += daysMs(3)
+            val id = ids[round % ids.size]
+            val target1RM = trueBaseline * seedCoef.getValue(id) // true capacity for this lift
+            // High-confidence bracket reading at true capacity.
+            val obs = listOf(ProgressionObservation(id, muscle, target1RM, 0.95f, 0.95f))
+            val out = controller.step(
+                ProgressionStepInput(
+                    now = t, observations = obs,
+                    baselines = baselines.toMap(), coefficients = coefs.toMap(),
+                    muscleExercises = muscleExercises, seedCoefficients = seedCoef,
+                    hurtMuscles = emptySet(), weightUnit = unit,
+                ),
+            )
+            out.baselineUpdates.forEach { baselines[it.muscleGroup] = it.newBaseline }
+            out.coefficientUpdates.forEach { coefs[it.exerciseId] = it.coefficient }
+        }
+
+        val finalBaseline = baselines.getValue(muscle)
+        val inflation = exp(ids.map { ln(coefs.getValue(it) / seedCoef.getValue(it)).toDouble() }.average()).toFloat()
+        // Baseline converged most of the way down from 1.6x toward 1.0x truth.
+        assertTrue("baseline did not converge down: ${finalBaseline / trueBaseline}", finalBaseline < trueBaseline * 1.20f)
+        // Drift was reclaimed into the baseline, not stranded in collapsed coefficients.
+        assertTrue("coef geomean stranded low: $inflation", inflation > 0.90f)
     }
 }
