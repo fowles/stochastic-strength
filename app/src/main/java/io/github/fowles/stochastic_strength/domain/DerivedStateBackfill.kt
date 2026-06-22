@@ -12,6 +12,7 @@ class DerivedStateBackfill(
     suspend fun run() {
         val profile = database.userProfileDao().getProfile() ?: return
         ActualRepsBackfill(database, profile.weightUnit).run()
+        ExerciseStrengthOverrideBackfill(database).run()
         repository.replayDerivedState()
     }
 }
