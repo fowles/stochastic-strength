@@ -28,9 +28,16 @@ object SessionSignalExtractor {
     const val RESERVE_RIR_2_4 = 3f
     const val RESERVE_RIR_5_PLUS = 6f
 
+    /** Confidence flag for a demonstrated drop-cascade (failure at top weight + a completed lighter set). */
+    const val BRACKET_CONFIDENCE = 0.95f
+
     data class SetSignal(val repDeviation: Float, val confidence: Float, val isFailure: Boolean)
 
-    data class SessionAggregate(val est1RM: Float, val sessionConfidence: Float)
+    data class SessionAggregate(
+        val est1RM: Float,
+        val sessionConfidence: Float,
+        val bracketConfidence: Float = 0f,
+    )
 
     /** Rep-scaled softening of a failure's down-pull: strict at low reps, forgiving at high reps. */
     fun softening(reps: Int): Float = 0.10f + 0.70f * (reps.coerceIn(1, 20) - 1) / 19f
@@ -54,6 +61,13 @@ object SessionSignalExtractor {
         if (sets.isEmpty()) return null
         val w0 = sets.maxOf { it.targetWeight }
         if (w0 <= 0f) return null
+
+        val topSets = sets.filter { it.targetWeight >= w0 - 1e-3f }
+        val droppedSets = sets.filter { it.targetWeight < w0 - 1e-3f }
+        val topFailed = topSets.any { it.feedback == SetFeedback.TOO_HARD }
+        if (topFailed && droppedSets.isNotEmpty()) {
+            return bracketAggregate(sets)
+        }
 
         // Only full-weight sets carry the capacity signal.
         val contributions = sets
@@ -85,5 +99,41 @@ object SessionSignalExtractor {
         val est1RM = DefaultProgressionEngine.rawToOneRepMax(w0, targetReps + aggOffset)
         val sessionConfidence = contributions.maxOf { it.second.confidence }
         return SessionAggregate(est1RM = est1RM, sessionConfidence = sessionConfidence)
+    }
+
+    /** Reserve reps implied by a non-failure feedback bucket (reused for the completed-set anchor). */
+    private fun reserveReps(feedback: SetFeedback): Float = when (feedback) {
+        SetFeedback.RIR_0_1 -> RESERVE_RIR_0_1
+        SetFeedback.RIR_2_4 -> RESERVE_RIR_2_4
+        SetFeedback.RIR_5_PLUS -> RESERVE_RIR_5_PLUS
+        else -> 0f
+    }
+
+    /**
+     * Capacity estimate when a full-weight failure forced a mid-session drop. Anchor on the heaviest
+     * COMPLETED set (capacity demonstrated at a sustainable rep count); failures only cap that anchor
+     * from above. If every set failed, estimate from the lightest failed set's achieved reps.
+     */
+    private fun bracketAggregate(sets: List<WorkoutSet>): SessionAggregate {
+        val completed = sets.filter { it.feedback?.isRepsInReserve == true }
+        val failed = sets.filter { it.feedback == SetFeedback.TOO_HARD }
+
+        val est1RM = if (completed.isNotEmpty()) {
+            val anchor = completed.maxOf { s ->
+                DefaultProgressionEngine.rawToOneRepMax(s.targetWeight, s.targetReps + reserveReps(s.feedback!!))
+            }
+            // A failed weight means target-rep capacity is below it: cap the anchor from above.
+            val ceiling = failed.minOf { DefaultProgressionEngine.rawToOneRepMax(it.targetWeight, it.targetReps) }
+            minOf(anchor, ceiling)
+        } else {
+            val lightest = failed.minByOrNull { it.targetWeight }!!
+            val reps = lightest.actualReps ?: (lightest.targetReps / 2)
+            DefaultProgressionEngine.rawToOneRepMax(lightest.targetWeight, reps.toFloat())
+        }
+        return SessionAggregate(
+            est1RM = est1RM,
+            sessionConfidence = BRACKET_CONFIDENCE,
+            bracketConfidence = BRACKET_CONFIDENCE,
+        )
     }
 }

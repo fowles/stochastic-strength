@@ -98,7 +98,7 @@ class WorkoutRepository(
             val muscle = exerciseMuscle[id] ?: return@mapNotNull null
             if ((snapshot.currentCoefficients[id] ?: 0f) <= 0f) return@mapNotNull null
             SessionSignalExtractor.aggregateSession(exSets)?.let {
-                ProgressionObservation(id, muscle, it.est1RM, it.sessionConfidence)
+                ProgressionObservation(id, muscle, it.est1RM, it.sessionConfidence, it.bracketConfidence)
             }
         }
         // HURT is muscle-level and coefficient-independent (matches prior LastSetAutoregulation): any pain backs the baseline off.
@@ -115,6 +115,7 @@ class WorkoutRepository(
                 baselines = snapshot.currentBaselines.toMap(),
                 coefficients = snapshot.currentCoefficients.toMap(),
                 muscleExercises = muscleExercises,
+                seedCoefficients = snapshot.seedCoefficients,
                 hurtMuscles = hurtMuscles,
                 weightUnit = weightUnit,
             ),

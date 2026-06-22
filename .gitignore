@@ -17,3 +17,6 @@ local.properties
 *.jks
 *.keystore
 keystore.properties
+
+# Superpowers SDD scratch (ledger, briefs, review packages)
+.superpowers/
