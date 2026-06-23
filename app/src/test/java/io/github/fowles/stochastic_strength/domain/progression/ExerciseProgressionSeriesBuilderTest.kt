@@ -5,7 +5,10 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.ln
 
 class ExerciseProgressionSeriesBuilderTest {
@@ -49,6 +52,63 @@ class ExerciseProgressionSeriesBuilderTest {
         assertEquals(expected, sample.siblingObservations.first().value, 1e-2f)
         // No own observation this session (target had no sets).
         assertEquals(0, sample.ownObservations.size)
+    }
+
+    @Test
+    fun mergedLineEqualsFullProjectionEffectiveE1rm() {
+        // Target (1) at 80 kg; sibling (2) at 60 kg with seed 0.6 implies level ~100.
+        // The leave-one-out prediction for the target is ~100 (sibling-only pool), but the full
+        // projection shrinks the target's own estimate (80) toward the prediction, so merged != siblings.
+        val snap = ReplaySnapshot(
+            exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
+            seedCoefficients = mapOf(1L to 1.0f, 2L to 0.6f),
+        )
+        snap.currentEstimates[1L] = ExerciseEstimate(lnE = ln(80f), confidence = 6f, updatedAt = 0L)
+        snap.currentEstimates[2L] = ExerciseEstimate(lnE = ln(60f), confidence = 6f, updatedAt = 0L)
+        val asOf = 1_000L
+        val projector = MuscleStrengthProjector()
+
+        // Target performed a set so the muscle is "touched" and lines are sampled.
+        val sample = sampleSession(
+            targetId = 1L,
+            muscleIds = listOf(1L, 2L),
+            snapshot = snap,
+            sets = listOf(set(exerciseId = 1L, weight = 80f, reps = 5)),
+            asOf = asOf,
+            projector = projector,
+        )
+
+        // Expected merged value: full projection effectiveE1rm for target 1.
+        val expectedMerged = projector
+            .project(snap.currentEstimates, snap.seedCoefficients, listOf(1L, 2L), asOf)
+            .effectiveE1rm.getValue(1L)
+
+        assertEquals(1, sample.merged.size)
+        assertEquals(expectedMerged, sample.merged.single().value, 1e-3f)
+
+        // merged must meaningfully differ from the leave-one-out (sibling-only) prediction.
+        // siblingsEstimate ≈ 100 (sibling 2 implies level 100); merged is shrunk toward 100 from 80 < 100.
+        assertEquals(1, sample.siblingsEstimate.size)
+        assertTrue(abs(sample.merged.single().value - sample.siblingsEstimate.single().value) > 1f)
+    }
+
+    @Test
+    fun ownEstimateReflectsTheCurrentEstimate() {
+        val snap = snapshot()
+        val asOf = 1_000L
+        val sample = sampleSession(
+            targetId = 1L,
+            muscleIds = listOf(1L, 2L),
+            snapshot = snap,
+            sets = listOf(set(exerciseId = 1L, weight = 100f, reps = 5)),
+            asOf = asOf,
+            projector = MuscleStrengthProjector(),
+        )
+
+        val expectedOwnEstimate = exp(snap.currentEstimates.getValue(1L).lnE)
+        assertEquals(1, sample.ownEstimate.size)
+        assertEquals(asOf, sample.ownEstimate.single().timestampMs)
+        assertEquals(expectedOwnEstimate, sample.ownEstimate.single().value, 1e-2f)
     }
 
     @Test
