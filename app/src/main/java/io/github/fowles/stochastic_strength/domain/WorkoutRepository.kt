@@ -20,14 +20,13 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
+import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
-import kotlin.math.ln
 
 class WorkoutRepository(
     private val db: AppDatabase,
@@ -36,6 +35,7 @@ class WorkoutRepository(
 ) {
     private val replayMutex = Mutex()
     private val stepper = SessionProgressionStepper()
+    private val replayEngine = ReplayEngine(stepper)
 
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -86,29 +86,6 @@ class WorkoutRepository(
             pacingEstimator = pacingEstimator,
             exerciseE1rmOverrides = exerciseOverrides,
         )
-    }
-
-    private suspend fun applySessionProgression(
-        sessionId: Long,
-        snapshot: ReplaySnapshot,
-        asOf: Long,
-        scratch: MutableDerivedState,
-    ) {
-        val sets = db.workoutSetDao().getSetsForSession(sessionId)
-        if (sets.isEmpty()) return
-
-        val result = stepper.step(sets, snapshot, asOf)
-        for (stepResult in result.steps) {
-            writeLevelUpdate(stepResult.muscle, stepResult.projection.level, sessionId, asOf, scratch)
-            val exerciseIds = snapshot.muscleExerciseIds[stepResult.muscle] ?: continue
-            writeDerivedCoefficients(
-                muscleExerciseIds = exerciseIds,
-                derivedCoef = stepResult.projection.derivedCoef,
-                snapshot = snapshot,
-                asOf = asOf,
-                scratch = scratch,
-            )
-        }
     }
 
     private fun writeLevelUpdate(
@@ -217,38 +194,18 @@ class WorkoutRepository(
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
             val config = EstimatorConfig()
 
-            // Init from per-exercise strength overrides (sessionId = null rows).
-            val initials = db.exerciseStrengthOverrideDao().getInitials()
-            for (init in initials) {
-                snapshot.currentEstimates[init.exerciseId] = ExerciseEstimate.seed(init.e1rm, at = init.asOf)
-            }
-
-            // Group non-initial per-exercise overrides by sessionId.
-            val exerciseOverridesBySession = db.exerciseStrengthOverrideDao().getNonInitials()
-                .groupBy { it.sessionId!! }
-
-            val sessions = db.workoutSessionDao().getAll()
-                .filter { it.endTime != null }
-                .sortedWith(compareBy({ it.endTime!! }, { it.id }))
-
-            for (session in sessions) {
-                // Apply per-exercise override rows for this session first (manual/detrain adjustments).
-                exerciseOverridesBySession[session.id]?.forEach { o ->
-                    snapshot.currentEstimates[o.exerciseId] = ExerciseEstimate(
-                        lnE = ln(o.e1rm),
-                        // One full confidence unit: a manual/detrain override asserts a known 1RM, so it
-                        // carries weight in the muscle-level pool (unlike a cold seed at confidence 0f).
-                        confidence = 1.0f,
-                        updatedAt = o.asOf,
+            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, result ->
+                for (stepResult in result.steps) {
+                    writeLevelUpdate(stepResult.muscle, stepResult.projection.level, sessionId, asOf, scratch)
+                    val exerciseIds = snapshot.muscleExerciseIds[stepResult.muscle] ?: continue
+                    writeDerivedCoefficients(
+                        muscleExerciseIds = exerciseIds,
+                        derivedCoef = stepResult.projection.derivedCoef,
+                        snapshot = snapshot,
+                        asOf = asOf,
+                        scratch = scratch,
                     )
                 }
-
-                applySessionProgression(
-                    sessionId = session.id,
-                    snapshot = snapshot,
-                    asOf = session.endTime!!,
-                    scratch = scratch,
-                )
             }
 
             // Store the final estimate map for the live planner (Task 8 reads it).
