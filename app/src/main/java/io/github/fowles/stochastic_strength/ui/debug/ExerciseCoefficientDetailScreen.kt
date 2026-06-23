@@ -36,6 +36,7 @@ import io.github.fowles.stochastic_strength.ui.components.formatDateTime
 import io.github.fowles.stochastic_strength.ui.debug.components.CrossTuningSection
 import io.github.fowles.stochastic_strength.ui.debug.components.ExerciseProgressionChart
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionChartSeries
+import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionSeriesStyle
 import io.github.fowles.stochastic_strength.ui.debug.components.progressionColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,7 +118,8 @@ private fun ProgressionLegend(series: List<ProgressionChartSeries>) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        series.filter { it.points.isNotEmpty() }.forEach { s ->
+        // Lines only — the dot series (filled/hollow) are self-explanatory on the chart.
+        series.filter { it.style == ProgressionSeriesStyle.LINE && it.points.isNotEmpty() }.forEach { s ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),

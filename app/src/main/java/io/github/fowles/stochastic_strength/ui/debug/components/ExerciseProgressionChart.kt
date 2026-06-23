@@ -1,6 +1,5 @@
 package io.github.fowles.stochastic_strength.ui.debug.components
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -123,14 +122,17 @@ internal fun ExerciseProgressionChart(
     )
 }
 
-@Composable
+// Explicit, high-contrast series colors (not dynamic-color tokens): blue=own, grey=siblings,
+// red=merged. Fixed hues so the three lines stay distinct on any device/theme. Dots track their
+// line's color (own dots blue, sibling dots grey). See memory: reference_dynamic_color_charts.
+private val OwnColor = Color(0xFF1E88E5) // blue
+private val SiblingColor = Color(0xFF9E9E9E) // grey
+private val MergedColor = Color(0xFFE53935) // red
+
 internal fun progressionColors(): Map<ProgressionColorRole, Color> = mapOf(
-    ProgressionColorRole.OWN to MaterialTheme.colorScheme.primary,
-    ProgressionColorRole.SIBLINGS to MaterialTheme.colorScheme.secondary,
-    // NOTE: dynamic-color `tertiary` can render as near-invisible grey on some devices.
-    // The MERGED line color must be visually verified on-device in Task 8 and swapped
-    // to an explicit accent if it disappears (see memory: reference_dynamic_color_charts).
-    ProgressionColorRole.MERGED to MaterialTheme.colorScheme.tertiary,
-    ProgressionColorRole.OWN_OBS to MaterialTheme.colorScheme.primary,
-    ProgressionColorRole.SIBLING_OBS to MaterialTheme.colorScheme.onSurfaceVariant,
+    ProgressionColorRole.OWN to OwnColor,
+    ProgressionColorRole.SIBLINGS to SiblingColor,
+    ProgressionColorRole.MERGED to MergedColor,
+    ProgressionColorRole.OWN_OBS to OwnColor,
+    ProgressionColorRole.SIBLING_OBS to SiblingColor,
 )
