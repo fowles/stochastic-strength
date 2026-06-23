@@ -1,6 +1,5 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
-import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import org.junit.Assert.assertEquals
 import org.junit.Test
