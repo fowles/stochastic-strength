@@ -237,5 +237,18 @@ class WorkoutRepositoryTest {
                 0.01f,
             )
         }
+
+        // Cold-start display parity: seeding also fills muscle_group_strength (projected from the
+        // seeded estimates) so the History strength grid is non-empty before the first workout.
+        // Under the bare per-exercise migration this grid was empty until a session was replayed.
+        val strengths = repository.derivedState.snapshot().allMuscleGroupStrengths()
+        assertTrue(
+            "expected CHEST muscle_group_strength populated at seed time; got $strengths",
+            strengths.any { it.muscleGroup == MuscleGroup.CHEST && it.baselineWeight > 0f },
+        )
+        assertTrue(
+            "expected QUADS muscle_group_strength populated at seed time; got $strengths",
+            strengths.any { it.muscleGroup == MuscleGroup.QUADS && it.baselineWeight > 0f },
+        )
     }
 }

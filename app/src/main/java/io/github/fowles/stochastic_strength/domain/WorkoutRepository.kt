@@ -287,6 +287,29 @@ class WorkoutRepository(
 
             // Store the final estimate map for the live planner (Task 8 reads it).
             scratch.putExerciseEstimates(snapshot.currentEstimates.toMap())
+
+            // Cold-start / untrained-muscle display fill: any muscle never touched by a replayed
+            // session still gets a representative muscle_group_strength row (projected from its
+            // seeded/overridden estimates) so the History strength grid matches the old per-muscle
+            // onboarding behavior instead of showing an empty grid. Session-filled muscles are
+            // guarded out, so this changes nothing for trained muscles and keeps replay idempotent.
+            // No baseline_history row is written (there is no session boundary here).
+            val displayProjector = MuscleStrengthProjector(config)
+            val displayNow = snapshot.currentEstimates.values.maxOfOrNull { it.updatedAt } ?: 0L
+            for ((muscle, exerciseIds) in snapshot.muscleExerciseIds) {
+                if (scratch.muscleGroupStrength(muscle) != null) continue
+                val projection = displayProjector.project(
+                    estimates = snapshot.currentEstimates,
+                    seedCoef = snapshot.seedCoefficients,
+                    muscleExerciseIds = exerciseIds,
+                    now = displayNow,
+                )
+                if (projection.level > 0f) {
+                    scratch.upsertMuscleGroupStrength(
+                        MuscleGroupStrength(muscleGroup = muscle, baselineWeight = projection.level)
+                    )
+                }
+            }
         }
     }
 
