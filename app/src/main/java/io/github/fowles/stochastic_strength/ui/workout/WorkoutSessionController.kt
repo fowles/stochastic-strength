@@ -154,8 +154,7 @@ class WorkoutSessionController(
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         if (preview.plan.exercises.isEmpty()) return
-        val frozenExercises = preview.plan.exercises.map { it.copy(originalSessionWeight = it.sessionWeight) }
-        val plan = preview.plan.copy(exercises = frozenExercises)
+        val plan = preview.plan
         val firstExercise = plan.exercises[0]
         scope.launch {
             val now = System.currentTimeMillis()
@@ -164,7 +163,7 @@ class WorkoutSessionController(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
             repository.applyDetrainingReduction(sessionId, plan.detrainOverrides)
-            repository.applyManualBaselineOverrides(sessionId, plan.exerciseOverrides)
+            repository.applyManualExerciseOverrides(sessionId, plan.exerciseOverrides)
             setState(WorkoutState.ActiveSet(
                 plan = plan,
                 exerciseIndex = 0,
@@ -393,10 +392,7 @@ class WorkoutSessionController(
     fun completeWorkout() {
         val done = _state.value as? WorkoutState.Done ?: return
         scope.launch {
-            val reductions = done.plan.exercises
-                .filter { it.originalSessionWeight > 0f && it.sessionWeight < it.originalSessionWeight }
-                .associate { it.exercise.id to (it.originalSessionWeight - it.sessionWeight) / it.originalSessionWeight }
-            repository.finishSession(done.sessionId, reductions)
+            repository.finishSession()
             _navigationEvent.send(NavigationEvent.WorkoutCompleted)
         }
     }
@@ -475,7 +471,7 @@ class WorkoutSessionController(
             rejectedPlan, i,
             listOf(ReplacementTier.WEIGHTED_MUSCLE, ReplacementTier.MUSCLE, ReplacementTier.ANY),
         )
-        val replacement = replacementRaw?.let { it.copy(originalSessionWeight = it.sessionWeight) }
+        val replacement = replacementRaw
 
         val exercises = rejectedPlan.exercises.toMutableList()
         val commitIndex: Int
@@ -680,10 +676,19 @@ class WorkoutSessionController(
         }
         is WorkoutState.Resting -> {
             val plan = state.plan
-            val nextSet = state.completedSetIndex + 1
+            val staged = state.staged
             val upNextLabel = when {
-                nextSet < PlannedExercise.DEFAULT_SETS ->
-                    "Next: Set ${nextSet + 1} · ${plan.exercises[state.exerciseIndex].exercise.name}"
+                // Staged-action rests (stop-workout / end-exercise / swap / adjust-weight) aren't a
+                // normal between-sets rest, so the set/exercise counters don't describe what's next.
+                // Derive the label from the staged action's commit target instead.
+                staged != null -> when (staged.kind) {
+                    StagedKind.STOP_WORKOUT -> "Finishing workout…"
+                    else -> staged.commitTarget
+                        ?.let { "Next: ${it.plannedExercise.exercise.name}" }
+                        ?: "Last set — almost done!"
+                }
+                state.completedSetIndex + 1 < PlannedExercise.DEFAULT_SETS ->
+                    "Next: Set ${state.completedSetIndex + 2} · ${plan.exercises[state.exerciseIndex].exercise.name}"
                 state.exerciseIndex + 1 < plan.exercises.size ->
                     "Next: ${plan.exercises[state.exerciseIndex + 1].exercise.name}"
                 else -> "Last set — almost done!"

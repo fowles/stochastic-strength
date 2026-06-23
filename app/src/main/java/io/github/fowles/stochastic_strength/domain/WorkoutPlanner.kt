@@ -105,8 +105,10 @@ class WorkoutPlanner(
         progressionEngine.toOneRepMax(sessionWeight, sessionReps)
 
     fun recomputeExercise(pe: PlannedExercise, newE1rmKg: Float): PlannedExercise {
-        val coeff = coefficientSource.get(pe.exercise) ?: return pe
-        if (coeff <= 0f) return pe
+        // The coefficient is only a loaded/non-zero guard here: recompute maps the new e1rm straight
+        // to a session weight (no coefficient multiply), so unloadable exercises pass through unchanged.
+        val coefficient = coefficientSource.get(pe.exercise) ?: return pe
+        if (coefficient <= 0f) return pe
         val newWeight = WeightFormatter.round(
             progressionEngine.fromOneRepMax(newE1rmKg, pe.sessionReps),
             weightUnit,

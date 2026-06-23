@@ -107,12 +107,11 @@ class ReplayDerivedStateTest {
     }
 
     /**
-     * finishSession threads a now-dead exerciseReductions param. Passing a huge reduction must NOT
-     * suppress the progression: clean RIR_2_4 work at the prescribed weight still drives the
-     * estimate / CHEST level upward.
+     * finishSession folds the just-finished session into derived state: clean RIR_2_4 work at the
+     * prescribed weight drives the estimate / CHEST level upward.
      */
     @Test
-    fun finishSession_ignoresDeadReductionsParam_baselineStillAdvances() = runBlocking {
+    fun finishSession_baselineAdvancesFromPrescribedWork() = runBlocking {
         db.userProfileDao().insert(UserProfile(
             sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG))
         db.exerciseDao().insert(Exercise(
@@ -131,16 +130,14 @@ class ReplayDerivedStateTest {
                 feedback = SetFeedback.RIR_2_4, completedAt = SESSION_1_START + i * 100L))
         }
 
-        // Pass a LARGE reduction (99%) for the exercise — the param is dead, so it must not clamp.
-        repository.finishSession(sessionId, exerciseReductions = mapOf(BENCH_EXERCISE_ID to 0.99f))
+        repository.finishSession()
 
         val progressionRow = repository.derivedState.snapshot().allBaselineHistory()
             .firstOrNull { it.changeReason == BaselineChangeReason.PROGRESSION && it.muscleGroup == MuscleGroup.CHEST }
         assertTrue("expected a PROGRESSION row for CHEST", progressionRow != null)
-        // RIR_2_4 (3 reps reserve) at 100 kg implies a 1RM above 100, so the level advances
-        // despite the 99% reduction param.
+        // RIR_2_4 (3 reps reserve) at 100 kg implies a 1RM above 100, so the level advances.
         assertTrue(
-            "expected CHEST level > 100f even with 99% reduction param, got ${progressionRow!!.newBaseline}",
+            "expected CHEST level > 100f, got ${progressionRow!!.newBaseline}",
             progressionRow.newBaseline > 100f,
         )
     }

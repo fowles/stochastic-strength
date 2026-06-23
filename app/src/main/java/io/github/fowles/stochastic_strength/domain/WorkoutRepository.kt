@@ -152,24 +152,25 @@ class WorkoutRepository(
     ) {
         if (level <= 0f) return
         val current = scratch.muscleGroupStrength(muscle)?.baselineWeight
+        // Epsilon-dedupe (parity with writeDerivedCoefficients): suppress sub-epsilon float-noise
+        // updates entirely so the baseline_history chart isn't littered with no-op level rows.
+        if (current != null && abs(level - current) / current.coerceAtLeast(1e-6f) < 1e-4f) return
         scratch.upsertMuscleGroupStrength(MuscleGroupStrength(muscleGroup = muscle, baselineWeight = level))
-        if (current == null || current != level) {
-            scratch.insertBaselineHistory(
-                BaselineHistory(
-                    sessionId = sessionId,
-                    muscleGroup = muscle,
-                    previousBaseline = current ?: 0f,
-                    newBaseline = level,
-                    changeReason = BaselineChangeReason.PROGRESSION,
-                    feedbacks = null,
-                    sessionReps = null,
-                    minReductionFraction = null,
-                    timestamp = asOf,
-                    heuristicName = "per-exercise-estimate",
-                    heuristicMetadata = null,
-                )
+        scratch.insertBaselineHistory(
+            BaselineHistory(
+                sessionId = sessionId,
+                muscleGroup = muscle,
+                previousBaseline = current ?: 0f,
+                newBaseline = level,
+                changeReason = BaselineChangeReason.PROGRESSION,
+                feedbacks = null,
+                sessionReps = null,
+                minReductionFraction = null,
+                timestamp = asOf,
+                heuristicName = "per-exercise-estimate",
+                heuristicMetadata = null,
             )
-        }
+        )
     }
 
     private fun writeDerivedCoefficients(
@@ -199,7 +200,7 @@ class WorkoutRepository(
         }
     }
 
-    suspend fun applyManualBaselineOverrides(sessionId: Long, overrides: Map<Long, Float>) {
+    suspend fun applyManualExerciseOverrides(sessionId: Long, overrides: Map<Long, Float>) {
         if (overrides.isEmpty()) return
         val session = db.workoutSessionDao().getById(sessionId)
         val asOf = session?.startTime ?: System.currentTimeMillis()
@@ -236,19 +237,14 @@ class WorkoutRepository(
     }
 
     /**
-     * Replays all sessions, applying [exerciseReductions] (sessionId → per-exercise reduction
-     * fractions) for any matching session. Used by the workout-end path to thread the user's
-     * mid-session weight reductions into the progression calculation.
+     * Replays all sessions to fold the just-finished session into derived state. Mid-set weight
+     * drops flow through the set log as negative innovations, so no reduction data is threaded here.
      */
-    suspend fun finishSession(sessionId: Long, exerciseReductions: Map<Long, Float>) {
-        replayDerivedState(mapOf(sessionId to exerciseReductions))
+    suspend fun finishSession() {
+        replayDerivedState()
     }
 
-    suspend fun replayDerivedState(
-        // reductionsBySession is retained for API compatibility; mid-set drops now flow through
-        // the set log as negative innovations (the reduction clamp was dropped with the PI controller).
-        reductionsBySession: Map<Long, Map<Long, Float>> = emptyMap(),
-    ) = replayMutex.withLock {
+    suspend fun replayDerivedState() = replayMutex.withLock {
         derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
             val config = EstimatorConfig()
@@ -316,13 +312,18 @@ class WorkoutRepository(
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit, perExerciseSeedsBackfilled = true))
         val exercises = db.exerciseDao().getAll()
-        for (ex in exercises) {
-            val e1rm = StartingWeights.seedInitialE1rm(sex, strengthLevel, ex)
-            if (e1rm > 0f) {
-                db.exerciseStrengthOverrideDao().deleteInitialFor(ex.id)
-                db.exerciseStrengthOverrideDao().insert(
-                    ExerciseStrengthOverride(sessionId = null, exerciseId = ex.id, e1rm = e1rm, asOf = 0L)
-                )
+        // Transactional for parity with ExerciseStrengthOverrideBackfill: the per-exercise
+        // delete+insert seeds are still self-healing (idempotent re-run), but an all-or-nothing
+        // write avoids leaving a half-seeded initial set if this is interrupted.
+        db.withTransaction {
+            for (ex in exercises) {
+                val e1rm = StartingWeights.seedInitialE1rm(sex, strengthLevel, ex)
+                if (e1rm > 0f) {
+                    db.exerciseStrengthOverrideDao().deleteInitialFor(ex.id)
+                    db.exerciseStrengthOverrideDao().insert(
+                        ExerciseStrengthOverride(sessionId = null, exerciseId = ex.id, e1rm = e1rm, asOf = 0L)
+                    )
+                }
             }
         }
         replayDerivedState()

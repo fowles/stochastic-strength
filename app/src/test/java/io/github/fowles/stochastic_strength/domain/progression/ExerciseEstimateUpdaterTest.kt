@@ -9,7 +9,6 @@ import kotlin.math.ln
 class ExerciseEstimateUpdaterTest {
 
     private val updater = ExerciseEstimateUpdater()
-    private val day = 24L * 60 * 60 * 1000
 
     @Test
     fun seedHasZeroConfidenceAndExactE1rm() {

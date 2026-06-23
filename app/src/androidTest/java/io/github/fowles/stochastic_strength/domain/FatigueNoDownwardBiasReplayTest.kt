@@ -28,10 +28,8 @@ import org.junit.runner.RunWith
  * *below* its seed value.
  *
  * Background: the old three-component progression stack had a fatigue downward bias on the
- * coefficient → normalizer path. The current [RollingConservingProgressionController] replaced
- * that stack; this test guards that clean TOO_HARD sessions do not produce a net downward baseline.
- *
- * See: spec "Open risk" section in task-4-brief.md.
+ * coefficient → normalizer path. The current per-exercise-estimate progression replaced that
+ * stack; this test guards that clean TOO_HARD sessions do not produce a net downward baseline.
  */
 @RunWith(AndroidJUnit4::class)
 class FatigueNoDownwardBiasReplayTest {

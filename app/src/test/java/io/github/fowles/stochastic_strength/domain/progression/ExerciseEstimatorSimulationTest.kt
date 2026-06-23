@@ -453,4 +453,62 @@ class ExerciseEstimatorSimulationTest {
             nextWeight < failedWeight,
         )
     }
+
+    @Test
+    fun marginal_failure_with_confident_siblings_holds_grid_weight() {
+        // Goal-3 read-path boundary (accepted soft edge): unlike the single-exercise clear-failure case
+        // above, a MARGINAL (~1-rep) failure on one lift of a MULTI-sibling muscle need NOT drop its
+        // next prescription below the failed weight. The fold still lowers that lift's own estimate, but
+        // confident non-failed siblings pull the projection back up via MuscleStrengthProjector shrink,
+        // so the small post-fold dip rounds back to the same 2.5 kg grid weight. This pins that boundary.
+        val muscle = MuscleGroup.QUADS
+        val library = ExerciseLibrary.exercises
+            .mapIndexed { i, e -> e.copy(id = (i + 1).toLong()) }
+            .filter { it.equipment != Equipment.BAND && it.primaryMuscle == muscle }
+        val loaded = library.filter { (ExerciseCoefficients.byName[it.name] ?: 0f) > 0f }
+        assertTrue("need at least 3 loaded QUADS exercises", loaded.size >= 3)
+
+        val ex1 = loaded[0]; val ex2 = loaded[1]; val ex3 = loaded[2]
+        val seedCoef = mapOf(
+            ex1.id to (ExerciseCoefficients.byName[ex1.name] ?: 1f),
+            ex2.id to (ExerciseCoefficients.byName[ex2.name] ?: 1f),
+            ex3.id to (ExerciseCoefficients.byName[ex3.name] ?: 1f),
+        )
+        val muscleIds = listOf(ex1.id, ex2.id, ex3.id)
+        val trueBaseline = 130f
+        val reps = 10
+
+        // Seed all three, then fold several clean, confident sessions so every sibling is confident and
+        // settled at its true capacity (this is what makes the shrink anchor strong).
+        val estimates = mutableMapOf<Long, ExerciseEstimate>()
+        for ((id, c) in seedCoef) estimates[id] = ExerciseEstimate.seed(trueBaseline * c, at = 0L)
+        var t = 0L
+        repeat(6) {
+            t += daysMs(3)
+            for ((id, c) in seedCoef) {
+                estimates[id] = updater.fold(estimates.getValue(id), trueBaseline * c, 0.9f, t)
+            }
+        }
+
+        val before1 = projector.project(estimates, seedCoef, muscleIds, now = t).effectiveE1rm.getValue(ex1.id)
+        val failedWeight = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(before1, reps), unit)
+
+        // Marginal failure on ex1 only: a small est1RM dip with low bracketConfidence (a ~1-rep miss).
+        val tNext = t + daysMs(3)
+        val foldedEstimate = updater.fold(estimates.getValue(ex1.id), before1 * 0.97f, 0.25f, tNext)
+        assertTrue(
+            "marginal failure should still lower ex1's own estimate (failure registered)",
+            foldedEstimate.lnE < estimates.getValue(ex1.id).lnE,
+        )
+
+        val nextEstimates = HashMap(estimates).apply { put(ex1.id, foldedEstimate) }
+        val nextE1rm = projector.project(nextEstimates, seedCoef, muscleIds, now = tNext).effectiveE1rm.getValue(ex1.id)
+        val nextWeight = WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(nextE1rm, reps), unit)
+
+        assertTrue(
+            "marginal failure next weight $nextWeight should hold at the failed weight $failedWeight " +
+                "(confident siblings absorb the small dip via shrink + grid rounding)",
+            nextWeight >= failedWeight,
+        )
+    }
 }

@@ -39,6 +39,21 @@ class ExerciseSeedExpansionTest {
     }
 
     @Test
+    fun nullCoefExerciseExcluded() {
+        // id 4 is an unknown exercise whose coefficient source returns null (not zero) — it must be
+        // excluded from expansion just like a zero-coef exercise, leaving only the loaded id-1 row.
+        val rows = ExerciseSeedExpansion.expand(
+            muscleOverrides = listOf(
+                ExerciseSeedExpansion.MuscleOverrideRow(null, MuscleGroup.CHEST, 80f, 0L, BaselineChangeReason.INITIAL),
+            ),
+            exercises = listOf(ex(1L, MuscleGroup.CHEST), ex(4L, MuscleGroup.CHEST)),
+            coefSource = coef,
+        )
+        assertEquals(1, rows.size)
+        assertTrue("null-coef exercise excluded", rows.none { it.exerciseId == 4L })
+    }
+
+    @Test
     fun preservesSessionAsOfAndReason() {
         val rows = ExerciseSeedExpansion.expand(
             muscleOverrides = listOf(

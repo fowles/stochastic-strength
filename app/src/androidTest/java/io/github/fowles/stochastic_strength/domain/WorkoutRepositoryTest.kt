@@ -49,11 +49,11 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun applyManualBaselineOverrides_writesExerciseStrengthOverrideRow() = runBlocking {
+    fun applyManualExerciseOverrides_writesExerciseStrengthOverrideRow() = runBlocking {
         val exerciseId = 200L
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
 
-        repository.applyManualBaselineOverrides(sessionId, mapOf(exerciseId to 90f))
+        repository.applyManualExerciseOverrides(sessionId, mapOf(exerciseId to 90f))
 
         val overrides = db.exerciseStrengthOverrideDao().getForSession(sessionId)
         assertEquals(1, overrides.size)
@@ -72,12 +72,12 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun applyManualBaselineOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
+    fun applyManualExerciseOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
         val exerciseId = 200L
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
         val repo = WorkoutRepository(db)
 
-        repo.applyManualBaselineOverrides(sessionId, mapOf(exerciseId to 120f))
+        repo.applyManualExerciseOverrides(sessionId, mapOf(exerciseId to 120f))
 
         // Only the exercise_strength_override input row should exist — no derived writes.
         val snap = repo.derivedState.snapshot()
@@ -119,7 +119,7 @@ class WorkoutRepositoryTest {
                 completedAt = 1600L)
         )
 
-        repository.finishSession(sessionId, exerciseReductions = emptyMap())
+        repository.finishSession()
 
         // The display projection still aggregates both CHEST exercises into ONE muscle-level
         // PROGRESSION log entry (writeLevelUpdate is per-muscle), and easy feedback drives the
@@ -204,7 +204,7 @@ class WorkoutRepositoryTest {
         // Detrain first, then a manual override at the same session: the override is applied
         // last during replay, so it wins.
         repository.applyDetrainingReduction(sessionId, mapOf(benchId to 50f))
-        repository.applyManualBaselineOverrides(sessionId, mapOf(benchId to 70f))
+        repository.applyManualExerciseOverrides(sessionId, mapOf(benchId to 70f))
 
         val estimate = repository.derivedState.snapshot().exerciseEstimates()[benchId]!!.e1rm
         assertEquals(70f, estimate, 0.01f)

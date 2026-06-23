@@ -50,4 +50,15 @@ class MuscleStrengthProjectorTest {
         assertEquals(60f, p.effectiveE1rm.getValue(2L), 1e-2f)
         assertTrue("level is positive", p.level > 0f)
     }
+
+    @Test
+    fun fallbackLevelIsGeomeanOfImpliedLevelsAcrossColdSiblings() {
+        // No confident exercise -> level falls back to the geomean of each exercise's implied level
+        // (E_j / seedCoef_j). Implied levels differ here (100/1.0 = 100, 72/0.6 = 120), so the fallback
+        // must be their geomean sqrt(100 * 120) ≈ 109.5, not an arithmetic mean (110) or either value.
+        val estimates = mapOf(1L to est(100f, conf = 0f), 2L to est(72f, conf = 0f))
+        val seed = mapOf(1L to 1.0f, 2L to 0.6f)
+        val p = projector.project(estimates, seed, muscleExerciseIds = listOf(1L, 2L), now = 0L)
+        assertEquals(kotlin.math.sqrt(100f * 120f), p.level, 1e-1f)
+    }
 }

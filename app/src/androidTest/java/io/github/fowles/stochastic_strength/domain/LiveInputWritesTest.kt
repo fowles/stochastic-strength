@@ -52,12 +52,12 @@ class LiveInputWritesTest {
     fun tearDown() = db.close()
 
     @Test
-    fun applyManualBaselineOverrides_writesOverrideRowOnly() = runBlocking {
+    fun applyManualExerciseOverrides_writesOverrideRowOnly() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(
             WorkoutSession(startTime = 1_700_000_000_000L, endTime = null)
         )
 
-        repository.applyManualBaselineOverrides(sessionId, mapOf(BENCH_EXERCISE_ID to 95f))
+        repository.applyManualExerciseOverrides(sessionId, mapOf(BENCH_EXERCISE_ID to 95f))
 
         // The write lands as one per-exercise override row, keyed by exerciseId, with the e1rm
         // and an OVERRIDE reason.
