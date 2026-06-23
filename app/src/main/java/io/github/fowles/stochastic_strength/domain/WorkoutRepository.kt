@@ -268,6 +268,8 @@ class WorkoutRepository(
                 exerciseOverridesBySession[session.id]?.forEach { o ->
                     snapshot.currentEstimates[o.exerciseId] = ExerciseEstimate(
                         lnE = ln(o.e1rm),
+                        // One full confidence unit: a manual/detrain override asserts a known 1RM, so it
+                        // carries weight in the muscle-level pool (unlike a cold seed at confidence 0f).
                         confidence = 1.0f,
                         updatedAt = o.asOf,
                     )

@@ -242,9 +242,10 @@ class ExerciseEstimatorSimulationTest {
 
             if (s >= sessions) {
                 // "Well-trained" for the tracking metric: exercises with currently-active estimates
-                // (decayed confidence ≥ confidentThreshold). This matches the estimator's own
-                // definition of "I know this exercise" — stale estimates fall back to sibling
-                // prediction and are excluded from the per-exercise tracking error.
+                // (decayed confidence ≥ wellTrainedConf, this test's own metric cutoff). This matches
+                // the estimator's own definition of "I know this exercise" — stale estimates contribute
+                // negligible weight and are dominated by the sibling-pooled prediction, so they are
+                // excluded from the per-exercise tracking error.
                 val config = EstimatorConfig()
                 val well = loaded.filter { ex ->
                     val est = estimates[ex.id] ?: return@filter false
