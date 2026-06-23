@@ -64,12 +64,14 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                         Text("No sessions yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    ExerciseProgressionChart(
-                        series = state.progressionSeries,
-                        yFormatter = { value -> WeightFormatter.format(value, state.weightUnit) },
-                        modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp),
-                    )
-                    ProgressionLegend(state.progressionSeries)
+                    Column {
+                        ProgressionLegend(state.progressionSeries)
+                        ExerciseProgressionChart(
+                            series = state.progressionSeries,
+                            yFormatter = { value -> WeightFormatter.format(value, state.weightUnit) },
+                            modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp),
+                        )
+                    }
                 }
             }
 
@@ -115,7 +117,7 @@ private fun ProgressionLegend(series: List<ProgressionChartSeries>) {
     val colors = progressionColors()
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         // Lines only — the dot series (filled/hollow) are self-explanatory on the chart.
