@@ -15,15 +15,14 @@ import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimateUpdater
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
+import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -36,6 +35,7 @@ class WorkoutRepository(
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
 ) {
     private val replayMutex = Mutex()
+    private val stepper = SessionProgressionStepper()
 
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -97,45 +97,13 @@ class WorkoutRepository(
         val sets = db.workoutSetDao().getSetsForSession(sessionId)
         if (sets.isEmpty()) return
 
-        val updater = ExerciseEstimateUpdater()
-        val projector = MuscleStrengthProjector()
-
-        // HURT first (muscle-level): for any hurt muscle, hurt every loaded exercise estimate in it.
-        val hurtMuscles = sets.filter { it.feedback == SetFeedback.HURT }
-            .mapNotNull { snapshot.exerciseMuscle[it.exerciseId] }.toSet()
-        for (m in hurtMuscles) {
-            for (id in snapshot.muscleExerciseIds[m].orEmpty()) {
-                snapshot.currentEstimates[id]?.let {
-                    snapshot.currentEstimates[id] = updater.hurt(it, asOf)
-                }
-            }
-        }
-
-        // Per-exercise fold from the session aggregate.
-        val affectedMuscles = mutableSetOf<MuscleGroup>()
-        sets.groupBy { it.exerciseId }.forEach { (id, exSets) ->
-            if ((snapshot.seedCoefficients[id] ?: 0f) <= 0f) return@forEach
-            val agg = SessionSignalExtractor.aggregateSession(exSets) ?: return@forEach
-            val prior = snapshot.currentEstimates[id] ?: return@forEach
-            snapshot.currentEstimates[id] = updater.fold(prior, agg.est1RM, agg.bracketConfidence, asOf)
-            snapshot.exerciseMuscle[id]?.let { affectedMuscles.add(it) }
-        }
-        // Also project muscles that had HURT updates.
-        affectedMuscles.addAll(hurtMuscles)
-
-        // Write display projections for affected muscles.
-        for (m in affectedMuscles) {
-            val exerciseIds = snapshot.muscleExerciseIds[m] ?: continue
-            val projection = projector.project(
-                estimates = snapshot.currentEstimates,
-                seedCoef = snapshot.seedCoefficients,
-                muscleExerciseIds = exerciseIds,
-                now = asOf,
-            )
-            writeLevelUpdate(m, projection.level, sessionId, asOf, scratch)
+        val result = stepper.step(sets, snapshot, asOf)
+        for (stepResult in result.steps) {
+            writeLevelUpdate(stepResult.muscle, stepResult.projection.level, sessionId, asOf, scratch)
+            val exerciseIds = snapshot.muscleExerciseIds[stepResult.muscle] ?: continue
             writeDerivedCoefficients(
                 muscleExerciseIds = exerciseIds,
-                derivedCoef = projection.derivedCoef,
+                derivedCoef = stepResult.projection.derivedCoef,
                 snapshot = snapshot,
                 asOf = asOf,
                 scratch = scratch,
