@@ -21,6 +21,8 @@ import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeries
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import kotlinx.coroutines.flow.Flow
@@ -361,5 +363,10 @@ class WorkoutRepository(
 
     fun getSeedCoefficient(exercise: Exercise): Float? =
         ExerciseCoefficients.get(exercise)
+
+    private val progressionSeriesBuilder = ExerciseProgressionSeriesBuilder()
+
+    suspend fun getExerciseProgressionSeries(exerciseId: Long): ExerciseProgressionSeries =
+        progressionSeriesBuilder.build(db, exerciseId)
 
 }
