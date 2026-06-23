@@ -23,12 +23,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.SectionHeader
 import io.github.fowles.stochastic_strength.ui.components.formatDateTime
-import io.github.fowles.stochastic_strength.ui.debug.components.CoefficientDeviationList
-import io.github.fowles.stochastic_strength.ui.debug.components.DebugLineChart
+import io.github.fowles.stochastic_strength.ui.debug.components.CrossTuningSection
+import io.github.fowles.stochastic_strength.ui.debug.components.ExerciseProgressionChart
+import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionChartSeries
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,43 +48,33 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            item { SectionHeader("Coefficient over time", verticalPadding = 4.dp) }
+            item { SectionHeader("Estimated 1RM over time", verticalPadding = 4.dp) }
 
             item {
-                if (state.chartPoints.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(200.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("No coefficient changes yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val hasData = state.progressionSeries.any { it.points.isNotEmpty() }
+                if (!hasData) {
+                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        Text("No sessions yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    DebugLineChart(
-                        points = state.chartPoints,
-                        yFormatter = { value -> "%.3f".format(value) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .padding(horizontal = 16.dp, vertical = 0.dp),
+                    ExerciseProgressionChart(
+                        series = state.progressionSeries,
+                        yFormatter = { value -> WeightFormatter.format(value, state.weightUnit) },
+                        modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp),
                     )
+                    ProgressionLegend(state.progressionSeries)
                 }
             }
 
-            item { SectionHeader("Coefficient vs seed", verticalPadding = 4.dp) }
+            item { SectionHeader("Cross-tuning", verticalPadding = 4.dp) }
 
             item {
-                if (state.coefficientDeviations.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(120.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                if (state.crossTuning.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                         Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    CoefficientDeviationList(
-                        rows = state.coefficientDeviations,
-                        highlightedName = state.exercise?.name,
-                    )
+                    CrossTuningSection(rows = state.crossTuning, highlightedName = state.exercise?.name)
                 }
             }
 
@@ -106,6 +98,18 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProgressionLegend(series: List<ProgressionChartSeries>) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        series.filter { it.points.isNotEmpty() }.forEach { s ->
+            Text(s.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }

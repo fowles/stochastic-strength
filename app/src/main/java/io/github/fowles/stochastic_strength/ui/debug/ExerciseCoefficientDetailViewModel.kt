@@ -9,8 +9,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
+import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionChartSeries
+import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionColorRole
+import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionSeriesStyle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,8 +32,9 @@ data class ExerciseCoefficientDetailState(
     val loading: Boolean = true,
     val exercise: Exercise? = null,
     val events: List<CoefficientEvent> = emptyList(),
-    val chartPoints: List<DebugChartPoint> = emptyList(),
-    val coefficientDeviations: List<CoefficientDeviationRow> = emptyList(),
+    val progressionSeries: List<ProgressionChartSeries> = emptyList(),
+    val crossTuning: List<CrossTuningRow> = emptyList(),
+    val weightUnit: WeightUnit = WeightUnit.KG,
 )
 
 class ExerciseCoefficientDetailViewModel(
@@ -48,6 +53,8 @@ class ExerciseCoefficientDetailViewModel(
                 _state.value = ExerciseCoefficientDetailState(loading = false)
                 return@launch
             }
+            val profile = app.database.userProfileDao().getProfile()
+            val weightUnit = profile?.weightUnit ?: WeightUnit.KG
             val logs = repository.getCoefficientEvents(exerciseId)
 
             val events = logs.asReversed().map { log ->
@@ -60,35 +67,25 @@ class ExerciseCoefficientDetailViewModel(
                 )
             }
 
-            val chartPoints: List<DebugChartPoint> = if (logs.isEmpty()) emptyList() else buildList {
-                val first = logs.first()
-                if (first.previousCoefficient != null) {
-                    add(DebugChartPoint(first.computedAt - 86_400_000L, first.previousCoefficient))
-                }
-                logs.forEach { add(DebugChartPoint(it.computedAt, it.coefficient)) }
-            }
-
-            val muscleExercises = app.database.exerciseDao().getAll()
-                .filter { it.primaryMuscle == exercise.primaryMuscle }
-            val latestUserCoefficients = repository.getLatestCoefficientPerExercise()
-            val deviations = computeCoefficientDeviations(
-                exercises = muscleExercises.map { it.id to it.name },
-                seedByName = ExerciseCoefficients.byName,
-                currentByExerciseId = latestUserCoefficients,
+            val series = repository.getExerciseProgressionSeries(exerciseId)
+            fun pts(list: List<io.github.fowles.stochastic_strength.domain.progression.ProgressionPoint>) =
+                list.map { DebugChartPoint(it.timestampMs, it.value) }
+            val progressionSeries = listOf(
+                ProgressionChartSeries("Own estimate", pts(series.ownEstimate), ProgressionSeriesStyle.LINE, ProgressionColorRole.OWN),
+                ProgressionChartSeries("Siblings", pts(series.siblingsEstimate), ProgressionSeriesStyle.LINE, ProgressionColorRole.SIBLINGS),
+                ProgressionChartSeries("Merged", pts(series.merged), ProgressionSeriesStyle.LINE, ProgressionColorRole.MERGED),
+                ProgressionChartSeries("Sessions", pts(series.ownObservations), ProgressionSeriesStyle.FILLED_DOTS, ProgressionColorRole.OWN_OBS),
+                ProgressionChartSeries("Siblings (scaled)", pts(series.siblingObservations), ProgressionSeriesStyle.HOLLOW_DOTS, ProgressionColorRole.SIBLING_OBS),
             )
-            val currentRow = deviations.firstOrNull { it.name == exercise.name }
-            val coefficientDeviations = if (currentRow == null) {
-                deviations
-            } else {
-                listOf(currentRow) + deviations.filter { it.name != exercise.name }
-            }
+            val crossTuning = repository.getCrossTuning(exercise.primaryMuscle)
 
             _state.value = ExerciseCoefficientDetailState(
                 loading = false,
                 exercise = exercise,
                 events = events,
-                chartPoints = chartPoints,
-                coefficientDeviations = coefficientDeviations,
+                progressionSeries = progressionSeries,
+                crossTuning = crossTuning,
+                weightUnit = weightUnit,
             )
         }
     }
