@@ -1,15 +1,20 @@
 package io.github.fowles.stochastic_strength.ui.debug
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +36,7 @@ import io.github.fowles.stochastic_strength.ui.components.formatDateTime
 import io.github.fowles.stochastic_strength.ui.debug.components.CrossTuningSection
 import io.github.fowles.stochastic_strength.ui.debug.components.ExerciseProgressionChart
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionChartSeries
+import io.github.fowles.stochastic_strength.ui.debug.components.progressionColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,14 +108,27 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProgressionLegend(series: List<ProgressionChartSeries>) {
-    Row(
+    val colors = progressionColors()
+    FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         series.filter { it.points.isNotEmpty() }.forEach { s ->
-            Text(s.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(colors.getValue(s.colorRole), RoundedCornerShape(2.dp))
+                )
+                Text(s.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
         }
     }
 }

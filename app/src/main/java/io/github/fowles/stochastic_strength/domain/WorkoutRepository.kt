@@ -359,10 +359,6 @@ class WorkoutRepository(
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
         derivedState.snapshot().coefficientHistoryForExercise(exerciseId)
 
-    suspend fun getLatestCoefficientPerExercise(): Map<Long, Float> =
-        derivedState.snapshot().coefficientHistoryLatestPerExercise()
-            .associate { it.exerciseId to it.coefficient }
-
     fun getSeedCoefficient(exercise: Exercise): Float? =
         ExerciseCoefficients.get(exercise)
 

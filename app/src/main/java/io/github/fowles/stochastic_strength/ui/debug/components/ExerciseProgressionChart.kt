@@ -124,7 +124,7 @@ internal fun ExerciseProgressionChart(
 }
 
 @Composable
-private fun progressionColors(): Map<ProgressionColorRole, Color> = mapOf(
+internal fun progressionColors(): Map<ProgressionColorRole, Color> = mapOf(
     ProgressionColorRole.OWN to MaterialTheme.colorScheme.primary,
     ProgressionColorRole.SIBLINGS to MaterialTheme.colorScheme.secondary,
     // NOTE: dynamic-color `tertiary` can render as near-invisible grey on some devices.
