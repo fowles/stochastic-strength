@@ -4,9 +4,9 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
@@ -74,10 +74,10 @@ class FatigueNoDownwardBiasReplayTest {
             primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL,
         ))
-        db.baselineOverrideDao().insert(BaselineOverride(
+        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
             sessionId = null,
-            muscleGroup = MuscleGroup.CHEST,
-            baselineWeight = SEED_BASELINE,
+            exerciseId = BENCH_EXERCISE_ID,
+            e1rm = SEED_BASELINE,
             asOf = 0L,
         ))
 

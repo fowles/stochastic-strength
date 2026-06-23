@@ -67,11 +67,14 @@ class DerivedStateBackfillTest {
     }
 
     private suspend fun seedFullReplayData() {
-        // exercise + initial baseline_override + completed session with sets
-        // so that replay produces baseline_history rows.
+        // exercise + legacy per-muscle baseline_override initial + completed session with sets.
+        // The per-muscle override is expanded into a per-exercise initial by
+        // ExerciseStrengthOverrideBackfill (gated by perExerciseSeedsBackfilled=false), which then
+        // seeds replay so it produces baseline_history rows. Name must resolve to a seed coefficient
+        // in ExerciseCoefficients or the expansion skips it.
         val exerciseId = 100L
         db.exerciseDao().insert(Exercise(
-            id = exerciseId, name = "Bench", primaryMuscle = MuscleGroup.CHEST,
+            id = exerciseId, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL))
         db.baselineOverrideDao().insert(BaselineOverride(
             sessionId = null, muscleGroup = MuscleGroup.CHEST,
@@ -131,6 +134,26 @@ class DerivedStateBackfillTest {
 
         val baselines = repository.derivedState.snapshot().allBaselineHistory()
         assertTrue("expected replay to produce baseline_history rows", baselines.isNotEmpty())
+    }
+
+    @Test
+    fun run_expandsLegacyMuscleOverrideIntoPerExerciseInitial() = runBlocking {
+        seedProfile()
+        seedFullReplayData()
+        // Precondition: no per-exercise initials yet, and the backfill flag is unset.
+        assertTrue(db.exerciseStrengthOverrideDao().getInitials().isEmpty())
+
+        DerivedStateBackfill(db, repository).run()
+
+        // The legacy per-muscle CHEST override (baselineWeight 80) is expanded into a per-exercise
+        // initial for Barbell Bench Press (seed coefficient 1.0 → e1rm 80).
+        val initials = db.exerciseStrengthOverrideDao().getInitials()
+        assertEquals(1, initials.size)
+        assertEquals(100L, initials[0].exerciseId)
+        assertEquals(80f, initials[0].e1rm, 0.01f)
+        assertNull(initials[0].sessionId)
+        // The backfill flag is now set, so a second run is a no-op (idempotent).
+        assertTrue(db.userProfileDao().getProfile()!!.perExerciseSeedsBackfilled)
     }
 
     @Test
