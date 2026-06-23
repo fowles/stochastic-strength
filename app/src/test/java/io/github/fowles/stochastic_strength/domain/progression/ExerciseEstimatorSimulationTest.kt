@@ -49,6 +49,8 @@ class ExerciseEstimatorSimulationTest {
 
     /** Realistic per-session strengthening for the behavioral steady-state validation. */
     private val behavioralGrowth = 0.002f
+    /** Decayed-confidence cutoff for the test's own "I know this exercise" tracking metric. */
+    private val wellTrainedConf = 1.0f
 
     private fun daysMs(days: Int): Long = days.toLong() * 24L * 60L * 60L * 1000L
 
@@ -248,7 +250,7 @@ class ExerciseEstimatorSimulationTest {
                     val est = estimates[ex.id] ?: return@filter false
                     val age = (t - est.updatedAt).coerceAtLeast(0L)
                     val decayedConf = est.confidence * Math.pow(0.5, age.toDouble() / config.halfLifeMs).toFloat()
-                    decayedConf >= config.confidentThreshold
+                    decayedConf >= wellTrainedConf
                 }.map { it.id }
                 if (well.isNotEmpty()) tailTrainedErr.add(well.map { errOf(it, gMul) }.average().toFloat() * 100f)
                 loaded.forEach { ex ->

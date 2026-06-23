@@ -268,7 +268,7 @@ class WorkoutRepository(
                 exerciseOverridesBySession[session.id]?.forEach { o ->
                     snapshot.currentEstimates[o.exerciseId] = ExerciseEstimate(
                         lnE = ln(o.e1rm),
-                        confidence = config.confidentThreshold,
+                        confidence = 1.0f,
                         updatedAt = o.asOf,
                     )
                 }

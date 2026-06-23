@@ -31,48 +31,42 @@ class MuscleStrengthProjector(private val config: EstimatorConfig = EstimatorCon
             return e.confidence * 0.5f.pow(age.toFloat() / config.halfLifeMs)
         }
 
-        // Muscle level L = conf-weighted geomean of E_j / seedCoef_j over confident loaded exercises.
-        val votes = muscleExerciseIds.mapNotNull { id ->
+        // Loaded exercises with a positive seed coefficient.
+        val loaded: List<Triple<Long, ExerciseEstimate, Float>> = muscleExerciseIds.mapNotNull { id ->
             val e = estimates[id] ?: return@mapNotNull null
             val coef = seedCoef[id] ?: return@mapNotNull null
-            val c = conf(e)
-            if (coef <= 0f || c < config.confidentThreshold) return@mapNotNull null
-            Pair(e.lnE - ln(coef), c) // ln(E_j / coef_j), weight c
+            if (coef <= 0f) null else Triple(id, e, coef)
         }
-        val lnLevel: Float? =
-            if (votes.isEmpty()) null
-            else votes.sumOf { (it.first * it.second).toDouble() }.toFloat() /
-                votes.sumOf { it.second.toDouble() }.toFloat()
-        val level = lnLevel?.let { exp(it) } ?: fallbackLevel(estimates, seedCoef, muscleExerciseIds)
+        if (loaded.isEmpty()) return MuscleProjection(level = 0f, effectiveE1rm = emptyMap(), derivedCoef = emptyMap())
+
+        // Seed prior anchor: unweighted mean of seed-relative levels ln(E_j / coef_j). Equals
+        // ln(baseline) for a cold muscle (untrained siblings sit at seed) and drifts only as
+        // exercises are genuinely trained.
+        val lnPrior = loaded.map { (_, e, coef) -> e.lnE - ln(coef) }.average().toFloat()
+
+        // Pooled level: every exercise votes with its full decayed confidence against the
+        // fixed-weight prior. No threshold — low confidence simply contributes little.
+        var num = config.levelPrior * lnPrior
+        var den = config.levelPrior
+        for ((_, e, coef) in loaded) {
+            val c = conf(e)
+            num += c * (e.lnE - ln(coef))
+            den += c
+        }
+        val lnLevel = num / den
+        val level = exp(lnLevel)
 
         val effective = mutableMapOf<Long, Float>()
         val coefs = mutableMapOf<Long, Float>()
-        for (id in muscleExerciseIds) {
-            val e = estimates[id] ?: continue
-            val coef = seedCoef[id] ?: continue
-            if (coef <= 0f) continue
+        for ((id, e, coef) in loaded) {
             val cSelf = conf(e)
-            val lnPred = if (lnLevel != null) ln(coef) + lnLevel else e.lnE // cold muscle -> own seed
+            val lnPred = ln(coef) + lnLevel // always defined; cold muscle -> ln(coef)+ln(baseline) == seed
             val lnUsed = (cSelf * e.lnE + config.priorStrength * lnPred) / (cSelf + config.priorStrength)
             val used = exp(lnUsed)
             effective[id] = used
             coefs[id] = if (level > 0f) used / level else coef
         }
         return MuscleProjection(level = level, effectiveE1rm = effective, derivedCoef = coefs)
-    }
-
-    /** When no exercise is confident, pick a representative level so display has a value. */
-    private fun fallbackLevel(
-        estimates: Map<Long, ExerciseEstimate>,
-        seedCoef: Map<Long, Float>,
-        ids: List<Long>,
-    ): Float {
-        val lvls = ids.mapNotNull { id ->
-            val e = estimates[id] ?: return@mapNotNull null
-            val coef = seedCoef[id] ?: return@mapNotNull null
-            if (coef <= 0f) null else e.lnE - ln(coef)
-        }
-        return if (lvls.isEmpty()) 0f else exp(lvls.average().toFloat())
     }
 
     private fun Float.pow(x: Float): Float = Math.pow(this.toDouble(), x.toDouble()).toFloat()

@@ -42,6 +42,11 @@ data class EstimatorConfig(
     val hurtFactor: Float = 0.85f,
     /** Sibling-prior strength (kappa) in the read-time shrink: how many confidence units the pool is worth. */
     val priorStrength: Float = 1.0f,
-    /** Minimum decayed confidence for an exercise to vote in the muscle level / be trusted as its own estimate. */
-    val confidentThreshold: Float = 1.0f,
+    /**
+     * Effective sample size of the seed prior in the muscle-level pool. Every exercise votes with its
+     * full decayed confidence against this fixed-weight prior, so a thinly-evidenced muscle leans on
+     * the seed and a stale lone voter decays back toward it instead of defining the level. Pinned by
+     * ExerciseEstimatorSimulationTest.
+     */
+    val levelPrior: Float = 1.0f,
 )
