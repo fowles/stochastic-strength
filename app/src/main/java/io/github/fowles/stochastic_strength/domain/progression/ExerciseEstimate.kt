@@ -48,5 +48,5 @@ data class EstimatorConfig(
      * the seed and a stale lone voter decays back toward it instead of defining the level. Pinned by
      * ExerciseEstimatorSimulationTest.
      */
-    val levelPrior: Float = 1.0f,
+    val levelPrior: Float = 0.5f,
 )
