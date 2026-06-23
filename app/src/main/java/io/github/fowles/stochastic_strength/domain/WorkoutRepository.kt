@@ -19,12 +19,14 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
+import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeries
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
+import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -368,5 +370,22 @@ class WorkoutRepository(
 
     suspend fun getExerciseProgressionSeries(exerciseId: Long): ExerciseProgressionSeries =
         progressionSeriesBuilder.build(db, exerciseId)
+
+    suspend fun getCrossTuning(
+        muscle: MuscleGroup,
+        now: Long = System.currentTimeMillis(),
+    ): List<CrossTuningRow> {
+        val snapshot = ReplaySnapshot.loadStaticFromDb(db)
+        val muscleIds = snapshot.muscleExerciseIds[muscle] ?: return emptyList()
+        val estimates = derivedState.snapshot().exerciseEstimates()
+        val namesById = db.exerciseDao().getAll().associate { it.id to it.name }
+        return computeCrossTuning(
+            estimates = estimates,
+            seedCoef = snapshot.seedCoefficients,
+            namesById = namesById,
+            muscleExerciseIds = muscleIds,
+            now = now,
+        )
+    }
 
 }
