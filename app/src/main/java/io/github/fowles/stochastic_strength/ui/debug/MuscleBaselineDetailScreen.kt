@@ -29,7 +29,7 @@ import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.SectionHeader
 import io.github.fowles.stochastic_strength.ui.components.formatDateTime
-import io.github.fowles.stochastic_strength.ui.debug.components.CoefficientDeviationList
+import io.github.fowles.stochastic_strength.ui.debug.components.CrossTuningSection
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugLineChart
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,13 +65,13 @@ fun MuscleBaselineDetailScreen(muscleGroup: MuscleGroup, onBack: () -> Unit) {
                 }
             }
 
-            item { SectionHeader("Coefficient vs seed", verticalPadding = 4.dp) }
+            item { SectionHeader("Cross-tuning", verticalPadding = 4.dp) }
 
             item {
-                if (state.coefficientDeviations.isEmpty()) {
+                if (state.crossTuning.isEmpty()) {
                     EmptyDeviationsPlaceholder()
                 } else {
-                    CoefficientDeviationList(state.coefficientDeviations)
+                    CrossTuningSection(state.crossTuning)
                 }
             }
 

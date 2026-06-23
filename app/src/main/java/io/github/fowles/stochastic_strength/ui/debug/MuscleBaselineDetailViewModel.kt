@@ -15,8 +15,8 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
+import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,11 +38,6 @@ data class BaselineEvent(
 data class BaselineEventExercise(
     val name: String,
     val setLines: List<String>,
-)
-
-data class CoefficientDeviationRow(
-    val name: String,
-    val deviation: Float,
 )
 
 /**
@@ -97,28 +92,6 @@ internal fun buildExerciseBlocks(
 }
 
 /**
- * Returns the per-exercise drift of `current` coefficient vs `seed`,
- * expressed as `current / seed - 1` and sorted descending. Exercises
- * whose seed is `0f` are omitted (bodyweight — ratio undefined).
- *
- * If an exercise has no entry in [currentByExerciseId] the current value
- * falls back to its seed, yielding a deviation of `0f`.
- */
-internal fun computeCoefficientDeviations(
-    exercises: List<Pair<Long, String>>,
-    seedByName: Map<String, Float>,
-    currentByExerciseId: Map<Long, Float>,
-): List<CoefficientDeviationRow> {
-    val rows = exercises.mapNotNull { (id, name) ->
-        val seed = seedByName[name] ?: return@mapNotNull null
-        if (seed == 0f) return@mapNotNull null
-        val current = currentByExerciseId[id] ?: seed
-        CoefficientDeviationRow(name = name, deviation = current / seed - 1f)
-    }
-    return rows.sortedByDescending { it.deviation }
-}
-
-/**
  * Builds the baseline-over-time line from the muscle's change history.
  *
  * Each log contributes its `newBaseline` at its timestamp. A synthetic point one
@@ -143,7 +116,7 @@ data class MuscleBaselineDetailState(
     val weightUnit: WeightUnit = WeightUnit.KG,
     val events: List<BaselineEvent> = emptyList(),
     val chartPoints: List<DebugChartPoint> = emptyList(),
-    val coefficientDeviations: List<CoefficientDeviationRow> = emptyList(),
+    val crossTuning: List<CrossTuningRow> = emptyList(),
 )
 
 class MuscleBaselineDetailViewModel(
@@ -162,14 +135,10 @@ class MuscleBaselineDetailViewModel(
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
             val logs = repository.getBaselineEvents(muscleGroup)
 
+            val crossTuning = repository.getCrossTuning(muscleGroup)
+
             val allExercises = app.database.exerciseDao().getAll()
                 .filter { it.primaryMuscle == muscleGroup }
-            val latestUserCoefficients = repository.getLatestCoefficientPerExercise()
-            val coefficientDeviations = computeCoefficientDeviations(
-                exercises = allExercises.map { it.id to it.name },
-                seedByName = ExerciseCoefficients.byName,
-                currentByExerciseId = latestUserCoefficients,
-            )
 
             // Non-weighted (bodyweight) exercises don't enter the baseline computation,
             // so omit them from the per-event display.
@@ -207,7 +176,7 @@ class MuscleBaselineDetailViewModel(
                 weightUnit = weightUnit,
                 events = events,
                 chartPoints = chartPoints,
-                coefficientDeviations = coefficientDeviations,
+                crossTuning = crossTuning,
             )
         }
     }
