@@ -23,6 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -36,6 +39,7 @@ import io.github.fowles.stochastic_strength.ui.components.formatDateTime
 import io.github.fowles.stochastic_strength.ui.debug.components.CrossTuningSection
 import io.github.fowles.stochastic_strength.ui.debug.components.ExerciseProgressionChart
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionChartSeries
+import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionColorRole
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionSeriesStyle
 import io.github.fowles.stochastic_strength.ui.debug.components.progressionColors
 
@@ -54,6 +58,14 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             return@Scaffold
         }
 
+        // Selection persists across recomposition; resets to latest when data (re)loads.
+        // Hoisted here so the chart and the cross-tuning section share it.
+        var selectedEpochDay by rememberSaveable(state.defaultEpochDay) {
+            mutableStateOf(state.defaultEpochDay)
+        }
+        val selectedFrame = state.framesByEpochDay[selectedEpochDay]
+            ?: state.defaultEpochDay?.let { state.framesByEpochDay[it] }
+
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item { SectionHeader("Estimated 1RM over time", verticalPadding = 4.dp) }
 
@@ -69,6 +81,9 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                         ExerciseProgressionChart(
                             series = state.progressionSeries,
                             yFormatter = { value -> WeightFormatter.format(value, state.weightUnit) },
+                            selectedSessionEpochDay = selectedEpochDay,
+                            onSelectEpochDay = { selectedEpochDay = it },
+                            tooltipLabel = { epochDay -> state.framesByEpochDay[epochDay]?.tooltip ?: "" },
                             modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp),
                         )
                     }
@@ -78,12 +93,19 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             item { SectionHeader("Cross-tuning", verticalPadding = 4.dp) }
 
             item {
-                if (state.crossTuning.isEmpty()) {
+                if (selectedFrame == null) {
                     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                         Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    CrossTuningSection(rows = state.crossTuning, highlightedName = state.exercise?.name)
+                    Column {
+                        ProgressionNumericHeader(
+                            own = selectedFrame.headerOwn,
+                            siblings = selectedFrame.headerSiblings,
+                            merged = selectedFrame.headerMerged,
+                        )
+                        CrossTuningSection(rows = selectedFrame.crossTuning, highlightedName = state.exercise?.name)
+                    }
                 }
             }
 
@@ -132,6 +154,32 @@ private fun ProgressionLegend(series: List<ProgressionChartSeries>) {
                         .background(colors.getValue(s.colorRole), RoundedCornerShape(2.dp))
                 )
                 Text(s.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProgressionNumericHeader(own: String, siblings: String, merged: String) {
+    val colors = progressionColors()
+    val entries = listOf(
+        ProgressionColorRole.OWN to own,
+        ProgressionColorRole.SIBLINGS to siblings,
+        ProgressionColorRole.MERGED to merged,
+    )
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        entries.forEach { (role, value) ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(Modifier.size(10.dp).background(colors.getValue(role), RoundedCornerShape(2.dp)))
+                Text(value, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
