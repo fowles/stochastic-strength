@@ -15,20 +15,23 @@ class BackupManager(
     private val db: AppDatabase,
     private val repository: WorkoutRepository,
 ) {
-    suspend fun export(): WorkoutBackup = WorkoutBackup(
-        formatVersion = WorkoutBackup.FORMAT_VERSION,
-        dbVersion = WorkoutBackup.DB_VERSION,
-        exportedAt = System.currentTimeMillis(),
-        exercises = db.exerciseDao().getAll(),
-        knownLocations = db.knownLocationDao().getAll(),
-        locationExcludedExercises = db.locationExcludedExerciseDao().getAll(),
-        workoutSessions = db.workoutSessionDao().getAll(),
-        workoutSets = db.workoutSetDao().getAll(),
-        userProfile = db.userProfileDao().getAll(),
-        baselineOverrides = db.baselineOverrideDao().getAll(),
-        exerciseHurtState = db.exerciseHurtStateDao().getAll(),
-        exerciseStrengthOverrides = db.exerciseStrengthOverrideDao().getAll(),
-    )
+    /** Reads all input tables in a single transaction so the snapshot is internally consistent. */
+    suspend fun export(): WorkoutBackup = db.withTransaction {
+        WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION,
+            dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = System.currentTimeMillis(),
+            exercises = db.exerciseDao().getAll(),
+            knownLocations = db.knownLocationDao().getAll(),
+            locationExcludedExercises = db.locationExcludedExerciseDao().getAll(),
+            workoutSessions = db.workoutSessionDao().getAll(),
+            workoutSets = db.workoutSetDao().getAll(),
+            userProfile = db.userProfileDao().getAll(),
+            baselineOverrides = db.baselineOverrideDao().getAll(),
+            exerciseHurtState = db.exerciseHurtStateDao().getAll(),
+            exerciseStrengthOverrides = db.exerciseStrengthOverrideDao().getAll(),
+        )
+    }
 
     /** Wipes all input tables and reloads the backup verbatim (ids preserved), then replays. */
     suspend fun importDestructive(backup: WorkoutBackup) {
