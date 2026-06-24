@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
 import com.patrykandpatrick.vico.compose.cartesian.layer.point
@@ -21,7 +22,6 @@ import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.fill
 import com.patrykandpatrick.vico.compose.common.insets
-import com.patrykandpatrick.vico.compose.common.shape.markerCorneredShape
 import com.patrykandpatrick.vico.core.cartesian.Scroll
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
@@ -90,6 +90,7 @@ internal fun ExerciseProgressionChart(
             epochDay?.let { tooltipLabelState.value(it) } ?: ""
         }
     }
+    // Same plain pill-with-guideline style as the baseline chart's marker (no speech-bubble nub).
     val markerLabel = rememberTextComponent(
         color = MaterialTheme.colorScheme.onSurface,
         // The tooltip stacks one block per dot (name + per-set lines); the default line count is 1,
@@ -97,7 +98,7 @@ internal fun ExerciseProgressionChart(
         lineCount = 20,
         background = rememberShapeComponent(
             fill = fill(MaterialTheme.colorScheme.surface),
-            shape = markerCorneredShape(CorneredShape.Corner.Rounded),
+            shape = CorneredShape.Pill,
             strokeThickness = 1.dp,
             strokeFill = fill(MaterialTheme.colorScheme.outline),
         ),
@@ -106,7 +107,9 @@ internal fun ExerciseProgressionChart(
     val marker = rememberDefaultCartesianMarker(
         label = markerLabel,
         valueFormatter = markerValueFormatter,
-        // AroundPoint floats the bubble next to the selected point. LabelPosition.Top (the default)
+        guideline = rememberAxisGuidelineComponent(),
+        indicatorSize = 0.dp,
+        // AroundPoint floats the label next to the selected point. LabelPosition.Top (the default)
         // reserves chart top-margin equal to the label's height, so a tall multi-line tooltip would
         // collapse the plot to nothing — AroundPoint keeps the plot at full height.
         labelPosition = DefaultCartesianMarker.LabelPosition.AroundPoint,
