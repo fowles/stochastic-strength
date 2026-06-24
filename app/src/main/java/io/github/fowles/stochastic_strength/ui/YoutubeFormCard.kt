@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,7 +29,7 @@ fun YoutubeFormCard(exerciseName: String, modifier: Modifier = Modifier) {
     Card(
         onClick = {
             val query = Uri.encode("$exerciseName proper form tutorial")
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
+            val intent = Intent(Intent.ACTION_VIEW, "https://www.youtube.com/results?search_query=$query".toUri())
             context.startActivity(intent)
         },
         colors = CardDefaults.cardColors(containerColor = Color(0xFFCC0000)),

@@ -1,48 +1,61 @@
 # Adaptation engines
 
-The app personalizes itself over time. Two engines run on your logged history: a
-**time estimator** that predicts how long a session will take, and a single
-**progression controller** that keeps the prescribed weights tracking your real
-strength instead of a fixed plan. The progression controller replaced an older
-three-part stack — separate baseline, coefficient, and renormalization passes — and
-now does all of that in one gauge-conserving loop.
+The app personalizes itself over time. Two independent systems run on your logged
+history: a **time estimator** that predicts how long a session will take, and a
+**per-exercise progression system** that keeps each prescribed weight tracking your
+real strength instead of a fixed plan.
 
 | # | Engine | What it adapts | Source |
 |---|--------|----------------|--------|
 | 1 | [Time estimation](01-time-estimation.md) | How long each planned exercise (and the session) will take | `domain/ExercisePacingEstimator.kt`, `domain/DurationCalculator.kt` |
-| 2 | [Baseline adaptation](02-baseline-adaptation.md) | The per–muscle-group baseline weight — the controller's **common mode** | `domain/ProgressionController.kt`, `domain/SessionSignalExtractor.kt` |
-| 3 | [Coefficient adaptation](03-coefficient-estimation.md) | The per-exercise multiplier — the controller's **differential mode** | `domain/ProgressionController.kt`, `domain/SessionSignalExtractor.kt` |
-| 4 | [Gauge conservation](04-gauge-conservation.md) | Why the coefficient scale never drifts — so no separate renormalization is needed | `domain/ProgressionController.kt` |
+| 2 | [Strength signal](02-strength-signal.md) | Turns a session's set feedback into one implied 1RM per exercise | `domain/SessionSignalExtractor.kt` |
+| 3 | [Per-exercise estimates](03-exercise-estimates.md) | The durable progression state — one log-space 1RM estimate per exercise | `domain/progression/ExerciseEstimate.kt`, `ExerciseEstimateUpdater.kt` |
+| 4 | [Read-time muscle pooling](04-muscle-pooling.md) | How a muscle's exercises cross-inform at prescription time (level + shrink) | `domain/progression/MuscleStrengthProjector.kt` |
 
-Engines #2, #3, and #4 are three views of **one** thing — `RollingConservingProgressionController`, invoked once per session by
-`WorkoutRepository.applySessionProgression`. They are documented separately only because they answer different questions.
+## The shape of the progression system
 
-## How they relate
+The older design carried two coupled numbers per muscle — a **baseline** and a set of
+per-exercise **coefficients** — and adjusted them together with one gauge-conserving
+controller. That has been replaced. The current system is **per-exercise and in log
+space**:
 
-- **Baseline × coefficient** is the heart of the system: a muscle's baseline says
-  "this muscle is worth roughly *this* much," and an exercise's coefficient says
-  "but for *this particular* lift you're stronger/weaker by some factor." Their
-  product, scaled to the session's rep target, is the weight you're prescribed.
-- **One loop, two modes.** At session end the controller runs once per muscle. It
-  turns each exercise's feedback into an **innovation** — the gap, in log space,
-  between the weight we prescribed and the weight your performance implies — then
-  splits that gap into two orthogonal parts:
-  - the part *all* of the muscle's exercises agree on (the **common mode**) moves
-    the **baseline** (#2);
-  - the part specific to each exercise (the **differential mode**) moves that
-    exercise's **coefficient** (#3).
-- **The split conserves the gauge for free** (#4). Because the differential is
-  "each exercise's gap minus the shared average," the coefficient changes always
-  cancel to zero — the overall coefficient scale cannot drift. That is why there is
-  no longer a separate renormalization step: it is built into the math.
-- **They share one signal.** Both modes read the same per-set feedback
-  (reps-in-reserve, too-hard with/without a rep count, pain), turned into an implied
-  one-rep max by `SessionSignalExtractor`.
-- **Time estimation (#1)** is independent of the strength loop — it learns pace from
-  the timestamps between sets, not from feedback.
+- **The only durable state is one `ExerciseEstimate` per loaded exercise** — `lnE`
+  (ln of estimated 1RM, in kg) plus a recency-decayed `confidence`. There is no stored
+  baseline and no stored coefficient; the per-muscle display level and the derived
+  coefficients are *projections* recomputed on demand, held in the in-memory
+  `DerivedStateStore`, never persisted as truth.
+- **Writing is local; cross-informing is read-time.** Folding a session updates only
+  the exercises you trained ([#3](03-exercise-estimates.md)). A failure on one lift can
+  never, by construction, move a sibling's stored estimate. Exercises only learn from
+  each other when a weight is *read* ([#4](04-muscle-pooling.md)), where a confident
+  sibling pool can shrink a cold or stale estimate toward what the muscle implies.
+
+## How a session becomes next session's weight
+
+1. **Signal** ([#2](02-strength-signal.md)). Each exercise's sets — based on how they
+   felt (reps-in-reserve, too-hard with/without a measured rep count, pain) — collapse
+   to a single implied 1RM for that exercise this session.
+2. **Fold** ([#3](03-exercise-estimates.md)). That observation is folded into the
+   exercise's stored estimate as a log-space EMA. Up-signals get a small weight (gentle
+   progressive overload); down-signals get a larger one (a just-failed weight is not
+   re-prescribed). Pain backs the estimate off multiplicatively. Confidence accumulates
+   and decays with a ~21-day half-life.
+3. **Project** ([#4](04-muscle-pooling.md)). When a weight is needed, the muscle's
+   confident exercises vote a **level**, each exercise is predicted from that level via
+   its seed coefficient, and its own estimate is shrunk toward that prediction by
+   confidence. The result is the exercise's projected effective 1RM, which the planner
+   scales to the session's rep target.
+
+## Replay is the source of truth
+
+The estimate map is rebuilt from scratch every time history changes:
+`WorkoutRepository.replayDerivedState()` replays every completed session in order
+through `applySessionProgression` (idempotent), then re-projects. Manual baseline edits
+and detraining reductions are written as per-exercise `ExerciseStrengthOverride` rows
+and folded in during the same replay.
 
 ## Design background
 
-The control-theory reframe and the rationale for collapsing three engines into one
-are written up in
-`docs/superpowers/specs/2026-06-18-common-differential-pi-controller-design.md`.
+- Per-exercise estimate progression: `docs/superpowers/specs/2026-06-21-per-exercise-estimate-progression-design.md`
+- Read-time seed-vote pooling: `docs/superpowers/specs/2026-06-23-seed-vote-projector-design.md`
+- The earlier common/differential controller it replaced: `docs/superpowers/specs/2026-06-18-common-differential-pi-controller-design.md` (historical)

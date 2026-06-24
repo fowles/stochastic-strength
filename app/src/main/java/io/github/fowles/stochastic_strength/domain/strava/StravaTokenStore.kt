@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.domain.strava
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 
@@ -15,11 +16,11 @@ class StravaTokenStore(context: Context) {
     )
 
     fun saveTokens(accessToken: String, refreshToken: String, expiresAt: Long) {
-        prefs.edit()
-            .putString(KEY_ACCESS, accessToken)
-            .putString(KEY_REFRESH, refreshToken)
-            .putLong(KEY_EXPIRES_AT, expiresAt)
-            .apply()
+        prefs.edit {
+            putString(KEY_ACCESS, accessToken)
+            putString(KEY_REFRESH, refreshToken)
+            putLong(KEY_EXPIRES_AT, expiresAt)
+        }
     }
 
     fun getAccessToken(): String? = prefs.getString(KEY_ACCESS, null)
@@ -33,7 +34,7 @@ class StravaTokenStore(context: Context) {
 
     fun isAuthenticated(): Boolean = !getRefreshToken().isNullOrEmpty()
 
-    fun clearTokens() = prefs.edit().clear().apply()
+    fun clearTokens() = prefs.edit { clear() }
 
     companion object {
         private const val KEY_ACCESS = "access_token"

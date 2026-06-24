@@ -1,7 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.summary
 
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,7 +54,7 @@ fun SummaryScreen(
     LaunchedEffect(stravaState) {
         when (val state = stravaState) {
             is StravaExportState.NeedsAuth -> {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.authUrl)))
+                context.startActivity(Intent(Intent.ACTION_VIEW, state.authUrl.toUri()))
                 viewModel.onStravaAuthUrlLaunched()
             }
             is StravaExportState.Error -> viewModel.onStravaMessageShown()

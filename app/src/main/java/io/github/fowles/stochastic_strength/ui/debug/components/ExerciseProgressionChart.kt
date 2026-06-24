@@ -69,11 +69,11 @@ internal fun seriesPlotOrder(series: List<ProgressionChartSeries>): List<Progres
 internal fun ExerciseProgressionChart(
     series: List<ProgressionChartSeries>,
     yFormatter: (Float) -> String,
+    modifier: Modifier = Modifier,
     selectedSessionEpochDay: Long? = null,
     onSelectEpochDay: (Long) -> Unit = {},
     tooltipLabel: (epochDay: Long) -> CharSequence = { "" },
     yRange: ClosedFloatingPointRange<Double>? = null,
-    modifier: Modifier = Modifier,
 ) {
     val zone = remember { ZoneId.systemDefault() }
     val ordered = remember(series) { seriesPlotOrder(series) }

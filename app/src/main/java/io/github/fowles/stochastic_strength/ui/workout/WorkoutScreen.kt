@@ -2,7 +2,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import android.Manifest
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,7 +71,7 @@ fun WorkoutScreen(
     LaunchedEffect(stravaState) {
         when (val s = stravaState) {
             is StravaExportState.NeedsAuth -> {
-                activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.authUrl)))
+                activity.startActivity(Intent(Intent.ACTION_VIEW, s.authUrl.toUri()))
                 viewModel.onStravaAuthUrlLaunched()
             }
             is StravaExportState.Error -> viewModel.onStravaMessageShown()

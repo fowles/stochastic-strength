@@ -1,7 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.about
 
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,7 +40,7 @@ fun AboutScreen(onBack: () -> Unit) {
             ) {
                 OutlinedButton(
                     onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))
+                        context.startActivity(Intent(Intent.ACTION_VIEW, GITHUB_URL.toUri()))
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
