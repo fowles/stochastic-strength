@@ -23,4 +23,10 @@ interface ExerciseStrengthOverrideDao {
 
     @Query("DELETE FROM exercise_strength_override WHERE sessionId IS NULL AND exerciseId = :exerciseId")
     suspend fun deleteInitialFor(exerciseId: Long)
+
+    @Query("SELECT * FROM exercise_strength_override")
+    suspend fun getAll(): List<ExerciseStrengthOverride>
+
+    @Query("DELETE FROM exercise_strength_override")
+    suspend fun deleteAll()
 }

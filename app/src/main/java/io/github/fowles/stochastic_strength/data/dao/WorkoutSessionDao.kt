@@ -42,4 +42,7 @@ interface WorkoutSessionDao {
 
     @Query("UPDATE workout_sessions SET stravaActivityId = :activityId WHERE id = :id")
     suspend fun updateStravaActivityId(id: Long, activityId: Long)
+
+    @Query("DELETE FROM workout_sessions")
+    suspend fun deleteAll()
 }

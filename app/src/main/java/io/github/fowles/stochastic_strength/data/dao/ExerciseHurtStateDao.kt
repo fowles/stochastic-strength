@@ -18,4 +18,10 @@ interface ExerciseHurtStateDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(state: ExerciseHurtState)
+
+    @Query("SELECT * FROM exercise_hurt_state")
+    suspend fun getAll(): List<ExerciseHurtState>
+
+    @Query("DELETE FROM exercise_hurt_state")
+    suspend fun deleteAll()
 }
