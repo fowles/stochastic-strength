@@ -63,4 +63,72 @@ class BackupManagerTest {
         assertEquals(backup.workoutSessions, db.workoutSessionDao().getAll())
         assertEquals(backup.workoutSets, db.workoutSetDao().getAll())
     }
+
+    @Test
+    fun additiveImport_matchesByName_andCreatesMissing() = runBlocking {
+        // Local library: "Bench Press" exists locally with a different id than in the backup.
+        val localBench = db.exerciseDao().insert(Exercise(id = 0, name = "Bench Press",
+            primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL))
+
+        // Backup references "Bench Press" at id 5 and a brand-new "Deadlift" at id 6.
+        val backup = WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION, dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = 0,
+            exercises = listOf(
+                Exercise(id = 5, name = "Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+                Exercise(id = 6, name = "Deadlift", primaryMuscle = MuscleGroup.BACK, equipment = Equipment.BARBELL),
+            ),
+            knownLocations = emptyList(), locationExcludedExercises = emptyList(),
+            workoutSessions = listOf(WorkoutSession(id = 9, startTime = 1000, endTime = 2000)),
+            workoutSets = listOf(
+                WorkoutSet(id = 1, sessionId = 9, exerciseId = 5, setNumber = 1, targetWeight = 60f, targetReps = 5),
+                WorkoutSet(id = 2, sessionId = 9, exerciseId = 6, setNumber = 1, targetWeight = 100f, targetReps = 5),
+            ),
+            userProfile = emptyList(), baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
+            exerciseStrengthOverrides = emptyList(),
+        )
+
+        val result = manager.importAdditive(backup)
+
+        assertEquals(1, result.sessionsAdded)
+        assertEquals(1, result.exercisesCreated) // only Deadlift
+        assertEquals(0, result.setsSkipped)
+
+        val sessions = db.workoutSessionDao().getAll()
+        assertEquals(1, sessions.size)
+        val newSessionId = sessions.first().id
+
+        val sets = db.workoutSetDao().getAll().sortedBy { it.setNumber }
+        assertEquals(2, sets.size)
+        // Bench set remapped to the pre-existing local id; all sets point at the new session.
+        assertEquals(localBench, sets[0].exerciseId)
+        assert(sets.all { it.sessionId == newSessionId })
+    }
+
+    @Test
+    fun additiveImport_leavesProfileUntouched() = runBlocking {
+        db.userProfileDao().insert(io.github.fowles.stochastic_strength.data.model.UserProfile(
+            id = 1, sex = io.github.fowles.stochastic_strength.data.model.Sex.MALE,
+            strengthLevel = io.github.fowles.stochastic_strength.data.model.StrengthLevel.MEDIUM,
+            weightUnit = io.github.fowles.stochastic_strength.data.model.WeightUnit.KG,
+        ))
+        val backup = WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION, dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = 0, exercises = emptyList(), knownLocations = emptyList(),
+            locationExcludedExercises = emptyList(), workoutSessions = emptyList(), workoutSets = emptyList(),
+            userProfile = listOf(io.github.fowles.stochastic_strength.data.model.UserProfile(
+                id = 1, sex = io.github.fowles.stochastic_strength.data.model.Sex.FEMALE,
+                strengthLevel = io.github.fowles.stochastic_strength.data.model.StrengthLevel.LOW,
+                weightUnit = io.github.fowles.stochastic_strength.data.model.WeightUnit.LBS,
+            )),
+            baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
+            exerciseStrengthOverrides = emptyList(),
+        )
+
+        manager.importAdditive(backup)
+
+        // Local profile preserved (KG/MALE), not overwritten by the backup's LBS/FEMALE.
+        assertEquals(io.github.fowles.stochastic_strength.data.model.WeightUnit.KG,
+            db.userProfileDao().getProfile()!!.weightUnit)
+    }
 }
