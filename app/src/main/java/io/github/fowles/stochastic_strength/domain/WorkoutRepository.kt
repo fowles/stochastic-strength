@@ -22,7 +22,7 @@ import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeries
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
@@ -364,7 +364,7 @@ class WorkoutRepository(
 
     private val progressionSeriesBuilder = ExerciseProgressionSeriesBuilder()
 
-    suspend fun getExerciseProgressionSeries(exerciseId: Long): ExerciseProgressionSeries =
+    suspend fun getExerciseProgressionData(exerciseId: Long): ExerciseProgressionData =
         progressionSeriesBuilder.build(db, exerciseId)
 
     suspend fun getCrossTuning(

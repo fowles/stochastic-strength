@@ -129,4 +129,41 @@ class ExerciseProgressionSeriesBuilderTest {
         assertEquals(1, sample.siblingsEstimate.size)
         org.junit.Assert.assertTrue(sample.siblingsEstimate.first().value < 200f)
     }
+
+    @Test
+    fun frameCarriesLineValuesCrossTuningAndObservationsTargetFirst() {
+        val snap = snapshot() // ex1 (CHEST, seed 1.0, E=100), ex2 (CHEST, seed 0.6, E=60)
+        val names = mapOf(1L to "Bench", 2L to "Incline")
+        val asOf = 1_000L
+        // Both exercises trained: target ex1 at 100x5 (RIR_2_4), sibling ex2 at 60x5.
+        val sets = listOf(set(exerciseId = 1L, weight = 100f, reps = 5), set(exerciseId = 2L, weight = 60f, reps = 5))
+
+        val frame = buildFrame(
+            targetId = 1L, muscleIds = listOf(1L, 2L), snapshot = snap,
+            sets = sets, asOf = asOf, namesById = names, projector = MuscleStrengthProjector(),
+        )
+
+        // Line values match sampleSession.
+        val sample = sampleSession(1L, listOf(1L, 2L), snap, sets, asOf, MuscleStrengthProjector())
+        assertEquals(sample.ownEstimate.first().value, frame.own!!, 1e-3f)
+        assertEquals(sample.merged.first().value, frame.merged!!, 1e-3f)
+
+        // Cross-tuning evaluated at asOf, one row per weighted exercise.
+        assertEquals(2, frame.crossTuning.size)
+
+        // Observations: target first, then sibling; each carries an ObservedSet.
+        assertEquals(listOf(1L, 2L), frame.observations.map { it.exerciseId })
+        assertEquals("Bench", frame.observations.first().name)
+        assertEquals(1, frame.observations.first().sets.size)
+    }
+
+    @Test
+    fun frameObservationsOmitExercisesThatDidNotTrain() {
+        val snap = snapshot()
+        val names = mapOf(1L to "Bench", 2L to "Incline")
+        // Only sibling ex2 trained this session.
+        val sets = listOf(set(exerciseId = 2L, weight = 60f, reps = 5))
+        val frame = buildFrame(1L, listOf(1L, 2L), snap, sets, 1_000L, names, MuscleStrengthProjector())
+        assertEquals(listOf(2L), frame.observations.map { it.exerciseId })
+    }
 }

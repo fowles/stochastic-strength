@@ -20,6 +20,26 @@ data class ExerciseProgressionSeries(
     }
 }
 
+data class SessionExerciseObservation(
+    val exerciseId: Long,
+    val name: String,
+    val sets: List<ObservedSet>,
+)
+
+data class ProgressionFrame(
+    val timestampMs: Long,
+    val own: Float?,
+    val siblings: Float?,
+    val merged: Float?,
+    val crossTuning: List<CrossTuningRow>,
+    val observations: List<SessionExerciseObservation>,
+)
+
+data class ExerciseProgressionData(
+    val series: ExerciseProgressionSeries,
+    val frames: List<ProgressionFrame>,
+)
+
 /** One session's contribution to the five series. Pure; no DB. */
 internal data class SessionSample(
     val ownEstimate: List<ProgressionPoint>,
@@ -79,6 +99,49 @@ internal fun sampleSession(
 }
 
 /**
+ * One session's [ProgressionFrame] at [asOf]: the three line values, the cross-tuning rows as they
+ * stood then, and per-exercise displayable set observations (target first, then siblings in
+ * [muscleIds] order; exercises with no displayable set are omitted). Pure; no DB.
+ */
+internal fun buildFrame(
+    targetId: Long,
+    muscleIds: List<Long>,
+    snapshot: ReplaySnapshot,
+    sets: List<WorkoutSet>,
+    asOf: Long,
+    namesById: Map<Long, String>,
+    projector: MuscleStrengthProjector,
+): ProgressionFrame {
+    val sample = sampleSession(targetId, muscleIds, snapshot, sets, asOf, projector)
+    val crossTuning = computeCrossTuning(
+        estimates = snapshot.currentEstimates,
+        seedCoef = snapshot.seedCoefficients,
+        namesById = namesById,
+        muscleExerciseIds = muscleIds,
+        now = asOf,
+        projector = projector,
+    )
+    val setsByExercise = sets.groupBy { it.exerciseId }
+    val orderedIds = listOf(targetId) + muscleIds.filter { it != targetId }
+    val observations = orderedIds.mapNotNull { id ->
+        val name = namesById[id] ?: return@mapNotNull null
+        val observed = setsByExercise[id].orEmpty()
+            .sortedBy { it.setNumber }
+            .mapNotNull { impliedObservedSet(it) }
+        if (observed.isEmpty()) null
+        else SessionExerciseObservation(exerciseId = id, name = name, sets = observed)
+    }
+    return ProgressionFrame(
+        timestampMs = asOf,
+        own = sample.ownEstimate.firstOrNull()?.value,
+        siblings = sample.siblingsEstimate.firstOrNull()?.value,
+        merged = sample.merged.firstOrNull()?.value,
+        crossTuning = crossTuning,
+        observations = observations,
+    )
+}
+
+/**
  * Recomputes the five progression series for one exercise by replaying its muscle through the same
  * engine the production replay uses. On-demand; touches no durable derived state.
  */
@@ -86,20 +149,25 @@ class ExerciseProgressionSeriesBuilder(
     private val engine: ReplayEngine = ReplayEngine(),
     private val projector: MuscleStrengthProjector = MuscleStrengthProjector(),
 ) {
-    suspend fun build(db: AppDatabase, exerciseId: Long): ExerciseProgressionSeries {
+    suspend fun build(db: AppDatabase, exerciseId: Long): ExerciseProgressionData {
         val snapshot = ReplaySnapshot.loadStaticFromDb(db)
-        val muscle = snapshot.exerciseMuscle[exerciseId] ?: return ExerciseProgressionSeries.empty()
-        val muscleIds = snapshot.muscleExerciseIds[muscle] ?: return ExerciseProgressionSeries.empty()
-        if (exerciseId !in muscleIds) return ExerciseProgressionSeries.empty() // unloadable / bodyweight target
+        val muscle = snapshot.exerciseMuscle[exerciseId]
+            ?: return ExerciseProgressionData(ExerciseProgressionSeries.empty(), emptyList())
+        val muscleIds = snapshot.muscleExerciseIds[muscle]
+            ?: return ExerciseProgressionData(ExerciseProgressionSeries.empty(), emptyList())
+        if (exerciseId !in muscleIds) {
+            return ExerciseProgressionData(ExerciseProgressionSeries.empty(), emptyList())
+        }
+        val namesById = db.exerciseDao().getAll().associate { it.id to it.name }
 
         val ownEstimate = mutableListOf<ProgressionPoint>()
         val siblingsEstimate = mutableListOf<ProgressionPoint>()
         val merged = mutableListOf<ProgressionPoint>()
         val ownObservations = mutableListOf<ProgressionPoint>()
         val siblingObservations = mutableListOf<ProgressionPoint>()
+        val frames = mutableListOf<ProgressionFrame>()
 
         engine.run(db, snapshot) { _, asOf, sets, snap, result ->
-            // Only sample sessions that touched this muscle.
             if (result.steps.any { it.muscle == muscle }) {
                 val sample = sampleSession(exerciseId, muscleIds, snap, sets, asOf, projector)
                 ownEstimate += sample.ownEstimate
@@ -107,15 +175,19 @@ class ExerciseProgressionSeriesBuilder(
                 merged += sample.merged
                 ownObservations += sample.ownObservations
                 siblingObservations += sample.siblingObservations
+                frames += buildFrame(exerciseId, muscleIds, snap, sets, asOf, namesById, projector)
             }
         }
 
-        return ExerciseProgressionSeries(
-            ownEstimate = ownEstimate,
-            siblingsEstimate = siblingsEstimate,
-            merged = merged,
-            ownObservations = ownObservations,
-            siblingObservations = siblingObservations,
+        return ExerciseProgressionData(
+            series = ExerciseProgressionSeries(
+                ownEstimate = ownEstimate,
+                siblingsEstimate = siblingsEstimate,
+                merged = merged,
+                ownObservations = ownObservations,
+                siblingObservations = siblingObservations,
+            ),
+            frames = frames,
         )
     }
 }

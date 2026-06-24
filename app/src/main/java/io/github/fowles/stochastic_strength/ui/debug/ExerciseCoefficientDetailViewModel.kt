@@ -67,7 +67,7 @@ class ExerciseCoefficientDetailViewModel(
                 )
             }
 
-            val series = repository.getExerciseProgressionSeries(exerciseId)
+            val series = repository.getExerciseProgressionData(exerciseId).series
             fun pts(list: List<io.github.fowles.stochastic_strength.domain.progression.ProgressionPoint>) =
                 list.map { DebugChartPoint(it.timestampMs, it.value) }
             val progressionSeries = listOf(
