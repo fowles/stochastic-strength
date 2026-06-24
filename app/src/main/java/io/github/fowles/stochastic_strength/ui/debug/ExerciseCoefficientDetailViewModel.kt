@@ -26,14 +26,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 
-data class CoefficientEvent(
-    val computedAt: Long,
-    val previousCoefficient: Float?,
-    val coefficient: Float,
-    val heuristicName: String,
-    val heuristicMetadata: String?,
-)
-
 data class FrameView(
     val timestampMs: Long,
     val headerOwn: String,
@@ -81,7 +73,6 @@ internal fun buildFrameViews(
 data class ExerciseCoefficientDetailState(
     val loading: Boolean = true,
     val exercise: Exercise? = null,
-    val events: List<CoefficientEvent> = emptyList(),
     val progressionSeries: List<ProgressionChartSeries> = emptyList(),
     val framesByEpochDay: Map<Long, FrameView> = emptyMap(),
     val defaultEpochDay: Long? = null,
@@ -106,17 +97,6 @@ class ExerciseCoefficientDetailViewModel(
             }
             val profile = app.database.userProfileDao().getProfile()
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
-            val logs = repository.getCoefficientEvents(exerciseId)
-
-            val events = logs.asReversed().map { log ->
-                CoefficientEvent(
-                    computedAt = log.computedAt,
-                    previousCoefficient = log.previousCoefficient,
-                    coefficient = log.coefficient,
-                    heuristicName = log.heuristicName,
-                    heuristicMetadata = log.heuristicMetadata,
-                )
-            }
 
             val data = repository.getExerciseProgressionData(exerciseId)
             val series = data.series
@@ -135,7 +115,6 @@ class ExerciseCoefficientDetailViewModel(
             _state.value = ExerciseCoefficientDetailState(
                 loading = false,
                 exercise = exercise,
-                events = events,
                 progressionSeries = progressionSeries,
                 framesByEpochDay = framesByEpochDay,
                 defaultEpochDay = defaultEpochDay,

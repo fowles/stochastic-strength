@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,14 +26,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.SectionHeader
-import io.github.fowles.stochastic_strength.ui.components.formatDateTime
 import io.github.fowles.stochastic_strength.ui.debug.components.CrossTuningSection
 import io.github.fowles.stochastic_strength.ui.debug.components.ExerciseProgressionChart
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionChartSeries
@@ -107,27 +103,6 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     }
                 }
             }
-
-            item { SectionHeader("Change events", verticalPadding = 4.dp) }
-
-            if (state.events.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "No change events yet",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            } else {
-                items(state.events, key = { "${it.computedAt}_${it.heuristicName}" }) { event ->
-                    CoefficientEventRow(event)
-                    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
-                }
-            }
         }
     }
 }
@@ -180,42 +155,6 @@ private fun ProgressionNumericHeader(own: String, siblings: String, merged: Stri
                 Box(Modifier.size(10.dp).background(colors.getValue(role), RoundedCornerShape(2.dp)))
                 Text(value, style = MaterialTheme.typography.labelMedium)
             }
-        }
-    }
-}
-
-@Composable
-private fun CoefficientEventRow(event: CoefficientEvent) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = formatDateTime(event.computedAt),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = event.heuristicName,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        val transition = if (event.previousCoefficient != null) {
-            "%.3f → %.3f".format(event.previousCoefficient, event.coefficient)
-        } else {
-            "%.3f".format(event.coefficient)
-        }
-        Text(text = transition, style = MaterialTheme.typography.bodyLarge)
-        if (event.heuristicMetadata != null) {
-            Text(
-                text = event.heuristicMetadata,
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
