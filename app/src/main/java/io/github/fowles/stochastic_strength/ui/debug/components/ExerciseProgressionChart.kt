@@ -92,6 +92,9 @@ internal fun ExerciseProgressionChart(
     }
     val markerLabel = rememberTextComponent(
         color = MaterialTheme.colorScheme.onSurface,
+        // The tooltip stacks one block per dot (name + per-set lines); the default line count is 1,
+        // which truncates everything to the first line. Allow enough lines for the target + siblings.
+        lineCount = 20,
         background = rememberShapeComponent(
             fill = fill(MaterialTheme.colorScheme.surface),
             shape = markerCorneredShape(CorneredShape.Corner.Rounded),
@@ -100,7 +103,14 @@ internal fun ExerciseProgressionChart(
         ),
         padding = insets(8.dp, 4.dp),
     )
-    val marker = rememberDefaultCartesianMarker(label = markerLabel, valueFormatter = markerValueFormatter)
+    val marker = rememberDefaultCartesianMarker(
+        label = markerLabel,
+        valueFormatter = markerValueFormatter,
+        // AroundPoint floats the bubble next to the selected point. LabelPosition.Top (the default)
+        // reserves chart top-margin equal to the label's height, so a tall multi-line tooltip would
+        // collapse the plot to nothing — AroundPoint keeps the plot at full height.
+        labelPosition = DefaultCartesianMarker.LabelPosition.AroundPoint,
+    )
     val onSelectState = rememberUpdatedState(onSelectEpochDay)
     val lastForwarded = remember { ValueHolder() }
     val visibilityListener = remember {
