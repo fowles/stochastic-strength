@@ -55,6 +55,35 @@ class ExerciseProgressionSeriesBuilderTest {
     }
 
     @Test
+    fun siblingObservationsExcludeExercisesOutsideTheTargetsMuscle() {
+        // A loadable exercise from a DIFFERENT muscle is also in the session (e.g. a leg lift on a
+        // biceps day). It must NOT be rescaled into the target's space and plotted as a "sibling" —
+        // only same-muscle siblings (muscleIds) count.
+        val snap = snapshot() // 1L, 2L are CHEST
+        val crossMuscleId = 3L
+        val snapWithCross = ReplaySnapshot(
+            exerciseMuscle = snap.exerciseMuscle + (crossMuscleId to MuscleGroup.QUADS),
+            seedCoefficients = snap.seedCoefficients + (crossMuscleId to 0.5f),
+        ).also {
+            it.currentEstimates.putAll(snap.currentEstimates)
+            it.currentEstimates[crossMuscleId] = ExerciseEstimate(lnE = ln(200f), confidence = 6f, updatedAt = 0L)
+        }
+        val sets = listOf(
+            set(exerciseId = 2L, weight = 60f, reps = 5),           // same-muscle sibling
+            set(exerciseId = crossMuscleId, weight = 120f, reps = 5), // cross-muscle, must be ignored
+        )
+        val sample = sampleSession(
+            targetId = 1L,
+            muscleIds = listOf(1L, 2L),
+            snapshot = snapWithCross,
+            sets = sets,
+            asOf = 1_000L,
+            projector = MuscleStrengthProjector(),
+        )
+        assertEquals(1, sample.siblingObservations.size)
+    }
+
+    @Test
     fun mergedLineEqualsFullProjectionEffectiveE1rm() {
         // Target (1) at 80 kg; sibling (2) at 60 kg with seed 0.6 implies level ~100.
         // The leave-one-out prediction for the target is ~100 (sibling-only pool), but the full

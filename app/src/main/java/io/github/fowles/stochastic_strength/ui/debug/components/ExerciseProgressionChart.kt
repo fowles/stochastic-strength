@@ -42,6 +42,7 @@ import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibility
 import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
+import io.github.fowles.stochastic_strength.ui.components.fixedChartRangeProvider
 import io.github.fowles.stochastic_strength.ui.components.paddedChartRangeProvider
 import java.text.SimpleDateFormat
 import java.time.ZoneId
@@ -71,6 +72,7 @@ internal fun ExerciseProgressionChart(
     selectedSessionEpochDay: Long? = null,
     onSelectEpochDay: (Long) -> Unit = {},
     tooltipLabel: (epochDay: Long) -> CharSequence = { "" },
+    yRange: ClosedFloatingPointRange<Double>? = null,
     modifier: Modifier = Modifier,
 ) {
     val zone = remember { ZoneId.systemDefault() }
@@ -148,7 +150,9 @@ internal fun ExerciseProgressionChart(
         }
     }
     val lineProvider = remember(lines) { LineCartesianLayer.LineProvider.series(lines) }
-    val rangeProvider = remember { paddedChartRangeProvider() }
+    val rangeProvider = remember(yRange) {
+        if (yRange != null) fixedChartRangeProvider(yRange) else paddedChartRangeProvider()
+    }
 
     val yValueFormatter = remember(yFormatter) {
         CartesianValueFormatter { _, value, _ -> yFormatter(value.toFloat()) }

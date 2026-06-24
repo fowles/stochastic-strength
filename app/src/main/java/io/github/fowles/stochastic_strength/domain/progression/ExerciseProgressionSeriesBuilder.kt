@@ -87,8 +87,11 @@ internal fun sampleSession(
         SessionSignalExtractor.aggregateSession(exSets)?.let { listOf(ProgressionPoint(asOf, it.est1RM)) }
     }.orEmpty()
 
+    val muscleIdSet = muscleIds.toHashSet()
     val siblingObservations = byExercise.entries.mapNotNull { (id, exSets) ->
         if (id == targetId) return@mapNotNull null
+        // Only same-muscle siblings inform the target; a leg lift on a biceps day is not a sibling.
+        if (id !in muscleIdSet) return@mapNotNull null
         val sibSeed = snapshot.seedCoefficients[id] ?: return@mapNotNull null
         if (sibSeed <= 0f || targetSeed <= 0f) return@mapNotNull null
         val agg = SessionSignalExtractor.aggregateSession(exSets) ?: return@mapNotNull null

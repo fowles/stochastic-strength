@@ -19,6 +19,7 @@ import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionChartSeries
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionColorRole
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionSeriesStyle
+import io.github.fowles.stochastic_strength.ui.components.sharedProgressionYRange
 import io.github.fowles.stochastic_strength.ui.debug.components.timestampToLocalEpochDay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,6 +78,7 @@ data class ExerciseCoefficientDetailState(
     val framesByEpochDay: Map<Long, FrameView> = emptyMap(),
     val defaultEpochDay: Long? = null,
     val weightUnit: WeightUnit = WeightUnit.KG,
+    val chartYRange: ClosedFloatingPointRange<Double>? = null,
 )
 
 class ExerciseCoefficientDetailViewModel(
@@ -119,6 +121,7 @@ class ExerciseCoefficientDetailViewModel(
                 framesByEpochDay = framesByEpochDay,
                 defaultEpochDay = defaultEpochDay,
                 weightUnit = weightUnit,
+                chartYRange = sharedProgressionYRange(data),
             )
         }
     }

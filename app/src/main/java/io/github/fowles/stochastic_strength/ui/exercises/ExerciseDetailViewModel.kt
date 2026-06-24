@@ -14,8 +14,9 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
+import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
+import io.github.fowles.stochastic_strength.ui.components.sharedProgressionYRange
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +63,31 @@ internal fun buildPrescribedPoints(
     }
 }
 
+/**
+ * One exercise's sets for a single session, the day bucket they fall in, and the factor that
+ * scales the aggregate into the target exercise's space (1.0 for the exercise's own sets,
+ * `targetCoef / siblingCoef` for a sibling).
+ */
+internal data class ObservedSession(val day: Long, val scale: Float, val sets: List<WorkoutSet>)
+
+/**
+ * One observed estimated-1RM dot **per session**, computed with the same canonical aggregate the
+ * progression engine folds into the estimate: [SessionSignalExtractor.aggregateSession] (a recency
+ * EMA over the full-weight sets, feedback-aware and failure-capped), scaled into the target
+ * exercise's space.
+ *
+ * Emitting one dot per session — rather than averaging all of a day's sessions into one point —
+ * mirrors the debug progression chart's observed dots exactly, so the two views agree even on a day
+ * where several sibling exercises (with very different scale factors) were trained. A session whose
+ * sets yield no load-bearing signal produces no dot.
+ */
+internal fun observedSessionPoints(sessions: List<ObservedSession>): List<ChartPoint> =
+    sessions.mapNotNull { s ->
+        SessionSignalExtractor.aggregateSession(s.sets)?.let {
+            ChartPoint(dateMs = s.day * 86_400_000L, weightKg = it.est1RM * s.scale)
+        }
+    }.sortedBy { it.dateMs }
+
 data class ExerciseSetEntry(val exerciseName: String, val set: WorkoutSet, val isTimed: Boolean = false)
 
 data class ExerciseDetailState(
@@ -74,6 +100,7 @@ data class ExerciseDetailState(
     val primarySetsByDay: Map<Long, List<WorkoutSet>> = emptyMap(),
     val shadowSetsByDay: Map<Long, List<ExerciseSetEntry>> = emptyMap(),
     val selectedDay: Long? = null,
+    val chartYRange: ClosedFloatingPointRange<Double>? = null,
 )
 
 class ExerciseDetailViewModel(
@@ -100,21 +127,29 @@ class ExerciseDetailViewModel(
     private suspend fun loadChartData(exercise: Exercise) {
         val isBodyweight = (ExerciseCoefficients.byName[exercise.name] ?: 0f) <= 0f
         val zone = ZoneId.systemDefault()
-        val sessionStartById = repository.getAllSessions().associate { it.id to it.startTime }
+        // Bucket each session by its END time — the same `asOf` the progression engine (and the debug
+        // chart) stamps a session with — so the two charts place the same session on the same day.
+        val sessionAnchorById = repository.getAllSessions().associate { it.id to (it.endTime ?: it.startTime) }
         val primarySets = repository.getAllSetsForExercise(exerciseId)
-        val primarySetsByDay = primarySets
-            .filter { it.completedAt != null }
-            .groupBy { ExerciseChartGrouping.sessionDayKey(it, sessionStartById, zone) }
-        val primaryPoints = if (isBodyweight) emptyList() else primarySetsByDay
-            .map { (day, sets) ->
-                ChartPoint(
-                    dateMs = day * 86_400_000L,
-                    weightKg = sets.map { DefaultProgressionEngine.toOneRepMax(it.targetWeight, it.targetReps) }.average().toFloat(),
-                )
-            }
-            .sortedBy { it.dateMs }
+        val completedPrimary = primarySets.filter { it.completedAt != null }
+        val primarySetsByDay = completedPrimary
+            .groupBy { ExerciseChartGrouping.sessionDayKey(it, sessionAnchorById, zone) }
+        // One dot per session (not per day): a day with two sessions shows two dots, matching the
+        // debug chart and the per-session aggregate the engine actually folds in.
+        val primarySessions = completedPrimary.groupBy { it.sessionId }.map { (_, sets) ->
+            ObservedSession(
+                day = ExerciseChartGrouping.sessionDayKey(sets.first(), sessionAnchorById, zone),
+                scale = 1f,
+                sets = sets,
+            )
+        }
+        val primaryPoints = if (isBodyweight) emptyList() else observedSessionPoints(primarySessions)
 
-        val (shadowPoints, shadowSetsByDay) = computeShadowPoints(exercise, sessionStartById, zone)
+        val (shadowPoints, shadowSetsByDay) = computeShadowPoints(exercise, sessionAnchorById, zone)
+
+        // Pin this chart to the same Y range the debug progression chart uses, derived from the
+        // shared replay data, so the dots sit at the same height when flipping between the two views.
+        val chartYRange = sharedProgressionYRange(repository.getExerciseProgressionData(exerciseId))
 
         val seedCoefficient = ExerciseCoefficients.byName[exercise.name] ?: 0f
         val prescribedPoints = buildPrescribedPoints(
@@ -137,12 +172,13 @@ class ExerciseDetailViewModel(
             prescribedPoints = prescribedPoints,
             primarySetsByDay = primarySetsByDay,
             shadowSetsByDay = shadowSetsByDay,
+            chartYRange = chartYRange,
         )
     }
 
     private suspend fun computeShadowPoints(
         exercise: Exercise,
-        sessionStartById: Map<Long, Long>,
+        sessionAnchorById: Map<Long, Long>,
         zone: ZoneId,
     ): Pair<List<ChartPoint>, Map<Long, List<ExerciseSetEntry>>> {
         val thisCoeff = ExerciseCoefficients.byName[exercise.name] ?: 0f
@@ -153,30 +189,25 @@ class ExerciseDetailViewModel(
             it.primaryMuscle == exercise.primaryMuscle && it.id != exerciseId
         }
 
-        val dayToWeights = mutableMapOf<Long, MutableList<Float>>()
+        // One observed dot per sibling-session (never averaged across siblings sharing a day),
+        // scaled into this exercise's space with the same engine aggregate as the own dots — this
+        // is what the debug chart plots, so the two views agree. Entries list every set for the
+        // day-detail panel regardless of whether the session yielded a signal.
+        val shadowSessions = mutableListOf<ObservedSession>()
         val dayToEntries = mutableMapOf<Long, MutableList<ExerciseSetEntry>>()
         for (rel in related) {
             val relCoeff = ExerciseCoefficients.byName[rel.name] ?: continue
             if (relCoeff <= 0f) continue
             val scaleFactor = if (isBodyweight) 1f else thisCoeff / relCoeff
-            val sets = repository.getAllSetsForExercise(rel.id)
-            for (set in sets) {
-                if (set.completedAt == null) continue
-                val dayKey = ExerciseChartGrouping.sessionDayKey(set, sessionStartById, zone)
-                dayToWeights.getOrPut(dayKey) { mutableListOf() }.add(DefaultProgressionEngine.toOneRepMax(set.targetWeight, set.targetReps) * scaleFactor)
-                dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, set, rel.isTimed))
+            val completed = repository.getAllSetsForExercise(rel.id).filter { it.completedAt != null }
+            for ((_, sessionSets) in completed.groupBy { it.sessionId }) {
+                val dayKey = ExerciseChartGrouping.sessionDayKey(sessionSets.first(), sessionAnchorById, zone)
+                sessionSets.forEach { dayToEntries.getOrPut(dayKey) { mutableListOf() }.add(ExerciseSetEntry(rel.name, it, rel.isTimed)) }
+                shadowSessions += ObservedSession(day = dayKey, scale = scaleFactor, sets = sessionSets)
             }
         }
 
-        val points = dayToWeights
-            .map { (day, weights) ->
-                ChartPoint(
-                    dateMs = day * 86_400_000L,
-                    weightKg = weights.average().toFloat(),
-                )
-            }
-            .sortedBy { it.dateMs }
-        return Pair(points, dayToEntries)
+        return Pair(observedSessionPoints(shadowSessions), dayToEntries)
     }
 
     fun selectDay(day: Long?) {

@@ -79,7 +79,8 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                             selectedSessionEpochDay = selectedEpochDay,
                             onSelectEpochDay = { selectedEpochDay = it },
                             tooltipLabel = { epochDay -> state.framesByEpochDay[epochDay]?.tooltip ?: "" },
-                            modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp),
+                            yRange = state.chartYRange,
+                            modifier = Modifier.fillMaxWidth().height(300.dp).padding(horizontal = 16.dp),
                         )
                     }
                 }

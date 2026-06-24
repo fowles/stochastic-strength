@@ -1,11 +1,46 @@
 package io.github.fowles.stochastic_strength.ui.components
 
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeries
+import io.github.fowles.stochastic_strength.domain.progression.ProgressionPoint
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ChartRangeTest {
 
     private val eps = 1e-9
+
+    private fun pt(v: Float) = ProgressionPoint(timestampMs = 0L, value = v)
+
+    @Test fun sharedRangeCoversDotsAndMergedButIgnoresEstimateLines() {
+        val data = ExerciseProgressionData(
+            series = ExerciseProgressionSeries(
+                ownEstimate = listOf(pt(5f)),       // a cold-start dip — must NOT pull the range down
+                siblingsEstimate = listOf(pt(300f)), // a spike — must NOT push the range up
+                merged = listOf(pt(90f), pt(100f)),
+                ownObservations = listOf(pt(95f)),
+                siblingObservations = listOf(pt(85f), pt(105f)),
+            ),
+            frames = emptyList(),
+        )
+        val range = sharedProgressionYRange(data)!!
+        // Range is padded over {85, 105, 95, 90, 100} -> min 85, max 105; spread padding 0.15*20=3.
+        assertEquals(82.0, range.start, eps)
+        assertEquals(108.0, range.endInclusive, eps)
+    }
+
+    @Test fun sharedRangeIsNullWhenNothingToPlot() {
+        val data = ExerciseProgressionData(ExerciseProgressionSeries.empty(), emptyList())
+        assertNull(sharedProgressionYRange(data))
+    }
+
+    @Test fun fixedProviderReturnsTheGivenRangeIgnoringData() {
+        val provider = fixedChartRangeProvider(70.0..110.0)
+        val store = com.patrykandpatrick.vico.core.common.data.ExtraStore.Empty
+        assertEquals(70.0, provider.getMinY(0.0, 1000.0, store), eps)
+        assertEquals(110.0, provider.getMaxY(0.0, 1000.0, store), eps)
+    }
 
     @Test fun flatDataExtendsTenPercentEachSideOfTheValue() {
         val range = paddedChartYRange(minY = 100.0, maxY = 100.0)

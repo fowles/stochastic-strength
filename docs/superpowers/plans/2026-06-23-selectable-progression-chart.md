@@ -1,6 +1,8 @@
 # Selectable Progression Chart + Time-Traveling Cross-Tuning Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **STATUS: ✅ SHIPPED 2026-06-24** — all four tasks complete, JVM unit suite green, on-device verification done.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make the exercise-detail progression chart selectable so picking a session time-travels the entire Cross-tuning section (numeric header + bars) to that moment, and pins a tooltip showing each dot's sets.
 
@@ -35,7 +37,7 @@
 
 **Design note (resolves a spec ambiguity):** `impliedObservedSet` returns non-null **only** for sets that yield a real numeric rep count: the three RIR feedbacks (`isEstimate = true`, reps = `round(targetReps + reserve)`) and `TOO_HARD` with a non-null `actualReps` (`isEstimate = false`). It returns `null` for: no feedback (warmup/unfinished), `HURT` (an injury flag, no rep observation), and `TOO_HARD` with `null actualReps`. The baseline screen keeps rendering `HURT` as `"hurt@…"` and the `?`-reps case as `"?@…"` itself — those are display concerns, not arithmetic, so they stay in the UI. This keeps the duplicated `RESERVE_RIR_*` math in exactly one place (the helper) while preserving every existing `formatBaselineSetLine` string.
 
-- [ ] **Step 1: Write the failing helper test**
+- [x] **Step 1: Write the failing helper test**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/progression/ObservedSetTest.kt`:
 
@@ -75,12 +77,12 @@ class ObservedSetTest {
 
 Note on rounding: `formatBaselineSetLine` uses Kotlin's `Float.roundToInt()` (round half **up**), so `8 + 0.5 = 8.5 -> 9`. Use `kotlin.math.roundToInt()` in the helper to match exactly.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ObservedSetTest"`
 Expected: FAIL — `impliedObservedSet` / `ObservedSet` unresolved.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ObservedSet.kt`:
 
@@ -123,12 +125,12 @@ fun impliedObservedSet(set: WorkoutSet): ObservedSet? {
 }
 ```
 
-- [ ] **Step 4: Run the helper test to verify it passes**
+- [x] **Step 4: Run the helper test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ObservedSetTest"`
 Expected: PASS (3/3).
 
-- [ ] **Step 5: Re-express `formatBaselineSetLine` on the helper**
+- [x] **Step 5: Re-express `formatBaselineSetLine` on the helper**
 
 In `app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/MuscleBaselineDetailViewModel.kt`, replace the body of `formatBaselineSetLine` (lines 53-63) with:
 
@@ -146,7 +148,7 @@ internal fun formatBaselineSetLine(set: WorkoutSet, weightUnit: WeightUnit): Str
 
 Add the import `import io.github.fowles.stochastic_strength.domain.progression.impliedObservedSet`. Remove the now-unused `import kotlin.math.roundToInt` and `import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor` **only if** no other reference to them remains in the file (grep first).
 
-- [ ] **Step 6: Add a regression test pinning the exact strings**
+- [x] **Step 6: Add a regression test pinning the exact strings**
 
 In `MuscleBaselineDetailViewModelTest.kt` (create the file if absent; otherwise add to it), assert the strings are unchanged:
 
@@ -186,12 +188,12 @@ class FormatBaselineSetLineTest {
 
 (`110lbs` = 50 kg × 2.20462 → `"%.0flbs"` = `110lbs`. Verify against `formatWeightCompact`; if the rounding lands on `110`, keep — otherwise adjust the literal to the actual output, do not change production code.)
 
-- [ ] **Step 7: Run both test classes**
+- [x] **Step 7: Run both test classes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ObservedSetTest" --tests "io.github.fowles.stochastic_strength.ui.debug.FormatBaselineSetLineTest"`
 Expected: PASS (all). If a `…lbs` literal mismatches, fix the **test literal** to the produced string.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ObservedSet.kt \
@@ -225,7 +227,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Design note:** `own/siblings/merged` are nullable `Float?` — `sampleSession` already returns each as a 0-or-1-element list; the frame stores `.firstOrNull()?.value`. `observations` lists the **target first**, then siblings in `muscleIds` order, including only exercises that have at least one non-null `impliedObservedSet` that session. `crossTuning` is evaluated at `asOf` (so an earlier session's frame differs from a later one). Build a pure `buildFrame` so it is JVM-testable without a DB, mirroring `sampleSession`.
 
-- [ ] **Step 1: Write the failing `buildFrame` test**
+- [x] **Step 1: Write the failing `buildFrame` test**
 
 Add to `ExerciseProgressionSeriesBuilderTest.kt`:
 
@@ -268,12 +270,12 @@ Add to `ExerciseProgressionSeriesBuilderTest.kt`:
     }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilderTest"`
 Expected: FAIL — `buildFrame` / `ProgressionFrame` unresolved.
 
-- [ ] **Step 3: Add the frame types and `buildFrame`**
+- [x] **Step 3: Add the frame types and `buildFrame`**
 
 In `ExerciseProgressionSeriesBuilder.kt`, add after `ExerciseProgressionSeries` (around line 21):
 
@@ -346,7 +348,7 @@ internal fun buildFrame(
 }
 ```
 
-- [ ] **Step 4: Make `build` return `ExerciseProgressionData`**
+- [x] **Step 4: Make `build` return `ExerciseProgressionData`**
 
 Replace the `build` function body. Load `namesById` once, accumulate frames in the same observer, and return both:
 
@@ -396,7 +398,7 @@ Replace the `build` function body. Load `namesById` once, accumulate frames in t
 
 Add the import `import io.github.fowles.stochastic_strength.data.model.WorkoutSet` if not already present (it is, line 4). No new DAO call beyond `exerciseDao().getAll()` (already used elsewhere).
 
-- [ ] **Step 5: Update the repo seam**
+- [x] **Step 5: Update the repo seam**
 
 In `WorkoutRepository.kt`, replace lines 367-368:
 
@@ -407,7 +409,7 @@ In `WorkoutRepository.kt`, replace lines 367-368:
 
 Update the import of `ExerciseProgressionSeries` to add `ExerciseProgressionData` (same package `domain.progression`). Grep the file for any other use of `getExerciseProgressionSeries` — there is none besides the ViewModel.
 
-- [ ] **Step 6: Keep the ViewModel compiling (behavior identical)**
+- [x] **Step 6: Keep the ViewModel compiling (behavior identical)**
 
 In `ExerciseCoefficientDetailViewModel.kt`, change line 70 from:
 
@@ -423,7 +425,7 @@ to:
 
 No other ViewModel change in this task — frames are consumed in Task 4.
 
-- [ ] **Step 7: Run the builder tests + full unit suite**
+- [x] **Step 7: Run the builder tests + full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilderTest"`
 Expected: PASS (existing 4 + new 2 = 6).
@@ -431,7 +433,7 @@ Expected: PASS (existing 4 + new 2 = 6).
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL (no compile breakage from the seam change).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ExerciseProgressionSeriesBuilder.kt \
@@ -469,7 +471,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 This task is gated on `assembleDebug` (no unit test — Vico marker behavior is verified on-device).
 
-- [ ] **Step 1: Add imports**
+- [x] **Step 1: Add imports**
 
 In `ExerciseProgressionChart.kt`, add:
 
@@ -488,11 +490,11 @@ import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 
 (`fill`, `CorneredShape`, `MaterialTheme`, `dp` are already imported.)
 
-- [ ] **Step 2: Widen the signature**
+- [x] **Step 2: Widen the signature**
 
 Change the `ExerciseProgressionChart` signature (lines 49-54) to add the three new params **before** `modifier`, each with the default shown in the Interfaces block above.
 
-- [ ] **Step 3: Build the tooltip marker**
+- [x] **Step 3: Build the tooltip marker**
 
 Inside `ExerciseProgressionChart`, after `val colors = progressionColors()` (line 72), add a marker whose label is driven by `tooltipLabel`:
 
@@ -517,7 +519,7 @@ Inside `ExerciseProgressionChart`, after `val colors = progressionColors()` (lin
     val marker = rememberDefaultCartesianMarker(label = markerLabel, valueFormatter = markerValueFormatter)
 ```
 
-- [ ] **Step 4: Build the visibility listener (selection driver)**
+- [x] **Step 4: Build the visibility listener (selection driver)**
 
 Add, after the marker:
 
@@ -546,7 +548,7 @@ Add a tiny mutable holder at file scope (top-level, below the enums) to avoid re
 private class ValueHolder(var value: Long? = null)
 ```
 
-- [ ] **Step 5: Wire marker + listener + persistentMarkers into the chart**
+- [x] **Step 5: Wire marker + listener + persistentMarkers into the chart**
 
 Change the `rememberCartesianChart(...)` call (lines 115-119) to pass the marker, listener, and persistent pin:
 
@@ -563,12 +565,12 @@ Change the `rememberCartesianChart(...)` call (lines 115-119) to pass the marker
 
 (`PersistentMarkerScope.at` takes a `Number`; epoch-day x values are emitted as `Long`→`Double` in `lineSeries`, so pin at `it.toDouble()`.)
 
-- [ ] **Step 6: Build to gate the Vico API**
+- [x] **Step 6: Build to gate the Vico API**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL. If `markerCorneredShape` / `insets` import paths differ, resolve against `vendor/vico/sample/compose/src/main/kotlin/com/patrykandpatrick/vico/sample/compose/Marker.kt` (the reference marker) — do not change the design.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/components/ExerciseProgressionChart.kt
@@ -596,7 +598,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
     - `internal fun formatTooltip(observations: List<SessionExerciseObservation>, unit: WeightUnit): CharSequence`
     - `internal fun buildFrameViews(frames: List<ProgressionFrame>, unit: WeightUnit, zone: ZoneId): Pair<Map<Long, FrameView>, Long?>`
 
-- [ ] **Step 1: Write failing ViewModel-helper tests**
+- [x] **Step 1: Write failing ViewModel-helper tests**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/ui/debug/ExerciseCoefficientDetailViewModelTest.kt`:
 
@@ -643,12 +645,12 @@ class ExerciseCoefficientDetailViewModelTest {
 
 Note: `125lbs` assumes `56.7 kg × 2.20462 ≈ 125`; `WeightFormatter.format(56.7f, LBS)` output string drives the exact literal — adjust the literal to the real output, not the code. Confirm whether `WeightFormatter.format` appends a space (e.g. `"125 lbs"`); match it exactly in `formatObservedSet`.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.debug.ExerciseCoefficientDetailViewModelTest"`
 Expected: FAIL — helpers unresolved.
 
-- [ ] **Step 3: Add the pure helpers + `FrameView` + state fields**
+- [x] **Step 3: Add the pure helpers + `FrameView` + state fields**
 
 In `ExerciseCoefficientDetailViewModel.kt`:
 
@@ -716,7 +718,7 @@ Add to `ExerciseCoefficientDetailState`:
     val defaultEpochDay: Long? = null,
 ```
 
-- [ ] **Step 4: Populate the new state in `init`**
+- [x] **Step 4: Populate the new state in `init`**
 
 In the `init` block, replace the `val series = repository.getExerciseProgressionData(exerciseId).series` line with capturing the full data and building frames:
 
@@ -731,12 +733,12 @@ Keep the existing `progressionSeries` mapping (it reads `series.*`). Remove the 
 
 (Remove the now-unused import `import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow`? No — `FrameView` and `state` still reference `CrossTuningRow`; keep it.)
 
-- [ ] **Step 5: Run the helper tests**
+- [x] **Step 5: Run the helper tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.debug.ExerciseCoefficientDetailViewModelTest"`
 Expected: PASS (2/2). Fix any `lbs`/`kg` literal to match `WeightFormatter.format` output.
 
-- [ ] **Step 6: Wire the screen — selection state, chart, numeric header, time-traveling cross-tuning**
+- [x] **Step 6: Wire the screen — selection state, chart, numeric header, time-traveling cross-tuning**
 
 In `ExerciseCoefficientDetailScreen.kt`:
 
@@ -844,17 +846,17 @@ private fun ProgressionNumericHeader(own: String, siblings: String, merged: Stri
 }
 ```
 
-- [ ] **Step 7: Build the app**
+- [x] **Step 7: Build the app**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL. Resolve any remaining reference to the deleted `state.crossTuning` (there should be none after Step 4/6).
 
-- [ ] **Step 8: Run the full unit suite**
+- [x] **Step 8: Run the full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL (all tests pass).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/ui/debug/ExerciseCoefficientDetailViewModel.kt \
@@ -869,7 +871,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ## Deferred (manual, on-device)
 
-- **On-device verification of selection + tooltip (Vico risk).** Open the exercise-detail screen on the emulator, tap a dot, confirm: (1) the tooltip pins and shows the stacked `Name / ~reps@weight` blocks; (2) the numeric header and cross-tuning bars update to the selected session and **persist** after the finger lifts; (3) default = latest session on open. If marker selection misbehaves, the spec's fallback is a custom touch handler with a transient marker — escalate before implementing the fallback.
+- [x] **On-device verification of selection + tooltip (Vico risk).** Open the exercise-detail screen on the emulator, tap a dot, confirm: (1) the tooltip pins and shows the stacked `Name / ~reps@weight` blocks; (2) the numeric header and cross-tuning bars update to the selected session and **persist** after the finger lifts; (3) default = latest session on open. If marker selection misbehaves, the spec's fallback is a custom touch handler with a transient marker — escalate before implementing the fallback.
 
 ## Self-Review
 
