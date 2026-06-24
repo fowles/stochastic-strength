@@ -15,10 +15,9 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
+import io.github.fowles.stochastic_strength.domain.progression.impliedObservedSet
 import io.github.fowles.stochastic_strength.ui.debug.components.DebugChartPoint
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,14 +51,12 @@ data class BaselineEventExercise(
  */
 internal fun formatBaselineSetLine(set: WorkoutSet, weightUnit: WeightUnit): String? {
     val feedback = set.feedback ?: return null
-    val repsPart = when (feedback) {
-        SetFeedback.RIR_0_1 -> "~${(set.targetReps + SessionSignalExtractor.RESERVE_RIR_0_1).roundToInt()}"
-        SetFeedback.RIR_2_4 -> "~${(set.targetReps + SessionSignalExtractor.RESERVE_RIR_2_4).roundToInt()}"
-        SetFeedback.RIR_5_PLUS -> "~${(set.targetReps + SessionSignalExtractor.RESERVE_RIR_5_PLUS).roundToInt()}"
-        SetFeedback.TOO_HARD -> set.actualReps?.toString() ?: "?"
-        SetFeedback.HURT -> "hurt"
-    }
-    return "$repsPart@${formatWeightCompact(set.targetWeight, weightUnit)}"
+    val weight = formatWeightCompact(set.targetWeight, weightUnit)
+    if (feedback == SetFeedback.HURT) return "hurt@$weight"
+    val observed = impliedObservedSet(set)
+        ?: return if (feedback == SetFeedback.TOO_HARD) "?@$weight" else null
+    val prefix = if (observed.isEstimate) "~" else ""
+    return "$prefix${observed.reps}@$weight"
 }
 
 /** Compact "55lbs" / "25kg" rendering for the change-events feed. */
