@@ -98,7 +98,8 @@ internal fun ExerciseProgressionChart(
         lineCount = 20,
         background = rememberShapeComponent(
             fill = fill(MaterialTheme.colorScheme.surface),
-            shape = CorneredShape.Pill,
+            // Barely-rounded corners (near-rectangular), not a capsule.
+            shape = CorneredShape.rounded(allDp = 4f),
             strokeThickness = 1.dp,
             strokeFill = fill(MaterialTheme.colorScheme.outline),
         ),
