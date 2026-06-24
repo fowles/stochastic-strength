@@ -1,5 +1,8 @@
 package io.github.fowles.stochastic_strength.ui.history
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,18 +14,27 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -43,9 +55,81 @@ fun HistoryScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> if (uri != null) viewModel.exportTo(uri) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) pendingImportUri = uri }
+
+    LaunchedEffect(state.message) {
+        state.message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
+
     Scaffold(
-        topBar = { BackTopAppBar(title = "History", onBack = onBack) },
+        topBar = {
+            BackTopAppBar(
+                title = "History",
+                onBack = onBack,
+                actions = {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Export history") },
+                            onClick = {
+                                menuExpanded = false
+                                exportLauncher.launch("stochastic-strength-backup.json")
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Import history") },
+                            onClick = {
+                                menuExpanded = false
+                                importLauncher.launch(arrayOf("application/json"))
+                            },
+                        )
+                    }
+                },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
+        val importUri = pendingImportUri
+        if (importUri != null) {
+            AlertDialog(
+                onDismissRequest = { pendingImportUri = null },
+                title = { Text("Import history") },
+                text = { Text("Add these workouts to your current history, or replace everything?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingImportUri = null
+                        viewModel.importFrom(importUri, ImportMode.DESTRUCTIVE)
+                    }) {
+                        Text("Replace all", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = {
+                            pendingImportUri = null
+                            viewModel.importFrom(importUri, ImportMode.ADDITIVE)
+                        }) { Text("Add") }
+                        TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+                    }
+                },
+            )
+        }
+
         if (state.pendingDeleteSessionId != null) {
             AlertDialog(
                 onDismissRequest = { viewModel.cancelDelete() },

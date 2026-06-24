@@ -6,6 +6,7 @@ import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.DerivedStateBackfill
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
+import io.github.fowles.stochastic_strength.domain.backup.BackupManager
 import io.github.fowles.stochastic_strength.domain.strava.StravaExporter
 import io.github.fowles.stochastic_strength.domain.strava.StravaJsonBuilder
 import io.github.fowles.stochastic_strength.domain.strava.StravaTokenStore
@@ -34,6 +35,9 @@ class StochasticStrengthApp : Application() {
             database,
             derivedState = derivedStateStore,
         )
+    }
+    val backupManager: BackupManager by lazy {
+        BackupManager(database, workoutRepository)
     }
 
     override fun onCreate() {
