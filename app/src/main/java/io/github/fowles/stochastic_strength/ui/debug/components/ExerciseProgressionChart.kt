@@ -3,7 +3,9 @@ package io.github.fowles.stochastic_strength.ui.debug.components
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -13,10 +15,14 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
 import com.patrykandpatrick.vico.compose.cartesian.layer.point
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.compose.common.insets
+import com.patrykandpatrick.vico.compose.common.shape.markerCorneredShape
 import com.patrykandpatrick.vico.core.cartesian.Scroll
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
@@ -24,6 +30,9 @@ import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.shape.CorneredShape
 import io.github.fowles.stochastic_strength.ui.components.paddedChartRangeProvider
@@ -34,6 +43,8 @@ import java.util.TimeZone
 
 enum class ProgressionSeriesStyle { LINE, FILLED_DOTS, HOLLOW_DOTS }
 enum class ProgressionColorRole { OWN, SIBLINGS, MERGED, OWN_OBS, SIBLING_OBS }
+
+private class ValueHolder(var value: Long? = null)
 
 data class ProgressionChartSeries(
     val label: String,
@@ -50,6 +61,9 @@ internal fun seriesPlotOrder(series: List<ProgressionChartSeries>): List<Progres
 internal fun ExerciseProgressionChart(
     series: List<ProgressionChartSeries>,
     yFormatter: (Float) -> String,
+    selectedSessionEpochDay: Long? = null,
+    onSelectEpochDay: (Long) -> Unit = {},
+    tooltipLabel: (epochDay: Long) -> CharSequence = { "" },
     modifier: Modifier = Modifier,
 ) {
     val zone = remember { ZoneId.systemDefault() }
@@ -70,6 +84,40 @@ internal fun ExerciseProgressionChart(
     }
 
     val colors = progressionColors()
+    val tooltipLabelState = rememberUpdatedState(tooltipLabel)
+    val markerValueFormatter = remember {
+        DefaultCartesianMarker.ValueFormatter { _, targets ->
+            val epochDay = targets.firstOrNull()?.x?.toLong()
+            epochDay?.let { tooltipLabelState.value(it) } ?: ""
+        }
+    }
+    val markerLabel = rememberTextComponent(
+        color = MaterialTheme.colorScheme.onSurface,
+        background = rememberShapeComponent(
+            fill = fill(MaterialTheme.colorScheme.surface),
+            shape = markerCorneredShape(CorneredShape.Corner.Rounded),
+            strokeThickness = 1.dp,
+            strokeFill = fill(MaterialTheme.colorScheme.outline),
+        ),
+        padding = insets(8.dp, 4.dp),
+    )
+    val marker = rememberDefaultCartesianMarker(label = markerLabel, valueFormatter = markerValueFormatter)
+    val onSelectState = rememberUpdatedState(onSelectEpochDay)
+    val lastForwarded = remember { ValueHolder() }
+    val visibilityListener = remember {
+        object : CartesianMarkerVisibilityListener {
+            private fun forward(targets: List<CartesianMarker.Target>) {
+                val epochDay = targets.firstOrNull()?.x?.toLong() ?: return
+                if (lastForwarded.value != epochDay) {
+                    lastForwarded.value = epochDay
+                    onSelectState.value(epochDay)
+                }
+            }
+            override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) = forward(targets)
+            override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) = forward(targets)
+            // onHidden intentionally not overridden: selection persists after the finger lifts.
+        }
+    }
     val transparent = remember { LineCartesianLayer.LineFill.single(Fill.Transparent) }
     val lines = ordered.map { s ->
         val color = colors.getValue(s.colorRole)
@@ -116,6 +164,9 @@ internal fun ExerciseProgressionChart(
             rememberLineCartesianLayer(lineProvider = lineProvider, pointSpacing = 0.dp, rangeProvider = rangeProvider),
             startAxis = VerticalAxis.rememberStart(valueFormatter = yValueFormatter),
             bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = dateFormatter, labelRotationDegrees = 45f),
+            marker = marker,
+            markerVisibilityListener = visibilityListener,
+            persistentMarkers = { selectedSessionEpochDay?.let { marker at it.toDouble() } },
         ),
         modelProducer = modelProducer,
         scrollState = scrollState,
