@@ -28,7 +28,14 @@ class ExerciseEstimateUpdater(private val config: EstimatorConfig = EstimatorCon
         val isDown = obsLn < prior.lnE
         val s = bracketConfidence.coerceIn(0f, 1f)
         val w = if (!isDown) config.wUp else config.wDown + (config.wDownSnap - config.wDown) * s
-        val lnE = (c * prior.lnE + w * obsLn) / (c + w)
+        val blendLn = (c * prior.lnE + w * obsLn) / (c + w)
+        // A demonstrated down-cascade (high bracketConfidence) is an authoritative ceiling on capacity:
+        // the user could not do the heavier weight. A convex blend can never reach the observation, so
+        // an entrenched (confidence-capped) prior would otherwise hold the estimate above a weight the
+        // user just failed. Snap the blend the rest of the way toward the observed ceiling by s, so a
+        // clearly-demonstrated failure tracks down to demonstrated capacity while a marginal miss
+        // (low s) stays a gentle blend.
+        val lnE = if (isDown) blendLn + (obsLn - blendLn) * s else blendLn
         val confidence = (c + w).coerceAtMost(config.confidenceCap)
         return ExerciseEstimate(lnE = lnE, confidence = confidence, updatedAt = now)
     }

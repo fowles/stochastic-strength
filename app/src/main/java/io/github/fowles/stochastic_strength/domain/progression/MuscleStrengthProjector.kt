@@ -61,7 +61,16 @@ class MuscleStrengthProjector(private val config: EstimatorConfig = EstimatorCon
         for ((id, e, coef) in loaded) {
             val cSelf = conf(e)
             val lnPred = ln(coef) + lnLevel // always defined; cold muscle -> ln(coef)+ln(baseline) == seed
-            val lnUsed = (cSelf * e.lnE + config.priorStrength * lnPred) / (cSelf + config.priorStrength)
+            // Evidence gate on the sibling prior: a sibling may override this estimate only to the extent
+            // it carries MORE decayed evidence than this estimate itself. Decayed confidence bakes in
+            // recency, so a same-session-or-older sibling (equal/less confidence) cannot pull a fresh,
+            // confident measurement up — a just-demonstrated estimate stands on its own. A cold/stale
+            // lift (cSelf ~ 0) is still pulled by its confident siblings, preserving cross-informing.
+            val siblingExcess = loaded.sumOf { (jid, je, _) ->
+                if (jid == id) 0.0 else (conf(je) - cSelf).coerceAtLeast(0f).toDouble()
+            }.toFloat()
+            val kappa = minOf(config.priorStrength, siblingExcess)
+            val lnUsed = if (cSelf + kappa <= 0f) e.lnE else (cSelf * e.lnE + kappa * lnPred) / (cSelf + kappa)
             val used = exp(lnUsed)
             effective[id] = used
             coefs[id] = if (level > 0f) used / level else coef

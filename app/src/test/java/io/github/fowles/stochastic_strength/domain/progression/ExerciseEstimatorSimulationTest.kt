@@ -458,12 +458,90 @@ class ExerciseEstimatorSimulationTest {
     }
 
     @Test
+    fun entrenched_estimate_tracks_demonstrated_capacity_on_clear_failure() {
+        // Regression for the prod Bulgarian-Split-Squat case: an entrenched estimate (confidence at the
+        // cap from prior sessions) meets a session whose demonstrated capacity (a completed RIR_0_1 set
+        // after failing heavier weights, bracketConfidence 0.95) is well below the estimate. The fold
+        // must TRACK DOWN to that demonstrated ceiling rather than lag above it: re-prescribing a weight
+        // higher than the user just demonstrated as their limit is the bug. A weighted-average blend can
+        // never reach the observation, so an entrenched prior structurally stalls above demonstrated
+        // capacity unless the snap dominates.
+        val ex0 = ExerciseLibrary.exercises.mapIndexed { i, e -> e.copy(id = (i + 1).toLong()) }
+            .first { it.name == "Bulgarian Split Squat" }
+        val c = ExerciseCoefficients.byName.getValue(ex0.name)
+        val seedCoef = mapOf(ex0.id to c)
+        val muscleIds = listOf(ex0.id)
+
+        // Entrench: several confident sessions settle the estimate near 38 kg 1RM, confidence at cap.
+        val estimates = mutableMapOf(ex0.id to ExerciseEstimate.seed(38f, at = 0L))
+        var t = 0L
+        repeat(6) {
+            t += daysMs(3)
+            estimates[ex0.id] = updater.fold(estimates.getValue(ex0.id), 38f, 0.9f, t)
+        }
+        assertTrue(
+            "precondition: estimate entrenched at cap",
+            estimates.getValue(ex0.id).confidence >= EstimatorConfig().confidenceCap - 0.5f,
+        )
+
+        // Clear demonstrated failure: capacity is ~17 kg 1RM (a completed lighter set after heavier
+        // misses), bracketConfidence 0.95 — an authoritative ceiling.
+        val observedCeiling = 17.2f
+        val tFail = t + daysMs(3)
+        estimates[ex0.id] = updater.fold(estimates.getValue(ex0.id), observedCeiling, 0.95f, tFail)
+
+        val post = estimates.getValue(ex0.id).e1rm
+        assertTrue(
+            "post-fold estimate $post must track down to the demonstrated ceiling $observedCeiling " +
+                "(within 5%), not lag above it",
+            post <= observedCeiling * 1.05f,
+        )
+    }
+
+    @Test
+    fun stale_or_same_age_siblings_do_not_override_fresh_demonstrated_estimate() {
+        // Prod BSS angle (b): a fresh, demonstrated estimate must not be pulled up by siblings that are
+        // only the SAME SESSION OR OLDER. Stale/same-age siblings carry no information the fresh own
+        // measurement lacks, so the read-time shrink should leave the estimate essentially unchanged.
+        val muscle = MuscleGroup.QUADS
+        val library = ExerciseLibrary.exercises.mapIndexed { i, e -> e.copy(id = (i + 1).toLong()) }
+        val bss = library.first { it.name == "Bulgarian Split Squat" }
+        val goblet = library.first { it.name == "Goblet Squat" }
+        val lunge = library.first { it.name == "Dumbbell Lunge" }
+        val seedCoef = listOf(bss, goblet, lunge).associate {
+            it.id to ExerciseCoefficients.byName.getValue(it.name)
+        }
+        val muscleIds = listOf(bss.id, goblet.id, lunge.id)
+
+        val now = daysMs(400)
+        val estimates = mutableMapOf(
+            // BSS: freshly demonstrated weak capacity, high confidence, updated 6 days ago.
+            bss.id to ExerciseEstimate(lnE = ln(17.35f), confidence = 6f, updatedAt = now - daysMs(6)),
+            // Goblet: stronger, SAME session as BSS (not newer).
+            goblet.id to ExerciseEstimate(lnE = ln(36.45f), confidence = 6f, updatedAt = now - daysMs(6)),
+            // Lunge: stronger, OLDER than BSS.
+            lunge.id to ExerciseEstimate(lnE = ln(26.92f), confidence = 6f, updatedAt = now - daysMs(11)),
+        )
+
+        val proj = projector.project(estimates, seedCoef, muscleIds, now = now)
+        val own = estimates.getValue(bss.id).e1rm
+        val effective = proj.effectiveE1rm.getValue(bss.id)
+        assertTrue(
+            "fresh demonstrated BSS estimate $own must not be pulled up by same-session/older siblings " +
+                "(effective=$effective)",
+            effective <= own * 1.01f,
+        )
+        assertTrue(muscle == MuscleGroup.QUADS) // doc anchor
+    }
+
+    @Test
     fun marginal_failure_with_confident_siblings_holds_grid_weight() {
-        // Goal-3 read-path boundary (accepted soft edge): unlike the single-exercise clear-failure case
-        // above, a MARGINAL (~1-rep) failure on one lift of a MULTI-sibling muscle need NOT drop its
-        // next prescription below the failed weight. The fold still lowers that lift's own estimate, but
-        // confident non-failed siblings pull the projection back up via MuscleStrengthProjector shrink,
-        // so the small post-fold dip rounds back to the same 2.5 kg grid weight. This pins that boundary.
+        // Read-path boundary (accepted soft edge): a MARGINAL (~1-rep, low-bracketConfidence) failure on
+        // one lift need NOT drop its next prescription below the failed weight. The fold lowers that
+        // lift's own estimate only slightly; the sub-grid dip rounds back to the same 2.5 kg grid weight.
+        // (Note: the siblings here are OLDER than the fresh fold, so the recency-gated shrink no longer
+        // pulls the estimate back up — the grid rounding alone holds the boundary. Contrast the clear,
+        // strongly-demonstrated failure case, which DOES drop the weight.)
         val muscle = MuscleGroup.QUADS
         val library = ExerciseLibrary.exercises
             .mapIndexed { i, e -> e.copy(id = (i + 1).toLong()) }
@@ -510,7 +588,7 @@ class ExerciseEstimatorSimulationTest {
 
         assertTrue(
             "marginal failure next weight $nextWeight should hold at the failed weight $failedWeight " +
-                "(confident siblings absorb the small dip via shrink + grid rounding)",
+                "(sub-grid dip rounds back to the same grid weight)",
             nextWeight >= failedWeight,
         )
     }
