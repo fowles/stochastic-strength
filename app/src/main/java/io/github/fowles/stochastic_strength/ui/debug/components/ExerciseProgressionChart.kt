@@ -1,11 +1,20 @@
 package io.github.fowles.stochastic_strength.ui.debug.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -21,7 +30,6 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.fill
-import com.patrykandpatrick.vico.compose.common.insets
 import com.patrykandpatrick.vico.core.cartesian.Scroll
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
@@ -83,37 +91,16 @@ internal fun ExerciseProgressionChart(
     }
 
     val colors = progressionColors()
-    val tooltipLabelState = rememberUpdatedState(tooltipLabel)
-    val markerValueFormatter = remember {
-        DefaultCartesianMarker.ValueFormatter { _, targets ->
-            val epochDay = targets.firstOrNull()?.x?.toLong()
-            epochDay?.let { tooltipLabelState.value(it) } ?: ""
-        }
-    }
-    // Same plain pill-with-guideline style as the baseline chart's marker (no speech-bubble nub).
-    val markerLabel = rememberTextComponent(
-        color = MaterialTheme.colorScheme.onSurface,
-        // The tooltip stacks one block per dot (name + per-set lines); the default line count is 1,
-        // which truncates everything to the first line. Allow enough lines for the target + siblings.
-        lineCount = 20,
-        background = rememberShapeComponent(
-            fill = fill(MaterialTheme.colorScheme.surface),
-            // Lightly-rounded corners (near-rectangular), not a capsule.
-            shape = CorneredShape.rounded(allDp = 8f),
-            strokeThickness = 1.dp,
-            strokeFill = fill(MaterialTheme.colorScheme.outline),
-        ),
-        padding = insets(8.dp, 4.dp),
-    )
+    // The marker exists only for its guideline and tap-to-select; its own label is invisible. The
+    // tooltip is drawn as a Compose overlay flush with the chart's bottom instead — Vico's Top/Bottom
+    // label positions reserve chart margin equal to the label height, which collapses a tall tooltip.
+    val invisibleLabel = rememberTextComponent(color = Color.Transparent)
+    val emptyFormatter = remember { DefaultCartesianMarker.ValueFormatter { _, _ -> "" } }
     val marker = rememberDefaultCartesianMarker(
-        label = markerLabel,
-        valueFormatter = markerValueFormatter,
+        label = invisibleLabel,
+        valueFormatter = emptyFormatter,
         guideline = rememberAxisGuidelineComponent(),
         indicatorSize = 0.dp,
-        // AroundPoint floats the label next to the selected point. LabelPosition.Top (the default)
-        // reserves chart top-margin equal to the label's height, so a tall multi-line tooltip would
-        // collapse the plot to nothing — AroundPoint keeps the plot at full height.
-        labelPosition = DefaultCartesianMarker.LabelPosition.AroundPoint,
     )
     val onSelectState = rememberUpdatedState(onSelectEpochDay)
     val lastForwarded = remember { ValueHolder() }
@@ -172,19 +159,36 @@ internal fun ExerciseProgressionChart(
     }
     val scrollState = rememberVicoScrollState(initialScroll = Scroll.Absolute.End)
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(lineProvider = lineProvider, pointSpacing = 0.dp, rangeProvider = rangeProvider),
-            startAxis = VerticalAxis.rememberStart(valueFormatter = yValueFormatter),
-            bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = dateFormatter, labelRotationDegrees = 45f),
-            marker = marker,
-            markerVisibilityListener = visibilityListener,
-            persistentMarkers = { selectedSessionEpochDay?.let { marker at it.toDouble() } },
-        ),
-        modelProducer = modelProducer,
-        scrollState = scrollState,
-        modifier = modifier,
-    )
+    Box(modifier) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberLineCartesianLayer(lineProvider = lineProvider, pointSpacing = 0.dp, rangeProvider = rangeProvider),
+                startAxis = VerticalAxis.rememberStart(valueFormatter = yValueFormatter),
+                bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = dateFormatter, labelRotationDegrees = 45f),
+                marker = marker,
+                markerVisibilityListener = visibilityListener,
+                persistentMarkers = { selectedSessionEpochDay?.let { marker at it.toDouble() } },
+            ),
+            modelProducer = modelProducer,
+            scrollState = scrollState,
+            modifier = Modifier.fillMaxSize(),
+        )
+        val selectedTooltip = selectedSessionEpochDay?.let { tooltipLabel(it) }
+        if (!selectedTooltip.isNullOrBlank()) {
+            Text(
+                text = selectedTooltip.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 8.dp, bottom = 8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+    }
 }
 
 // Series colors: own=primary (theme dark blue), merged=error (the same red the cross-tuning
