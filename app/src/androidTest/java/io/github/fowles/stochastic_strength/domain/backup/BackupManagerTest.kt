@@ -14,6 +14,7 @@ import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -102,7 +103,7 @@ class BackupManagerTest {
         assertEquals(2, sets.size)
         // Bench set remapped to the pre-existing local id; all sets point at the new session.
         assertEquals(localBench, sets[0].exerciseId)
-        assert(sets.all { it.sessionId == newSessionId })
+        assertTrue(sets.all { it.sessionId == newSessionId })
     }
 
     @Test
