@@ -11,13 +11,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.MaterialTheme
@@ -27,8 +33,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -75,6 +83,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.ui.ExerciseSetSection
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
+import io.github.fowles.stochastic_strength.ui.components.fixedChartRangeProvider
 import io.github.fowles.stochastic_strength.ui.components.paddedChartRangeProvider
 import io.github.fowles.stochastic_strength.ui.debug.components.formatLineMarkerLabel
 import io.github.fowles.stochastic_strength.ui.toSummarySet
@@ -82,14 +91,38 @@ import io.github.fowles.stochastic_strength.ui.YoutubeFormCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
+fun ExerciseDetailScreen(
+    exerciseId: Long,
+    onBack: () -> Unit,
+    onDebugStats: () -> Unit,
+) {
     val viewModel: ExerciseDetailViewModel =
         viewModel(factory = ExerciseDetailViewModel.factory(exerciseId))
     val state by viewModel.state.collectAsState()
     val exercise = state.exercise
 
     Scaffold(
-        topBar = { BackTopAppBar(title = exercise?.name ?: "", onBack = onBack) },
+        topBar = {
+            BackTopAppBar(
+                title = exercise?.name ?: "",
+                onBack = onBack,
+                actions = {
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Debug Stats") },
+                            onClick = { menuExpanded = false; onDebugStats() },
+                        )
+                    }
+                },
+            )
+        },
         bottomBar = {
             if (exercise != null) {
                 YoutubeFormCard(
@@ -183,7 +216,7 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp),
+                        .height(300.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -198,9 +231,10 @@ fun ExerciseDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     prescribedPoints = state.prescribedPoints,
                     weightUnit = state.weightUnit,
                     onDaySelected = viewModel::selectDay,
+                    yRange = state.chartYRange,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
+                        .height(300.dp)
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 state.selectedDay?.let { day ->
@@ -226,6 +260,7 @@ private fun ExerciseChart(
     prescribedPoints: List<ChartPoint>,
     weightUnit: WeightUnit,
     onDaySelected: (Long?) -> Unit,
+    yRange: ClosedFloatingPointRange<Double>?,
     modifier: Modifier = Modifier,
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
@@ -299,7 +334,9 @@ private fun ExerciseChart(
         })
     }
 
-    val rangeProvider = remember { paddedChartRangeProvider() }
+    val rangeProvider = remember(yRange) {
+        if (yRange != null) fixedChartRangeProvider(yRange) else paddedChartRangeProvider()
+    }
 
     val weightFormatter = remember(weightUnit) {
         CartesianValueFormatter { _, value, _ -> WeightFormatter.format(value.toFloat(), weightUnit) }

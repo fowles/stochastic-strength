@@ -4,10 +4,11 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.BaselineOverride
+import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
+import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
@@ -35,10 +36,7 @@ class LiveInputWritesTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(
-            db,
-            progressionControllerFactory = { FakeProgressionController() },
-        )
+        repository = WorkoutRepository(db)
         runBlocking {
             db.userProfileDao().insert(
                 UserProfile(
@@ -54,16 +52,20 @@ class LiveInputWritesTest {
     fun tearDown() = db.close()
 
     @Test
-    fun applyManualBaselineOverrides_writesOverrideRowOnly() = runBlocking {
+    fun applyManualExerciseOverrides_writesOverrideRowOnly() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(
             WorkoutSession(startTime = 1_700_000_000_000L, endTime = null)
         )
 
-        repository.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 95f))
+        repository.applyManualExerciseOverrides(sessionId, mapOf(BENCH_EXERCISE_ID to 95f))
 
-        val overrides = db.baselineOverrideDao().getForSession(sessionId)
+        // The write lands as one per-exercise override row, keyed by exerciseId, with the e1rm
+        // and an OVERRIDE reason.
+        val overrides = db.exerciseStrengthOverrideDao().getForSession(sessionId)
         assertEquals(1, overrides.size)
-        assertEquals(95f, overrides[0].baselineWeight)
+        assertEquals(BENCH_EXERCISE_ID, overrides[0].exerciseId)
+        assertEquals(95f, overrides[0].e1rm)
+        assertEquals(BaselineChangeReason.OVERRIDE, overrides[0].reason)
 
         // Must NOT have written muscle_group_strength or baseline_history.
         // (The session has no endTime, so replay would skip it; nothing should be derived from it.)
@@ -94,11 +96,11 @@ class LiveInputWritesTest {
         db.exerciseHurtStateDao().upsert(
             ExerciseHurtState(exerciseId = BENCH_EXERCISE_ID, isHurt = false, asOf = 0L)
         )
-        db.baselineOverrideDao().insert(
-            BaselineOverride(
+        db.exerciseStrengthOverrideDao().insert(
+            ExerciseStrengthOverride(
                 sessionId = null,
-                muscleGroup = MuscleGroup.CHEST,
-                baselineWeight = 80f,
+                exerciseId = BENCH_EXERCISE_ID,
+                e1rm = 80f,
                 asOf = 0,
             )
         )

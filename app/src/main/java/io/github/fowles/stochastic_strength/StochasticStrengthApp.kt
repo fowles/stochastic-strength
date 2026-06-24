@@ -5,7 +5,6 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.DerivedStateBackfill
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
-import io.github.fowles.stochastic_strength.domain.RollingConservingProgressionController
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.strava.StravaExporter
 import io.github.fowles.stochastic_strength.domain.strava.StravaJsonBuilder
@@ -34,7 +33,6 @@ class StochasticStrengthApp : Application() {
         WorkoutRepository(
             database,
             derivedState = derivedStateStore,
-            progressionControllerFactory = { RollingConservingProgressionController() },
         )
     }
 

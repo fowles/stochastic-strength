@@ -15,9 +15,9 @@ import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.DetrainingModel
-import io.github.fowles.stochastic_strength.domain.FakeProgressionController
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,11 +57,8 @@ class WorkoutSessionControllerTest {
             ))
             bus = WorkoutSessionBus()
             scope = CoroutineScope(Dispatchers.Default)
-            repository = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
-            repository.derivedState.rebuild { mut ->
-                mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
-                mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-            }
+            repository = WorkoutRepository(db)
+            seedDerivedStrength(db, repository)
             startSession(1)
         }
     }
@@ -82,6 +79,23 @@ class WorkoutSessionControllerTest {
     @After
     fun tearDown() {
         db.close()
+    }
+
+    /**
+     * Seed the derived state the way the live planner reads it under the per-exercise contract:
+     * a confident per-exercise estimate (≈100 kg 1RM) per active exercise drives the prescribed
+     * weight, plus the muscle_group_strength display projection the detraining prompt reads.
+     */
+    private suspend fun seedDerivedStrength(database: AppDatabase, repo: WorkoutRepository) {
+        val active = database.exerciseDao().getActive()
+        val now = System.currentTimeMillis()
+        repo.derivedState.rebuild { mut ->
+            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
+            mut.putExerciseEstimates(
+                active.associate { it.id to ExerciseEstimate(lnE = kotlin.math.ln(100f), confidence = 4f, updatedAt = now) }
+            )
+        }
     }
 
     private suspend inline fun <reified T : WorkoutState> awaitState(timeoutMs: Long = 2000): T {
@@ -286,7 +300,7 @@ class WorkoutSessionControllerTest {
             commit.plan.exercises[i].sessionWeight,
         )
         // Baseline override untouched.
-        assertTrue(commit.plan.strengthOverrides.isEmpty())
+        assertTrue(commit.plan.exerciseOverrides.isEmpty())
     }
 
     @Test
@@ -366,11 +380,8 @@ class WorkoutSessionControllerTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
         ))
-        val freshRepo = WorkoutRepository(freshDb, progressionControllerFactory = { FakeProgressionController() })
-        freshRepo.derivedState.rebuild { mut ->
-            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
-            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-        }
+        val freshRepo = WorkoutRepository(freshDb)
+        seedDerivedStrength(freshDb, freshRepo)
         val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS - 60_000
         freshDb.workoutSessionDao().insert(
             WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo + 1000)
@@ -414,11 +425,8 @@ class WorkoutSessionControllerTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
         ))
-        val freshRepo = WorkoutRepository(freshDb, progressionControllerFactory = { FakeProgressionController() })
-        freshRepo.derivedState.rebuild { mut ->
-            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
-            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-        }
+        val freshRepo = WorkoutRepository(freshDb)
+        seedDerivedStrength(freshDb, freshRepo)
         val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS - 60_000
         freshDb.workoutSessionDao().insert(
             WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo + 1000)
@@ -455,11 +463,8 @@ class WorkoutSessionControllerTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
         ))
-        val freshRepo = WorkoutRepository(freshDb, progressionControllerFactory = { FakeProgressionController() })
-        freshRepo.derivedState.rebuild { mut ->
-            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
-            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-        }
+        val freshRepo = WorkoutRepository(freshDb)
+        seedDerivedStrength(freshDb, freshRepo)
         val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS - 60_000
         freshDb.workoutSessionDao().insert(
             WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo + 1000)

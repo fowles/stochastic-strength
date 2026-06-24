@@ -3,7 +3,6 @@ package io.github.fowles.stochastic_strength.domain
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
@@ -18,7 +17,7 @@ enum class ReplacementTier { WEIGHTED_MUSCLE, MUSCLE, ANY }
 
 class WorkoutPlanner(
     val availableExercises: List<Exercise>,
-    private val strengths: Map<MuscleGroup, MuscleGroupStrength>,
+    private val prescribedE1rm: Map<Long, Float>,
     val recentHistory: Map<Long, List<WorkoutSet>>,
     val weightUnit: WeightUnit,
     val locationId: Long?,
@@ -27,6 +26,7 @@ class WorkoutPlanner(
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
+    private val exerciseE1rmOverrides: Map<Long, Float> = emptyMap(),
 ) {
     // Muscle groups where a weighted exercise hit RIR 0-1 within the past two days.
     private val recentlyFailedMuscles: Set<MuscleGroup> by lazy {
@@ -101,17 +101,16 @@ class WorkoutPlanner(
         return withWeight(picked, sessionReps)
     }
 
-    fun deriveBaselineFromSessionWeight(sessionWeight: Float, pe: PlannedExercise): Float {
-        val coeff = coefficientSource.get(pe.exercise) ?: return 0f
-        if (coeff <= 0f) return 0f
-        return progressionEngine.toOneRepMax(sessionWeight, pe.sessionReps) / coeff
-    }
+    fun e1rmFromSessionWeight(sessionWeight: Float, sessionReps: Int): Float =
+        progressionEngine.toOneRepMax(sessionWeight, sessionReps)
 
-    fun recomputeExercise(pe: PlannedExercise, newBaselineKg: Float): PlannedExercise {
-        val coeff = coefficientSource.get(pe.exercise) ?: return pe
-        if (coeff <= 0f) return pe
+    fun recomputeExercise(pe: PlannedExercise, newE1rmKg: Float): PlannedExercise {
+        // The coefficient is only a loaded/non-zero guard here: recompute maps the new e1rm straight
+        // to a session weight (no coefficient multiply), so unloadable exercises pass through unchanged.
+        val coefficient = coefficientSource.get(pe.exercise) ?: return pe
+        if (coefficient <= 0f) return pe
         val newWeight = WeightFormatter.round(
-            progressionEngine.fromOneRepMax(newBaselineKg * coeff, pe.sessionReps),
+            progressionEngine.fromOneRepMax(newE1rmKg, pe.sessionReps),
             weightUnit,
         )
         val warmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight)
@@ -183,11 +182,12 @@ class WorkoutPlanner(
 
     private fun weightForExercise(exercise: Exercise, sessionReps: Int): Float {
         val coeff = coefficientSource.get(exercise) ?: return 0f
-        if (coeff <= 0f) return 0f
-        val baseline = strengths[exercise.primaryMuscle]?.baselineWeight ?: return 0f
-        return WeightFormatter.round(
-            progressionEngine.fromOneRepMax(baseline * coeff, sessionReps),
-            weightUnit,
-        )
+        if (coeff <= 0f) return 0f // unloadable (bodyweight/banded): no prescription
+        val e1rm = exerciseE1rmOverrides[exercise.id] ?: prescribedE1rm[exercise.id] ?: return 0f
+        if (e1rm <= 0f) return 0f
+        return WeightFormatter.round(progressionEngine.fromOneRepMax(e1rm, sessionReps), weightUnit)
     }
+
+    internal fun weightForExerciseTest(exercise: Exercise, sessionReps: Int) =
+        weightForExercise(exercise, sessionReps)
 }
