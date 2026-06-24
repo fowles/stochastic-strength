@@ -26,4 +26,7 @@ interface KnownLocationDao {
 
     @Query("DELETE FROM known_locations WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM known_locations")
+    suspend fun deleteAll()
 }

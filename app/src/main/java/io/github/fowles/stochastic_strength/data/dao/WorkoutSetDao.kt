@@ -59,4 +59,7 @@ interface WorkoutSetDao {
 
     @Query("UPDATE workout_sets SET actualReps = :reps WHERE id = :id")
     suspend fun updateActualReps(id: Long, reps: Int?)
+
+    @Query("DELETE FROM workout_sets")
+    suspend fun deleteAll()
 }

@@ -27,7 +27,7 @@ private const val GITHUB_URL = "https://github.com/fowles/stochastic-strength"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onDebug: () -> Unit, onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     Scaffold(
         topBar = { BackTopAppBar(title = "About", onBack = onBack) },
@@ -45,12 +45,6 @@ fun AboutScreen(onDebug: () -> Unit, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("View on GitHub")
-                }
-                OutlinedButton(
-                    onClick = onDebug,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Debug and Advanced Stats")
                 }
             }
         },

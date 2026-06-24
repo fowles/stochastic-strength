@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain
 
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
@@ -29,4 +30,15 @@ object StartingWeights {
 
     fun baseline(sex: Sex, level: StrengthLevel, muscle: MuscleGroup): Float =
         baselines[Triple(sex, level, muscle)] ?: 0f
+
+    /** Curated per-exercise starting 1RM; null falls back to muscle reference × seed coefficient. */
+    fun exerciseSeedE1rm(sex: Sex, level: StrengthLevel, exercise: Exercise): Float? = null
+
+    /** Per-exercise initial estimated 1RM for a new user. */
+    fun seedInitialE1rm(sex: Sex, level: StrengthLevel, exercise: Exercise): Float {
+        exerciseSeedE1rm(sex, level, exercise)?.let { return it }
+        val ref = baseline(sex, level, exercise.primaryMuscle)
+        val coef = ExerciseCoefficients.get(exercise) ?: 0f
+        return ref * coef
+    }
 }

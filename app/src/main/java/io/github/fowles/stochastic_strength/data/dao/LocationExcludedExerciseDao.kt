@@ -19,4 +19,10 @@ interface LocationExcludedExerciseDao {
 
     @Query("DELETE FROM location_excluded_exercises WHERE locationId = :locationId")
     suspend fun deleteAllForLocation(locationId: Long)
+
+    @Query("SELECT * FROM location_excluded_exercises")
+    suspend fun getAll(): List<LocationExcludedExercise>
+
+    @Query("DELETE FROM location_excluded_exercises")
+    suspend fun deleteAll()
 }

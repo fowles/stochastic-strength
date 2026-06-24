@@ -8,11 +8,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.ui.about.AboutScreen
-import io.github.fowles.stochastic_strength.ui.debug.DebugStatsScreen
 import io.github.fowles.stochastic_strength.ui.debug.ExerciseCoefficientDetailScreen
-import io.github.fowles.stochastic_strength.ui.debug.MuscleBaselineDetailScreen
 import io.github.fowles.stochastic_strength.ui.exercises.ExerciseDetailScreen
 import io.github.fowles.stochastic_strength.ui.exercises.ExercisesScreen
 import io.github.fowles.stochastic_strength.ui.history.HistoryScreen
@@ -44,24 +41,6 @@ fun AppNavigation() {
         }
         composable("about") {
             AboutScreen(
-                onDebug = { navController.navigate("debug") },
-                onBack = { navController.popBackStackIfResumed() },
-            )
-        }
-        composable("debug") {
-            DebugStatsScreen(
-                onMuscleTap = { muscle -> navController.navigate("debug/muscle/${muscle.name}") },
-                onExerciseTap = { exerciseId -> navController.navigate("debug/coefficient/$exerciseId") },
-                onBack = { navController.popBackStackIfResumed() },
-            )
-        }
-        composable(
-            route = "debug/muscle/{muscleGroup}",
-            arguments = listOf(navArgument("muscleGroup") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val name = backStackEntry.arguments!!.getString("muscleGroup")!!
-            MuscleBaselineDetailScreen(
-                muscleGroup = MuscleGroup.valueOf(name),
                 onBack = { navController.popBackStackIfResumed() },
             )
         }
@@ -112,6 +91,7 @@ fun AppNavigation() {
             ExerciseDetailScreen(
                 exerciseId = exerciseId,
                 onBack = { navController.popBackStackIfResumed() },
+                onDebugStats = { navController.navigate("debug/coefficient/$exerciseId") },
             )
         }
         composable("workout") {

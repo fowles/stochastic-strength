@@ -4,6 +4,7 @@ import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -42,7 +43,9 @@ class DerivedStateStore {
         private val muscleStrengths: Map<MuscleGroup, MuscleGroupStrength>,
         private val baselineHistory: List<BaselineHistory>,
         private val coefficientHistory: List<CoefficientHistory>,
+        private val exerciseEstimates: Map<Long, ExerciseEstimate>,
     ) {
+        fun exerciseEstimates(): Map<Long, ExerciseEstimate> = exerciseEstimates
         fun muscleGroupStrength(muscle: MuscleGroup): MuscleGroupStrength? = muscleStrengths[muscle]
 
         fun allMuscleGroupStrengths(): List<MuscleGroupStrength> = muscleStrengths.values.toList()
@@ -66,7 +69,7 @@ class DerivedStateStore {
             coefficientHistory.sortedByDescending { it.computedAt }.take(limit)
 
         companion object {
-            fun empty() = Snapshot(emptyMap(), emptyList(), emptyList())
+            fun empty() = Snapshot(emptyMap(), emptyList(), emptyList(), emptyMap())
         }
     }
 }
@@ -77,6 +80,11 @@ class MutableDerivedState internal constructor() {
     private val coefficientHistory = mutableListOf<CoefficientHistory>()
     private var nextBaselineId: Long = 1
     private var nextCoefficientId: Long = 1
+    private var exerciseEstimates: Map<Long, ExerciseEstimate> = emptyMap()
+
+    fun putExerciseEstimates(map: Map<Long, ExerciseEstimate>) {
+        exerciseEstimates = map
+    }
 
     fun upsertMuscleGroupStrength(strength: MuscleGroupStrength) {
         muscleStrengths[strength.muscleGroup] = strength
@@ -113,5 +121,6 @@ class MutableDerivedState internal constructor() {
         muscleStrengths = muscleStrengths.toMap(),
         baselineHistory = baselineHistory.toList(),
         coefficientHistory = coefficientHistory.toList(),
+        exerciseEstimates = exerciseEstimates,
     )
 }

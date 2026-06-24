@@ -5,9 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
-import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -40,7 +40,7 @@ class WorkoutRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
+        repository = WorkoutRepository(db)
     }
 
     @After
@@ -49,33 +49,37 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun applyManualBaselineOverrides_writesBaselineOverrideRow() = runBlocking {
+    fun applyManualExerciseOverrides_writesExerciseStrengthOverrideRow() = runBlocking {
+        val exerciseId = 200L
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
 
-        repository.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.BACK to 90f))
+        repository.applyManualExerciseOverrides(sessionId, mapOf(exerciseId to 90f))
 
-        val overrides = db.baselineOverrideDao().getForSession(sessionId)
+        val overrides = db.exerciseStrengthOverrideDao().getForSession(sessionId)
         assertEquals(1, overrides.size)
         with(overrides[0]) {
-            assertEquals(MuscleGroup.BACK, muscleGroup)
-            assertEquals(90f, baselineWeight)
+            assertEquals(exerciseId, this.exerciseId)
+            assertEquals(90f, e1rm)
             assertEquals(sessionId, this.sessionId)
             assertEquals(1000L, asOf)
+            assertEquals(BaselineChangeReason.OVERRIDE, reason)
         }
         // Must NOT write to muscle_group_strength or baseline_history — those are derived.
+        // (The session has no endTime, so replay derives nothing from it.)
         val snap = repository.derivedState.snapshot()
         assertTrue(snap.allMuscleGroupStrengths().isEmpty())
         assertTrue(snap.allBaselineHistory().isEmpty())
     }
 
     @Test
-    fun applyManualBaselineOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
+    fun applyManualExerciseOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
+        val exerciseId = 200L
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
-        val repo = WorkoutRepository(db, progressionControllerFactory = { FakeProgressionController() })
+        val repo = WorkoutRepository(db)
 
-        repo.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 120f))
+        repo.applyManualExerciseOverrides(sessionId, mapOf(exerciseId to 120f))
 
-        // Only the baseline_override input row should exist — no derived writes.
+        // Only the exercise_strength_override input row should exist — no derived writes.
         val snap = repo.derivedState.snapshot()
         val rows = snap.allBaselineHistory()
         assertTrue("expected no baseline_history rows", rows.isEmpty())
@@ -92,35 +96,46 @@ class WorkoutRepositoryTest {
             Exercise(name = "Machine Chest Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.MACHINE),
         ))
         val exercises = db.exerciseDao().getActive()
-        val ex1 = exercises.first { it.name == "Barbell Bench Press" }
-        val ex2 = exercises.first { it.name == "Machine Chest Press" }
-        db.baselineOverrideDao().insert(BaselineOverride(
-            sessionId = null, muscleGroup = MuscleGroup.CHEST,
-            baselineWeight = 100f, asOf = 0L,
+        val ex1 = exercises.first { it.name == "Barbell Bench Press" }   // seed coef 1.00
+        val ex2 = exercises.first { it.name == "Machine Chest Press" }   // seed coef 0.90
+        // Per-exercise initial seeds at the same muscle level (100): bench E=100, machine E=90.
+        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
+            sessionId = null, exerciseId = ex1.id, e1rm = 100f, asOf = 0L,
+        ))
+        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
+            sessionId = null, exerciseId = ex2.id, e1rm = 90f, asOf = 0L,
         ))
         val sessionId = db.workoutSessionDao().insert(
             WorkoutSession(startTime = 1000L, endTime = 2000L)
         )
         db.workoutSetDao().insert(
             WorkoutSet(sessionId = sessionId, exerciseId = ex1.id, setNumber = 1,
-                targetWeight = 80f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS,
+                targetWeight = 80f, targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_5_PLUS,
                 completedAt = 1500L)
         )
         db.workoutSetDao().insert(
             WorkoutSet(sessionId = sessionId, exerciseId = ex2.id, setNumber = 1,
-                targetWeight = 60f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS,
+                targetWeight = 65f, targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_5_PLUS,
                 completedAt = 1600L)
         )
 
-        repository.finishSession(sessionId, exerciseReductions = emptyMap())
+        repository.finishSession()
 
+        // The display projection still aggregates both CHEST exercises into ONE muscle-level
+        // PROGRESSION log entry (writeLevelUpdate is per-muscle), and easy feedback drives the
+        // CHEST level up.
         val logs = repository.derivedState.snapshot().allBaselineHistory()
             .filter { it.changeReason == BaselineChangeReason.PROGRESSION && it.sessionId == sessionId }
         assertEquals("two exercises in same muscle group should produce one log entry", 1, logs.size)
         assertEquals(MuscleGroup.CHEST, logs[0].muscleGroup)
-        assertTrue("combined good feedback should increase baseline", logs[0].newBaseline > 100f)
-        // Both exercise feedbacks must appear in the log
-        assertEquals("RIR_5_PLUS,RIR_5_PLUS", logs[0].feedbacks)
+        assertTrue("combined good feedback should increase CHEST level", logs[0].newBaseline > 100f)
+
+        // Both exercises actually contributed: each per-exercise estimate moved up from its seed.
+        val estimates = repository.derivedState.snapshot().exerciseEstimates()
+        assertTrue("bench estimate should rise above its 100 seed",
+            (estimates[ex1.id]?.e1rm ?: 0f) > 100f)
+        assertTrue("machine-press estimate should rise above its 90 seed",
+            (estimates[ex2.id]?.e1rm ?: 0f) > 90f)
     }
 
     @Test
@@ -144,64 +159,96 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun detrainingReduction_lowersBaselineAndTagsHistory() = runBlocking {
-        // Seed initial baselines and a completed session so replay has a timeline.
-        repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
-        val chestBefore = repository.getMuscleGroupStrengths()
-            .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
+    fun detrainingReduction_lowersEstimateAndTagsOverrideRow() = runBlocking {
+        // Seed a single CHEST exercise's per-exercise initial estimate (the replay starting point).
+        val benchId = db.exerciseDao().insert(Exercise(
+            name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
+            equipment = Equipment.BARBELL,
+        ))
+        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
+            sessionId = null, exerciseId = benchId, e1rm = 100f, asOf = 0L,
+        ))
+        repository.replayDerivedState()
+        val before = repository.derivedState.snapshot().exerciseEstimates()[benchId]!!.e1rm
+        assertEquals(100f, before, 0.01f)
 
+        // Detrain the exercise to 80% of its current estimate, applied at a completed session.
         val sessionId = db.workoutSessionDao().insert(
             WorkoutSession(startTime = 1_000L, endTime = 2_000L)
         )
-        // Detrain CHEST to 80% of its current baseline for this session.
-        repository.applyDetrainingReduction(
-            sessionId,
-            mapOf(MuscleGroup.CHEST to chestBefore * 0.8f),
-        )
-        repository.replayDerivedState()
+        repository.applyDetrainingReduction(sessionId, mapOf(benchId to before * 0.8f))
 
-        val chestAfter = repository.getMuscleGroupStrengths()
-            .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
-        assertEquals(chestBefore * 0.8f, chestAfter, 0.01f)
+        // The detrain adjustment lands as a per-exercise override row tagged DETRAIN…
+        val rows = db.exerciseStrengthOverrideDao().getForSession(sessionId)
+        val detrain = rows.first { it.reason == BaselineChangeReason.DETRAIN }
+        assertEquals(benchId, detrain.exerciseId)
+        assertEquals(before * 0.8f, detrain.e1rm, 0.01f)
 
-        val events = repository.getBaselineEvents(MuscleGroup.CHEST)
-        val detrainEvent = events.first { it.changeReason == BaselineChangeReason.DETRAIN }
-        assertEquals(sessionId, detrainEvent.sessionId)
-        assertEquals(chestBefore * 0.8f, detrainEvent.newBaseline, 0.01f)
+        // …and applyDetrainingReduction re-ran replay, so the live estimate is now the reduced value.
+        val after = repository.derivedState.snapshot().exerciseEstimates()[benchId]!!.e1rm
+        assertEquals(before * 0.8f, after, 0.01f)
     }
 
     @Test
     fun manualOverride_winsOverDetrain_inSameSession() = runBlocking {
-        repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
+        val benchId = db.exerciseDao().insert(Exercise(
+            name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
+            equipment = Equipment.BARBELL,
+        ))
+        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
+            sessionId = null, exerciseId = benchId, e1rm = 100f, asOf = 0L,
+        ))
         val sessionId = db.workoutSessionDao().insert(
             WorkoutSession(startTime = 1_000L, endTime = 2_000L)
         )
-        repository.applyDetrainingReduction(sessionId, mapOf(MuscleGroup.CHEST to 50f))
-        repository.applyManualBaselineOverrides(sessionId, mapOf(MuscleGroup.CHEST to 70f))
-        repository.replayDerivedState()
+        // Detrain first, then a manual override at the same session: the override is applied
+        // last during replay, so it wins.
+        repository.applyDetrainingReduction(sessionId, mapOf(benchId to 50f))
+        repository.applyManualExerciseOverrides(sessionId, mapOf(benchId to 70f))
 
-        val chest = repository.getMuscleGroupStrengths()
-            .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
-        assertEquals(70f, chest, 0.01f)
+        val estimate = repository.derivedState.snapshot().exerciseEstimates()[benchId]!!.e1rm
+        assertEquals(70f, estimate, 0.01f)
     }
 
     @Test
-    fun seedInitialWeights_writesBaselineOverrideInitialsAndPopulatesMuscleGroupStrength() = runBlocking {
+    fun seedInitialWeights_writesExerciseInitialsThatSeedTheEstimateMap() = runBlocking {
+        // seedInitialWeights writes one per-exercise initial per loaded exercise present in the DB.
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
+        ))
+
         repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
 
-        // baseline_override initials must be written for every muscle with a positive starting weight.
-        val initials = db.baselineOverrideDao().getInitials()
-        assertTrue("expected at least one baseline_override initial", initials.isNotEmpty())
+        // Per-exercise initials must be written for every loaded exercise with a positive seed.
+        val initials = db.exerciseStrengthOverrideDao().getInitials()
+        assertTrue("expected at least one exercise_strength_override initial", initials.isNotEmpty())
         assertTrue("all initials must be sessionId=null", initials.all { it.sessionId == null })
+        assertTrue("all initials must carry a positive e1rm", initials.all { it.e1rm > 0f })
 
-        // replay must have populated derived muscle_group_strength for those same muscles.
-        val strengths = repository.derivedState.snapshot().allMuscleGroupStrengths().associateBy { it.muscleGroup }
+        // replay seeds the live planner's estimate map from those initials (the replay starting
+        // point). This is what the per-exercise contract reads for the weight calc.
+        val estimates = repository.derivedState.snapshot().exerciseEstimates()
         for (initial in initials) {
             assertEquals(
-                "muscle_group_strength must match the initial for ${initial.muscleGroup}",
-                initial.baselineWeight,
-                strengths[initial.muscleGroup]?.baselineWeight,
+                "estimate for exercise ${initial.exerciseId} must seed from its initial e1rm",
+                initial.e1rm,
+                estimates[initial.exerciseId]?.e1rm ?: 0f,
+                0.01f,
             )
         }
+
+        // Cold-start display parity: seeding also fills muscle_group_strength (projected from the
+        // seeded estimates) so the History strength grid is non-empty before the first workout.
+        // Under the bare per-exercise migration this grid was empty until a session was replayed.
+        val strengths = repository.derivedState.snapshot().allMuscleGroupStrengths()
+        assertTrue(
+            "expected CHEST muscle_group_strength populated at seed time; got $strengths",
+            strengths.any { it.muscleGroup == MuscleGroup.CHEST && it.baselineWeight > 0f },
+        )
+        assertTrue(
+            "expected QUADS muscle_group_strength populated at seed time; got $strengths",
+            strengths.any { it.muscleGroup == MuscleGroup.QUADS && it.baselineWeight > 0f },
+        )
     }
 }

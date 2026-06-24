@@ -39,5 +39,6 @@ interface ExerciseDao {
     @Update
     suspend fun update(exercise: Exercise)
 
-
+    @Query("DELETE FROM exercises")
+    suspend fun deleteAll()
 }
