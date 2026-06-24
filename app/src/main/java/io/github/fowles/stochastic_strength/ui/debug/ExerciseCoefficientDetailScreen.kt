@@ -58,13 +58,10 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             return@Scaffold
         }
 
-        // Selection persists across recomposition; resets to latest when data (re)loads.
-        // Hoisted here so the chart and the cross-tuning section share it.
-        var selectedEpochDay by rememberSaveable(state.defaultEpochDay) {
-            mutableStateOf(state.defaultEpochDay)
-        }
-        val selectedFrame = state.framesByEpochDay[selectedEpochDay]
-            ?: state.defaultEpochDay?.let { state.framesByEpochDay[it] }
+        // Nothing is selected until the user taps a session; selection then persists across
+        // recomposition. Hoisted here so the chart and the cross-tuning section share it.
+        var selectedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
+        val selectedFrame = selectedEpochDay?.let { state.framesByEpochDay[it] }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item { SectionHeader("Estimated 1RM over time", verticalPadding = 4.dp) }
@@ -93,18 +90,29 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             item { SectionHeader("Cross-tuning", verticalPadding = 4.dp) }
 
             item {
-                if (selectedFrame == null) {
-                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                when {
+                    state.framesByEpochDay.isEmpty() -> {
+                        Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                            Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                } else {
-                    Column {
-                        ProgressionNumericHeader(
-                            own = selectedFrame.headerOwn,
-                            siblings = selectedFrame.headerSiblings,
-                            merged = selectedFrame.headerMerged,
-                        )
-                        CrossTuningSection(rows = selectedFrame.crossTuning, highlightedName = state.exercise?.name)
+                    selectedFrame == null -> {
+                        Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                "Tap a session on the chart to see its cross-tuning",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    else -> {
+                        Column {
+                            ProgressionNumericHeader(
+                                own = selectedFrame.headerOwn,
+                                siblings = selectedFrame.headerSiblings,
+                                merged = selectedFrame.headerMerged,
+                            )
+                            CrossTuningSection(rows = selectedFrame.crossTuning, highlightedName = state.exercise?.name)
+                        }
                     }
                 }
             }
