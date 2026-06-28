@@ -14,6 +14,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 // Helper: convert the old per-muscle strengths into per-exercise e1rm using seed coefficients.
@@ -61,6 +62,18 @@ class WorkoutPlannerTest {
         pacingEstimator = pacingEstimator,
         coefficientSource = coefficientSource,
     )
+
+    private fun lbsPlanner() = WorkoutPlanner(
+        availableExercises = emptyList(),
+        prescribedE1rm = emptyMap(),
+        recentHistory = emptyMap(),
+        weightUnit = WeightUnit.LBS,
+        locationId = null,
+    )
+
+    private fun lbsToKg(lb: Float) = WeightUnit.LBS.toKg(lb)
+    private fun io.github.fowles.stochastic_strength.domain.model.WarmupSet.roundedLbs() =
+        WeightUnit.LBS.fromKg(weight).roundToInt()
 
     private fun nearFailureSet(exerciseId: Long, completedAt: Long, feedback: SetFeedback = SetFeedback.RIR_0_1) = WorkoutSet(
         sessionId = 1L,
@@ -375,17 +388,39 @@ class WorkoutPlannerTest {
     }
 
     @Test
-    fun computeWarmupSets_midRange_returnsTwoSets() {
+    fun `computeWarmupSets 100kg KG mode produces bar-based sequence`() {
         val p = planner()
-        val warmups = p.computeWarmupSets(50f)
-        assertEquals(2, warmups.size)
+        val warmups = p.computeWarmupSets(100f)
+        assertEquals(listOf(20, 40, 60, 80, 90), warmups.map { it.weight.roundToInt() })
+        assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
     }
 
     @Test
-    fun computeWarmupSets_heavy_returnsThreeSets() {
-        val p = planner()
-        val warmups = p.computeWarmupSets(60f)
-        assertEquals(3, warmups.size)
+    fun `computeWarmupSets 105lb uses half-step plates for light lift`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(105f))
+        assertEquals(listOf(45, 65, 85, 95), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets 225lb follows plates-and-quarters sequence`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f))
+        assertEquals(listOf(45, 95, 135, 185, 205), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets 405lb thins to keep jumps within 90lb`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(405f))
+        assertEquals(listOf(45, 135, 225, 315, 365), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets 605lb scales to many stops`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(605f))
+        assertEquals(listOf(45, 135, 225, 315, 405, 495, 545), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3, 2, 1, 1, 1), warmups.map { it.reps })
     }
 
     // ──────────────────────────────────────────────────────────────────────

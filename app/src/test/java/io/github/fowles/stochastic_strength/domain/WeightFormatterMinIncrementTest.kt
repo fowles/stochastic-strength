@@ -12,7 +12,6 @@ class WeightFormatterMinIncrementTest {
 
     @Test
     fun minIncrement_lbs_is5lbInKg() {
-        // 5 lb in kg = 5 / 2.20462
-        assertEquals(5f / 2.20462f, WeightFormatter.minIncrement(WeightUnit.LBS), 0.0001f)
+        assertEquals(WeightUnit.LBS.toKg(5f), WeightFormatter.minIncrement(WeightUnit.LBS), 0.0001f)
     }
 }

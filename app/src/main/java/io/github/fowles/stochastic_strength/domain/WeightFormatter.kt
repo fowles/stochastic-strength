@@ -12,8 +12,7 @@ object WeightFormatter {
         return if (unit == WeightUnit.KG) {
             "%.1f kg".format(kg)
         } else {
-            val lbs = kg * 2.20462f
-            "%.0f lbs".format(lbs)
+            "%.0f lbs".format(unit.fromKg(kg))
         }
     }
 
@@ -25,10 +24,10 @@ object WeightFormatter {
             if (nearest10 > 0f && abs(nearest10 - kg) / kg <= 0.12f) nearest10
             else (kg / 5f).roundToInt() * 5f
         } else {
-            val lbs = kg * 2.20462f
+            val lbs = unit.fromKg(kg)
             // Bar is 45 lb; plate-loaded weights always end in 5 (45, 55, 65 ...).
             val nearest = ((lbs - 5f) / 10f).roundToInt() * 10f + 5f
-            nearest / 2.20462f
+            unit.toKg(nearest)
         }
     }
 
@@ -36,15 +35,15 @@ object WeightFormatter {
         return if (unit == WeightUnit.KG) {
             (kg / 2.5f).roundToInt() * 2.5f
         } else {
-            val lbs = kg * 2.20462f
+            val lbs = unit.fromKg(kg)
             val roundedLbs = (lbs / 5f).roundToInt() * 5f
-            roundedLbs / 2.20462f
+            unit.toKg(roundedLbs)
         }
     }
 
     /** Smallest rounded increment for the user's weight unit, in kg. */
     fun minIncrement(unit: WeightUnit): Float =
-        if (unit == WeightUnit.KG) 2.5f else 5f / 2.20462f
+        if (unit == WeightUnit.KG) 2.5f else unit.toKg(5f)
 
     fun platesPerSide(weightKg: Float, unit: WeightUnit): String? {
         return when (unit) {
@@ -56,7 +55,7 @@ object WeightFormatter {
                 "Bar + $result per side"
             }
             WeightUnit.LBS -> {
-                val lbs = weightKg * 2.20462f
+                val lbs = unit.fromKg(weightKg)
                 val bar = 45f
                 if (lbs <= bar) return null
                 val perSide = (lbs - bar) / 2f

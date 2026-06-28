@@ -8,8 +8,8 @@ class WeightFormatterTest {
 
     private fun warmupKg(kg: Float) = WeightFormatter.roundForWarmup(kg, WeightUnit.KG)
     private fun warmupLbs(lbs: Float): Float {
-        val kg = lbs / 2.20462f
-        return WeightFormatter.roundForWarmup(kg, WeightUnit.LBS) * 2.20462f
+        val kg = WeightUnit.LBS.toKg(lbs)
+        return WeightUnit.LBS.fromKg(WeightFormatter.roundForWarmup(kg, WeightUnit.LBS))
     }
 
     // Snaps to nearest 10 kg when within 12%

@@ -129,13 +129,39 @@ class WorkoutPlanner(
     }
 
     fun computeWarmupSets(weightKg: Float): List<WarmupSet> {
-        if (weightKg < 40f) return emptyList()
-        fun w(pct: Float) = WeightFormatter.roundForWarmup(weightKg * pct, weightUnit)
-        return if (weightKg < 60f) {
-            listOf(WarmupSet(w(0.5f), 8), WarmupSet(w(0.75f), 5))
+        val barKg = WeightFormatter.roundForWarmup(20f, weightUnit)
+        val topKg = WeightFormatter.roundForWarmup(weightKg * 0.9f, weightUnit)
+        if (topKg <= barKg) return emptyList()
+
+        fun sequence(stepKg: Float): List<Float> = generateSequence(1) { it + 1 }
+            .map { i -> WeightFormatter.roundForWarmup(barKg + i * stepKg, weightUnit) }
+            .takeWhile { it < topKg }
+            .toList()
+
+        // Step = bar weight. Applied to multiples and rounded, this naturally produces
+        // the plates-and-quarters sequence (95, 135, 185, 225... in lbs).
+        var intermediates = sequence(barKg)
+
+        // Light lifts: primary step overshoots — use half-step (one smaller plate per side).
+        // LBS: one 10 lb plate per side = 20 lb increment (not barKg/2 ≈ 22.5 lb, which rounds
+        // back to the same lb value as topKg at the critical 105 lb boundary).
+        val halfStepKg = if (weightUnit == WeightUnit.LBS) WeightUnit.LBS.toKg(20f) else barKg / 2f
+        if (intermediates.size < 2) intermediates = sequence(halfStepKg)
+
+        // Still too few stops → work weight is too close to the bar for a meaningful warmup.
+        if (intermediates.size < 2) return emptyList()
+
+        // Heavy lifts: thin by keeping odd-indexed elements (0-based), which preserves
+        // ≤ 90 lb max jumps while halving the stop count.
+        val thinned = if (intermediates.size > 5) {
+            intermediates.filterIndexed { i, _ -> i % 2 == 1 }
         } else {
-            listOf(WarmupSet(w(0.4f), 8), WarmupSet(w(0.6f), 5), WarmupSet(w(0.8f), 3))
+            intermediates
         }
+
+        val allStops = listOf(barKg) + thinned + listOf(topKg)
+        val repScheme = listOf(5, 5, 3, 2)
+        return allStops.mapIndexed { i, w -> WarmupSet(w, repScheme.getOrElse(i) { 1 }) }
     }
 
     private fun muscleGroupRested(exercise: Exercise): Boolean =
