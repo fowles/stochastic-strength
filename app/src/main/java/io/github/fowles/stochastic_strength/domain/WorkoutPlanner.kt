@@ -113,7 +113,7 @@ class WorkoutPlanner(
             progressionEngine.fromOneRepMax(newE1rmKg, pe.sessionReps),
             weightUnit,
         )
-        val warmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight)
+        val warmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight, pe.exercise)
         val perRep = pacingEstimator.secondsPerRep(pe.exercise.id)
         return pe.copy(
             sessionWeight = newWeight,
@@ -128,13 +128,24 @@ class WorkoutPlanner(
         )
     }
 
-    fun computeWarmupSets(weightKg: Float): List<WarmupSet> {
+    fun computeWarmupSets(weightKg: Float, exercise: Exercise? = null): List<WarmupSet> {
         val barKg = WeightFormatter.roundForWarmup(20f, weightUnit)
         val topKg = WeightFormatter.roundForWarmup(weightKg * 0.9f, weightUnit)
-        if (topKg <= barKg) return emptyList()
+
+        val floorKg: Float
+        val minIntermediates: Int
+        if (exercise != null && exercise.isFloorDeadlift()) {
+            floorKg = deadliftFloorKg(topKg) ?: return emptyList()
+            minIntermediates = 1
+        } else {
+            if (topKg <= barKg) return emptyList()
+            floorKg = barKg
+            minIntermediates = 2
+        }
+        if (topKg <= floorKg) return emptyList()
 
         fun sequence(stepKg: Float): List<Float> = generateSequence(1) { it + 1 }
-            .map { i -> WeightFormatter.roundForWarmup(barKg + i * stepKg, weightUnit) }
+            .map { i -> WeightFormatter.roundForWarmup(floorKg + i * stepKg, weightUnit) }
             .takeWhile { it < topKg }
             .toList()
 
@@ -148,8 +159,8 @@ class WorkoutPlanner(
         val halfStepKg = if (weightUnit == WeightUnit.LBS) WeightUnit.LBS.toKg(20f) else barKg / 2f
         if (intermediates.size < 2) intermediates = sequence(halfStepKg)
 
-        // Still too few stops → work weight is too close to the bar for a meaningful warmup.
-        if (intermediates.size < 2) return emptyList()
+        // Still too few stops → work weight is too close to the floor for a meaningful warmup.
+        if (intermediates.size < minIntermediates) return emptyList()
 
         // Heavy lifts: thin by keeping odd-indexed elements (0-based), which preserves
         // ≤ 90 lb max jumps while halving the stop count.
@@ -159,10 +170,26 @@ class WorkoutPlanner(
             intermediates
         }
 
-        val allStops = listOf(barKg) + thinned + listOf(topKg)
+        val allStops = listOf(floorKg) + thinned + listOf(topKg)
         val repScheme = listOf(5, 5, 3, 2)
         return allStops.mapIndexed { i, w -> WarmupSet(w, repScheme.getOrElse(i) { 1 }) }
     }
+
+    // Deadlifts cannot start from just the bar — the bar sits too low without plates.
+    // Returns the largest viable floor (in kg) strictly below topKg, or null if none fits.
+    private fun deadliftFloorKg(topKg: Float): Float? {
+        val rawCandidates = if (weightUnit == WeightUnit.LBS) {
+            listOf(WeightUnit.LBS.toKg(135f), WeightUnit.LBS.toKg(95f), WeightUnit.LBS.toKg(65f))
+        } else {
+            listOf(60f, 40f, 30f)
+        }
+        return rawCandidates
+            .map { WeightFormatter.roundForWarmup(it, weightUnit) }
+            .firstOrNull { it < topKg }
+    }
+
+    private fun Exercise.isFloorDeadlift(): Boolean =
+        equipment == Equipment.BARBELL && name.contains("deadlift", ignoreCase = true)
 
     private fun muscleGroupRested(exercise: Exercise): Boolean =
         exercise.equipment == Equipment.BODYWEIGHT || exercise.primaryMuscle !in recentlyFailedMuscles
@@ -191,7 +218,7 @@ class WorkoutPlanner(
             )
         }
         val weight = weightForExercise(pe.exercise, sessionReps)
-        val warmups = computeWarmupSets(weight)
+        val warmups = computeWarmupSets(weight, pe.exercise)
         return pe.copy(
             sessionWeight = weight,
             sessionReps = sessionReps,

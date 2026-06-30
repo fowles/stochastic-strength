@@ -424,6 +424,66 @@ class WorkoutPlannerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────
+    // computeWarmupSets — floor deadlifts
+    // ──────────────────────────────────────────────────────────────────────
+
+    private fun deadliftExercise(name: String = "Deadlift") =
+        exercise(99L, name = name, muscle = MuscleGroup.HAMSTRINGS)
+
+    @Test
+    fun `computeWarmupSets deadlift 225lb LBS starts from 135 (45lb plates per side)`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise())
+        assertEquals(listOf(135, 155, 175, 195, 205), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets deadlift 100lb LBS starts from 65 (10lb plates per side)`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(100f), deadliftExercise())
+        assertEquals(listOf(65, 85, 95), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets deadlift 135lb LBS starts from 95 (25lb plates per side)`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(135f), deadliftExercise())
+        assertEquals(listOf(95, 115, 125), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets deadlift 100kg KG mode starts from 60kg (20kg plates per side)`() {
+        val warmups = planner().computeWarmupSets(100f, deadliftExercise())
+        assertEquals(listOf(60, 70, 80, 90), warmups.map { it.weight.roundToInt() })
+        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets Romanian Deadlift also starts from deadlift floor`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise("Romanian Deadlift"))
+        assertEquals(135, warmups.first().roundedLbs())
+    }
+
+    @Test
+    fun `computeWarmupSets Sumo Deadlift also starts from deadlift floor`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise("Sumo Deadlift"))
+        assertEquals(135, warmups.first().roundedLbs())
+    }
+
+    @Test
+    fun `computeWarmupSets Stiff-Leg Deadlift also starts from deadlift floor`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise("Stiff-Leg Deadlift"))
+        assertEquals(135, warmups.first().roundedLbs())
+    }
+
+    @Test
+    fun `computeWarmupSets non-deadlift barbell still starts from bar with exercise param`() {
+        val bench = exercise(1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), bench)
+        assertEquals(45, warmups.first().roundedLbs())
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
     // Recently-failed muscle group exclusion
     // ──────────────────────────────────────────────────────────────────────
 
