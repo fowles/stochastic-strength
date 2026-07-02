@@ -98,7 +98,10 @@ class WorkoutSessionControllerTest {
         }
     }
 
-    private suspend inline fun <reified T : WorkoutState> awaitState(timeoutMs: Long = 2000): T {
+    private suspend inline fun <reified T : WorkoutState> awaitState(
+        controller: WorkoutSessionController = this.controller,
+        timeoutMs: Long = 2000
+    ): T {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val s = controller.state.value
@@ -508,13 +511,8 @@ class WorkoutSessionControllerTest {
             weightUnit = WeightUnit.KG,
         )
         freshController.adjustExerciseCount(2)
-        // Wait for Loading → PlanPreview
-        val deadline = System.currentTimeMillis() + 2000
-        while (System.currentTimeMillis() < deadline && freshController.state.value is WorkoutState.Loading) {
-            delay(20)
-        }
 
-        val before = (freshController.state.value as WorkoutState.PlanPreview).plan.exercises
+        val before = awaitState<WorkoutState.PlanPreview>(freshController).plan.exercises
         assertEquals(2, before.size)
         val firstId = before[0].exercise.id
         val secondId = before[1].exercise.id
