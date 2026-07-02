@@ -486,6 +486,49 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
+    fun moveExercise_swapsExerciseOrder() = runBlocking {
+        // Use a fresh DB so setUp's active session doesn't interfere.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        freshDb.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        freshDb.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
+        ))
+        val freshRepo = WorkoutRepository(freshDb)
+        seedDerivedStrength(freshDb, freshRepo)
+        val freshController = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
+        freshController.initializeSession(
+            locationId = null, locationName = null,
+            preferredExerciseCount = 2, preferredRepMin = 5, preferredRepMax = 10,
+            weightUnit = WeightUnit.KG,
+        )
+        freshController.adjustExerciseCount(2)
+        // Wait for Loading → PlanPreview
+        val deadline = System.currentTimeMillis() + 2000
+        while (System.currentTimeMillis() < deadline && freshController.state.value is WorkoutState.Loading) {
+            delay(20)
+        }
+
+        val before = (freshController.state.value as WorkoutState.PlanPreview).plan.exercises
+        assertEquals(2, before.size)
+        val firstId = before[0].exercise.id
+        val secondId = before[1].exercise.id
+
+        freshController.moveExercise(0, 1)
+
+        val after = (freshController.state.value as WorkoutState.PlanPreview).plan.exercises
+        assertEquals(secondId, after[0].exercise.id)
+        assertEquals(firstId, after[1].exercise.id)
+
+        freshDb.close()
+    }
+
+    @Test
     fun swap_hasLoggedSets_keepsOriginalAndInsertsAfter() = runBlocking {
         toWorkingSet()
         controller.recordFeedback(SetFeedback.RIR_2_4) // log a set for exercise 0

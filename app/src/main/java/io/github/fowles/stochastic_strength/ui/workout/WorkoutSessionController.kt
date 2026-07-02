@@ -263,6 +263,13 @@ class WorkoutSessionController(
         }
     }
 
+    fun moveExercise(from: Int, to: Int) {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val exercises = preview.plan.exercises.toMutableList()
+        exercises.add(to, exercises.removeAt(from))
+        setState(preview.copy(plan = preview.plan.copy(exercises = exercises)))
+    }
+
     fun completeWarmupSet() {
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         val warmupIdx = current.warmupSetIndex ?: return
