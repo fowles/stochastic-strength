@@ -510,7 +510,6 @@ class WorkoutSessionControllerTest {
             preferredExerciseCount = 2, preferredRepMin = 5, preferredRepMax = 10,
             weightUnit = WeightUnit.KG,
         )
-        freshController.adjustExerciseCount(2)
 
         val before = awaitState<WorkoutState.PlanPreview>(freshController).plan.exercises
         assertEquals(2, before.size)
