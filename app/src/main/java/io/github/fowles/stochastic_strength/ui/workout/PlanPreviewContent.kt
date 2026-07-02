@@ -18,9 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +66,7 @@ internal fun PlanPreviewContent(
     onSetExerciseCount: (Int) -> Unit,
     onSetRepRange: (repMin: Int, repMax: Int) -> Unit,
     onAdjustWeight: (index: Int, delta: Float) -> Unit,
+    onMove: (from: Int, to: Int) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
 ) {
@@ -164,23 +169,30 @@ internal fun PlanPreviewContent(
             modifier = Modifier.padding(vertical = 4.dp),
         )
         HorizontalDivider()
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        val lazyListState = rememberLazyListState()
+        val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
+            onMove(from.index, to.index)
+        }
+
+        LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
                 val index = plan.exercises.indexOf(planned)
-                ExercisePreviewRow(
-                    planned = planned,
-                    weightUnit = weightUnit,
-                    onReplace = { reason -> onReplace(index, reason) },
-                    onWeightDecrement = if (planned.sessionWeight > 0f) {
-                        { onAdjustWeight(index, -2.5f) }
-                    } else null,
-                    onWeightIncrement = if (planned.sessionWeight > 0f) {
-                        { onAdjustWeight(index, +2.5f) }
-                    } else null,
-                    onTap = { onExerciseTap(planned.exercise.id) },
-                    modifier = Modifier.animateItem(),
-                )
-                HorizontalDivider()
+                ReorderableItem(reorderState, key = planned.exercise.id, modifier = Modifier.animateItem()) { _ ->
+                    ExercisePreviewRow(
+                        planned = planned,
+                        weightUnit = weightUnit,
+                        dragHandleModifier = Modifier.draggableHandle(),
+                        onReplace = { reason -> onReplace(index, reason) },
+                        onWeightDecrement = if (planned.sessionWeight > 0f) {
+                            { onAdjustWeight(index, -2.5f) }
+                        } else null,
+                        onWeightIncrement = if (planned.sessionWeight > 0f) {
+                            { onAdjustWeight(index, +2.5f) }
+                        } else null,
+                        onTap = { onExerciseTap(planned.exercise.id) },
+                    )
+                    HorizontalDivider()
+                }
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -194,6 +206,7 @@ internal fun PlanPreviewContent(
 private fun ExercisePreviewRow(
     planned: io.github.fowles.stochastic_strength.domain.model.PlannedExercise,
     weightUnit: WeightUnit,
+    dragHandleModifier: Modifier,
     onReplace: (ExerciseRemovalReason) -> Unit,
     onWeightDecrement: (() -> Unit)?,
     onWeightIncrement: (() -> Unit)?,
@@ -249,6 +262,14 @@ private fun ExercisePreviewRow(
                     .clickable(onClick = onTap)
                     .padding(vertical = 12.dp),
             ) {
+                Icon(
+                    imageVector = Icons.Filled.Menu,
+                    contentDescription = "Drag to reorder",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = dragHandleModifier
+                        .padding(start = 4.dp, end = 8.dp)
+                        .size(24.dp),
+                )
                 val weightLabel = when {
                     planned.sessionWeight > 0f -> WeightFormatter.format(planned.sessionWeight, weightUnit)
                     planned.exercise.equipment == Equipment.BODYWEIGHT -> "Bodyweight"
