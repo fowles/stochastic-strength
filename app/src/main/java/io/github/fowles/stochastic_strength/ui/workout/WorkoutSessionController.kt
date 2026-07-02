@@ -276,9 +276,22 @@ class WorkoutSessionController(
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         val warmupIdx = current.warmupSetIndex ?: return
         val nextIdx = warmupIdx + 1
-        setState(current.copy(
-            warmupSetIndex = if (nextIdx < current.plannedExercise.warmupSets.size) nextIdx else null,
-        ))
+        if (nextIdx < current.plannedExercise.warmupSets.size) {
+            setState(current.copy(warmupSetIndex = nextIdx))
+        } else {
+            val commitTarget = WorkoutState.ActiveSet(
+                plan = current.plan,
+                exerciseIndex = current.exerciseIndex,
+                setIndex = 0,
+                sessionId = current.sessionId,
+                warmupSetIndex = null,
+            )
+            stageRest(current, StagedAction(
+                kind = StagedKind.WARMUP_DONE,
+                undoTarget = current,
+                commitTarget = commitTarget,
+            ))
+        }
     }
 
     fun startTimedSet() {

@@ -93,6 +93,7 @@ internal fun RestingContent(
                     StagedKind.END_EXERCISE -> "Exercise stopped"
                     StagedKind.SWAP -> "Swapped exercise"
                     StagedKind.ADJUST_WEIGHT -> "Weight changed"
+                    StagedKind.WARMUP_DONE -> "Warmup complete"
                     null -> "Logged: ${state.lastFeedback?.displayLabel ?: ""}"
                 }
                 Text(
@@ -157,9 +158,12 @@ internal fun RestingContent(
                 state.staged != null -> {
                     val up = state.staged.commitTarget?.let { it.plan.exercises.getOrNull(it.exerciseIndex) }
                     if (up != null) {
-                        val warmup = up.warmupSets.firstOrNull()
+                        val isWarmupDone = state.staged.kind == StagedKind.WARMUP_DONE
+                        val warmup = if (isWarmupDone) null else up.warmupSets.firstOrNull()
                         NextExerciseCard(
-                            title = if (warmup != null) "Warm up" else "Up next",
+                            title = if (isWarmupDone) "First set"
+                                    else if (warmup != null) "Warm up"
+                                    else "Up next",
                             exerciseName = up.exercise.name,
                             weight = warmup?.weight ?: up.sessionWeight,
                             equipment = up.exercise.equipment,
