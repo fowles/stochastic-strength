@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.Equipment
@@ -177,7 +179,8 @@ internal fun PlanPreviewContent(
         LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
                 ReorderableItem(reorderState, key = planned.exercise.id, modifier = Modifier.animateItem()) { isDragging ->
-                    Column {
+                    val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp)
+                    Column(modifier = Modifier.graphicsLayer { shadowElevation = elevation.toPx() }) {
                         ExercisePreviewRow(
                             planned = planned,
                             weightUnit = weightUnit,
