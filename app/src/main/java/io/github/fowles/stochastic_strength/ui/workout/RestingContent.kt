@@ -93,6 +93,7 @@ internal fun RestingContent(
                     StagedKind.END_EXERCISE -> "Exercise stopped"
                     StagedKind.SWAP -> "Swapped exercise"
                     StagedKind.ADJUST_WEIGHT -> "Weight changed"
+                    StagedKind.WARMUP_DONE -> "Warm-up complete"
                     null -> "Logged: ${state.lastFeedback?.displayLabel ?: ""}"
                 }
                 Text(

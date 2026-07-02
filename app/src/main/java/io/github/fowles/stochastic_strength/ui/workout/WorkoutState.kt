@@ -51,7 +51,7 @@ sealed interface WorkoutState {
     ) : WorkoutState
 }
 
-enum class StagedKind { SWAP, ADJUST_WEIGHT, END_EXERCISE, STOP_WORKOUT }
+enum class StagedKind { SWAP, ADJUST_WEIGHT, END_EXERCISE, STOP_WORKOUT, WARMUP_DONE }
 
 data class StagedAction(
     val kind: StagedKind,

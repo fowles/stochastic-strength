@@ -229,12 +229,25 @@ class WorkoutSessionControllerTest {
         assertEquals(before.warmupSetIndex, after.warmupSetIndex)
     }
 
-    private suspend fun toWorkingSet() {
-        var s = controller.state.value
-        while (s is WorkoutState.ActiveSet && s.warmupSetIndex != null) {
+    private suspend fun toLastWarmup() {
+        var s = controller.state.value as? WorkoutState.ActiveSet ?: return
+        while (s.warmupSetIndex != null && s.warmupSetIndex!! + 1 < s.plannedExercise.warmupSets.size) {
             controller.completeWarmupSet()
             delay(20)
-            s = controller.state.value
+            s = controller.state.value as? WorkoutState.ActiveSet ?: return
+        }
+    }
+
+    private suspend fun toWorkingSet() {
+        toLastWarmup()
+        val s = controller.state.value
+        if (s is WorkoutState.ActiveSet && s.warmupSetIndex != null) {
+            controller.completeWarmupSet()
+            val resting = awaitState<WorkoutState.Resting>()
+            if (resting.staged?.kind == StagedKind.WARMUP_DONE) {
+                controller.skipRest()
+                awaitState<WorkoutState.ActiveSet>()
+            }
         }
     }
 
@@ -541,5 +554,45 @@ class WorkoutSessionControllerTest {
         assertEquals(originalId, target.plan.exercises[0].exercise.id)
         assertEquals(1, target.exerciseIndex)
         assertEquals(2, target.plan.exercises.size)
+    }
+
+    @Test
+    fun completeWarmupSet_lastWarmup_transitionsToWarmupDoneResting() = runBlocking {
+        toLastWarmup()
+        val lastWarmupState = controller.state.value as WorkoutState.ActiveSet
+        assertNotNull(lastWarmupState.warmupSetIndex)
+
+        controller.completeWarmupSet()
+        val resting = awaitState<WorkoutState.Resting>()
+        assertEquals(StagedKind.WARMUP_DONE, resting.staged!!.kind)
+        assertEquals(lastWarmupState.exerciseIndex, resting.staged!!.commitTarget!!.exerciseIndex)
+        assertEquals(0, resting.staged!!.commitTarget!!.setIndex)
+        assertNull(resting.staged!!.commitTarget!!.warmupSetIndex)
+        assertEquals(WorkoutSessionController.NO_ROW, resting.currentSetRowId)
+    }
+
+    @Test
+    fun completeWarmupSet_warmupDoneRest_skipAdvancesToFirstWorkingSet() = runBlocking {
+        toLastWarmup()
+        controller.completeWarmupSet()
+        awaitState<WorkoutState.Resting>()
+
+        controller.skipRest()
+        val active = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(0, active.setIndex)
+        assertNull(active.warmupSetIndex)
+    }
+
+    @Test
+    fun completeWarmupSet_warmupDoneRest_undoReturnsToLastWarmup() = runBlocking {
+        toLastWarmup()
+        val lastWarmupState = controller.state.value as WorkoutState.ActiveSet
+        controller.completeWarmupSet()
+        awaitState<WorkoutState.Resting>()
+
+        controller.undoLastSet()
+        val after = awaitState<WorkoutState.ActiveSet>()
+        assertEquals(lastWarmupState.warmupSetIndex, after.warmupSetIndex)
+        assertEquals(lastWarmupState.exerciseIndex, after.exerciseIndex)
     }
 }
