@@ -215,7 +215,6 @@ private fun ExercisePreviewRow(
     onWeightDecrement: (() -> Unit)?,
     onWeightIncrement: (() -> Unit)?,
     onTap: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
 
@@ -232,7 +231,6 @@ private fun ExercisePreviewRow(
                 showActions = false
                 onReplace(reason)
             },
-            modifier = modifier,
         )
     } else {
         SwipeToDismissBox(
@@ -256,7 +254,6 @@ private fun ExercisePreviewRow(
                 }
             },
             enableDismissFromStartToEnd = false,
-            modifier = modifier,
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
