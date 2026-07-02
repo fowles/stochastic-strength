@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -123,7 +123,7 @@ fun LocationEditScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            if (isCollapsed) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp,
+                            if (isCollapsed) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
                             contentDescription = if (isCollapsed) "Expand" else "Collapse",
                             tint = MaterialTheme.colorScheme.primary,
                         )

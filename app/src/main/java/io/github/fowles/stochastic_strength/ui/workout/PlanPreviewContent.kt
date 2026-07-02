@@ -21,8 +21,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Menu
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.material3.AssistChip
@@ -62,10 +62,10 @@ internal fun PlanPreviewContent(
     state: WorkoutState.PlanPreview,
     weightUnit: WeightUnit,
     onStart: () -> Unit,
-    onReplace: (index: Int, reason: ExerciseRemovalReason) -> Unit,
+    onReplace: (exerciseId: Long, reason: ExerciseRemovalReason) -> Unit,
     onSetExerciseCount: (Int) -> Unit,
     onSetRepRange: (repMin: Int, repMax: Int) -> Unit,
-    onAdjustWeight: (index: Int, delta: Float) -> Unit,
+    onAdjustWeight: (exerciseId: Long, delta: Float) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
@@ -176,18 +176,17 @@ internal fun PlanPreviewContent(
 
         LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
-                val index = plan.exercises.indexOf(planned)
                 ReorderableItem(reorderState, key = planned.exercise.id, modifier = Modifier.animateItem()) { _ ->
                     ExercisePreviewRow(
                         planned = planned,
                         weightUnit = weightUnit,
                         dragHandleModifier = Modifier.draggableHandle(),
-                        onReplace = { reason -> onReplace(index, reason) },
+                        onReplace = { reason -> onReplace(planned.exercise.id, reason) },
                         onWeightDecrement = if (planned.sessionWeight > 0f) {
-                            { onAdjustWeight(index, -2.5f) }
+                            { onAdjustWeight(planned.exercise.id, -2.5f) }
                         } else null,
                         onWeightIncrement = if (planned.sessionWeight > 0f) {
-                            { onAdjustWeight(index, +2.5f) }
+                            { onAdjustWeight(planned.exercise.id, +2.5f) }
                         } else null,
                         onTap = { onExerciseTap(planned.exercise.id) },
                     )
@@ -263,7 +262,7 @@ private fun ExercisePreviewRow(
                     .padding(vertical = 12.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Menu,
+                    imageVector = Icons.Filled.DragIndicator,
                     contentDescription = "Drag to reorder",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = dragHandleModifier
