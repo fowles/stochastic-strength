@@ -83,6 +83,7 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.androidx.room.ktx)
     implementation(libs.vico.compose.m3)
+    implementation(libs.reorderable)
     implementation(libs.okhttp)
     implementation(libs.security.crypto)
     ksp(libs.androidx.room.compiler)
