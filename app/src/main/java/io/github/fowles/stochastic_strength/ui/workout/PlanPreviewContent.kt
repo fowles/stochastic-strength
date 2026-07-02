@@ -178,9 +178,9 @@ internal fun PlanPreviewContent(
 
         LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
-                ReorderableItem(reorderState, key = planned.exercise.id, modifier = Modifier.animateItem()) { isDragging ->
+                ReorderableItem(reorderState, key = planned.exercise.id) { isDragging ->
                     val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
-                    Column(modifier = Modifier.graphicsLayer { shadowElevation = elevation.toPx() }) {
+                    Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
                         ExercisePreviewRow(
                             planned = planned,
                             weightUnit = weightUnit,
