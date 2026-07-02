@@ -130,47 +130,74 @@ class WorkoutPlanner(
 
     fun computeWarmupSets(weightKg: Float, exercise: Exercise? = null): List<WarmupSet> {
         val barKg = WeightFormatter.roundForWarmup(20f, weightUnit)
-        val topKg = WeightFormatter.roundForWarmup(weightKg * 0.9f, weightUnit)
+        val isDeadlift = exercise != null && exercise.isFloorDeadlift()
 
-        val floorKg: Float
-        val minIntermediates: Int
-        if (exercise != null && exercise.isFloorDeadlift()) {
-            floorKg = deadliftFloorKg(topKg) ?: return emptyList()
-            minIntermediates = 1
+        // Deadlifts need plates on the floor so the bar is too low to load empty.
+        // Non-deadlifts can start from the bare bar.
+        val minFloorKg: Float = if (isDeadlift) {
+            if (weightUnit == WeightUnit.LBS) WeightUnit.LBS.toKg(95f) else 40f
+        } else {
+            barKg
+        }
+
+        // Step = bar weight. Applied to multiples and rounded, this naturally produces
+        // the plates-and-quarters sequence (95, 135, 185, 225… lb or 40, 60, 80… kg).
+        val pqIntermediates: List<Float> = generateSequence(1) { it + 1 }
+            .map { i -> WeightFormatter.roundForWarmup(barKg + i * barKg, weightUnit) }
+            .takeWhile { it < weightKg }
+            .filter { it >= minFloorKg }
+            .toList()
+
+        if (pqIntermediates.size >= 2) {
+            // Heavy lifts: thin by keeping odd-indexed elements plus the last (closest to
+            // working weight), preserving the natural jump sizes.
+            val thinned = if (pqIntermediates.size > 5) {
+                val last = pqIntermediates.last()
+                pqIntermediates.dropLast(1).filterIndexed { i, _ -> i % 2 == 1 } + last
+            } else {
+                pqIntermediates
+            }
+            // Non-deadlifts add the bare bar as the first stop; deadlifts start from first
+            // loaded weight (minFloor already excludes the bar).
+            val pqStops = if (isDeadlift) thinned else listOf(barKg) + thinned
+            val warmups = pqStops.mapIndexed { i, w ->
+                WarmupSet(w, when (pqStops.size - 1 - i) { 0 -> 2; 1 -> 3; else -> 5 })
+            }.toMutableList()
+
+            // When the final jump from last warmup to working weight is ≥ 15%, add a single
+            // feeler at ~90% of working weight.  This applies to all exercises including deadlifts.
+            val finalJumpFraction = (weightKg - pqStops.last()) / weightKg
+            if (finalJumpFraction >= 0.15f) {
+                val feelerKg = WeightFormatter.roundForWarmup(weightKg * 0.9f, weightUnit)
+                if (feelerKg > pqStops.last()) warmups.add(WarmupSet(feelerKg, 1))
+            }
+
+            return warmups
+        }
+
+        // Fallback for light exercises where P&Q gives < 2 stops: fill with a half-step
+        // sequence capped at 90% of the working weight.
+        val topKg = WeightFormatter.roundForWarmup(weightKg * 0.9f, weightUnit)
+        val floorKg: Float = if (isDeadlift) {
+            deadliftFloorKg(topKg) ?: return emptyList()
         } else {
             if (topKg <= barKg) return emptyList()
-            floorKg = barKg
-            minIntermediates = 2
+            barKg
         }
-        if (topKg <= floorKg) return emptyList()
 
         fun sequence(stepKg: Float): List<Float> = generateSequence(1) { it + 1 }
             .map { i -> WeightFormatter.roundForWarmup(floorKg + i * stepKg, weightUnit) }
             .takeWhile { it < topKg }
             .toList()
 
-        // Step = bar weight. Applied to multiples and rounded, this naturally produces
-        // the plates-and-quarters sequence (95, 135, 185, 225... in lbs).
-        var intermediates = sequence(barKg)
-
-        // Light lifts: primary step overshoots — use half-step (one smaller plate per side).
         // LBS: one 10 lb plate per side = 20 lb increment (not barKg/2 ≈ 22.5 lb, which rounds
         // back to the same lb value as topKg at the critical 105 lb boundary).
         val halfStepKg = if (weightUnit == WeightUnit.LBS) WeightUnit.LBS.toKg(20f) else barKg / 2f
+        var intermediates = sequence(barKg)
         if (intermediates.size < 2) intermediates = sequence(halfStepKg)
+        if (intermediates.size < if (isDeadlift) 1 else 2) return emptyList()
 
-        // Still too few stops → work weight is too close to the floor for a meaningful warmup.
-        if (intermediates.size < minIntermediates) return emptyList()
-
-        // Heavy lifts: thin by keeping odd-indexed elements (0-based), which preserves
-        // ≤ 90 lb max jumps while halving the stop count.
-        val thinned = if (intermediates.size > 5) {
-            intermediates.filterIndexed { i, _ -> i % 2 == 1 }
-        } else {
-            intermediates
-        }
-
-        val allStops = listOf(floorKg) + thinned + listOf(topKg)
+        val allStops = listOf(floorKg) + intermediates + listOf(topKg)
         val repScheme = listOf(5, 5, 3, 2)
         return allStops.mapIndexed { i, w -> WarmupSet(w, repScheme.getOrElse(i) { 1 }) }
     }

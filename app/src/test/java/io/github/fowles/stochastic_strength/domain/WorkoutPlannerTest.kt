@@ -388,7 +388,7 @@ class WorkoutPlannerTest {
     }
 
     @Test
-    fun `computeWarmupSets 100kg KG mode produces bar-based sequence`() {
+    fun `computeWarmupSets 100kg KG mode produces bar-based sequence with feeler`() {
         val p = planner()
         val warmups = p.computeWarmupSets(100f)
         assertEquals(listOf(20, 40, 60, 80, 90), warmups.map { it.weight.roundToInt() })
@@ -403,24 +403,31 @@ class WorkoutPlannerTest {
     }
 
     @Test
-    fun `computeWarmupSets 225lb follows plates-and-quarters sequence`() {
+    fun `computeWarmupSets 200lb LBS follows plates-and-quarters from bar`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(200f))
+        assertEquals(listOf(45, 95, 135, 185), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets 225lb follows plates-and-quarters sequence with feeler`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f))
         assertEquals(listOf(45, 95, 135, 185, 205), warmups.map { it.roundedLbs() })
         assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
     }
 
     @Test
-    fun `computeWarmupSets 405lb thins to keep jumps within 90lb`() {
+    fun `computeWarmupSets 405lb thins heavy sequence`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(405f))
         assertEquals(listOf(45, 135, 225, 315, 365), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 5, 5, 3, 2), warmups.map { it.reps })
     }
 
     @Test
     fun `computeWarmupSets 605lb scales to many stops`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(605f))
-        assertEquals(listOf(45, 135, 225, 315, 405, 495, 545), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3, 2, 1, 1, 1), warmups.map { it.reps })
+        assertEquals(listOf(45, 135, 225, 315, 405, 495, 585), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 5, 5, 5, 3, 2), warmups.map { it.reps })
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -431,10 +438,10 @@ class WorkoutPlannerTest {
         exercise(99L, name = name, muscle = MuscleGroup.HAMSTRINGS)
 
     @Test
-    fun `computeWarmupSets deadlift 225lb LBS starts from 135 (45lb plates per side)`() {
+    fun `computeWarmupSets deadlift 225lb LBS follows plates-and-quarters from 95 with feeler`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise())
-        assertEquals(listOf(135, 155, 175, 195, 205), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
+        assertEquals(listOf(95, 135, 185, 205), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 3, 2, 1), warmups.map { it.reps })
     }
 
     @Test
@@ -452,28 +459,35 @@ class WorkoutPlannerTest {
     }
 
     @Test
-    fun `computeWarmupSets deadlift 100kg KG mode starts from 60kg (20kg plates per side)`() {
+    fun `computeWarmupSets deadlift 100kg KG mode follows plates-and-quarters from 40kg with feeler`() {
         val warmups = planner().computeWarmupSets(100f, deadliftExercise())
-        assertEquals(listOf(60, 70, 80, 90), warmups.map { it.weight.roundToInt() })
-        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
+        assertEquals(listOf(40, 60, 80, 90), warmups.map { it.weight.roundToInt() })
+        assertEquals(listOf(5, 3, 2, 1), warmups.map { it.reps })
     }
 
     @Test
-    fun `computeWarmupSets Romanian Deadlift also starts from deadlift floor`() {
+    fun `computeWarmupSets deadlift 215lb LBS follows plates-and-quarters from 95`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(215f), deadliftExercise())
+        assertEquals(listOf(95, 135, 185), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 3, 2), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets Romanian Deadlift also uses plates-and-quarters from 95`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise("Romanian Deadlift"))
-        assertEquals(135, warmups.first().roundedLbs())
+        assertEquals(95, warmups.first().roundedLbs())
     }
 
     @Test
-    fun `computeWarmupSets Sumo Deadlift also starts from deadlift floor`() {
+    fun `computeWarmupSets Sumo Deadlift also uses plates-and-quarters from 95`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise("Sumo Deadlift"))
-        assertEquals(135, warmups.first().roundedLbs())
+        assertEquals(95, warmups.first().roundedLbs())
     }
 
     @Test
-    fun `computeWarmupSets Stiff-Leg Deadlift also starts from deadlift floor`() {
+    fun `computeWarmupSets Stiff-Leg Deadlift also uses plates-and-quarters from 95`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise("Stiff-Leg Deadlift"))
-        assertEquals(135, warmups.first().roundedLbs())
+        assertEquals(95, warmups.first().roundedLbs())
     }
 
     @Test
