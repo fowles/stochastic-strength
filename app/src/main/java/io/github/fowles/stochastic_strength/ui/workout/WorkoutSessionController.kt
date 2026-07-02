@@ -174,10 +174,10 @@ class WorkoutSessionController(
         }
     }
 
-    fun replaceExercise(index: Int, reason: ExerciseRemovalReason) {
+    fun replaceExercise(exerciseId: Long, reason: ExerciseRemovalReason) {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        val rejectedId = preview.plan.exercises[index].exercise.id
-        val planned = preview.plan.exercises[index]
+        val planned = preview.plan.exercises.find { it.exercise.id == exerciseId } ?: return
+        val rejectedId = exerciseId
         scope.launch {
             when (reason) {
                 ExerciseRemovalReason.DISLIKE ->
@@ -239,11 +239,13 @@ class WorkoutSessionController(
         setState(preview.copy(plan = newPlan, repMin = repMin, repMax = repMax))
     }
 
-    fun adjustExerciseWeight(index: Int, delta: Float) {
+    fun adjustExerciseWeight(exerciseId: Long, delta: Float) {
         val state = _state.value as? WorkoutState.PlanPreview ?: return
         val p = planner ?: return
         val exercises = state.plan.exercises.toMutableList()
-        val pe = exercises[index]
+        val idx = exercises.indexOfFirst { it.exercise.id == exerciseId }
+        if (idx < 0) return
+        val pe = exercises[idx]
         val newWeight = WeightFormatter.round(
             (pe.sessionWeight + delta).coerceAtLeast(2.5f),
             weightUnit,
@@ -251,16 +253,23 @@ class WorkoutSessionController(
         if (newWeight == pe.sessionWeight) return
         val newE1rm = p.e1rmFromSessionWeight(newWeight, pe.sessionReps)
         if (newE1rm <= 0f) return
-        exercises[index] = pe.copy(
+        exercises[idx] = pe.copy(
             sessionWeight = newWeight,
             warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight),
         )
-        val updatedOverrides = state.plan.exerciseOverrides + (pe.exercise.id to newE1rm)
+        val updatedOverrides = state.plan.exerciseOverrides + (exerciseId to newE1rm)
         setState(state.copy(plan = state.plan.copy(exercises = exercises, exerciseOverrides = updatedOverrides)))
         weightAdjustJob?.cancel()
         weightAdjustJob = scope.launch {
             planner = repository.buildPlanner(sessionLocationId, weightUnit, state.plan.detrainOverrides + updatedOverrides)
         }
+    }
+
+    fun moveExercise(from: Int, to: Int) {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val exercises = preview.plan.exercises.toMutableList()
+        exercises.add(to, exercises.removeAt(from))
+        setState(preview.copy(plan = preview.plan.copy(exercises = exercises)))
     }
 
     fun completeWarmupSet() {

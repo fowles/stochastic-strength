@@ -98,7 +98,10 @@ class WorkoutSessionControllerTest {
         }
     }
 
-    private suspend inline fun <reified T : WorkoutState> awaitState(timeoutMs: Long = 2000): T {
+    private suspend inline fun <reified T : WorkoutState> awaitState(
+        controller: WorkoutSessionController = this.controller,
+        timeoutMs: Long = 2000
+    ): T {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val s = controller.state.value
@@ -482,6 +485,43 @@ class WorkoutSessionControllerTest {
         assertNull(after.detraining)
         assertTrue(after.plan.detrainOverrides.isEmpty())
         assertEquals(before.map { it.sessionWeight }, after.plan.exercises.map { it.sessionWeight })
+        freshDb.close()
+    }
+
+    @Test
+    fun moveExercise_swapsExerciseOrder() = runBlocking {
+        // Use a fresh DB so setUp's active session doesn't interfere.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        freshDb.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        freshDb.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
+        ))
+        val freshRepo = WorkoutRepository(freshDb)
+        seedDerivedStrength(freshDb, freshRepo)
+        val freshController = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
+        freshController.initializeSession(
+            locationId = null, locationName = null,
+            preferredExerciseCount = 2, preferredRepMin = 5, preferredRepMax = 10,
+            weightUnit = WeightUnit.KG,
+        )
+
+        val before = awaitState<WorkoutState.PlanPreview>(freshController).plan.exercises
+        assertEquals(2, before.size)
+        val firstId = before[0].exercise.id
+        val secondId = before[1].exercise.id
+
+        freshController.moveExercise(0, 1)
+
+        val after = (freshController.state.value as WorkoutState.PlanPreview).plan.exercises
+        assertEquals(secondId, after[0].exercise.id)
+        assertEquals(firstId, after[1].exercise.id)
+
         freshDb.close()
     }
 

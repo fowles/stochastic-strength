@@ -96,6 +96,7 @@ fun WorkoutScreen(
                         onSetExerciseCount = viewModel::setExerciseCount,
                         onSetRepRange = viewModel::setRepRange,
                         onAdjustWeight = viewModel::adjustExerciseWeight,
+                        onMove = viewModel::moveExercise,
                         onEditLocation = { locationId ->
                             onEditLocation(locationId)
                         },
