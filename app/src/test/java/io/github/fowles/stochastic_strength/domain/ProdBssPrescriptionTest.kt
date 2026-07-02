@@ -94,7 +94,7 @@ class ProdBssPrescriptionTest {
 
         val effE1rm = proj.effectiveE1rm.getValue(55L)
         val sessionWeightKg = DefaultProgressionEngine.fromOneRepMax(effE1rm, 10)
-        val prescribedLbs = (WeightFormatter.round(sessionWeightKg, WeightUnit.LBS) * 2.20462f)
+        val prescribedLbs = WeightUnit.LBS.fromKg(WeightFormatter.round(sessionWeightKg, WeightUnit.LBS))
             .toInt()
 
         // Demonstrated 10-rep capacity was 9.07 kg (20 lb) at RIR_0_1; the prescription must not exceed

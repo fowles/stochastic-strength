@@ -29,10 +29,7 @@ class BulgarianBracketCharacterizationTest {
     private val updater = ExerciseEstimateUpdater()
     private val projector = MuscleStrengthProjector()
 
-    private fun lb(x: Float) = x / 2.20462f       // displayed lb -> stored kg
-    private fun showLb(kg: Float) = kg * 2.20462f // stored kg -> displayed lb
-
-    private val baselineKg = lb(230f)
+    private val baselineKg = unit.toKg(230f)
     // Per-user coefficients back-solved so the 10-rep prescriptions match the real on-device starts:
     // Bulgarian Split Squat -> 55 lb, Goblet Squat -> 65 lb (baseline 230 lb, Barbell = 1.0 reference).
     private val seedCoefs = mapOf(barbell to 1.00f, goblet to 0.4319f, bulgarian to 0.3734f)
@@ -40,7 +37,7 @@ class BulgarianBracketCharacterizationTest {
     private fun set(weightLb: Float, reps: Int, fb: SetFeedback, actual: Int?, n: Int) =
         WorkoutSet(
             sessionId = 1, exerciseId = bulgarian, setNumber = n,
-            targetWeight = lb(weightLb), targetReps = reps, actualReps = actual, feedback = fb,
+            targetWeight = unit.toKg(weightLb), targetReps = reps, actualReps = actual, feedback = fb,
         )
 
     /** Seed an estimate for each exercise at baseline * seedCoef with some prior confidence. */
@@ -56,7 +53,7 @@ class BulgarianBracketCharacterizationTest {
     private fun nextLb(estimates: Map<Long, ExerciseEstimate>, id: Long, now: Long): Float {
         val proj = projector.project(estimates, seedCoefs, listOf(id), now = now)
         val e1rm = proj.effectiveE1rm[id] ?: return 0f
-        return showLb(WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(e1rm, 10), unit))
+        return unit.fromKg(WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(e1rm, 10), unit))
     }
 
     private data class Result(
@@ -82,7 +79,7 @@ class BulgarianBracketCharacterizationTest {
         // Goblet and Barbell are not trained this session (their estimates remain unchanged).
 
         return Result(
-            bulgarianEst1RmLb = showLb(bulgAgg.est1RM),
+            bulgarianEst1RmLb = unit.fromKg(bulgAgg.est1RM),
             bracketConfidence = bulgAgg.bracketConfidence,
             nextBulgarianLb = nextLb(estimates, bulgarian, t1),
             nextGobletLb = nextLb(estimates, goblet, t1),
