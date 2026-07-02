@@ -176,21 +176,23 @@ internal fun PlanPreviewContent(
 
         LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
             items(plan.exercises, key = { it.exercise.id }) { planned ->
-                ReorderableItem(reorderState, key = planned.exercise.id, modifier = Modifier.animateItem()) { _ ->
-                    ExercisePreviewRow(
-                        planned = planned,
-                        weightUnit = weightUnit,
-                        dragHandleModifier = Modifier.draggableHandle(),
-                        onReplace = { reason -> onReplace(planned.exercise.id, reason) },
-                        onWeightDecrement = if (planned.sessionWeight > 0f) {
-                            { onAdjustWeight(planned.exercise.id, -2.5f) }
-                        } else null,
-                        onWeightIncrement = if (planned.sessionWeight > 0f) {
-                            { onAdjustWeight(planned.exercise.id, +2.5f) }
-                        } else null,
-                        onTap = { onExerciseTap(planned.exercise.id) },
-                    )
-                    HorizontalDivider()
+                ReorderableItem(reorderState, key = planned.exercise.id, modifier = Modifier.animateItem()) { isDragging ->
+                    Column {
+                        ExercisePreviewRow(
+                            planned = planned,
+                            weightUnit = weightUnit,
+                            dragHandleModifier = Modifier.draggableHandle(),
+                            onReplace = { reason -> onReplace(planned.exercise.id, reason) },
+                            onWeightDecrement = if (planned.sessionWeight > 0f) {
+                                { onAdjustWeight(planned.exercise.id, -2.5f) }
+                            } else null,
+                            onWeightIncrement = if (planned.sessionWeight > 0f) {
+                                { onAdjustWeight(planned.exercise.id, +2.5f) }
+                            } else null,
+                            onTap = { onExerciseTap(planned.exercise.id) },
+                        )
+                        HorizontalDivider()
+                    }
                 }
             }
         }
