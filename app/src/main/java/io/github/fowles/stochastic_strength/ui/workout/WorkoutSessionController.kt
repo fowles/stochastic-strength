@@ -255,7 +255,7 @@ class WorkoutSessionController(
         if (newE1rm <= 0f) return
         exercises[idx] = pe.copy(
             sessionWeight = newWeight,
-            warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight),
+            warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight, pe.exercise),
         )
         val updatedOverrides = state.plan.exerciseOverrides + (exerciseId to newE1rm)
         setState(state.copy(plan = state.plan.copy(exercises = exercises, exerciseOverrides = updatedOverrides)))
@@ -460,7 +460,7 @@ class WorkoutSessionController(
             sessionWeight = w,
             warmupSets = when {
                 pe.exercise.isTimed -> emptyList()
-                current.warmupSetIndex != null -> planner?.computeWarmupSets(w) ?: pe.warmupSets
+                current.warmupSetIndex != null -> planner?.computeWarmupSets(w, pe.exercise) ?: pe.warmupSets
                 else -> pe.warmupSets
             },
         )

@@ -382,9 +382,13 @@ class WorkoutPlannerTest {
     // ──────────────────────────────────────────────────────────────────────
 
     @Test
-    fun computeWarmupSets_belowThreshold_returnsEmpty() {
+    fun `computeWarmupSets KG bar-only warmup when feeler would exceed working weight`() {
+        // 39.9 kg: feeler rounds to 40 kg which exceeds the working weight, so only the
+        // bar (20 kg) is prescribed — no feeler added.
         val p = planner()
-        assertTrue(p.computeWarmupSets(39.9f).isEmpty())
+        val warmups = p.computeWarmupSets(39.9f)
+        assertEquals(listOf(20), warmups.map { it.weight.roundToInt() })
+        assertEquals(listOf(5), warmups.map { it.reps })
     }
 
     @Test
@@ -396,10 +400,12 @@ class WorkoutPlannerTest {
     }
 
     @Test
-    fun `computeWarmupSets 105lb uses half-step plates for light lift`() {
+    fun `computeWarmupSets 105lb P&Q anchor with no feeler needed`() {
+        // 95 lb is the only P&Q anchor and coincides with the 90% feeler, so the sequence
+        // is bar → +20 fill → P&Q anchor with no separate top added.
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(105f))
-        assertEquals(listOf(45, 65, 85, 95), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
+        assertEquals(listOf(45, 65, 95), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 3, 2), warmups.map { it.reps })
     }
 
     @Test
@@ -420,14 +426,14 @@ class WorkoutPlannerTest {
     fun `computeWarmupSets 405lb thins heavy sequence`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(405f))
         assertEquals(listOf(45, 135, 225, 315, 365), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 5, 3, 2), warmups.map { it.reps })
+        assertEquals(listOf(5, 5, 3, 2, 1), warmups.map { it.reps })
     }
 
     @Test
     fun `computeWarmupSets 605lb scales to many stops`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(605f))
         assertEquals(listOf(45, 135, 225, 315, 405, 495, 585), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 5, 5, 5, 3, 2), warmups.map { it.reps })
+        assertEquals(listOf(5, 5, 3, 3, 3, 2, 1), warmups.map { it.reps })
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -441,28 +447,32 @@ class WorkoutPlannerTest {
     fun `computeWarmupSets deadlift 225lb LBS follows plates-and-quarters from 95 with feeler`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise())
         assertEquals(listOf(95, 135, 185, 205), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 3, 2, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
     }
 
     @Test
-    fun `computeWarmupSets deadlift 100lb LBS starts from 65 (10lb plates per side)`() {
+    fun `computeWarmupSets deadlift 100lb LBS bar-fill plus anchor`() {
+        // One P&Q anchor at 95 lb. Bar-fill (65 lb = bar + 10s) prepended because 65 < 95.
+        // 5% gap from 95 to 100 lb is below the 15% feeler threshold, so no feeler.
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(100f), deadliftExercise())
-        assertEquals(listOf(65, 85, 95), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3), warmups.map { it.reps })
+        assertEquals(listOf(65, 95), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 3), warmups.map { it.reps })
     }
 
     @Test
-    fun `computeWarmupSets deadlift 135lb LBS starts from 95 (25lb plates per side)`() {
+    fun `computeWarmupSets deadlift 135lb LBS bar-fill anchor and feeler`() {
+        // One P&Q anchor at 95 lb. Bar-fill (65 lb) prepended. 29.6% gap to 135 lb triggers
+        // feeler at round(0.9×135) = 125 lb.
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(135f), deadliftExercise())
-        assertEquals(listOf(95, 115, 125), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3), warmups.map { it.reps })
+        assertEquals(listOf(65, 95, 125), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 3, 2), warmups.map { it.reps })
     }
 
     @Test
     fun `computeWarmupSets deadlift 100kg KG mode follows plates-and-quarters from 40kg with feeler`() {
         val warmups = planner().computeWarmupSets(100f, deadliftExercise())
         assertEquals(listOf(40, 60, 80, 90), warmups.map { it.weight.roundToInt() })
-        assertEquals(listOf(5, 3, 2, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
     }
 
     @Test
@@ -495,6 +505,15 @@ class WorkoutPlannerTest {
         val bench = exercise(1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), bench)
         assertEquals(45, warmups.first().roundedLbs())
+    }
+
+    @Test
+    fun `computeWarmupSets 120lb LBS anchors on 95lb quarter-plate stop with feeler`() {
+        // 120 lb yields exactly one P&Q intermediate (95 lb). The sequence anchors on it to avoid
+        // 85 lb (two 10-lb plates per side), then adds a 105 lb feeler (90% of working weight).
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(120f))
+        assertEquals(listOf(45, 65, 95, 105), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 5, 3, 2), warmups.map { it.reps })
     }
 
     // ──────────────────────────────────────────────────────────────────────
