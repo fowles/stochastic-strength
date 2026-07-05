@@ -156,10 +156,12 @@ internal fun RestingContent(
 
             when {
                 state.staged != null -> {
-                    val up = state.staged.commitTarget?.let { it.plan.exercises.getOrNull(it.exerciseIndex) }
+                    val commitTarget = state.staged.commitTarget
+                    val up = commitTarget?.let { it.plan.exercises.getOrNull(it.exerciseIndex) }
                     if (up != null) {
                         val isWarmupDone = state.staged.kind == StagedKind.WARMUP_DONE
-                        val warmup = if (isWarmupDone) null else up.warmupSets.firstOrNull()
+                        val warmup = if (isWarmupDone) null
+                                     else commitTarget?.warmupSetIndex?.let { up.warmupSets.getOrNull(it) }
                         NextExerciseCard(
                             title = if (isWarmupDone) "First set"
                                     else if (warmup != null) "Warm up"
