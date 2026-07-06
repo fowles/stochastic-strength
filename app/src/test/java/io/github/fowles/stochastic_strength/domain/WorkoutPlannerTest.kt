@@ -384,11 +384,12 @@ class WorkoutPlannerTest {
     @Test
     fun `computeWarmupSets KG bar-only warmup when feeler would exceed working weight`() {
         // 39.9 kg: feeler rounds to 40 kg which exceeds the working weight, so only the
-        // bar (20 kg) is prescribed — no feeler added.
+        // bar (20 kg) is prescribed — no feeler added. Bar sits just above 50% of the
+        // working weight, so it gets 3 reps.
         val p = planner()
         val warmups = p.computeWarmupSets(39.9f)
         assertEquals(listOf(20), warmups.map { it.weight.roundToInt() })
-        assertEquals(listOf(5), warmups.map { it.reps })
+        assertEquals(listOf(3), warmups.map { it.reps })
     }
 
     @Test
@@ -403,6 +404,14 @@ class WorkoutPlannerTest {
     fun `computeWarmupSets 50lb bar is within 10 percent of working weight so no warmup`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(50f))
         assertTrue(warmups.isEmpty())
+    }
+
+    @Test
+    fun `computeWarmupSets 55lb bar-only warmup is a double not a fatiguing set of five`() {
+        // The bar is 82% of the working weight; proximity-based reps prescribe 2.
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(55f))
+        assertEquals(listOf(45), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(2), warmups.map { it.reps })
     }
 
     @Test
@@ -451,7 +460,7 @@ class WorkoutPlannerTest {
         // 585 lb is 96.7% of 605 lb — dropped; the feeler single lands at 545.
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(605f))
         assertEquals(listOf(45, 135, 225, 315, 405, 495, 545), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3, 3, 3, 2, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 5, 5, 3, 3, 2, 1), warmups.map { it.reps })
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -465,7 +474,7 @@ class WorkoutPlannerTest {
     fun `computeWarmupSets deadlift 225lb LBS follows plates-and-quarters from 95 with feeler`() {
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(225f), deadliftExercise())
         assertEquals(listOf(95, 135, 185, 205), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 3, 2, 1), warmups.map { it.reps })
     }
 
     @Test
@@ -474,7 +483,7 @@ class WorkoutPlannerTest {
         // the feeler single rounds back to 95. Bar-fill 65 lb remains the only real stop.
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(100f), deadliftExercise())
         assertEquals(listOf(65, 95), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 1), warmups.map { it.reps })
+        assertEquals(listOf(3, 1), warmups.map { it.reps })
     }
 
     @Test
@@ -483,7 +492,7 @@ class WorkoutPlannerTest {
         // feeler at round(0.9×135) = 125 lb.
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(135f), deadliftExercise())
         assertEquals(listOf(65, 95, 125), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 3, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 2, 1), warmups.map { it.reps })
     }
 
     @Test
@@ -491,7 +500,7 @@ class WorkoutPlannerTest {
         // 90 kg is exactly 90% of 100 kg — dropped as a stop, re-added as the feeler single.
         val warmups = planner().computeWarmupSets(100f, deadliftExercise())
         assertEquals(listOf(40, 60, 80, 90), warmups.map { it.weight.roundToInt() })
-        assertEquals(listOf(5, 5, 3, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 3, 2, 1), warmups.map { it.reps })
     }
 
     @Test
@@ -532,7 +541,7 @@ class WorkoutPlannerTest {
         // 85 lb (two 10-lb plates per side), then adds a 105 lb feeler single (90% of working weight).
         val warmups = lbsPlanner().computeWarmupSets(lbsToKg(120f))
         assertEquals(listOf(45, 65, 95, 105), warmups.map { it.roundedLbs() })
-        assertEquals(listOf(5, 5, 3, 1), warmups.map { it.reps })
+        assertEquals(listOf(5, 3, 2, 1), warmups.map { it.reps })
     }
 
     // ──────────────────────────────────────────────────────────────────────

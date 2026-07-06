@@ -182,17 +182,17 @@ class WorkoutPlanner(
         val feelerAdded = (weightKg - stops.last()) / weightKg >= 0.15f && feelerKg > stops.last() && feelerKg < weightKg
         if (feelerAdded) stops = stops + feelerKg
 
-        var reps = when (stops.size) {
-            1    -> listOf(5)
-            2    -> listOf(5, 3)
-            3    -> listOf(5, 3, 2)
-            4    -> listOf(5, 5, 3, 2)
-            5    -> listOf(5, 5, 3, 2, 1)
-            else -> listOf(5, 5) + List(stops.size - 4) { 3 } + listOf(2, 1)
+        // Reps scale with proximity to the working weight: light stops groove the
+        // movement, near-work stops just prime without accumulating fatigue.
+        return stops.mapIndexed { i, w ->
+            val reps = when {
+                feelerAdded && i == stops.lastIndex -> 1
+                w < weightKg * 0.5f -> 5
+                w < weightKg * 0.7f -> 3
+                else -> 2
+            }
+            WarmupSet(w, reps)
         }
-        // A feeler is always a single, regardless of where the table puts it.
-        if (feelerAdded) reps = reps.dropLast(1) + 1
-        return stops.mapIndexed { i, w -> WarmupSet(w, reps[i]) }
     }
 
     private fun Exercise.isFloorDeadlift(): Boolean =
