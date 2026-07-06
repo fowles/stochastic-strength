@@ -5,7 +5,6 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.policy.PolicyState
-import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import org.junit.Assert.assertEquals
