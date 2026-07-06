@@ -38,8 +38,6 @@ data class EstimatorConfig(
     val wDown: Float = 3.0f,
     /** Down-signal weight at full bracketConfidence (demonstrated drop-cascade); interpolated from [wDown]. */
     val wDownSnap: Float = 8f,
-    /** HURT multiplies the estimate by this factor. */
-    val hurtFactor: Float = 0.85f,
     /** Sibling-prior strength (kappa) in the read-time shrink: how many confidence units the pool is worth. */
     val priorStrength: Float = 1.0f,
     /**

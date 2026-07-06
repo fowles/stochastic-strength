@@ -53,15 +53,18 @@ class SessionProgressionStepperTest {
     }
 
     @Test
-    fun hurtBacksOffEveryLoadedExerciseInTheMuscle() {
+    fun hurtLeavesEstimatesUntouched() {
         val snap = snapshot()
         val before1 = snap.currentEstimates.getValue(1L).lnE
-        stepper.step(
+        val before2 = snap.currentEstimates.getValue(2L).lnE
+        val result = stepper.step(
             sets = listOf(set(2L, weight = 60f, reps = 5, feedback = SetFeedback.HURT)),
             snapshot = snap,
             asOf = 2_000L,
         )
-        // HURT is muscle-level: exercise 1 is backed off even though only 2 was performed.
-        assertEquals(before1 + ln(0.85f), snap.currentEstimates.getValue(1L).lnE, 1e-4f)
+        // Pain is a policy concern (PrescriptionPolicy.hurtMultiplier); capacity history stays intact.
+        assertEquals(before1, snap.currentEstimates.getValue(1L).lnE, 1e-6f)
+        assertEquals(before2, snap.currentEstimates.getValue(2L).lnE, 1e-6f)
+        assertTrue("hurt-only session emits no projection step", result.steps.isEmpty())
     }
 }

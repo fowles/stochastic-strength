@@ -52,19 +52,13 @@ Confidence decays on a **~21-day half-life** (`halfLifeMs`). `decayedConfidence`
 prior confidence to "now" before every fold and every read, so evidence from months ago
 counts for little and a stale exercise naturally defers to fresher siblings.
 
-## Pain is muscle-wide and multiplicative
+## Pain never touches the estimate
 
-HURT carries no implied-1RM signal, so it bypasses the fold. Instead,
-`applySessionProgression` applies `ExerciseEstimateUpdater.hurt` to **every loaded
-exercise in the hurt muscle**:
-
-```
-lnE ← lnE + ln(hurtFactor)      // hurtFactor = 0.85, i.e. ×0.85
-```
-
-Confidence is decayed-but-retained. Pain is the one place a single set reaches across a
-whole muscle — safety first — and it is independent of load, so even a painful set on an
-unloaded movement backs the muscle off.
+HURT carries no load signal and — since the belief+policy reframe (phase 1) — no longer
+alters any estimate. It is recorded as a muscle-level policy event during replay and applied
+at prescription time as a decaying caution multiplier (×(1 − 0.15) immediately, healing with
+a ~2-week half-life, floored). See `domain/policy/PrescriptionPolicy.kt` and
+`docs/superpowers/specs/2026-07-06-belief-policy-reframe-design.md` §4.
 
 ## Why folding is local
 

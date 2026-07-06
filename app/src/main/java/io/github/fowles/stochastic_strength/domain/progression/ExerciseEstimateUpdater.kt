@@ -40,11 +40,4 @@ class ExerciseEstimateUpdater(private val config: EstimatorConfig = EstimatorCon
         return ExerciseEstimate(lnE = lnE, confidence = confidence, updatedAt = now)
     }
 
-    /** HURT: back the estimate off by [hurtFactor]; confidence decays to [now] but is retained. */
-    fun hurt(prior: ExerciseEstimate, now: Long): ExerciseEstimate =
-        ExerciseEstimate(
-            lnE = prior.lnE + ln(config.hurtFactor),
-            confidence = decayedConfidence(prior, now),
-            updatedAt = now,
-        )
 }

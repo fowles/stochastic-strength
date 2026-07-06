@@ -58,10 +58,4 @@ class ExerciseEstimateUpdaterTest {
         assertTrue("confidence capped", e.confidence <= EstimatorConfig().confidenceCap + 1e-3f)
     }
 
-    @Test
-    fun hurtBacksOffByConfiguredFactor() {
-        val prior = ExerciseEstimate(lnE = ln(100f), confidence = 3f, updatedAt = 0L)
-        val next = updater.hurt(prior, now = 0L)
-        assertEquals(100f * EstimatorConfig().hurtFactor, next.e1rm, 0.5f)
-    }
 }
