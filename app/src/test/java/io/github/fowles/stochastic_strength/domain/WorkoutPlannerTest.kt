@@ -9,6 +9,10 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
+import io.github.fowles.stochastic_strength.domain.policy.PolicyState
+import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -51,22 +55,45 @@ class WorkoutPlannerTest {
         nowMs: Long = System.currentTimeMillis(),
         pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
         coefficientSource: CoefficientSource = ExerciseCoefficients,
-    ) = WorkoutPlanner(
-        availableExercises = exercises,
-        prescribedE1rm = strengthsToPrescribedE1rm(exercises, strengths, coefficientSource),
-        recentHistory = recentHistory,
-        weightUnit = WeightUnit.KG,
-        locationId = null,
-        random = random,
-        nowMs = nowMs,
-        pacingEstimator = pacingEstimator,
-        coefficientSource = coefficientSource,
-    )
+    ): WorkoutPlanner {
+        val builder = PolicyStateBuilder()
+        if (recentHistory.isNotEmpty()) {
+            val snap = ReplaySnapshot(
+                exerciseMuscle = exercises.associate { it.id to it.primaryMuscle },
+                seedCoefficients = exercises.associate { it.id to (coefficientSource.get(it) ?: 0f) },
+                exerciseEquipment = exercises.associate { it.id to it.equipment },
+            )
+            builder.onSession(asOf = nowMs, sets = recentHistory.values.flatten(), snapshot = snap)
+        }
+        val policy = PrescriptionPolicy(
+            pooledE1rm = strengthsToPrescribedE1rm(exercises, strengths, coefficientSource),
+            state = builder.build(),
+            config = EstimatorConfig(),
+            progressionEngine = DefaultProgressionEngine,
+            weightUnit = WeightUnit.KG,
+            nowMs = nowMs,
+        )
+        return WorkoutPlanner(
+            availableExercises = exercises,
+            policy = policy,
+            weightUnit = WeightUnit.KG,
+            locationId = null,
+            random = random,
+            pacingEstimator = pacingEstimator,
+            coefficientSource = coefficientSource,
+        )
+    }
 
     private fun lbsPlanner() = WorkoutPlanner(
         availableExercises = emptyList(),
-        prescribedE1rm = emptyMap(),
-        recentHistory = emptyMap(),
+        policy = PrescriptionPolicy(
+            pooledE1rm = emptyMap(),
+            state = PolicyState.EMPTY,
+            config = EstimatorConfig(),
+            progressionEngine = DefaultProgressionEngine,
+            weightUnit = WeightUnit.LBS,
+            nowMs = 0L,
+        ),
         weightUnit = WeightUnit.LBS,
         locationId = null,
     )

@@ -25,6 +25,7 @@ import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthPro
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
 import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
@@ -68,10 +69,6 @@ class WorkoutRepository(
         val prescribedE1rm = muscleIds.flatMap { (_, ids) ->
             projector.project(estimates, seedCoef, ids, now).effectiveE1rm.entries.map { it.key to it.value }
         }.toMap()
-        val history = if (available.isNotEmpty())
-            db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
-                .groupBy { it.exerciseId }
-        else emptyMap()
         val recentSessions = db.workoutSessionDao().getRecentCompletedSessions(limit = 50)
         val recentSets = if (recentSessions.isNotEmpty())
             db.workoutSetDao().getSetsForSessions(recentSessions.map { it.id })
@@ -80,10 +77,17 @@ class WorkoutRepository(
         val effectiveCoefficients = effectiveCoefficientSource()
         val exercisesById = available.associateBy { it.id }
         val pacingEstimator = ExercisePacingEstimator.build(recentSessions, recentSets, exercisesById)
+        val policy = PrescriptionPolicy(
+            pooledE1rm = prescribedE1rm,
+            state = derivedState.snapshot().policyState(),
+            config = EstimatorConfig(),
+            progressionEngine = progressionEngine,
+            weightUnit = weightUnit,
+            nowMs = now,
+        )
         return WorkoutPlanner(
             availableExercises = available,
-            prescribedE1rm = prescribedE1rm,
-            recentHistory = history,
+            policy = policy,
             weightUnit = weightUnit,
             locationId = locationId,
             coefficientSource = effectiveCoefficients,

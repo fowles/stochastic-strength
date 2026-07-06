@@ -31,15 +31,6 @@ interface WorkoutSetDao {
 
     @Query("""
         SELECT * FROM workout_sets
-        WHERE exerciseId IN (:exerciseIds)
-          AND completedAt IS NOT NULL
-        ORDER BY completedAt DESC
-        LIMIT :limit
-    """)
-    suspend fun getRecentSetsForExercises(exerciseIds: List<Long>, limit: Int): List<WorkoutSet>
-
-    @Query("""
-        SELECT * FROM workout_sets
         WHERE sessionId IN (:sessionIds)
           AND completedAt IS NOT NULL
     """)
