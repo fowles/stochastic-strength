@@ -24,30 +24,24 @@ class ReplayEngine(
         )
     }
 
-    suspend fun run(db: AppDatabase, snapshot: ReplaySnapshot, observer: SessionObserver) {
-        // Init from per-exercise strength overrides (sessionId = null rows).
-        val initials = db.exerciseStrengthOverrideDao().getInitials()
-        for (init in initials) {
+    suspend fun run(db: AppDatabase, snapshot: ReplaySnapshot, observer: SessionObserver) =
+        run(ReplayHistory.loadFromDb(db), snapshot, observer)
+
+    fun run(history: ReplayHistory, snapshot: ReplaySnapshot, observer: SessionObserver) {
+        for (init in history.initialOverrides) {
             snapshot.currentEstimates[init.exerciseId] = ExerciseEstimate.seed(init.e1rm, at = init.asOf)
         }
-
-        val exerciseOverridesBySession = db.exerciseStrengthOverrideDao().getNonInitials()
-            .groupBy { it.sessionId!! }
-
-        val sessions = db.workoutSessionDao().getAll()
-            .filter { it.endTime != null }
+        val ordered = history.sessions.filter { it.endTime != null }
             .sortedWith(compareBy({ it.endTime!! }, { it.id }))
-
-        for (session in sessions) {
-            exerciseOverridesBySession[session.id]?.forEach { o ->
+        for (session in ordered) {
+            history.sessionOverrides[session.id]?.forEach { o ->
                 snapshot.currentEstimates[o.exerciseId] = ExerciseEstimate(
                     lnE = ln(o.e1rm),
                     confidence = 1.0f,
                     updatedAt = o.asOf,
                 )
             }
-
-            val sets = db.workoutSetDao().getSetsForSession(session.id)
+            val sets = history.setsBySession[session.id].orEmpty()
             if (sets.isEmpty()) continue
             val result = stepper.step(sets, snapshot, session.endTime!!)
             observer.onSession(session.id, session.endTime!!, sets, snapshot, result)
