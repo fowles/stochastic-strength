@@ -170,15 +170,19 @@ class WorkoutPlanner(
 
         // Deadlifts cannot use the bare bar — strip it.
         if (exercise != null && exercise.isFloorDeadlift()) stops = stops.drop(1)
+
+        // Multi-rep stops must sit strictly below 90% of the working weight — anything
+        // closer is wasted fatigue. The 90% zone belongs to the feeler single alone.
+        // (Epsilon guards the exact-90% boundary, e.g. bar vs a 50 lb working weight.)
+        stops = stops.filter { it < weightKg * 0.9f - 0.001f }
         if (stops.isEmpty()) return emptyList()
 
         // Add feeler only if the last stop is more than 15% below the working weight.
         val feelerKg = WeightFormatter.roundForWarmup(weightKg * 0.9f, weightUnit)
-        if ((weightKg - stops.last()) / weightKg >= 0.15f && feelerKg > stops.last() && feelerKg < weightKg) {
-            stops = stops + feelerKg
-        }
+        val feelerAdded = (weightKg - stops.last()) / weightKg >= 0.15f && feelerKg > stops.last() && feelerKg < weightKg
+        if (feelerAdded) stops = stops + feelerKg
 
-        val reps = when (stops.size) {
+        var reps = when (stops.size) {
             1    -> listOf(5)
             2    -> listOf(5, 3)
             3    -> listOf(5, 3, 2)
@@ -186,6 +190,8 @@ class WorkoutPlanner(
             5    -> listOf(5, 5, 3, 2, 1)
             else -> listOf(5, 5) + List(stops.size - 4) { 3 } + listOf(2, 1)
         }
+        // A feeler is always a single, regardless of where the table puts it.
+        if (feelerAdded) reps = reps.dropLast(1) + 1
         return stops.mapIndexed { i, w -> WarmupSet(w, reps[i]) }
     }
 
