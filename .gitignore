@@ -20,3 +20,6 @@ keystore.properties
 
 # Superpowers SDD scratch (ledger, briefs, review packages)
 .superpowers/
+
+# Subagent-driven-development scratch (ledger, briefs, review packages).
+.superpowers/
