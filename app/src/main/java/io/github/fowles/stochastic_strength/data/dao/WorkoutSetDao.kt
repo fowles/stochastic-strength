@@ -45,6 +45,9 @@ interface WorkoutSetDao {
     """)
     suspend fun getSetsForSessions(sessionIds: List<Long>): List<WorkoutSet>
 
+    @Query("SELECT * FROM workout_sets WHERE sessionId IN (:sessionIds) ORDER BY id ASC")
+    suspend fun getAllSetsForSessions(sessionIds: List<Long>): List<WorkoutSet>
+
     @Query("SELECT * FROM workout_sets LIMIT 1")
     suspend fun getFirst(): List<WorkoutSet>
 

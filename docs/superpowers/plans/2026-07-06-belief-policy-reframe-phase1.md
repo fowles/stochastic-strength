@@ -30,6 +30,7 @@ Pure refactor, no behavior change. Extracts data loading from `ReplayEngine.run(
 **Files:**
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ReplayHistory.kt`
 - Modify: `app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ReplayEngine.kt`
+- Modify: `app/src/main/java/io/github/fowles/stochastic_strength/data/dao/WorkoutSetDao.kt` (add unfiltered bulk query — the existing `getSetsForSessions` filters `completedAt IS NOT NULL`, which replay must not)
 - Test: `app/src/test/java/io/github/fowles/stochastic_strength/domain/progression/ReplayHistoryTest.kt`
 
 **Interfaces:**
@@ -123,9 +124,10 @@ data class ReplayHistory(
     companion object {
         suspend fun loadFromDb(db: AppDatabase): ReplayHistory {
             val sessions = db.workoutSessionDao().getAll().filter { it.endTime != null }
+            // getAllSetsForSessions, NOT getSetsForSessions: the latter filters completedAt IS NOT NULL,
+            // which would silently drop timestamp-less sets from replay (behavior change).
             val sets = if (sessions.isEmpty()) emptyMap()
-            else db.workoutSetDao().getSetsForSessions(sessions.map { it.id }).groupBy { it.sessionId }
-                .mapValues { (_, s) -> s.sortedWith(compareBy({ it.setNumber }, { it.id })) }
+            else db.workoutSetDao().getAllSetsForSessions(sessions.map { it.id }).groupBy { it.sessionId }
             return ReplayHistory(
                 sessions = sessions,
                 setsBySession = sets,

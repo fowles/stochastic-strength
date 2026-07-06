@@ -19,9 +19,9 @@ data class ReplayHistory(
     companion object {
         suspend fun loadFromDb(db: AppDatabase): ReplayHistory {
             val sessions = db.workoutSessionDao().getAll().filter { it.endTime != null }
+            // Unfiltered query: the completedAt-filtered variant would drop timestamp-less sets from replay.
             val sets = if (sessions.isEmpty()) emptyMap()
-            else db.workoutSetDao().getSetsForSessions(sessions.map { it.id }).groupBy { it.sessionId }
-                .mapValues { (_, s) -> s.sortedWith(compareBy({ it.setNumber }, { it.id })) }
+            else db.workoutSetDao().getAllSetsForSessions(sessions.map { it.id }).groupBy { it.sessionId }
             return ReplayHistory(
                 sessions = sessions,
                 setsBySession = sets,
