@@ -62,7 +62,7 @@ a ~2-week half-life, floored). See `domain/policy/PrescriptionPolicy.kt` and
 
 ## Why folding is local
 
-A fold for exercise *i* touches only *i*'s estimate (pain aside). A failure on the
+A fold for exercise *i* touches only *i*'s estimate. A failure on the
 barbell bench never reaches into the dumbbell fly's stored number. This makes the
 "a failure must not corrupt siblings" guarantee **structural** rather than something the
 math has to be careful about. Sharing strength between an exercise and its siblings is
