@@ -89,6 +89,7 @@ dependencies {
     implementation(libs.security.crypto)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
     implementation(libs.kotlinx.coroutines.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
