@@ -1,9 +1,14 @@
 package io.github.fowles.stochastic_strength.domain
 
+import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
@@ -100,5 +105,40 @@ class ProdBssPrescriptionTest {
         // Demonstrated 10-rep capacity was 9.07 kg (20 lb) at RIR_0_1; the prescription must not exceed
         // it. Pre-fix this was 25 lb.
         assertEquals("BSS @10 reps should be prescribed at the demonstrated 20 lb", 20, prescribedLbs)
+    }
+
+    @Test
+    fun policyPathAlsoPrescribesTheDemonstrated20lb() {
+        val exerciseMuscle = seedCoef.keys.associateWith { MuscleGroup.QUADS }
+        val snapshot = ReplaySnapshot(exerciseMuscle = exerciseMuscle, seedCoefficients = seedCoef)
+        for ((id, e1rm) in initials) snapshot.currentEstimates[id] = ExerciseEstimate.seed(e1rm, at = 0)
+
+        val stepper = SessionProgressionStepper()
+        val builder = PolicyStateBuilder()
+        for (sessionId in listOf(12L, 14L, 15L, 16L, 18L)) {
+            val sessionSets = sets.filter { it.sessionId == sessionId }
+            stepper.step(sessionSets, snapshot, endTimes[sessionId]!!)
+            builder.onSession(endTimes[sessionId]!!, sessionSets, snapshot)
+        }
+
+        val proj = MuscleStrengthProjector().project(
+            estimates = snapshot.currentEstimates,
+            seedCoef = seedCoef,
+            muscleExerciseIds = seedCoef.keys.toList(),
+            now = EXPORTED_AT,
+        )
+        val policy = PrescriptionPolicy(
+            pooledE1rm = proj.effectiveE1rm,
+            state = builder.build(),
+            config = EstimatorConfig(),
+            progressionEngine = DefaultProgressionEngine,
+            weightUnit = WeightUnit.LBS,
+            nowMs = EXPORTED_AT,
+        )
+        val bss = Exercise(id = 55L, name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.DUMBBELL)
+        val weightKg = policy.prescribe(bss, 10)!!
+        // The session-18 clear ceiling (~25.3 kg 1RM) sits ABOVE the demonstrated-capacity target
+        // (~16.9 kg 1RM), so it must not bind: the estimator's 20 lb answer passes through.
+        assertEquals(20, WeightUnit.LBS.fromKg(weightKg).toInt())
     }
 }

@@ -7,6 +7,9 @@ import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonParser
 import io.github.fowles.stochastic_strength.domain.backup.WorkoutBackup
+import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.ReplayHistory
@@ -33,6 +36,7 @@ object BacktestHarness {
         fun newSnapshot(): ReplaySnapshot = ReplaySnapshot(
             exerciseMuscle = backup.exercises.associate { it.id to it.primaryMuscle },
             seedCoefficients = backup.exercises.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) },
+            exerciseEquipment = backup.exercises.associate { it.id to it.equipment },
         )
     }
 
@@ -65,6 +69,36 @@ object BacktestHarness {
                     val w = WeightFormatter.round(
                         DefaultProgressionEngine.fromOneRepMax(e1rm, REFERENCE_REPS), data.weightUnit,
                     )
+                    rows += Row(sessionId, id, w)
+                }
+            }
+        }
+        return rows
+    }
+
+    /** Prescriptions right after each session via the production policy path (post-phase-1 semantics). */
+    fun replayPolicyPrescriptions(data: BacktestData): List<Row> {
+        val snapshot = data.newSnapshot()
+        val projector = MuscleStrengthProjector()
+        val builder = PolicyStateBuilder()
+        val exercisesById = data.backup.exercises.associateBy { it.id }
+        val rows = mutableListOf<Row>()
+        ReplayEngine().run(data.history, snapshot) { sessionId, asOf, sets, snap, _ ->
+            builder.onSession(asOf, sets, snap)
+            val policyState = builder.build()
+            for ((_, ids) in snap.muscleExerciseIds) {
+                val proj = projector.project(snap.currentEstimates, snap.seedCoefficients, ids, asOf)
+                val policy = PrescriptionPolicy(
+                    pooledE1rm = proj.effectiveE1rm,
+                    state = policyState,
+                    config = EstimatorConfig(),
+                    progressionEngine = DefaultProgressionEngine,
+                    weightUnit = data.weightUnit,
+                    nowMs = asOf,
+                )
+                for (id in ids.sorted()) {
+                    val exercise = exercisesById[id] ?: continue
+                    val w = policy.prescribe(exercise, REFERENCE_REPS) ?: continue
                     rows += Row(sessionId, id, w)
                 }
             }
