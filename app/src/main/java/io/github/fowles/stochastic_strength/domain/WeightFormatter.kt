@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 object WeightFormatter {
@@ -28,6 +29,16 @@ object WeightFormatter {
             // Bar is 45 lb; plate-loaded weights always end in 5 (45, 55, 65 ...).
             val nearest = ((lbs - 5f) / 10f).roundToInt() * 10f + 5f
             unit.toKg(nearest)
+        }
+    }
+
+    /** Rounds DOWN to the prescription grid (used when a clear failure ceiling binds). */
+    fun roundDown(kg: Float, unit: WeightUnit): Float {
+        return if (unit == WeightUnit.KG) {
+            floor(kg / 2.5f + 1e-4f) * 2.5f
+        } else {
+            val lbs = unit.fromKg(kg)
+            unit.toKg(floor(lbs / 5f + 1e-4f) * 5f)
         }
     }
 

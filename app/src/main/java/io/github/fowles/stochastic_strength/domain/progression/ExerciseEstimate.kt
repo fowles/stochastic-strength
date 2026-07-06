@@ -49,4 +49,20 @@ data class EstimatorConfig(
      * ExerciseEstimatorSimulationTest.
      */
     val levelPrior: Float = 0.5f,
+    /** Overload push δ (log-space). Neutral in phase 1; activated and tuned in phase 2. */
+    val overloadDelta: Float = 0f,
+    /** Uncertainty shading z. Neutral in phase 1; needs pooled sigma (phase 2+). */
+    val uncertaintyZ: Float = 0f,
+    /** A CLEAR failure binds the ceiling at this fraction of the failed 1RM, with round-down. */
+    val ceilingFactorClear: Float = 0.97f,
+    /** Failure ceilings expire after this long (superseded earlier by any newer session). */
+    val ceilingExpiryMs: Long = 28L * 24 * 60 * 60 * 1000,
+    /** Immediate prescription reduction per HURT event (x(1 - depth) right after). */
+    val hurtDepth: Float = 0.15f,
+    /** HURT caution half-life. */
+    val hurtHalfLifeMs: Long = 14L * 24 * 60 * 60 * 1000,
+    /** Floor on the combined HURT multiplier. */
+    val hurtFloor: Float = 0.6f,
+    /** Sore-muscle planner cooldown window (was WorkoutPlanner.TWO_DAYS_MS). */
+    val restCooldownMs: Long = 2L * 24 * 60 * 60 * 1000,
 )
