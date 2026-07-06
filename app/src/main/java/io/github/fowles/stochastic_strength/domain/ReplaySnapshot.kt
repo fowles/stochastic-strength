@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
 
@@ -12,6 +13,7 @@ import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
 class ReplaySnapshot(
     val exerciseMuscle: Map<Long, MuscleGroup>,
     val seedCoefficients: Map<Long, Float>,
+    val exerciseEquipment: Map<Long, Equipment> = emptyMap(),
 ) {
     /** Per-exercise strength estimates, updated as each session is folded in. */
     val currentEstimates: MutableMap<Long, ExerciseEstimate> = mutableMapOf()
@@ -37,7 +39,11 @@ class ReplaySnapshot(
             val seedCoefficients = activeExercises.associate { ex ->
                 ex.id to (ExerciseCoefficients.get(ex) ?: 0f)
             }
-            return ReplaySnapshot(exerciseMuscle = exerciseMuscle, seedCoefficients = seedCoefficients)
+            return ReplaySnapshot(
+                exerciseMuscle = exerciseMuscle,
+                seedCoefficients = seedCoefficients,
+                exerciseEquipment = allExercises.associate { it.id to it.equipment },
+            )
         }
     }
 }

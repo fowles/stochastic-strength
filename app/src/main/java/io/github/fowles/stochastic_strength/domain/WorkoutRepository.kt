@@ -24,6 +24,7 @@ import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
@@ -197,8 +198,10 @@ class WorkoutRepository(
         derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
             val config = EstimatorConfig()
+            val policyBuilder = PolicyStateBuilder()
 
-            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, result ->
+            replayEngine.run(db, snapshot) { sessionId, asOf, sets, snap, result ->
+                policyBuilder.onSession(asOf, sets, snap)
                 for (stepResult in result.steps) {
                     writeLevelUpdate(stepResult.muscle, stepResult.projection.level, sessionId, asOf, scratch)
                     val exerciseIds = snapshot.muscleExerciseIds[stepResult.muscle] ?: continue
@@ -211,6 +214,7 @@ class WorkoutRepository(
                     )
                 }
             }
+            scratch.putPolicyState(policyBuilder.build())
 
             // Store the final estimate map for the live planner (Task 8 reads it).
             scratch.putExerciseEstimates(snapshot.currentEstimates.toMap())
