@@ -812,7 +812,9 @@ class MuscleStrengthProjectorTest {
         // anchor mean, so the LEVEL equals its aged opinion — but the SHRINK no longer moves it up).
         val seed = mapOf(1L to 1.0f)
         val stale = ExerciseBelief(ln(150f), 0.29f * 0.29f, updatedAt = 0L)
-        val proj = projector.project(mapOf(1L to stale), seed, listOf(1L), now = days(600))
+        // AMENDED during execution (2026-07-07): the original plan text omitted muscleLastObs here
+        // while the expected value below applies drift — the call must pass the muscle clock.
+        val proj = projector.project(mapOf(1L to stale), seed, listOf(1L), now = days(600), muscleLastObs = 0L)
         // With zero vote and zero sibling excess, effective == own aged mean (drift applies via age).
         val agedMu = BeliefUpdater(config).age(stale, days(600), muscleLastObs = 0L).mu
         assertEquals(exp(agedMu), proj.effectiveE1rm[1L]!!, exp(agedMu) * 0.01f)
