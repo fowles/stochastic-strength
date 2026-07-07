@@ -3,7 +3,6 @@ package io.github.fowles.stochastic_strength.domain.progression
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
-import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
 import kotlin.math.exp
 
 data class ProgressionPoint(val timestampMs: Long, val value: Float)
@@ -50,9 +49,9 @@ internal data class SessionSample(
 )
 
 /**
- * Computes one session's samples for [targetId], given the post-step [snapshot] (estimates already
+ * Computes one session's samples for [targetId], given the post-step [snapshot] (beliefs already
  * folded for [asOf]) and the session's [sets]. Lines are sampled only when the target's muscle was
- * touched; dots come straight from the session's observed aggregates.
+ * touched; dots come from the session's implied broad-prior aggregate.
  */
 internal fun sampleSession(
     targetId: Long,
@@ -64,16 +63,16 @@ internal fun sampleSession(
 ): SessionSample {
     val targetSeed = snapshot.seedCoefficients[targetId] ?: 0f
 
-    // Lines: own estimate, leave-one-out siblings prediction, engine merged effectiveE1rm.
-    val ownEstimate = snapshot.currentEstimates[targetId]?.let {
-        listOf(ProgressionPoint(asOf, exp(it.lnE)))
+    // Lines: own estimate (stored post-fold mean), leave-one-out siblings prediction, engine merged effectiveE1rm.
+    val ownEstimate = snapshot.currentBeliefs[targetId]?.let {
+        listOf(ProgressionPoint(asOf, exp(it.mu)))
     } ?: emptyList()
 
-    val fullProjection = projector.project(snapshot.currentEstimates, snapshot.seedCoefficients, muscleIds, asOf)
+    val fullProjection = projector.project(snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds, asOf)
     val merged = fullProjection.effectiveE1rm[targetId]?.let { listOf(ProgressionPoint(asOf, it)) } ?: emptyList()
 
     val leaveOneOut = projector.project(
-        snapshot.currentEstimates, snapshot.seedCoefficients, muscleIds.filter { it != targetId }, asOf,
+        snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds.filter { it != targetId }, asOf,
     )
     val siblingsEstimate = if (targetSeed > 0f && leaveOneOut.level > 0f) {
         listOf(ProgressionPoint(asOf, leaveOneOut.level * targetSeed))
@@ -81,10 +80,10 @@ internal fun sampleSession(
         emptyList()
     }
 
-    // Dots: own + sibling observed aggregates, siblings rescaled into target space.
+    // Dots: own + sibling broad-prior implied aggregates, siblings rescaled into target space.
     val byExercise = sets.groupBy { it.exerciseId }
     val ownObservations = byExercise[targetId]?.let { exSets ->
-        SessionSignalExtractor.aggregateSession(exSets)?.let { listOf(ProgressionPoint(asOf, it.est1RM)) }
+        impliedSessionE1rm(exSets)?.let { listOf(ProgressionPoint(asOf, it)) }
     }.orEmpty()
 
     val muscleIdSet = muscleIds.toHashSet()
@@ -94,8 +93,8 @@ internal fun sampleSession(
         if (id !in muscleIdSet) return@mapNotNull null
         val sibSeed = snapshot.seedCoefficients[id] ?: return@mapNotNull null
         if (sibSeed <= 0f || targetSeed <= 0f) return@mapNotNull null
-        val agg = SessionSignalExtractor.aggregateSession(exSets) ?: return@mapNotNull null
-        ProgressionPoint(asOf, agg.est1RM * (targetSeed / sibSeed))
+        val implied = impliedSessionE1rm(exSets) ?: return@mapNotNull null
+        ProgressionPoint(asOf, implied * (targetSeed / sibSeed))
     }
 
     return SessionSample(ownEstimate, siblingsEstimate, merged, ownObservations, siblingObservations)
@@ -117,7 +116,7 @@ internal fun buildFrame(
 ): ProgressionFrame {
     val sample = sampleSession(targetId, muscleIds, snapshot, sets, asOf, projector)
     val crossTuning = computeCrossTuning(
-        estimates = snapshot.currentEstimates,
+        beliefs = snapshot.currentBeliefs,
         seedCoef = snapshot.seedCoefficients,
         namesById = namesById,
         muscleExerciseIds = muscleIds,

@@ -3,16 +3,17 @@ package io.github.fowles.stochastic_strength.domain.progression
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
-import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
 
 /**
- * Pure per-session core of progression: per-exercise fold → projection of each affected muscle.
- * Mutates [ReplaySnapshot.currentEstimates] in place; persistence of the projections is the
- * caller's concern. HURT never touches estimates (pain is handled by PrescriptionPolicy at read time).
+ * Pure per-session core: sequential per-set belief folds (spec §2) → projection of each affected
+ * muscle. Mutates [ReplaySnapshot.currentBeliefs] and [ReplaySnapshot.muscleLastObs] in place.
+ * HURT never touches beliefs (policy-only). Drift during the folds is keyed on the muscle clock
+ * BEFORE this session; the clock advances after all of the session's folds.
  */
 class SessionProgressionStepper(
-    private val updater: ExerciseEstimateUpdater = ExerciseEstimateUpdater(),
+    private val updater: BeliefUpdater = BeliefUpdater(),
     private val projector: MuscleStrengthProjector = MuscleStrengthProjector(),
+    private val config: EstimatorConfig = EstimatorConfig(),
 ) {
     data class MuscleStep(val muscle: MuscleGroup, val projection: MuscleProjection)
     data class StepResult(val steps: List<MuscleStep>)
@@ -20,25 +21,40 @@ class SessionProgressionStepper(
     fun step(sets: List<WorkoutSet>, snapshot: ReplaySnapshot, asOf: Long): StepResult {
         if (sets.isEmpty()) return StepResult(emptyList())
 
-        // Per-exercise fold from the session aggregate.
         val affectedMuscles = mutableSetOf<MuscleGroup>()
         sets.groupBy { it.exerciseId }.forEach { (id, exSets) ->
             if ((snapshot.seedCoefficients[id] ?: 0f) <= 0f) return@forEach
-            val agg = SessionSignalExtractor.aggregateSession(exSets) ?: return@forEach
-            val prior = snapshot.currentEstimates[id] ?: return@forEach
-            snapshot.currentEstimates[id] = updater.fold(prior, agg.est1RM, agg.bracketConfidence, asOf)
-            snapshot.exerciseMuscle[id]?.let { affectedMuscles.add(it) }
+            var belief = snapshot.currentBeliefs[id] ?: return@forEach
+            val muscleLast = snapshot.exerciseMuscle[id]?.let { snapshot.muscleLastObs[it] }
+            var folded = false
+            exSets.sortedBy { it.setNumber }.forEachIndexed { i, set ->
+                val obs = SetObservation.from(set, fatigueRank = i + 1, config = config) ?: return@forEachIndexed
+                belief = if (obs.gaussianLn != null) {
+                    updater.foldGaussian(belief, obs.gaussianLn, obs.noiseSd, asOf, muscleLast)
+                } else {
+                    updater.foldCensored(belief, obs.lowerLn, obs.upperLn, obs.noiseSd, asOf, muscleLast)
+                }
+                folded = true
+            }
+            if (folded) {
+                snapshot.currentBeliefs[id] = belief
+                snapshot.exerciseMuscle[id]?.let { affectedMuscles.add(it) }
+            }
         }
+        for (m in affectedMuscles) snapshot.muscleLastObs[m] = asOf
 
         val steps = affectedMuscles.mapNotNull { m ->
             val exerciseIds = snapshot.muscleExerciseIds[m] ?: return@mapNotNull null
-            val projection = projector.project(
-                estimates = snapshot.currentEstimates,
-                seedCoef = snapshot.seedCoefficients,
-                muscleExerciseIds = exerciseIds,
-                now = asOf,
+            MuscleStep(
+                muscle = m,
+                projection = projector.project(
+                    beliefs = snapshot.currentBeliefs,
+                    seedCoef = snapshot.seedCoefficients,
+                    muscleExerciseIds = exerciseIds,
+                    now = asOf,
+                    muscleLastObs = snapshot.muscleLastObs[m],
+                ),
             )
-            MuscleStep(muscle = m, projection = projection)
         }
         return StepResult(steps)
     }

@@ -6,7 +6,7 @@ import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
+import io.github.fowles.stochastic_strength.domain.progression.impliedSessionE1rm
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -105,14 +105,13 @@ class ExerciseDetailViewModelTest {
     )
 
     @Test
-    fun `observed dot equals the engine's session aggregate, not a raw mean`() {
-        // Two top-weight sets with different feedback: a naive toOneRepMax mean would weight them
-        // equally, but the engine aggregate is a recency EMA over the feedback-implied reps.
+    fun `observed dot uses the broad-prior implied session e1rm`() {
+        // The broad-prior implied e1rm should give a non-zero result for a valid set.
         val sets = listOf(
             workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
             workSet(session = 1, setNumber = 2, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1),
         )
-        val expected = SessionSignalExtractor.aggregateSession(sets)!!.est1RM
+        val expected = impliedSessionE1rm(sets)!!
         val points = observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 1f, sets = sets)))
         assertEquals(1, points.size)
         assertEquals(7 * dayMs, points[0].dateMs)
@@ -126,9 +125,9 @@ class ExerciseDetailViewModelTest {
     }
 
     @Test
-    fun `observed dot scales the aggregate into the target exercise's space`() {
+    fun `observed dot scales the implied e1rm into the target exercise's space`() {
         val sets = listOf(workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
-        val expected = SessionSignalExtractor.aggregateSession(sets)!!.est1RM
+        val expected = impliedSessionE1rm(sets)!!
         val points = observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 0.5f, sets = sets)))
         assertEquals(expected * 0.5f, points[0].weightKg, 0.0001f)
     }
@@ -139,7 +138,7 @@ class ExerciseDetailViewModelTest {
         // two dots, so this view must too (the old per-day mean collapsed them into one).
         val s1 = listOf(workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
         val s2 = listOf(workSet(session = 2, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
-        val agg = SessionSignalExtractor.aggregateSession(s1)!!.est1RM
+        val implied = impliedSessionE1rm(s1)!!
         val points = observedSessionPoints(
             listOf(
                 ObservedSession(day = 7L, scale = 0.77f, sets = s1),
@@ -150,8 +149,8 @@ class ExerciseDetailViewModelTest {
         assertEquals(7 * dayMs, points[0].dateMs)
         assertEquals(7 * dayMs, points[1].dateMs)
         val values = points.map { it.weightKg }.sorted()
-        assertEquals(agg * 0.77f, values[0], 0.0001f)
-        assertEquals(agg * 3.33f, values[1], 0.0001f)
+        assertEquals(implied * 0.77f, values[0], 0.0001f)
+        assertEquals(implied * 3.33f, values[1], 0.0001f)
     }
 
     @Test

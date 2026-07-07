@@ -7,64 +7,82 @@ import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.ln
 
 class SessionProgressionStepperTest {
-
+    private val config = EstimatorConfig()
     private val stepper = SessionProgressionStepper()
-
-    private fun snapshot(): ReplaySnapshot {
-        // Two exercises in CHEST, both loaded (seed > 0).
-        val snap = ReplaySnapshot(
-            exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
-            seedCoefficients = mapOf(1L to 1.0f, 2L to 0.6f),
-        )
-        snap.currentEstimates[1L] = ExerciseEstimate(lnE = ln(100f), confidence = 6f, updatedAt = 0L)
-        snap.currentEstimates[2L] = ExerciseEstimate(lnE = ln(60f), confidence = 6f, updatedAt = 0L)
-        return snap
+    private fun snapshot() = ReplaySnapshot(
+        exerciseMuscle = mapOf(1L to MuscleGroup.QUADS, 2L to MuscleGroup.QUADS, 3L to MuscleGroup.CHEST),
+        seedCoefficients = mapOf(1L to 1.0f, 2L to 0.8f, 3L to 1.0f),
+    ).apply {
+        currentBeliefs[1L] = ExerciseBelief.seed(100f, 0L, config)
+        currentBeliefs[2L] = ExerciseBelief.seed(80f, 0L, config)
+        currentBeliefs[3L] = ExerciseBelief.seed(60f, 0L, config)
     }
-
-    private fun set(exerciseId: Long, weight: Float, reps: Int, feedback: SetFeedback) = WorkoutSet(
-        sessionId = 10L,
-        exerciseId = exerciseId,
-        setNumber = 1,
-        targetWeight = weight,
-        targetReps = reps,
-        actualReps = reps,
-        feedback = feedback,
-    )
+    private fun set(ex: Long, n: Int, fb: SetFeedback?, w: Float = 70f, reps: Int = 10, actual: Int? = null) =
+        WorkoutSet(sessionId = 1, exerciseId = ex, setNumber = n, targetWeight = w, targetReps = reps, actualReps = actual, feedback = fb)
 
     @Test
-    fun foldMovesOnlyTheWorkedExerciseAndReturnsItsMuscle() {
+    fun setsFoldSequentiallyAndTightenTheBelief() {
         val snap = snapshot()
-        val before2 = snap.currentEstimates.getValue(2L).lnE
-        val result = stepper.step(
-            sets = listOf(set(1L, weight = 105f, reps = 5, feedback = SetFeedback.RIR_2_4)),
-            snapshot = snap,
-            asOf = 1_000L,
-        )
-        // Exercise 1 moved; exercise 2 untouched (local fold).
-        assertTrue(snap.currentEstimates.getValue(1L).updatedAt == 1_000L)
-        assertEquals(before2, snap.currentEstimates.getValue(2L).lnE, 1e-6f)
-        // The worked exercise's muscle is reported with a projection.
-        assertEquals(1, result.steps.size)
-        assertEquals(MuscleGroup.CHEST, result.steps.first().muscle)
-        assertTrue(result.steps.first().projection.level > 0f)
+        val before = snap.currentBeliefs.getValue(1L)
+        stepper.step(listOf(set(1L, 1, SetFeedback.RIR_0_1), set(1L, 2, SetFeedback.RIR_0_1), set(1L, 3, SetFeedback.RIR_0_1)), snap, asOf = 1000L)
+        val after = snap.currentBeliefs.getValue(1L)
+        assertTrue("3 in-target sets must tighten sigma", after.sigma2 < before.sigma2)
+        assertEquals(1000L, after.updatedAt)
     }
 
     @Test
-    fun hurtLeavesEstimatesUntouched() {
+    fun failureLowersTheBeliefMean() {
+        // 5 reps at 70 kg implies rawToOneRepMax(70, 5.5) ≈ 85.5 kg < seed (100 kg) → pulls mu down.
         val snap = snapshot()
-        val before1 = snap.currentEstimates.getValue(1L).lnE
-        val before2 = snap.currentEstimates.getValue(2L).lnE
-        val result = stepper.step(
-            sets = listOf(set(2L, weight = 60f, reps = 5, feedback = SetFeedback.HURT)),
-            snapshot = snap,
-            asOf = 2_000L,
+        val before = snap.currentBeliefs.getValue(1L).mu
+        stepper.step(listOf(set(1L, 1, SetFeedback.TOO_HARD, w = 70f, actual = 5)), snap, 1000L)
+        assertTrue(snap.currentBeliefs.getValue(1L).mu < before)
+    }
+
+    @Test
+    fun hurtOnlySessionsFoldNothingAndDoNotTouchTheMuscleClock() {
+        val snap = snapshot()
+        val before = snap.currentBeliefs.getValue(1L)
+        val result = stepper.step(listOf(set(1L, 1, SetFeedback.HURT)), snap, 1000L)
+        assertEquals(before, snap.currentBeliefs.getValue(1L))
+        assertTrue(result.steps.isEmpty())
+        assertTrue(snap.muscleLastObs.isEmpty())
+    }
+
+    @Test
+    fun zeroCoefficientExercisesAreSkipped() {
+        val snap = snapshot()
+        snap.currentBeliefs[9L] = ExerciseBelief.seed(50f, 0L, config)
+        val result = stepper.step(listOf(set(9L, 1, SetFeedback.RIR_0_1)), snap, 1000L)
+        assertTrue(result.steps.isEmpty())
+    }
+
+    @Test
+    fun muscleClockAdvancesOnlyForFoldedMuscles() {
+        val snap = snapshot()
+        stepper.step(listOf(set(1L, 1, SetFeedback.RIR_2_4), set(3L, 1, SetFeedback.HURT)), snap, 1000L)
+        assertEquals(1000L, snap.muscleLastObs[MuscleGroup.QUADS])
+        assertTrue(MuscleGroup.CHEST !in snap.muscleLastObs)
+    }
+
+    @Test
+    fun laterSetsCountAsMoreFatigued() {
+        // The same failed set folded at rank 3 implies MORE fresh capacity than at rank 1.
+        val s1 = snapshot(); val s3 = snapshot()
+        stepper.step(listOf(set(1L, 1, SetFeedback.TOO_HARD, w = 90f, actual = 5)), s1, 1000L)
+        stepper.step(
+            listOf(set(1L, 1, null, w = 90f), set(1L, 2, null, w = 90f), set(1L, 3, SetFeedback.TOO_HARD, w = 90f, actual = 5)),
+            s3, 1000L,
         )
-        // Pain is a policy concern (PrescriptionPolicy.hurtMultiplier); capacity history stays intact.
-        assertEquals(before1, snap.currentEstimates.getValue(1L).lnE, 1e-6f)
-        assertEquals(before2, snap.currentEstimates.getValue(2L).lnE, 1e-6f)
-        assertTrue("hurt-only session emits no projection step", result.steps.isEmpty())
+        assertTrue(s3.currentBeliefs.getValue(1L).mu > s1.currentBeliefs.getValue(1L).mu)
+    }
+
+    @Test
+    fun projectionStepsAreEmittedPerAffectedMuscle() {
+        val snap = snapshot()
+        val result = stepper.step(listOf(set(1L, 1, SetFeedback.RIR_0_1), set(3L, 1, SetFeedback.RIR_0_1, w = 40f)), snap, 1000L)
+        assertEquals(setOf(MuscleGroup.QUADS, MuscleGroup.CHEST), result.steps.map { it.muscle }.toSet())
     }
 }

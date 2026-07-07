@@ -12,6 +12,8 @@ import kotlin.math.ln
 
 class ReplayHistoryTest {
 
+    private val config = EstimatorConfig()
+
     private fun set(sessionId: Long, exerciseId: Long) = WorkoutSet(
         sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
         targetWeight = 100f, targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_2_4,
@@ -44,8 +46,9 @@ class ReplayHistoryTest {
 
         // Sessions with sets ran in endTime order; the empty session 3 was skipped by the observer.
         assertEquals(listOf(1L, 2L), observed)
-        // But session 3's override was still applied to the estimate map.
-        assertEquals(ln(75f), snapshot.currentEstimates.getValue(1L).lnE, 1e-4f)
-        assertEquals(1.0f, snapshot.currentEstimates.getValue(1L).confidence, 1e-4f)
+        // But session 3's override was still applied to the belief map.
+        val belief = snapshot.currentBeliefs.getValue(1L)
+        assertEquals(ln(75f), belief.mu, 1e-4f)
+        assertEquals(config.sigmaOverride * config.sigmaOverride, belief.sigma2, 1e-4f)
     }
 }

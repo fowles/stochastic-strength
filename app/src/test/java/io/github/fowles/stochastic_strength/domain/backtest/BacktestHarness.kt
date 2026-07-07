@@ -59,27 +59,7 @@ object BacktestHarness {
         return BacktestData(backup, unit, history)
     }
 
-    /** Prescriptions right after each session via the raw projector path (pre-policy semantics). */
-    fun replayProjectorPrescriptions(data: BacktestData): List<Row> {
-        val snapshot = data.newSnapshot()
-        val projector = MuscleStrengthProjector()
-        val rows = mutableListOf<Row>()
-        ReplayEngine().run(data.history, snapshot) { sessionId, asOf, _, snap, _ ->
-            for ((_, ids) in snap.muscleExerciseIds) {
-                val proj = projector.project(snap.currentEstimates, snap.seedCoefficients, ids, asOf)
-                for (id in ids.sorted()) {
-                    val e1rm = proj.effectiveE1rm[id] ?: continue
-                    val w = WeightFormatter.round(
-                        DefaultProgressionEngine.fromOneRepMax(e1rm, REFERENCE_REPS), data.weightUnit,
-                    )
-                    rows += Row(sessionId, id, w)
-                }
-            }
-        }
-        return rows
-    }
-
-    /** Prescriptions right after each session via the production policy path (post-phase-1 semantics). */
+    /** Prescriptions right after each session via the production policy path (belief-based semantics). */
     fun replayPolicyPrescriptions(data: BacktestData): List<Row> {
         val snapshot = data.newSnapshot()
         val projector = MuscleStrengthProjector()
@@ -88,9 +68,9 @@ object BacktestHarness {
         val rows = mutableListOf<Row>()
         ReplayEngine().run(data.history, snapshot) { sessionId, asOf, sets, snap, _ ->
             builder.onSession(asOf, sets, snap)
-            val policyState = builder.build()
-            for ((_, ids) in snap.muscleExerciseIds) {
-                val proj = projector.project(snap.currentEstimates, snap.seedCoefficients, ids, asOf)
+            val policyState = builder.build(snap.muscleLastObs.toMap())
+            for ((muscle, ids) in snap.muscleExerciseIds) {
+                val proj = projector.project(snap.currentBeliefs, snap.seedCoefficients, ids, asOf, policyState.muscleLastObs[muscle])
                 val policy = PrescriptionPolicy(
                     pooledE1rm = proj.effectiveE1rm,
                     state = policyState,

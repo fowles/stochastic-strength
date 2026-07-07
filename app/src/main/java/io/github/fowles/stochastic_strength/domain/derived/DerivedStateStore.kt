@@ -5,7 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.domain.policy.PolicyState
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseBelief
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -44,10 +44,10 @@ class DerivedStateStore {
         private val muscleStrengths: Map<MuscleGroup, MuscleGroupStrength>,
         private val baselineHistory: List<BaselineHistory>,
         private val coefficientHistory: List<CoefficientHistory>,
-        private val exerciseEstimates: Map<Long, ExerciseEstimate>,
+        private val exerciseBeliefs: Map<Long, ExerciseBelief>,
         private val policyState: PolicyState,
     ) {
-        fun exerciseEstimates(): Map<Long, ExerciseEstimate> = exerciseEstimates
+        fun exerciseBeliefs(): Map<Long, ExerciseBelief> = exerciseBeliefs
         fun policyState(): PolicyState = policyState
         fun muscleGroupStrength(muscle: MuscleGroup): MuscleGroupStrength? = muscleStrengths[muscle]
 
@@ -83,11 +83,11 @@ class MutableDerivedState internal constructor() {
     private val coefficientHistory = mutableListOf<CoefficientHistory>()
     private var nextBaselineId: Long = 1
     private var nextCoefficientId: Long = 1
-    private var exerciseEstimates: Map<Long, ExerciseEstimate> = emptyMap()
+    private var exerciseBeliefs: Map<Long, ExerciseBelief> = emptyMap()
     private var policyState: PolicyState = PolicyState.EMPTY
 
-    fun putExerciseEstimates(map: Map<Long, ExerciseEstimate>) {
-        exerciseEstimates = map
+    fun putExerciseBeliefs(map: Map<Long, ExerciseBelief>) {
+        exerciseBeliefs = map
     }
 
     fun putPolicyState(state: PolicyState) {
@@ -129,7 +129,7 @@ class MutableDerivedState internal constructor() {
         muscleStrengths = muscleStrengths.toMap(),
         baselineHistory = baselineHistory.toList(),
         coefficientHistory = coefficientHistory.toList(),
-        exerciseEstimates = exerciseEstimates,
+        exerciseBeliefs = exerciseBeliefs,
         policyState = policyState,
     )
 }

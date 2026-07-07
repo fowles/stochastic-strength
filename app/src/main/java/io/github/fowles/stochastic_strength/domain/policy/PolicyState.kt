@@ -32,6 +32,7 @@ data class PolicyState(
     val ceilings: Map<Long, FailureCeiling>,
     val hurtEvents: List<HurtEvent>,
     val muscleStress: Map<MuscleGroup, MuscleStress>,
+    val muscleLastObs: Map<MuscleGroup, Long> = emptyMap(),
 ) {
     companion object {
         val EMPTY = PolicyState(emptyMap(), emptyList(), emptyMap())
@@ -90,13 +91,13 @@ class PolicyStateBuilder {
         rir01.values.forEach { m -> m.values.forEach { it.removeAll { t -> t < cutoff } } }
     }
 
-    fun build(): PolicyState {
+    fun build(muscleLastObs: Map<MuscleGroup, Long> = emptyMap()): PolicyState {
         val stress = (tooHard.keys + rir01.keys).associateWith { m ->
             MuscleStress(
                 tooHardTimes = tooHard[m].orEmpty().toList(),
                 rir01TimesByExercise = rir01[m].orEmpty().mapValues { it.value.toList() },
             )
         }
-        return PolicyState(ceilings.toMap(), hurtEvents.toList(), stress)
+        return PolicyState(ceilings.toMap(), hurtEvents.toList(), stress, muscleLastObs)
     }
 }

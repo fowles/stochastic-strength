@@ -17,7 +17,8 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseBelief
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -89,11 +90,12 @@ class WorkoutSessionControllerTest {
     private suspend fun seedDerivedStrength(database: AppDatabase, repo: WorkoutRepository) {
         val active = database.exerciseDao().getActive()
         val now = System.currentTimeMillis()
+        val config = EstimatorConfig()
         repo.derivedState.rebuild { mut ->
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-            mut.putExerciseEstimates(
-                active.associate { it.id to ExerciseEstimate(lnE = kotlin.math.ln(100f), confidence = 4f, updatedAt = now) }
+            mut.putExerciseBeliefs(
+                active.associate { it.id to ExerciseBelief.seed(100f, at = now, config = config) }
             )
         }
     }

@@ -56,14 +56,14 @@ class ReplayDerivedStateTest {
         val baselines1 = snap1.allBaselineHistory().map { it.toComparable() }
         val coefs1 = snap1.allCoefficientHistory().map { it.toComparable() }
         val strengths1 = snap1.allMuscleGroupStrengths().map { it.muscleGroup to it.baselineWeight }
-        val estimates1 = snap1.exerciseEstimates().mapValues { it.value.e1rm }
+        val estimates1 = snap1.exerciseBeliefs().mapValues { it.value.e1rm }
 
         repository.replayDerivedState()
         val snap2 = repository.derivedState.snapshot()
         val baselines2 = snap2.allBaselineHistory().map { it.toComparable() }
         val coefs2 = snap2.allCoefficientHistory().map { it.toComparable() }
         val strengths2 = snap2.allMuscleGroupStrengths().map { it.muscleGroup to it.baselineWeight }
-        val estimates2 = snap2.exerciseEstimates().mapValues { it.value.e1rm }
+        val estimates2 = snap2.exerciseBeliefs().mapValues { it.value.e1rm }
 
         assertEquals(baselines1, baselines2)
         assertEquals(coefs1, coefs2)
@@ -95,7 +95,7 @@ class ReplayDerivedStateTest {
         // The override re-based the estimate to ~999 at session 2; the session's RIR_2_4 set at
         // 82.5 kg is far below that, so it folds the estimate DOWN from 999 but the result stays
         // dramatically above the no-override trajectory (which sits near 100–110 kg).
-        val benchEstimate = repository.derivedState.snapshot().exerciseEstimates()[BENCH_EXERCISE_ID]!!.e1rm
+        val benchEstimate = repository.derivedState.snapshot().exerciseBeliefs()[BENCH_EXERCISE_ID]!!.e1rm
         assertTrue(
             "override at session boundary must dominate the estimate; got $benchEstimate",
             benchEstimate > 150f,
@@ -195,7 +195,7 @@ class ReplayDerivedStateTest {
             )
         }
         // Final per-exercise estimate must be strictly above the seed.
-        val finalEstimate = repository.derivedState.snapshot().exerciseEstimates()[BENCH_EXERCISE_ID]!!.e1rm
+        val finalEstimate = repository.derivedState.snapshot().exerciseBeliefs()[BENCH_EXERCISE_ID]!!.e1rm
         assertTrue(
             "expected final estimate > seed $initialEstimate, got $finalEstimate",
             finalEstimate > initialEstimate,

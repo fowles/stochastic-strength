@@ -13,15 +13,19 @@ import kotlin.math.ln
 
 class ExerciseProgressionSeriesBuilderTest {
 
+    private val config = EstimatorConfig()
+
     private fun snapshot(): ReplaySnapshot {
         val snap = ReplaySnapshot(
             exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
             seedCoefficients = mapOf(1L to 1.0f, 2L to 0.6f),
         )
-        snap.currentEstimates[1L] = ExerciseEstimate(lnE = ln(100f), confidence = 6f, updatedAt = 0L)
-        snap.currentEstimates[2L] = ExerciseEstimate(lnE = ln(60f), confidence = 6f, updatedAt = 0L)
+        snap.currentBeliefs[1L] = ExerciseBelief(lnE(100f), config.sigmaMin * config.sigmaMin, updatedAt = 0L)
+        snap.currentBeliefs[2L] = ExerciseBelief(lnE(60f), config.sigmaMin * config.sigmaMin, updatedAt = 0L)
         return snap
     }
+
+    private fun lnE(e1rm: Float) = ln(e1rm)
 
     private fun set(exerciseId: Long, weight: Float, reps: Int) = WorkoutSet(
         sessionId = 10L,
@@ -36,9 +40,9 @@ class ExerciseProgressionSeriesBuilderTest {
     @Test
     fun siblingObservationsAreRescaledIntoTargetSpace() {
         val snap = snapshot()
-        // Sibling 2 performed at an observed 1RM; target is 1. Rescale factor = seed[1]/seed[2].
+        // Sibling 2 performed: its implied session e1rm rescaled into target 1 space.
         val siblingSets = listOf(set(exerciseId = 2L, weight = 60f, reps = 5))
-        val agg = io.github.fowles.stochastic_strength.domain.SessionSignalExtractor.aggregateSession(siblingSets)!!
+        val implied = impliedSessionE1rm(siblingSets)!!
         val sample = sampleSession(
             targetId = 1L,
             muscleIds = listOf(1L, 2L),
@@ -48,7 +52,7 @@ class ExerciseProgressionSeriesBuilderTest {
             projector = MuscleStrengthProjector(),
         )
         assertEquals(1, sample.siblingObservations.size)
-        val expected = agg.est1RM * (1.0f / 0.6f)
+        val expected = implied * (1.0f / 0.6f)
         assertEquals(expected, sample.siblingObservations.first().value, 1e-2f)
         // No own observation this session (target had no sets).
         assertEquals(0, sample.ownObservations.size)
@@ -65,8 +69,8 @@ class ExerciseProgressionSeriesBuilderTest {
             exerciseMuscle = snap.exerciseMuscle + (crossMuscleId to MuscleGroup.QUADS),
             seedCoefficients = snap.seedCoefficients + (crossMuscleId to 0.5f),
         ).also {
-            it.currentEstimates.putAll(snap.currentEstimates)
-            it.currentEstimates[crossMuscleId] = ExerciseEstimate(lnE = ln(200f), confidence = 6f, updatedAt = 0L)
+            it.currentBeliefs.putAll(snap.currentBeliefs)
+            it.currentBeliefs[crossMuscleId] = ExerciseBelief(lnE(200f), config.sigmaMin * config.sigmaMin, updatedAt = 0L)
         }
         val sets = listOf(
             set(exerciseId = 2L, weight = 60f, reps = 5),           // same-muscle sibling
@@ -87,13 +91,13 @@ class ExerciseProgressionSeriesBuilderTest {
     fun mergedLineEqualsFullProjectionEffectiveE1rm() {
         // Target (1) at 80 kg; sibling (2) at 60 kg with seed 0.6 implies level ~100.
         // The leave-one-out prediction for the target is ~100 (sibling-only pool), but the full
-        // projection shrinks the target's own estimate (80) toward the prediction, so merged != siblings.
+        // projection shrinks the target's own belief (80) toward the prediction, so merged != siblings.
         val snap = ReplaySnapshot(
             exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
             seedCoefficients = mapOf(1L to 1.0f, 2L to 0.6f),
         )
-        snap.currentEstimates[1L] = ExerciseEstimate(lnE = ln(80f), confidence = 6f, updatedAt = 0L)
-        snap.currentEstimates[2L] = ExerciseEstimate(lnE = ln(60f), confidence = 6f, updatedAt = 0L)
+        snap.currentBeliefs[1L] = ExerciseBelief(lnE(80f), config.sigmaMin * config.sigmaMin, updatedAt = 0L)
+        snap.currentBeliefs[2L] = ExerciseBelief(lnE(60f), config.sigmaMin * config.sigmaMin, updatedAt = 0L)
         val asOf = 1_000L
         val projector = MuscleStrengthProjector()
 
@@ -109,20 +113,19 @@ class ExerciseProgressionSeriesBuilderTest {
 
         // Expected merged value: full projection effectiveE1rm for target 1.
         val expectedMerged = projector
-            .project(snap.currentEstimates, snap.seedCoefficients, listOf(1L, 2L), asOf)
+            .project(snap.currentBeliefs, snap.seedCoefficients, listOf(1L, 2L), asOf)
             .effectiveE1rm.getValue(1L)
 
         assertEquals(1, sample.merged.size)
         assertEquals(expectedMerged, sample.merged.single().value, 1e-3f)
 
         // merged must meaningfully differ from the leave-one-out (sibling-only) prediction.
-        // siblingsEstimate ≈ 100 (sibling 2 implies level 100); merged is shrunk toward 100 from 80 < 100.
         assertEquals(1, sample.siblingsEstimate.size)
         assertTrue(abs(sample.merged.single().value - sample.siblingsEstimate.single().value) > 1f)
     }
 
     @Test
-    fun ownEstimateReflectsTheCurrentEstimate() {
+    fun ownEstimateReflectsTheStoredBeliefMean() {
         val snap = snapshot()
         val asOf = 1_000L
         val sample = sampleSession(
@@ -134,7 +137,7 @@ class ExerciseProgressionSeriesBuilderTest {
             projector = MuscleStrengthProjector(),
         )
 
-        val expectedOwnEstimate = exp(snap.currentEstimates.getValue(1L).lnE)
+        val expectedOwnEstimate = exp(snap.currentBeliefs.getValue(1L).mu)
         assertEquals(1, sample.ownEstimate.size)
         assertEquals(asOf, sample.ownEstimate.single().timestampMs)
         assertEquals(expectedOwnEstimate, sample.ownEstimate.single().value, 1e-2f)
@@ -144,7 +147,7 @@ class ExerciseProgressionSeriesBuilderTest {
     fun leaveOneOutLineExcludesTargetVote() {
         val snap = snapshot()
         // Make target (1) artificially huge; leave-one-out must ignore it and reflect sibling 2.
-        snap.currentEstimates[1L] = ExerciseEstimate(lnE = ln(1000f), confidence = 6f, updatedAt = 0L)
+        snap.currentBeliefs[1L] = ExerciseBelief(lnE(1000f), config.sigmaMin * config.sigmaMin, updatedAt = 0L)
         val sample = sampleSession(
             targetId = 1L,
             muscleIds = listOf(1L, 2L),
@@ -154,7 +157,7 @@ class ExerciseProgressionSeriesBuilderTest {
             projector = MuscleStrengthProjector(),
         )
         // Sibling 2 at 60 with seed 0.6 implies level ~100, so target prediction ~100*1.0 = 100,
-        // NOT ~1000. Far below the inflated own estimate.
+        // NOT ~1000. Far below the inflated own belief.
         assertEquals(1, sample.siblingsEstimate.size)
         org.junit.Assert.assertTrue(sample.siblingsEstimate.first().value < 200f)
     }

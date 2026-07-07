@@ -15,7 +15,7 @@ class BacktestBaselineGeneratorTest {
         val data = BacktestHarness.load()
         assumeTrue("no local backtest history; skipping", data != null)
         assumeTrue("baseline already frozen; delete manually to regenerate", !BacktestHarness.baselineFile().exists())
-        val rows = BacktestHarness.replayProjectorPrescriptions(data!!)
+        val rows = BacktestHarness.replayPolicyPrescriptions(data!!)
         assertTrue("history produced no prescriptions", rows.isNotEmpty())
         BacktestHarness.writeBaseline(rows)
         println("Frozen ${rows.size} baseline prescriptions to ${BacktestHarness.baselineFile()}")
