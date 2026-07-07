@@ -8,9 +8,29 @@ import kotlin.math.sqrt
  */
 class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
 
-    /** Task 2 fills in q-growth and drift; the stub only re-stamps time so folds compose. */
-    fun age(belief: ExerciseBelief, now: Long, muscleLastObs: Long?): ExerciseBelief =
-        if (now <= belief.updatedAt) belief else belief.copy(updatedAt = now)
+    /**
+     * Ages a belief from its [ExerciseBelief.updatedAt] to [now] (spec §1):
+     * 1. Variance grows by q per idle day, clamped to [σ_min², σ_max²].
+     * 2. Detraining drift on μ, keyed on the MUSCLE's last load observation: drift counts only
+     *    the overlap of [updatedAt, now] with (muscleLastObs + grace, ∞), at driftRate per week,
+     *    capped per idle gap. A muscle never observed ([muscleLastObs] == null) does not drift.
+     * Pure function of timestamps — replay stays deterministic.
+     */
+    fun age(belief: ExerciseBelief, now: Long, muscleLastObs: Long?): ExerciseBelief {
+        if (now <= belief.updatedAt) return belief
+        val idleDays = (now - belief.updatedAt).toFloat() / DAY_MS
+        val sigma2 = clampVar(belief.sigma2 + config.processNoisePerDay * idleDays)
+        var mu = belief.mu
+        if (muscleLastObs != null) {
+            val driftStart = maxOf(belief.updatedAt, muscleLastObs + config.detrainGraceMs)
+            val driftMs = now - driftStart
+            if (driftMs > 0) {
+                val weeks = driftMs.toFloat() / WEEK_MS
+                mu -= minOf(config.detrainRatePerWeek * weeks, config.detrainCap)
+            }
+        }
+        return ExerciseBelief(mu = mu, sigma2 = sigma2, updatedAt = now)
+    }
 
     fun foldGaussian(
         prior: ExerciseBelief,
@@ -74,5 +94,7 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
     private companion object {
         const val CLAMP = 6f
         const val MIN_MASS = 1e-6f
+        const val DAY_MS = 24f * 60 * 60 * 1000
+        const val WEEK_MS = 7f * DAY_MS
     }
 }
