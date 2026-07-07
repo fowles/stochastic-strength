@@ -46,3 +46,43 @@ fun computeCrossTuning(
     }
     return rows.sortedByDescending { it.agreement }
 }
+
+/**
+ * Belief-based overload (phase 2): contribution is each exercise's n_eff share of the muscle's
+ * total, and agreement compares the own AGED mean against the leave-one-out sibling prediction.
+ * The estimate-based overload above is deleted with its callers in Task 5.
+ */
+fun computeCrossTuning(
+    beliefs: Map<Long, ExerciseBelief>,
+    seedCoef: Map<Long, Float>,
+    namesById: Map<Long, String>,
+    muscleExerciseIds: List<Long>,
+    now: Long,
+    muscleLastObs: Long? = null,
+    config: EstimatorConfig = EstimatorConfig(),
+    projector: MuscleStrengthProjector = MuscleStrengthProjector(config),
+): List<CrossTuningRow> {
+    val updater = BeliefUpdater(config)
+    val neffById = muscleExerciseIds.associateWith { id ->
+        beliefs[id]?.let { projector.neff(updater.age(it, now, muscleLastObs)) } ?: 0f
+    }
+    val totalNeff = neffById.values.sum()
+
+    val rows = muscleExerciseIds.mapNotNull { id ->
+        val belief = beliefs[id] ?: return@mapNotNull null
+        val seed = seedCoef[id] ?: return@mapNotNull null
+        if (seed <= 0f) return@mapNotNull null
+        val name = namesById[id] ?: return@mapNotNull null
+
+        val aged = updater.age(belief, now, muscleLastObs)
+        val leaveOneOut =
+            projector.project(beliefs, seedCoef, muscleExerciseIds.filter { it != id }, now, muscleLastObs)
+        val prediction = leaveOneOut.level * seed
+        val ownE1rm = exp(aged.mu)
+        val agreement = if (prediction > 0f) ownE1rm / prediction - 1f else 0f
+        val contribution = if (totalNeff > 0f) neffById.getValue(id) / totalNeff else 0f
+
+        CrossTuningRow(exerciseId = id, name = name, agreement = agreement, contribution = contribution)
+    }
+    return rows.sortedByDescending { it.agreement }
+}
