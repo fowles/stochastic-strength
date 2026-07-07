@@ -195,8 +195,9 @@ measurement dominates its own blend arithmetically (precision ~hundreds vs
    (1 − hurtDepth·2^(−Δt_e / hurtHalfLife)), floored at hurtFloor. Applied to
    exp(t). Matches today's immediate ×0.85 but heals automatically. The
    `ExerciseHurtState` UI flag is unrelated and untouched.
-5. **Grid rounding** via `WeightFormatter.round` (round-down when the clear
-   ceiling binds, round-nearest otherwise).
+5. **Grid rounding** via `WeightFormatter.round` (round-down whenever an
+   unexpired clear ceiling exists and nearest-rounding would land at/above the
+   failed weight's rep-equivalent, round-nearest otherwise — see item 3).
 6. **Sore-muscle cooldown:** `muscleRested(...)` — verbatim port of the
    planner's current 2-day rule (any TOO_HARD, or >1 RIR_0_1, on a loaded
    exercise in the past 2 days excludes the muscle from generation).

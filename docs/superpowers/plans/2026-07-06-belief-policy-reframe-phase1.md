@@ -37,7 +37,7 @@ Pure refactor, no behavior change. Extracts data loading from `ReplayEngine.run(
 - Consumes: existing `ReplaySnapshot`, `SessionProgressionStepper`, `ExerciseEstimate`.
 - Produces: `ReplayHistory(sessions: List<WorkoutSession>, setsBySession: Map<Long, List<WorkoutSet>>, initialOverrides: List<ExerciseStrengthOverride>, sessionOverrides: Map<Long, List<ExerciseStrengthOverride>>)` with `companion object { suspend fun loadFromDb(db: AppDatabase): ReplayHistory }`; `ReplayEngine.run(history: ReplayHistory, snapshot: ReplaySnapshot, observer: SessionObserver)` (non-suspend) plus the existing `suspend fun run(db, snapshot, observer)` kept as a thin wrapper.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `ReplayHistoryTest.kt`:
 
@@ -95,12 +95,12 @@ class ReplayHistoryTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ReplayHistoryTest"`
 Expected: compilation FAILURE — `ReplayHistory` unresolved.
 
-- [ ] **Step 3: Create `ReplayHistory.kt`**
+- [x] **Step 3: Create `ReplayHistory.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -139,7 +139,7 @@ data class ReplayHistory(
 }
 ```
 
-- [ ] **Step 4: Reshape `ReplayEngine.kt`**
+- [x] **Step 4: Reshape `ReplayEngine.kt`**
 
 Replace the body of the class (keep the file header comment and `SessionObserver` as they are):
 
@@ -185,12 +185,12 @@ class ReplayEngine(
 
 Keep the existing imports plus `ReplayHistory` is same-package; `kotlin.math.ln` import already present.
 
-- [ ] **Step 5: Run the new test and the neighbors that exercise replay**
+- [x] **Step 5: Run the new test and the neighbors that exercise replay**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ReplayHistoryTest" --tests "io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilderTest"`
 Expected: PASS (series builder uses the `run(db, ...)` wrapper unchanged).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "refactor: extract DB-free ReplayHistory core from ReplayEngine
@@ -215,7 +215,7 @@ Additive only — no production behavior change. After this task lands there is 
 - Consumes: `BackupJsonParser.parse(json: String): WorkoutBackup` (domain/backup), `ReplayHistory`, `ReplayEngine.run(history, snapshot, observer)` from Task 1, `MuscleStrengthProjector.project`, `DefaultProgressionEngine.fromOneRepMax`, `WeightFormatter.round`.
 - Produces (test-sources only): `BacktestHarness.load(): BacktestData?`, `BacktestHarness.replayProjectorPrescriptions(data): List<Row>`, `BacktestHarness.writeBaseline(rows)`, `BacktestHarness.readBaseline(): List<Row>?`, `data class Row(sessionId: Long, exerciseId: Long, weightKg: Float)`, `BacktestData.newSnapshot(): ReplaySnapshot`, `const REFERENCE_REPS = 10`. Task 7 adds `replayPolicyPrescriptions` beside these.
 
-- [ ] **Step 1: Add the JVM org.json dependency**
+- [x] **Step 1: Add the JVM org.json dependency**
 
 In `gradle/libs.versions.toml` under `[libraries]` (after the `junit` line):
 
@@ -236,7 +236,7 @@ In the repo-root `.gitignore`, append:
 app/src/test/resources/backtest/
 ```
 
-- [ ] **Step 2: Write the harness**
+- [x] **Step 2: Write the harness**
 
 Create `BacktestHarness.kt`:
 
@@ -336,7 +336,7 @@ object BacktestHarness {
 }
 ```
 
-- [ ] **Step 3: Write the generator test**
+- [x] **Step 3: Write the generator test**
 
 Create `BacktestBaselineGeneratorTest.kt`:
 
@@ -366,12 +366,12 @@ class BacktestBaselineGeneratorTest {
 }
 ```
 
-- [ ] **Step 4: Run it (skips without the local file — that's the expected CI-safe behavior)**
+- [x] **Step 4: Run it (skips without the local file — that's the expected CI-safe behavior)**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestBaselineGeneratorTest"`
 Expected: PASS (skipped via assumption if `history.json` absent; writes the baseline if present).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "test: backtest harness over exported real history + baseline freezer
@@ -379,7 +379,7 @@ jj commit -m "test: backtest harness over exported real history + baseline freez
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 6: USER ACTION (blocking for Task 7 only)**
+- [ ] **Step 6: USER ACTION (blocking for Task 7 only)** *(OPEN as of 2026-07-06: history export not yet provided; baseline must be generated from pre-change commit 92205abd with the post-review harness fixes cherry-picked — see .superpowers/sdd/progress.md recipe)*
 
 Ask the user to: export history from the phone (History → ⋮ → Export), copy it to `app/src/test/resources/backtest/history.json`, then re-run the Step-4 command to freeze `baseline_prescriptions.json`. Confirm the printed row count is nonzero.
 
@@ -404,7 +404,7 @@ Ask the user to: export history from the phone (History → ⋮ → Export), cop
   - `class PolicyStateBuilder { fun onSession(asOf: Long, sets: List<WorkoutSet>, snapshot: ReplaySnapshot); fun build(): PolicyState }`
   - `DerivedStateStore.Snapshot.policyState(): PolicyState`; `MutableDerivedState.putPolicyState(state: PolicyState)`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `PolicyStateBuilderTest.kt`:
 
@@ -518,12 +518,12 @@ class PolicyStateBuilderTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilderTest"`
 Expected: compilation FAILURE — package `domain.policy` unresolved.
 
-- [ ] **Step 3: Add `exerciseEquipment` to `ReplaySnapshot`**
+- [x] **Step 3: Add `exerciseEquipment` to `ReplaySnapshot`**
 
 In `ReplaySnapshot.kt`, change the constructor and loader:
 
@@ -545,7 +545,7 @@ return ReplaySnapshot(
 )
 ```
 
-- [ ] **Step 4: Create `PolicyState.kt`**
+- [x] **Step 4: Create `PolicyState.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.policy
@@ -650,12 +650,12 @@ class PolicyStateBuilder {
 }
 ```
 
-- [ ] **Step 5: Run the builder test**
+- [x] **Step 5: Run the builder test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilderTest"`
 Expected: PASS.
 
-- [ ] **Step 6: Store PolicyState in `DerivedStateStore`**
+- [x] **Step 6: Store PolicyState in `DerivedStateStore`**
 
 In `DerivedStateStore.kt`: add `import io.github.fowles.stochastic_strength.domain.policy.PolicyState`. In `Snapshot`: add constructor param `private val policyState: PolicyState`, accessor `fun policyState(): PolicyState = policyState`, and change `empty()` to `Snapshot(emptyMap(), emptyList(), emptyList(), emptyMap(), PolicyState.EMPTY)`. In `MutableDerivedState`: add
 
@@ -669,7 +669,7 @@ fun putPolicyState(state: PolicyState) {
 
 and include `policyState = policyState` in `toSnapshot()`.
 
-- [ ] **Step 7: Collect during replay in `WorkoutRepository.replayDerivedState`**
+- [x] **Step 7: Collect during replay in `WorkoutRepository.replayDerivedState`**
 
 Add `import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder`. Inside `derivedState.rebuild { scratch -> ... }`, before `replayEngine.run`, create `val policyBuilder = PolicyStateBuilder()`; change the observer lambda's ignored params to use sets/snapshot and feed the builder; store after the run:
 
@@ -691,12 +691,12 @@ replayEngine.run(db, snapshot) { sessionId, asOf, sets, snap, result ->
 scratch.putPolicyState(policyBuilder.build())
 ```
 
-- [ ] **Step 8: Run the full unit suite (store/repository touch many tests)**
+- [x] **Step 8: Run the full unit suite (store/repository touch many tests)**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 jj commit -m "feat: derive PolicyState (failure ceilings, hurt events, muscle stress) in replay
@@ -721,7 +721,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
   - `WeightFormatter.roundDown(kg: Float, unit: WeightUnit): Float`.
   - `EstimatorConfig` gains: `overloadDelta=0f`, `uncertaintyZ=0f`, `ceilingFactorClear=0.97f`, `ceilingExpiryMs=28d`, `hurtDepth=0.15f`, `hurtHalfLifeMs=14d`, `hurtFloor=0.6f`, `restCooldownMs=2d`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `PrescriptionPolicyTest.kt`:
 
@@ -862,12 +862,12 @@ class PrescriptionPolicyTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicyTest"`
 Expected: compilation FAILURE — `PrescriptionPolicy` unresolved.
 
-- [ ] **Step 3: Add config constants and `roundDown`**
+- [x] **Step 3: Add config constants and `roundDown`**
 
 Append to `EstimatorConfig` in `ExerciseEstimate.kt` (keep all existing fields):
 
@@ -906,7 +906,7 @@ Add to `WeightFormatter`:
 
 (add `import kotlin.math.floor`).
 
-- [ ] **Step 4: Create `PrescriptionPolicy.kt`**
+- [x] **Step 4: Create `PrescriptionPolicy.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.policy
@@ -996,12 +996,12 @@ class PrescriptionPolicy(
 
 > Amended post-final-review: ceiling clamps before HURT (spec §4 order), and round-down triggers whenever nearest-rounding would reach the failed weight — not only when the cap binds.
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicyTest"`
 Expected: PASS. Also run `--tests "io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimatorSimulationTest"` — expected PASS (config additions must not disturb the pinned constants).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat: PrescriptionPolicy (failure ceiling, HURT caution, rest cooldown; neutral z/delta)
@@ -1026,7 +1026,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 Accepted micro-delta (documented in the spec): the sore-muscle rule now reads replay-derived stress from **completed** sessions; sets from an abandoned (never-finished) session no longer count toward the cooldown. Two further conservative micro-deltas surfaced in final review: timestamp-less sets count at session end time, and stress accrues from exercises outside the current plannable set.
 
-- [ ] **Step 1: Update the test helpers first (they define the target API)**
+- [x] **Step 1: Update the test helpers first (they define the target API)**
 
 In `WorkoutPlannerTest.kt`, replace the `planner(...)` and `lbsPlanner()` helpers (keep `strengthsToPrescribedE1rm` and everything else):
 
@@ -1116,12 +1116,12 @@ In `WorkoutPlannerOverrideTest.kt`, replace the `planner(...)` helper:
 
 with the same four imports added.
 
-- [ ] **Step 2: Run to verify the tests fail to compile**
+- [x] **Step 2: Run to verify the tests fail to compile**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"`
 Expected: compilation FAILURE — `WorkoutPlanner` has no `policy` parameter yet.
 
-- [ ] **Step 3: Rewire `WorkoutPlanner`**
+- [x] **Step 3: Rewire `WorkoutPlanner`**
 
 In `WorkoutPlanner.kt`:
 1. Delete `private const val TWO_DAYS_MS = ...`.
@@ -1165,7 +1165,7 @@ class WorkoutPlanner(
     }
 ```
 
-- [ ] **Step 4: Rewire `WorkoutRepository.buildPlanner`**
+- [x] **Step 4: Rewire `WorkoutRepository.buildPlanner`**
 
 Delete the `history` query block (`val history = if (available.isNotEmpty()) ... else emptyMap()`), add `import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy`, and replace the planner construction:
 
@@ -1190,18 +1190,18 @@ Delete the `history` query block (`val history = if (available.isNotEmpty()) ...
         )
 ```
 
-- [ ] **Step 5: Delete the now-unused DAO query**
+- [x] **Step 5: Delete the now-unused DAO query**
 
 In `WorkoutSetDao.kt`, delete the `getRecentSetsForExercises` function together with its `@Query` annotation. Verify no remaining references: `rg -n "getRecentSetsForExercises" app/src` must return nothing.
 
-- [ ] **Step 6: Run the affected tests, then the full suite**
+- [x] **Step 6: Run the affected tests, then the full suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest" --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerOverrideTest"`
 Expected: PASS.
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "refactor: planner prescribes through PrescriptionPolicy; sore-muscle rule moves to policy
@@ -1225,7 +1225,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: nothing new.
 - Produces: `ExerciseEstimateUpdater` without `hurt(...)`; `EstimatorConfig` without `hurtFactor`; `SessionProgressionStepper.step` that never touches estimates on HURT (policy owns pain via Task 3's `HurtEvent`s + Task 4's `hurtMultiplier`).
 
-- [ ] **Step 1: Rewrite the behavior tests first**
+- [x] **Step 1: Rewrite the behavior tests first**
 
 In `SessionProgressionStepperTest.kt`, replace `hurtBacksOffEveryLoadedExerciseInTheMuscle` with:
 
@@ -1249,12 +1249,12 @@ In `SessionProgressionStepperTest.kt`, replace `hurtBacksOffEveryLoadedExerciseI
 
 (delete the unused `ln` import if the compiler flags it). In `ExerciseEstimateUpdaterTest.kt`, delete the `hurtBacksOffByConfiguredFactor` test.
 
-- [ ] **Step 2: Run to verify the stepper test fails**
+- [x] **Step 2: Run to verify the stepper test fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepperTest"`
 Expected: FAIL — estimates currently move by ln(0.85).
 
-- [ ] **Step 3: Delete the estimator's HURT machinery**
+- [x] **Step 3: Delete the estimator's HURT machinery**
 
 In `SessionProgressionStepper.kt`: update the class KDoc first line to `Pure per-session core of progression: per-exercise fold → projection of each affected muscle. HURT never touches estimates (pain is handled by PrescriptionPolicy at read time).`, drop the now-unused `import io.github.fowles.stochastic_strength.data.model.SetFeedback`, and replace the whole `step` function with:
 
@@ -1290,12 +1290,12 @@ In `ExerciseEstimateUpdater.kt`: delete the `hurt(...)` function.
 
 In `ExerciseEstimate.kt`: delete the `hurtFactor` field from `EstimatorConfig` (Task 4's `hurtDepth`/`hurtHalfLifeMs`/`hurtFloor` are its replacement).
 
-- [ ] **Step 4: Run the progression suite**
+- [x] **Step 4: Run the progression suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.*"`
 Expected: PASS (the simulation never emits HURT; its pins are unaffected).
 
-- [ ] **Step 5: Keep the docs truthful**
+- [x] **Step 5: Keep the docs truthful**
 
 In `docs/adaptation/03-exercise-estimates.md`, replace the whole `## Pain is muscle-wide and multiplicative` section with:
 
@@ -1317,7 +1317,7 @@ In `CLAUDE.md`, in the "For one session" list, replace item 1 (`**HURT** is musc
 
 and in the paragraph beginning `Session weight is derived per exercise`, replace `passed to the planner as `prescribedE1rm`` with `wrapped in `PrescriptionPolicy` (failure ceiling, HURT caution, rest cooldown) and passed to the planner`. Add a `domain/policy/` line to the Layers block: `domain/policy/    Prescription policy: failure ceilings, HURT caution, rest cooldown (PolicyState derived in replay)`.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
@@ -1347,7 +1347,7 @@ Requires the Task 2 USER ACTION (frozen baseline) to have happened.
 - Consumes: everything from Tasks 1–6.
 - Produces: `BacktestHarness.replayPolicyPrescriptions(data): List<Row>`; the pinned delta band.
 
-- [ ] **Step 1: Extend the harness with the policy path**
+- [x] **Step 1: Extend the harness with the policy path**
 
 In `BacktestHarness.kt`: change `BacktestData.newSnapshot()` to also pass `exerciseEquipment = backup.exercises.associate { it.id to it.equipment }`, and add (with imports `io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder`, `io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy`, `io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig`):
 
@@ -1383,7 +1383,7 @@ In `BacktestHarness.kt`: change `BacktestData.newSnapshot()` to also pass `exerc
     }
 ```
 
-- [ ] **Step 2: Write the comparison test**
+- [x] **Step 2: Write the comparison test**
 
 Create `BacktestComparisonTest.kt`:
 
@@ -1442,7 +1442,7 @@ class BacktestComparisonTest {
 }
 ```
 
-- [ ] **Step 3: Add the policy-path pin to `ProdBssPrescriptionTest`**
+- [x] **Step 3: Add the policy-path pin to `ProdBssPrescriptionTest`**
 
 Add this test to the class (imports to add: `io.github.fowles.stochastic_strength.data.model.Equipment`, `io.github.fowles.stochastic_strength.data.model.Exercise`, `io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder`, `io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy`, `io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig`):
 
@@ -1483,20 +1483,20 @@ Add this test to the class (imports to add: `io.github.fowles.stochastic_strengt
     }
 ```
 
-- [ ] **Step 4: Run everything, inspect, pin the band**
+- [ ] **Step 4: Run everything, inspect, pin the band** *(PARTIALLY DEFERRED as of 2026-07-06: tests ran — backtest classes skip cleanly, ProdBss 2/2 green; delta inspection and BAND pin await the user's history export; BAND provisional at 0.25)*
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.*" --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: PASS, with the delta table printed.
 
 Then: read the printed table. Every >2% delta must be attributable to a HURT event or a failure ceiling in the surrounding sessions (cross-check against the history). If an unexplained delta appears, STOP and debug before pinning (use superpowers:systematic-debugging). Once explained: set `BAND = <observed worst> + 0.05` in `BacktestComparisonTest`, record the observed value and its cause in the comment above it, and re-run to confirm PASS.
 
-- [ ] **Step 5: Full verification**
+- [x] **Step 5: Full verification**
 
 Run: `./gradlew :app:testDebugUnitTest` — expected PASS.
 Run: `./gradlew :app:lint` — expected clean.
 Run: `./gradlew :app:connectedAndroidTest` — attempt directly (an emulator is typically running); expected PASS. If no device is available, report that it was skipped rather than claiming it passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "test: backtest comparison gate + ProdBss policy-path pin; band pinned
