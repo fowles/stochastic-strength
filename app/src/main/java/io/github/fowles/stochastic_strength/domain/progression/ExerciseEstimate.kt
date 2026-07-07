@@ -63,4 +63,27 @@ data class EstimatorConfig(
     val hurtFloor: Float = 0.6f,
     /** Sore-muscle planner cooldown window (was WorkoutPlanner.TWO_DAYS_MS). */
     val restCooldownMs: Long = 2L * 24 * 60 * 60 * 1000,
+    /** Seed-row belief uncertainty (std of ln 1RM). */
+    val sigmaSeed: Float = 0.25f,
+    /** Manual-override belief uncertainty. */
+    val sigmaOverride: Float = 0.10f,
+    /** Belief uncertainty floor / ceiling (std). */
+    val sigmaMin: Float = 0.02f,
+    val sigmaMax: Float = 0.30f,
+    /** q: variance growth per idle day (σ² units). */
+    val processNoisePerDay: Float = 8.0e-5f,
+    /** Detraining drift: grace before drift starts, log-units lost per week, cap per idle gap. */
+    val detrainGraceMs: Long = 14L * 24 * 60 * 60 * 1000,
+    val detrainRatePerWeek: Float = 0.01f,
+    val detrainCap: Float = 0.25f,
+    /** φ: fraction of effective 1RM lost per additional set within an exercise. */
+    val fatiguePerSet: Float = 0.03f,
+    /** Report-noise bases (rep units) and the rep-magnitude term ρ_rel. */
+    val repNoiseBucket: Float = 0.75f,
+    val repNoiseCounted: Float = 0.5f,
+    val repNoiseRel: Float = 0.06f,
+    /** Bridge: per-observation variance defining n_eff pooling votes (phase 3 deletes). Sim-pinned. */
+    val poolObsVar: Float = 2.0e-3f,
+    /** Layoff notice threshold (fraction of strength eased). */
+    val noticeThresholdFraction: Float = 0.03f,
 )
