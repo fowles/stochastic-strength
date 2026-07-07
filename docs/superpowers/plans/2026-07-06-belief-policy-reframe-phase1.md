@@ -379,7 +379,7 @@ jj commit -m "test: backtest harness over exported real history + baseline freez
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 6: USER ACTION (blocking for Task 7 only)** *(OPEN as of 2026-07-06: history export not yet provided; baseline must be generated from pre-change commit 92205abd with the post-review harness fixes cherry-picked — see .superpowers/sdd/progress.md recipe)*
+- [x] **Step 6: USER ACTION (blocking for Task 7 only)** *(DONE 2026-07-06: history exported; baseline generated from pre-change commit 92205abd with a1920af2's harness fixes cherry-picked — 22 sessions, 1452 rows)*
 
 Ask the user to: export history from the phone (History → ⋮ → Export), copy it to `app/src/test/resources/backtest/history.json`, then re-run the Step-4 command to freeze `baseline_prescriptions.json`. Confirm the printed row count is nonzero.
 
@@ -1483,7 +1483,7 @@ Add this test to the class (imports to add: `io.github.fowles.stochastic_strengt
     }
 ```
 
-- [ ] **Step 4: Run everything, inspect, pin the band** *(PARTIALLY DEFERRED as of 2026-07-06: tests ran — backtest classes skip cleanly, ProdBss 2/2 green; delta inspection and BAND pin await the user's history export; BAND provisional at 0.25)*
+- [x] **Step 4: Run everything, inspect, pin the band** *(DONE 2026-07-06: delta table inspected — worst 14% (Preacher Curl 35→30 lb, clear ceiling from session-13 misses) and 3% (Sumo Deadlift 170→165 lb, session-27 drop-cascade ceiling); zero HURT sets in history; every >2% delta attributed to intended ceiling semantics; BAND pinned 0.19)*
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.*" --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: PASS, with the delta table printed.

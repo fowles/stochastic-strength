@@ -14,11 +14,13 @@ import kotlin.math.roundToInt
  */
 class BacktestComparisonTest {
 
-    // PROVISIONAL — unpinned until the real-history fixture (app/src/test/resources/backtest/history.json)
-    // exists. Once the fixture is in place: run the test, inspect the printed delta table, confirm
-    // every >2% delta is attributable to a HURT event or a failure ceiling in the surrounding
-    // sessions, then tighten to (observed worst delta + 0.05) and record the value here.
-    private val BAND = 0.25f
+    // PINNED 2026-07-06 against the baseline frozen from pre-change commit 92205abd (22 sessions,
+    // 1452 rows). Observed worst delta: 14% — Preacher Curl capped 35→30 lb by the clear failure
+    // ceiling from its session-13 misses (4/8 at 20.4 kg, uncounted at 15.88 kg; the old system
+    // re-prescribed the failed 35 lb). Also 3%: Sumo Deadlift capped 170→165 lb after session 27's
+    // drop-cascade (7/10 at both 83.9 and 77.1 kg). No HURT sets in history, so no healing deltas.
+    // Every >2% delta attributable to intended failure-ceiling semantics. Band = worst + 0.05.
+    private val BAND = 0.19f
 
     @Test
     fun policyPrescriptionsStayWithinBandOfFrozenBaselineAndNeverGoNaN() {
