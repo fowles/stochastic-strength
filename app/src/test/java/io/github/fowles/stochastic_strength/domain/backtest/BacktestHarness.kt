@@ -35,7 +35,10 @@ object BacktestHarness {
     class BacktestData(val backup: WorkoutBackup, val weightUnit: WeightUnit, val history: ReplayHistory) {
         fun newSnapshot(): ReplaySnapshot = ReplaySnapshot(
             exerciseMuscle = backup.exercises.associate { it.id to it.primaryMuscle },
-            seedCoefficients = backup.exercises.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) },
+            // Production loads seed coefficients from getActive() (isDisliked = 0); mirror that so
+            // disliked exercises neither fold nor vote in pooling, exactly as in the app.
+            seedCoefficients = backup.exercises.filterNot { it.isDisliked }
+                .associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) },
             exerciseEquipment = backup.exercises.associate { it.id to it.equipment },
         )
     }
@@ -47,7 +50,7 @@ object BacktestHarness {
         val history = ReplayHistory(
             sessions = backup.workoutSessions.filter { it.endTime != null },
             setsBySession = backup.workoutSets.groupBy { it.sessionId }
-                .mapValues { (_, s) -> s.sortedWith(compareBy({ it.setNumber }, { it.id })) },
+                .mapValues { (_, s) -> s.sortedBy { it.id } },
             initialOverrides = backup.exerciseStrengthOverrides.filter { it.sessionId == null },
             sessionOverrides = backup.exerciseStrengthOverrides.filter { it.sessionId != null }
                 .groupBy { it.sessionId!! },

@@ -942,21 +942,31 @@ class PrescriptionPolicy(
         if (pooled <= 0f) return null
 
         var targetE1rm = exp(ln(pooled) + config.overloadDelta) // z·σ̃ joins in phase 2
-        targetE1rm *= hurtMultiplier(exercise.primaryMuscle)
 
-        var clearCeilingBinds = false
+        // Failure ceiling first (spec §4 order): the cap is on demonstrated capacity, so the
+        // HURT caution below compounds under it rather than being floored by it.
+        var clearCeiling = false
+        var failedWeightAtReps = Float.MAX_VALUE
         val ceiling = state.ceilings[exercise.id]
         if (ceiling != null && nowMs - ceiling.sessionEndTime <= config.ceilingExpiryMs) {
             val cap = ceiling.ceilingE1rm * (if (ceiling.isClear) config.ceilingFactorClear else 1f)
-            if (targetE1rm > cap) {
-                targetE1rm = cap
-                clearCeilingBinds = ceiling.isClear
+            if (targetE1rm > cap) targetE1rm = cap
+            if (ceiling.isClear) {
+                clearCeiling = true
+                failedWeightAtReps = progressionEngine.fromOneRepMax(ceiling.ceilingE1rm, sessionReps)
             }
         }
 
+        targetE1rm *= hurtMultiplier(exercise.primaryMuscle)
+
         val raw = progressionEngine.fromOneRepMax(targetE1rm, sessionReps)
-        return if (clearCeilingBinds) WeightFormatter.roundDown(raw, weightUnit)
-        else WeightFormatter.round(raw, weightUnit)
+        val nearest = WeightFormatter.round(raw, weightUnit)
+        // A CLEAR ceiling guarantees strictly-below-the-failed-weight even after grid rounding:
+        // when nearest-rounding would land at/above the failed weight's equivalent at these reps
+        // (possible on coarse grids for light lifts, since the 3% haircut can be under half a grid
+        // step), round down instead. Far-below-cap targets keep nearest rounding.
+        return if (clearCeiling && nearest >= failedWeightAtReps) WeightFormatter.roundDown(raw, weightUnit)
+        else nearest
     }
 
     /** Combined HURT caution for a muscle: recent events multiply in, decaying with a half-life. */
@@ -983,6 +993,8 @@ class PrescriptionPolicy(
     }
 }
 ```
+
+> Amended post-final-review: ceiling clamps before HURT (spec §4 order), and round-down triggers whenever nearest-rounding would reach the failed weight — not only when the cap binds.
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -1012,7 +1024,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `PrescriptionPolicy` (Task 4), `PolicyStateBuilder` (Task 3), `DerivedStateStore.Snapshot.policyState()`.
 - Produces: `WorkoutPlanner(availableExercises, policy: PrescriptionPolicy, weightUnit, locationId, random, coefficientSource, progressionEngine, pacingEstimator, exerciseE1rmOverrides)` — `prescribedE1rm`, `recentHistory`, and `nowMs` constructor params REMOVED; `recentlyFailedMuscles` and `TWO_DAYS_MS` deleted.
 
-Accepted micro-delta (documented in the spec): the sore-muscle rule now reads replay-derived stress from **completed** sessions; sets from an abandoned (never-finished) session no longer count toward the cooldown.
+Accepted micro-delta (documented in the spec): the sore-muscle rule now reads replay-derived stress from **completed** sessions; sets from an abandoned (never-finished) session no longer count toward the cooldown. Two further conservative micro-deltas surfaced in final review: timestamp-less sets count at session end time, and stress accrues from exercises outside the current plannable set.
 
 - [ ] **Step 1: Update the test helpers first (they define the target API)**
 

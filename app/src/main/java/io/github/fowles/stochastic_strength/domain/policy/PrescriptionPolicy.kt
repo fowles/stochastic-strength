@@ -31,21 +31,31 @@ class PrescriptionPolicy(
         if (pooled <= 0f) return null
 
         var targetE1rm = exp(ln(pooled) + config.overloadDelta) // z·σ̃ joins in phase 2
-        targetE1rm *= hurtMultiplier(exercise.primaryMuscle)
 
-        var clearCeilingBinds = false
+        // Failure ceiling first (spec §4 order): the cap is on demonstrated capacity, so the
+        // HURT caution below compounds under it rather than being floored by it.
+        var clearCeiling = false
+        var failedWeightAtReps = Float.MAX_VALUE
         val ceiling = state.ceilings[exercise.id]
         if (ceiling != null && nowMs - ceiling.sessionEndTime <= config.ceilingExpiryMs) {
             val cap = ceiling.ceilingE1rm * (if (ceiling.isClear) config.ceilingFactorClear else 1f)
-            if (targetE1rm > cap) {
-                targetE1rm = cap
-                clearCeilingBinds = ceiling.isClear
+            if (targetE1rm > cap) targetE1rm = cap
+            if (ceiling.isClear) {
+                clearCeiling = true
+                failedWeightAtReps = progressionEngine.fromOneRepMax(ceiling.ceilingE1rm, sessionReps)
             }
         }
 
+        targetE1rm *= hurtMultiplier(exercise.primaryMuscle)
+
         val raw = progressionEngine.fromOneRepMax(targetE1rm, sessionReps)
-        return if (clearCeilingBinds) WeightFormatter.roundDown(raw, weightUnit)
-        else WeightFormatter.round(raw, weightUnit)
+        val nearest = WeightFormatter.round(raw, weightUnit)
+        // A CLEAR ceiling guarantees strictly-below-the-failed-weight even after grid rounding:
+        // when nearest-rounding would land at/above the failed weight's equivalent at these reps
+        // (possible on coarse grids for light lifts, since the 3% haircut can be under half a grid
+        // step), round down instead. Far-below-cap targets keep nearest rounding.
+        return if (clearCeiling && nearest >= failedWeightAtReps) WeightFormatter.roundDown(raw, weightUnit)
+        else nearest
     }
 
     /** Combined HURT caution for a muscle: recent events multiply in, decaying with a half-life. */
@@ -62,6 +72,9 @@ class PrescriptionPolicy(
     /**
      * Sore-muscle cooldown (verbatim port of WorkoutPlanner.recentlyFailedMuscles): a muscle is
      * NOT rested when, within the window, a loaded exercise had any TOO_HARD or >1 RIR_0_1 set.
+     * Known micro-deltas vs the old planner rule (all conservative): abandoned sessions no longer
+     * feed stress; timestamp-less sets count at session end time; stress accrues even from
+     * exercises not currently plannable (disliked/location-excluded).
      */
     fun muscleRested(muscle: MuscleGroup): Boolean {
         val stress = state.muscleStress[muscle] ?: return true

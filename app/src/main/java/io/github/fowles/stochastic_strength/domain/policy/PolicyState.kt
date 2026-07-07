@@ -41,6 +41,8 @@ data class PolicyState(
 /** Accumulates PolicyState across replayed sessions, in session order. */
 class PolicyStateBuilder {
     private companion object {
+        // Must stay ≥ EstimatorConfig.restCooldownMs (2d): the policy reads stress with that
+        // cutoff, so pruning tighter than the cooldown window would silently under-block.
         const val STRESS_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
         const val HURT_RETENTION_MS = 90L * 24 * 60 * 60 * 1000
     }

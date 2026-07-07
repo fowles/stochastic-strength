@@ -20,7 +20,7 @@ class ReplaySnapshot(
 
     /**
      * Loaded exercise ids grouped by muscle group (only exercises with seed coefficient > 0).
-     * Used for HURT propagation and per-muscle projection.
+     * Used for per-muscle projection.
      */
     val muscleExerciseIds: Map<MuscleGroup, List<Long>> =
         seedCoefficients.filterValues { it > 0f }.keys

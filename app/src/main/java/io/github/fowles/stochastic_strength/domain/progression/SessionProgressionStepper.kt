@@ -6,7 +6,9 @@ import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
 
 /**
- * Pure per-session core of progression: per-exercise fold → projection of each affected muscle. HURT never touches estimates (pain is handled by PrescriptionPolicy at read time).
+ * Pure per-session core of progression: per-exercise fold → projection of each affected muscle.
+ * Mutates [ReplaySnapshot.currentEstimates] in place; persistence of the projections is the
+ * caller's concern. HURT never touches estimates (pain is handled by PrescriptionPolicy at read time).
  */
 class SessionProgressionStepper(
     private val updater: ExerciseEstimateUpdater = ExerciseEstimateUpdater(),

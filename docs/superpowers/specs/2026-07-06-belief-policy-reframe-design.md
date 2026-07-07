@@ -183,8 +183,10 @@ measurement dominates its own blend arithmetically (precision ~hundreds vs
    exercise: if any set failed at (w_f, r_f), ceiling = min over failed sets of
    f(w_f, r_f) (raw set basis; the clear-miss factor and grid absorb the ≤3%
    basis mismatch). A **clear** miss (shortfall ≥ 2 reps, or uncounted) binds
-   at ceilingFactorClear × ceiling with **round-down** to the grid —
-   guaranteeing strictly below the failed weight at the same rep target. A
+   at ceilingFactorClear × ceiling; whenever nearest-rounding would land at or
+   above the failed weight's rep-equivalent, the weight **rounds down** instead
+   — which is what makes "strictly below the failed weight" survive coarse
+   grids. A
    **marginal** miss (shortfall ≤ 1) binds at 1.0 × ceiling — re-prescribing
    the same grid weight is allowed (preserves the pinned hold-the-weight
    behavior). Rep-aware by construction. Expires after ceilingExpiry, or when

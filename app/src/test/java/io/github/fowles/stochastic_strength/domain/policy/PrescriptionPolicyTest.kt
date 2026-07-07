@@ -131,4 +131,37 @@ class PrescriptionPolicyTest {
         assertEquals(80f, WeightFormatter.roundDown(80f, WeightUnit.KG), 1e-4f)
         assertEquals(WeightUnit.LBS.toKg(75f), WeightFormatter.roundDown(WeightUnit.LBS.toKg(79f), WeightUnit.LBS), 1e-3f)
     }
+
+    @Test
+    fun hurtCompoundsUnderTheCeilingAndNeverRoundsBackToTheFailedWeight() {
+        // Fail 35 kg x10 clearly; a 28-day-old HURT (multiplier ~0.9625) drags the clamped target
+        // just under the cap. With hurt applied BEFORE the ceiling (old order) the cap never bound
+        // and nearest-rounding landed back on 35 kg. Spec order + hazard-scoped round-down forbids it.
+        val failedWeight = 35f
+        val ceiling = DefaultProgressionEngine.rawToOneRepMax(failedWeight, 10)
+        val state = PolicyState(
+            ceilings = mapOf(1L to FailureCeiling(1L, ceiling, isClear = true, sessionEndTime = NOW - DAY)),
+            hurtEvents = listOf(HurtEvent(MuscleGroup.CHEST, NOW - 28 * DAY)),
+            muscleStress = emptyMap(),
+        )
+        val w = policy(pooled = mapOf(1L to 51.9f), state = state).prescribe(bench, 10)!!
+        assertTrue("prescribed $w must stay strictly below failed $failedWeight", w < failedWeight)
+    }
+
+    @Test
+    fun nearCapTargetWithoutHurtAlsoStaysBelowTheFailedWeight() {
+        // Even with no HURT at all: a pooled estimate landing just under the clear cap must not
+        // nearest-round back up to the failed weight (at 35 kg, half a 2.5 kg grid step exceeds
+        // the 3% haircut, so nearest-rounding alone would re-prescribe the failed weight).
+        val failedWeight = 35f
+        val ceiling = DefaultProgressionEngine.rawToOneRepMax(failedWeight, 10)
+        val state = PolicyState(
+            ceilings = mapOf(1L to FailureCeiling(1L, ceiling, isClear = true, sessionEndTime = NOW - DAY)),
+            hurtEvents = emptyList(),
+            muscleStress = emptyMap(),
+        )
+        val justUnderCap = ceiling * 0.97f * 0.999f
+        val w = policy(pooled = mapOf(1L to justUnderCap), state = state).prescribe(bench, 10)!!
+        assertTrue("prescribed $w must stay strictly below failed $failedWeight", w < failedWeight)
+    }
 }
