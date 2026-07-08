@@ -92,18 +92,22 @@ class ReplayDerivedStateTest {
 
         repository.replayDerivedState()
 
-        // The override re-based the estimate to ~999 at session 2; the session's RIR_2_4 set at
-        // 82.5 kg is far below that, so it folds the estimate DOWN from 999 but the result stays
-        // dramatically above the no-override trajectory (which sits near 100–110 kg).
+        // The override re-based the belief to (999, σ_override) at session 2, and the session's
+        // RIR_2_4 set at 82.5 kg then folds it back DOWN hard — the data contradicts a 999 kg
+        // 1RM by ~20σ, and the honest Kalman fold tracks the evidence (~121 kg; the old
+        // estimator's blend weights kept it above 150). What this test pins is the BOUNDARY
+        // semantics: the override must have entered the prior BEFORE the session folded, which
+        // is observable as the posterior sitting well above the no-override trajectory
+        // (~100–110 kg — re-anchored 2026-07-08 for the belief swap).
         val benchEstimate = repository.derivedState.snapshot().exerciseBeliefs()[BENCH_EXERCISE_ID]!!.e1rm
         assertTrue(
-            "override at session boundary must dominate the estimate; got $benchEstimate",
-            benchEstimate > 150f,
+            "override at session boundary must lift the estimate above the no-override trajectory; got $benchEstimate",
+            benchEstimate > 110f,
         )
-        // The CHEST display projection at session 2 must likewise sit far above the seed.
+        // The CHEST display projection at session 2 must likewise sit above the seed trajectory.
         val chestLevel = repository.derivedState.snapshot().allMuscleGroupStrengths()
             .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
-        assertTrue("CHEST level must reflect the override; got $chestLevel", chestLevel > 150f)
+        assertTrue("CHEST level must reflect the override; got $chestLevel", chestLevel > 110f)
     }
 
     /**
