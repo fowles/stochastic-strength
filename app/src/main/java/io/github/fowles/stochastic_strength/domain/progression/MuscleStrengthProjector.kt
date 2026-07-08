@@ -64,12 +64,16 @@ class MuscleStrengthProjector(private val config: EstimatorConfig = EstimatorCon
         for ((id, b, coef) in loaded) {
             val cSelf = neff(b)
             val lnPred = ln(coef) + lnLevel
-            // Evidence gate (unchanged from phase 1, in n_eff units): siblings may override only by
-            // their EXCESS evidence, so same-age/staler siblings cannot lift a fresh measurement.
+            // Evidence gate (phase-1 shape, n_eff units): siblings may override only by their
+            // EXCESS evidence, so same-age/staler siblings cannot lift a fresh measurement.
             val siblingExcess = loaded.sumOf { (jid, jb, _) ->
                 if (jid == id) 0.0 else (neff(jb) - cSelf).coerceAtLeast(0f).toDouble()
             }.toFloat()
-            val kappa = minOf(config.priorStrength, siblingExcess)
+            // The prediction's evidence is capped at what a τ-noised transfer earns (poolObsVar/τ²
+            // ≈ 0.03): a trained own belief (n_eff ≥ ~0.5) is barely moved by the level, while a
+            // cold one (cSelf = 0) still adopts the prediction fully. This is spec §3's shrink with
+            // σ²_ℓLOO ≈ 0 and one uniform τ class; phase 3 installs the real thing.
+            val kappa = minOf(config.poolObsVar / (config.tauBridge * config.tauBridge), siblingExcess)
             val lnUsed = if (cSelf + kappa <= 0f) b.mu else (cSelf * b.mu + kappa * lnPred) / (cSelf + kappa)
             effective[id] = exp(lnUsed)
             coefs[id] = if (level > 0f) exp(lnUsed) / level else coef

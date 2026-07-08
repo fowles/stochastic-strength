@@ -31,8 +31,15 @@ data class ExerciseBelief(
  * pinned by BeliefSimulationTest (phase 2 Task 9).
  */
 data class EstimatorConfig(
-    /** Sibling-prior strength (kappa) in the read-time shrink: how many n_eff units the pool is worth. */
-    val priorStrength: Float = 1.0f,
+    /**
+     * Bridge transfer tightness (phase 2 only): the sibling-implied prediction enters the shrink
+     * with the evidence a τ-noised transfer would earn — poolObsVar/τ² n_eff units (≈0.03) — which
+     * is spec §3's blend with σ²_ℓLOO ≈ 0 and one uniform class. Keeps a fresh own measurement
+     * from being pulled toward a mispredicting sibling level (the prod-BSS regression) while a
+     * cold exercise (n_eff 0) still adopts the sibling prediction fully. Phase 3 replaces this
+     * with per-equipment-class τ.
+     */
+    val tauBridge: Float = 0.25f,
     /**
      * Effective sample size of the seed prior in the muscle-level pool. Every exercise votes with its
      * n_eff against this fixed-weight prior, so a thinly-evidenced muscle leans on the seed and a

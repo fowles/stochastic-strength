@@ -43,6 +43,14 @@ They are binding for this plan; phase 3 replaces №1–2.
    *requires* keeping the gate, which requires an evidence scale; n_eff is that
    scale. `poolObsVar` (default 2.0e-3) is a bridge constant pinned by Task 9
    and deleted in phase 3.
+   [AMENDED 2026-07-08, during Task 7 adjudication: the shrink cap
+   `priorStrength = 1.0` (a meaningless magnitude in n_eff units, inherited
+   from confidence units) is replaced by `tauBridge = 0.25`: kappa =
+   min(poolObsVar/τ², siblingExcess) ≈ min(0.032, excess). This is spec §3's
+   blend with σ²_ℓLOO ≈ 0 and one uniform τ class — a trained own belief is
+   barely moved by the level (matching phase 3), a cold one still adopts the
+   sibling prediction fully (cSelf = 0 ⇒ full pull for any kappa > 0), and
+   the stale/same-age gate is unchanged. All Task 4 pins stay green.]
 2. **σ̃ for the z term = own aged σ.** Pooled σ̃ needs τ (phase 3). Until then
    `MuscleProjection` exposes `pooledSigma[id] = √(aged σ_i²)`. Consequence: a
    never-trained exercise is shaded by z·σ_seed ≈ 12% below its pooled mean —
@@ -91,6 +99,20 @@ They are binding for this plan; phase 3 replaces №1–2.
    base target (z·σ shading + fatigue discount) acting on the pooled belief,
    NOT the ceiling. 20 lb returns as the expectation at Task 7's re-pin,
    which already guards it.]
+   [FINAL ADJUDICATION 2026-07-08 (Task 7): policy path measured 30.0 lb with
+   activation live; PINNED at 30 lb, a documented deviation from spec §9's
+   "≈ 20 lb". Root cause is neither pooling (sibling excess ≈ 0 for this
+   fixture; the tauBridge fix above was landed anyway for phase-3 consistency
+   but did not move BSS) nor z·σ (the failures made the belief TIGHT,
+   σ ≈ 0.030): the fixture's sessions contradict themselves — rank-1 failures
+   (2×24.9 kg fresh, 2×29.5 kg in session 16) imply ~28–33 kg 1RM while the
+   later collapsed sets imply ~18–19 — and the honest Kalman posterior
+   averages to ~23.9 kg. Spec §9's ≈20 lb encoded the deleted wDownSnap's
+   snap-to-worst-reading. The spec's behavioral safety pin (next weight
+   strictly below every failed weight) HOLDS at 30 lb, and ceiling dynamics
+   self-correct within ~2 sessions on a further miss. Surfaced to the user in
+   the phase report; candidate future work: robust/adaptive observation noise
+   for wildly inconsistent sessions (phase-4 fitting may partially absorb).]
 
 ## File Structure
 
