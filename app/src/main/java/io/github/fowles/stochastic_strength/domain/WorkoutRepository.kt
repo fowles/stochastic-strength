@@ -26,6 +26,7 @@ import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthPro
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
 import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PooledBelief
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
@@ -68,10 +69,12 @@ class WorkoutRepository(
         val now = System.currentTimeMillis()
         val policyState = derivedState.snapshot().policyState()
         val projector = MuscleStrengthProjector()
-        val prescribedE1rm = mutableMapOf<Long, Float>()
+        val pooled = mutableMapOf<Long, PooledBelief>()
         for ((muscle, ids) in muscleIds) {
             val proj = projector.project(beliefs, seedCoef, ids, now, policyState.muscleLastObs[muscle])
-            prescribedE1rm.putAll(proj.effectiveE1rm)
+            for ((id, e1rm) in proj.effectiveE1rm) {
+                pooled[id] = PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
+            }
         }
         val recentSessions = db.workoutSessionDao().getRecentCompletedSessions(limit = 50)
         val recentSets = if (recentSessions.isNotEmpty())
@@ -82,7 +85,7 @@ class WorkoutRepository(
         val exercisesById = available.associateBy { it.id }
         val pacingEstimator = ExercisePacingEstimator.build(recentSessions, recentSets, exercisesById)
         val policy = PrescriptionPolicy(
-            pooledE1rm = prescribedE1rm,
+            pooled = pooled,
             state = policyState,
             config = EstimatorConfig(),
             progressionEngine = progressionEngine,

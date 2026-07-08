@@ -8,6 +8,7 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonParser
 import io.github.fowles.stochastic_strength.domain.backup.WorkoutBackup
 import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PooledBelief
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
@@ -71,8 +72,11 @@ object BacktestHarness {
             val policyState = builder.build(snap.muscleLastObs.toMap())
             for ((muscle, ids) in snap.muscleExerciseIds) {
                 val proj = projector.project(snap.currentBeliefs, snap.seedCoefficients, ids, asOf, policyState.muscleLastObs[muscle])
+                val pooledMap = proj.effectiveE1rm.entries.associate { (id, e1rm) ->
+                    id to PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
+                }
                 val policy = PrescriptionPolicy(
-                    pooledE1rm = proj.effectiveE1rm,
+                    pooled = pooledMap,
                     state = policyState,
                     config = EstimatorConfig(),
                     progressionEngine = DefaultProgressionEngine,

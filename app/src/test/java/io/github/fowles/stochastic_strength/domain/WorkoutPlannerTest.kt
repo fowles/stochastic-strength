@@ -11,6 +11,7 @@ import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.domain.policy.PolicyState
 import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PooledBelief
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import org.junit.Assert.assertEquals
@@ -66,9 +67,13 @@ class WorkoutPlannerTest {
             builder.onSession(asOf = nowMs, sets = recentHistory.values.flatten(), snapshot = snap)
         }
         val policy = PrescriptionPolicy(
-            pooledE1rm = strengthsToPrescribedE1rm(exercises, strengths, coefficientSource),
+            pooled = strengthsToPrescribedE1rm(exercises, strengths, coefficientSource)
+                .mapValues { (_, e1rm) -> PooledBelief(e1rm, 0f) },
             state = builder.build(),
-            config = EstimatorConfig(),
+            // Neutral config: keeps all planner weight arithmetic byte-identical to phase 1.
+            // sigma=0f would cancel z-shading, but fatiguePerSet and overloadDelta must also be
+            // zeroed so existing exact-weight assertions don't drift.
+            config = EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f, fatiguePerSet = 0f),
             progressionEngine = DefaultProgressionEngine,
             weightUnit = WeightUnit.KG,
             nowMs = nowMs,
@@ -87,9 +92,9 @@ class WorkoutPlannerTest {
     private fun lbsPlanner() = WorkoutPlanner(
         availableExercises = emptyList(),
         policy = PrescriptionPolicy(
-            pooledE1rm = emptyMap(),
+            pooled = emptyMap(),
             state = PolicyState.EMPTY,
-            config = EstimatorConfig(),
+            config = EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f, fatiguePerSet = 0f),
             progressionEngine = DefaultProgressionEngine,
             weightUnit = WeightUnit.LBS,
             nowMs = 0L,

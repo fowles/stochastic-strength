@@ -5,19 +5,26 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
 
 /**
+ * Per-exercise belief after read-time pooling: the projected effective 1RM (pooled mean) and the
+ * own aged sigma used for uncertainty shading (spec §4 item 1).
+ */
+data class PooledBelief(val e1rm: Float, val sigma: Float)
+
+/**
  * The prescription policy (spec §4): every training decision between the projected belief and
- * the weight on the bar. Phase 1 scope: neutral z/δ knobs, failure ceiling, HURT caution,
- * sore-muscle cooldown. Fatigue discount and layoff easing arrive with the belief swap (phase 2).
+ * the weight on the bar. Phase 2 scope: z-shading on uncertainty, overload δ, last-set fatigue
+ * discount, plus the phase-1 items (failure ceiling, HURT caution, sore-muscle cooldown).
  * Pure and read-only; all inputs derive from replayed history.
  */
 class PrescriptionPolicy(
-    private val pooledE1rm: Map<Long, Float>,
+    private val pooled: Map<Long, PooledBelief>,
     private val state: PolicyState,
     private val config: EstimatorConfig = EstimatorConfig(),
     private val progressionEngine: ProgressionEngine,
@@ -27,10 +34,15 @@ class PrescriptionPolicy(
 
     /** Final session weight in kg for a loadable exercise, or null when nothing is known about it. */
     fun prescribe(exercise: Exercise, sessionReps: Int): Float? {
-        val pooled = pooledE1rm[exercise.id] ?: return null
-        if (pooled <= 0f) return null
+        val p = pooled[exercise.id] ?: return null
+        if (p.e1rm <= 0f) return null
 
-        var targetE1rm = exp(ln(pooled) + config.overloadDelta) // z·σ̃ joins in phase 2
+        // Base target (spec §4 items 1–2): shade by uncertainty, push by δ, then discount to the
+        // LAST set — beliefs are fresh capacity; the last set is the one targeted at RIR 0–1.
+        // In steady state (σ→σ_min) z·σ ≈ δ cancel and the discount offsets the fresh basis, so
+        // the net prescription matches the phase-1 feel (Bridge Decision №3).
+        val fatigueLn = ln(1f - config.fatiguePerSet * (PlannedExercise.DEFAULT_SETS - 1))
+        var targetE1rm = exp(ln(p.e1rm) - config.uncertaintyZ * p.sigma + config.overloadDelta + fatigueLn)
 
         // Failure ceiling first (spec §4 order): the cap is on demonstrated capacity, so the
         // HURT caution below compounds under it rather than being floored by it.

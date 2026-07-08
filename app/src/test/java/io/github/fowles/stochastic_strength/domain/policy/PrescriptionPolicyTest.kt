@@ -20,11 +20,16 @@ class PrescriptionPolicyTest {
 
     private val bench = Exercise(id = 1L, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
 
+    // Neutral config for existing ceiling/HURT/rounding tests: z=0, δ=0, φ=0 so their pinned
+    // arithmetic is invariant to any future base-target tuning.
+    private val neutralConfig = EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f, fatiguePerSet = 0f)
+
     private fun policy(
-        pooled: Map<Long, Float> = mapOf(1L to 100f),
+        pooled: Map<Long, PooledBelief> = mapOf(1L to PooledBelief(100f, 0f)),
         state: PolicyState = PolicyState.EMPTY,
         unit: WeightUnit = WeightUnit.KG,
-    ) = PrescriptionPolicy(pooled, state, EstimatorConfig(), DefaultProgressionEngine, unit, nowMs = NOW)
+        config: EstimatorConfig = neutralConfig,
+    ) = PrescriptionPolicy(pooled, state, config, DefaultProgressionEngine, unit, nowMs = NOW)
 
     private fun oldFormulaWeight(e1rm: Float, reps: Int, unit: WeightUnit = WeightUnit.KG) =
         WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(e1rm, reps), unit)
@@ -37,7 +42,8 @@ class PrescriptionPolicyTest {
 
     // For the ceiling tests the pooled belief must sit ABOVE the cap, or the ceiling never binds:
     // rawToOneRepMax(80 kg, 10 reps) ≈ 109.5 kg 1RM, so pooled = 120 kg forces the bind.
-    private val pooledAboveCeiling = mapOf(1L to 120f)
+    // sigma = 0f + neutral config keeps ceiling/HURT/rounding arithmetic byte-identical to phase 1.
+    private val pooledAboveCeiling = mapOf(1L to PooledBelief(120f, 0f))
 
     @Test
     fun clearCeilingPrescribesStrictlyBelowTheFailedWeight() {
@@ -132,6 +138,52 @@ class PrescriptionPolicyTest {
         assertEquals(WeightUnit.LBS.toKg(75f), WeightFormatter.roundDown(WeightUnit.LBS.toKg(79f), WeightUnit.LBS), 1e-3f)
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Phase 2 activation: z-shading, overload δ, last-set fatigue discount
+    // ──────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun uncertaintyShadesThePrescriptionDown() {
+        val certain = policy(pooled = mapOf(1L to PooledBelief(100f, 0.02f)), config = EstimatorConfig()).prescribe(bench, 10)!!
+        val uncertain = policy(pooled = mapOf(1L to PooledBelief(100f, 0.25f)), config = EstimatorConfig()).prescribe(bench, 10)!!
+        assertTrue("uncertain $uncertain must be below certain $certain", uncertain < certain)
+    }
+
+    @Test
+    fun fatigueDiscountTargetsTheLastSet() {
+        // z=0, δ=0 isolates the discount: weight ≈ fromOneRepMax(pooled × (1 − φ·2), reps).
+        val config = EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f)
+        val p = policy(pooled = mapOf(1L to PooledBelief(100f, 0f)), config = config)
+        val expected = WeightFormatter.round(
+            DefaultProgressionEngine.fromOneRepMax(100f * (1f - config.fatiguePerSet * 2f), 10), WeightUnit.KG)
+        assertEquals(expected, p.prescribe(bench, 10)!!, 1e-3f)
+    }
+
+    @Test
+    fun steadyStateShadingAndDeltaRoughlyCancel() {
+        // At σ = σ_min the default z·σ (1%) ≈ δ (1%): prescription ≈ pure fatigue-discounted pooled.
+        val config = EstimatorConfig()
+        val p = policy(pooled = mapOf(1L to PooledBelief(100f, config.sigmaMin)), config = config)
+        val neutral = policy(pooled = mapOf(1L to PooledBelief(100f, 0f)),
+            config = EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f))
+        assertEquals(neutral.prescribe(bench, 10)!!, p.prescribe(bench, 10)!!, 2.5f + 1e-3f)
+    }
+
+    @Test
+    fun ceilingStillClampsTheShadedTarget() {
+        // Pooled far above a clear ceiling: cap binds after shading; round-down rule intact.
+        val failedWeight = 35f
+        val ceiling = DefaultProgressionEngine.rawToOneRepMax(failedWeight, 10)
+        val state = PolicyState(
+            ceilings = mapOf(1L to FailureCeiling(1L, ceiling, isClear = true, sessionEndTime = NOW - DAY)),
+            hurtEvents = emptyList(),
+            muscleStress = emptyMap(),
+        )
+        // pooled 120 kg, sigma 0.02: even after z-shading + fatigue the target still exceeds the cap.
+        val w = policy(pooled = mapOf(1L to PooledBelief(120f, 0.02f)), state = state, config = EstimatorConfig()).prescribe(bench, 10)!!
+        assertTrue("prescribed $w must stay strictly below failed $failedWeight", w < failedWeight)
+    }
+
     @Test
     fun hurtCompoundsUnderTheCeilingAndNeverRoundsBackToTheFailedWeight() {
         // Fail 35 kg x10 clearly; a 28-day-old HURT (multiplier ~0.9625) drags the clamped target
@@ -144,7 +196,7 @@ class PrescriptionPolicyTest {
             hurtEvents = listOf(HurtEvent(MuscleGroup.CHEST, NOW - 28 * DAY)),
             muscleStress = emptyMap(),
         )
-        val w = policy(pooled = mapOf(1L to 51.9f), state = state).prescribe(bench, 10)!!
+        val w = policy(pooled = mapOf(1L to PooledBelief(51.9f, 0f)), state = state).prescribe(bench, 10)!!
         assertTrue("prescribed $w must stay strictly below failed $failedWeight", w < failedWeight)
     }
 
@@ -161,7 +213,7 @@ class PrescriptionPolicyTest {
             muscleStress = emptyMap(),
         )
         val justUnderCap = ceiling * 0.97f * 0.999f
-        val w = policy(pooled = mapOf(1L to justUnderCap), state = state).prescribe(bench, 10)!!
+        val w = policy(pooled = mapOf(1L to PooledBelief(justUnderCap, 0f)), state = state).prescribe(bench, 10)!!
         assertTrue("prescribed $w must stay strictly below failed $failedWeight", w < failedWeight)
     }
 }

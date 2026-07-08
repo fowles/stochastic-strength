@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.policy.PolicyState
+import io.github.fowles.stochastic_strength.domain.policy.PooledBelief
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import org.junit.Assert.assertEquals
@@ -25,9 +26,9 @@ class WorkoutPlannerOverrideTest {
     private fun planner(overrides: Map<Long, Float>) = WorkoutPlanner(
         availableExercises = listOf(ex(1, "Barbell Bench Press"), ex(2, "Incline Barbell Bench Press")),
         policy = PrescriptionPolicy(
-            pooledE1rm = prescribed,
+            pooled = prescribed.mapValues { (_, e1rm) -> PooledBelief(e1rm, 0f) },
             state = PolicyState.EMPTY,
-            config = EstimatorConfig(),
+            config = EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f, fatiguePerSet = 0f),
             progressionEngine = DefaultProgressionEngine,
             weightUnit = WeightUnit.KG,
             nowMs = 0L,

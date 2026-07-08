@@ -39,10 +39,10 @@ data class EstimatorConfig(
      * stale lone voter decays back toward it. Pinned by BeliefSimulationTest.
      */
     val levelPrior: Float = 0.5f,
-    /** Overload push δ (log-space). Neutral in phase 1; activated and tuned in phase 2. */
-    val overloadDelta: Float = 0f,
-    /** Uncertainty shading z. Neutral in phase 1; needs pooled sigma (phase 2+). */
-    val uncertaintyZ: Float = 0f,
+    /** Overload push δ (log-space). Activated in phase 2; Task 9 may re-tune. */
+    val overloadDelta: Float = 0.01f,
+    /** Uncertainty shading z. Activated in phase 2; Task 9 may re-tune. */
+    val uncertaintyZ: Float = 0.5f,
     /** A CLEAR failure binds the ceiling at this fraction of the failed 1RM, with round-down. */
     val ceilingFactorClear: Float = 0.97f,
     /** Failure ceilings expire after this long (superseded earlier by any newer session). */

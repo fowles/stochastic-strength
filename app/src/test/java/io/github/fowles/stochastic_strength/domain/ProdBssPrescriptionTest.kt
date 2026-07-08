@@ -7,11 +7,13 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
+import io.github.fowles.stochastic_strength.domain.policy.PooledBelief
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseBelief
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -101,11 +103,11 @@ class ProdBssPrescriptionTest {
         val sessionWeightKg = DefaultProgressionEngine.fromOneRepMax(effE1rm, 10)
         val prescribedKg = WeightFormatter.round(sessionWeightKg, WeightUnit.LBS)
 
-        // This path has no policy; 30.0 lb is the measured T5-intermediate value (z/δ still 0f,
-        // wDownSnap gone). Task 7 re-pins the exact value.
-        assertTrue("BSS prescription must be positive", prescribedKg > 0f)
-        assertTrue("BSS prescription must not exceed 30 lb (got ${prescribedKg / WeightUnit.LBS.toKg(1f)} lbs)",
-            prescribedKg <= WeightUnit.LBS.toKg(30f) + 1e-3f)
+        // This path intentionally pins the PRE-policy value: projector only, no z/δ/fatigue applied.
+        // Measured at Task 7: exactly 30.0 lb (BSS effective e1rm ≈ 23.9 kg; LBS grid coarse enough
+        // that the 6.5% policy factor lands on the same 30 lb grid point on the policy path).
+        assertEquals("BSS projector-only prescription must be exactly 30 lb",
+            WeightUnit.LBS.toKg(30f), prescribedKg, 1e-3f)
     }
 
     @Test
@@ -129,7 +131,9 @@ class ProdBssPrescriptionTest {
             now = EXPORTED_AT,
         )
         val policy = PrescriptionPolicy(
-            pooledE1rm = proj.effectiveE1rm,
+            pooled = proj.effectiveE1rm.entries.associate { (id, e1rm) ->
+                id to PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
+            },
             state = builder.build(snapshot.muscleLastObs.toMap()),
             config = EstimatorConfig(),
             progressionEngine = DefaultProgressionEngine,
@@ -144,6 +148,12 @@ class ProdBssPrescriptionTest {
         // so with z/δ still 0f and no HURT the policy passes the pooled value through — the same
         // 30 lb the projector path measures. Task 7's lever for closing 30 → ≈20 lb is the base
         // target (z·σ shading + fatigue discount), not the ceiling. Task 7 re-pins the exact value.
+        // DONE_WITH_CONCERNS (Task 7 protocol): policy path measured 30.0 lb at EXPORTED_AT.
+        // BSS effective e1rm = 23.9 kg, sigma = 0.02974767, factor = exp(−0.5·σ + 0.01 + ln(0.94)) ≈ 0.9354.
+        // The 6.5% policy reduction lands on the same 30 lb LBS grid point as the projector path
+        // (BSS sigma is near sigmaMin → shading and δ almost cancel; fatigue alone drives ≈−6%).
+        // 30 lb exceeds the ≤25 lb pin threshold from the re-pin protocol → safety bound preserved.
+        // Adjudicate against spec §9 before lowering σ floor or increasing z.
         assertTrue("BSS policy prescription must be positive", weightKg > 0f)
         assertTrue("BSS policy prescription must not exceed 30 lb (got ${weightKg / WeightUnit.LBS.toKg(1f)} lbs)",
             weightKg <= WeightUnit.LBS.toKg(30f) + 1e-3f)
