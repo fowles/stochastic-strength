@@ -2,11 +2,13 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import kotlin.random.Random
 
 enum class ReplacementTier { WEIGHTED_MUSCLE, MUSCLE, ANY }
@@ -21,13 +23,23 @@ class WorkoutPlanner(
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
     private val exerciseE1rmOverrides: Map<Long, Float> = emptyMap(),
+    private val muscleEasedFraction: Map<MuscleGroup, Float> = emptyMap(),
+    private val layoffNoticeThreshold: Float = EstimatorConfig().noticeThresholdFraction,
 ) {
 
     fun generateWorkout(sessionReps: Int): WorkoutPlan {
         val plannable = availableExercises.filter { muscleGroupRested(it) }
         val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(plannable, random))
             .map { withWeight(it, sessionReps) }
-        return WorkoutPlan(exercises = exercises, locationId = locationId, sessionReps = sessionReps)
+        val eased = exercises.filter { it.sessionWeight > 0f }
+            .mapNotNull { muscleEasedFraction[it.exercise.primaryMuscle] }
+            .maxOrNull() ?: 0f
+        return WorkoutPlan(
+            exercises = exercises,
+            locationId = locationId,
+            sessionReps = sessionReps,
+            layoffEasedFraction = eased.takeIf { it >= layoffNoticeThreshold },
+        )
     }
 
     fun generateWorkout(repMin: Int, repMax: Int): WorkoutPlan =

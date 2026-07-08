@@ -39,24 +39,4 @@ class WorkoutPlanTest {
         assertEquals(0, plan.estimatedDurationSeconds)
     }
 
-    @Test
-    fun effectiveOverrides_mergesWithManualWinning() {
-        // exerciseOverrides win over detrainOverrides for the same key (exercise id)
-        val plan = WorkoutPlan(
-            exercises = emptyList(),
-            locationId = null,
-            exerciseOverrides = mapOf(1L to 70f),
-            detrainOverrides = mapOf(1L to 50f, 2L to 60f),
-        )
-        assertEquals(
-            mapOf(1L to 70f, 2L to 60f),
-            plan.effectiveOverrides,
-        )
-    }
-
-    @Test
-    fun effectiveOverrides_emptyByDefault() {
-        val plan = WorkoutPlan(exercises = emptyList(), locationId = null)
-        assertEquals(emptyMap<Long, Float>(), plan.effectiveOverrides)
-    }
 }

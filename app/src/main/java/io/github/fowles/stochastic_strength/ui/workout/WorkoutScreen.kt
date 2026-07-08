@@ -102,14 +102,6 @@ fun WorkoutScreen(
                         },
                         onExerciseTap = onExerciseTap,
                     )
-                    s.detraining?.let { prompt ->
-                        DetrainingDialog(
-                            prompt = prompt,
-                            weightUnit = weightUnit,
-                            onApply = viewModel::applyDetraining,
-                            onSkip = viewModel::skipDetraining,
-                        )
-                    }
                 }
                 is WorkoutState.ActiveSet -> {
                     var showWeightDialog by rememberSaveable(s.exerciseIndex, s.setIndex, s.warmupSetIndex) {

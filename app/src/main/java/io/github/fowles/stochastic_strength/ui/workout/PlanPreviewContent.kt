@@ -93,6 +93,13 @@ internal fun PlanPreviewContent(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        state.plan.layoffEasedFraction?.let { f ->
+            Text(
+                "Weights eased ~${(f * 100).roundToInt()}% after the break",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         val locationId = state.plan.locationId
         val locationName = state.locationName
         if (locationId != null && locationName != null) {

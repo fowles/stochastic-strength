@@ -56,6 +56,7 @@ class WorkoutPlannerTest {
         nowMs: Long = System.currentTimeMillis(),
         pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
         coefficientSource: CoefficientSource = ExerciseCoefficients,
+        muscleEasedFraction: Map<MuscleGroup, Float> = emptyMap(),
     ): WorkoutPlanner {
         val builder = PolicyStateBuilder()
         if (recentHistory.isNotEmpty()) {
@@ -86,6 +87,7 @@ class WorkoutPlannerTest {
             random = random,
             pacingEstimator = pacingEstimator,
             coefficientSource = coefficientSource,
+            muscleEasedFraction = muscleEasedFraction,
         )
     }
 
@@ -169,6 +171,38 @@ class WorkoutPlannerTest {
 
         val plan = p.generateWorkout(5)
         assertEquals(0f, plan.exercises.single().sessionWeight, 0f)
+    }
+
+    @Test
+    fun layoffNoticeAppearsOnlyWhenAPlannedMuscleEasedPastTheThreshold() {
+        // All-QUADS exercise list so the if-guard never goes vacuous.
+        val quadsExercises = listOf(
+            exercise(1L, "Barbell Squat", MuscleGroup.QUADS),
+            exercise(2L, "Front Squat", MuscleGroup.QUADS),
+        )
+        val quadsStrengths = strengthsFor(MuscleGroup.QUADS to 100f)
+
+        val eased = planner(
+            exercises = quadsExercises,
+            strengths = quadsStrengths,
+            muscleEasedFraction = mapOf(MuscleGroup.QUADS to 0.06f),
+        ).generateWorkout(sessionReps = 10)
+        if (eased.exercises.any { it.exercise.primaryMuscle == MuscleGroup.QUADS && it.sessionWeight > 0f }) {
+            assertEquals(0.06f, eased.layoffEasedFraction)
+        }
+
+        val fresh = planner(
+            exercises = quadsExercises,
+            strengths = quadsStrengths,
+        ).generateWorkout(sessionReps = 10)
+        assertNull(fresh.layoffEasedFraction)
+
+        val subThreshold = planner(
+            exercises = quadsExercises,
+            strengths = quadsStrengths,
+            muscleEasedFraction = mapOf(MuscleGroup.QUADS to 0.01f),
+        ).generateWorkout(sessionReps = 10)
+        assertNull(subThreshold.layoffEasedFraction)
     }
 
     // ──────────────────────────────────────────────────────────────────────

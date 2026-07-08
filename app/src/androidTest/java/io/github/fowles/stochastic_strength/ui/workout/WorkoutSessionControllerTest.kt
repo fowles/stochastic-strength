@@ -14,7 +14,6 @@ import io.github.fowles.stochastic_strength.domain.ReplacementTier
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
@@ -85,7 +84,7 @@ class WorkoutSessionControllerTest {
     /**
      * Seed the derived state the way the live planner reads it under the per-exercise contract:
      * a confident per-exercise estimate (≈100 kg 1RM) per active exercise drives the prescribed
-     * weight, plus the muscle_group_strength display projection the detraining prompt reads.
+     * weight, plus the muscle_group_strength display projection for the strength grid.
      */
     private suspend fun seedDerivedStrength(database: AppDatabase, repo: WorkoutRepository) {
         val active = database.exerciseDao().getActive()
@@ -384,41 +383,7 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
-    fun initialize_afterLayoff_surfacesDetrainingPromptWithSuggestedDefault() = runBlocking {
-        // Fresh controller (setUp already ran startSession, which inserts a recent session).
-        // We need a fresh DB with only a 3-weeks-old session.
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        freshDb.userProfileDao().insert(
-            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
-        )
-        freshDb.exerciseDao().insertAll(listOf(
-            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
-            Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
-        ))
-        val freshRepo = WorkoutRepository(freshDb)
-        seedDerivedStrength(freshDb, freshRepo)
-        val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS - 60_000
-        freshDb.workoutSessionDao().insert(
-            WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo + 1000)
-        )
-        val freshController = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
-        freshController.initializeSession(
-            locationId = null, locationName = null, preferredExerciseCount = 5,
-            preferredRepMin = 5, preferredRepMax = 10, weightUnit = WeightUnit.KG,
-        )
-        val preview = freshController.state.value as WorkoutState.PlanPreview
-        val prompt = preview.detraining!!
-        assertEquals(3, prompt.weeksOff)
-        assertEquals(0.15f, prompt.suggestedFraction, 1e-4f)
-        assertTrue(prompt.currentStrengths.isNotEmpty())
-        freshDb.close()
-    }
-
-    @Test
-    fun initialize_recentSession_noPrompt() = runBlocking {
+    fun initialize_recentSession_landsPlanPreview() = runBlocking {
         // setUp already ran startSession which inserts a recent session,
         // so any new controller with the same db will see a recent session.
         val freshController = WorkoutSessionController(db, repository, WorkoutSessionBus(), scope)
@@ -426,81 +391,7 @@ class WorkoutSessionControllerTest {
             locationId = null, locationName = null, preferredExerciseCount = 5,
             preferredRepMin = 5, preferredRepMax = 10, weightUnit = WeightUnit.KG,
         )
-        val preview = freshController.state.value as WorkoutState.PlanPreview
-        assertNull(preview.detraining)
-    }
-
-    @Test
-    fun applyDetraining_reducesWeightsAndStoresOverrides() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        freshDb.userProfileDao().insert(
-            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
-        )
-        freshDb.exerciseDao().insertAll(listOf(
-            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
-            Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
-        ))
-        val freshRepo = WorkoutRepository(freshDb)
-        seedDerivedStrength(freshDb, freshRepo)
-        val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS - 60_000
-        freshDb.workoutSessionDao().insert(
-            WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo + 1000)
-        )
-        val freshController = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
-        freshController.initializeSession(
-            locationId = null, locationName = null, preferredExerciseCount = 5,
-            preferredRepMin = 5, preferredRepMax = 10, weightUnit = WeightUnit.KG,
-        )
-        val before = (freshController.state.value as WorkoutState.PlanPreview)
-            .plan.exercises.first { it.sessionWeight > 0f }
-
-        freshController.applyDetraining(0.20f)
-        delay(200) // wait for coroutine in applyDetraining
-
-        val after = (freshController.state.value as WorkoutState.PlanPreview)
-        assertNull(after.detraining)
-        assertTrue(after.plan.detrainOverrides.isNotEmpty())
-        val sameExercise = after.plan.exercises.first { it.exercise.id == before.exercise.id }
-        assertTrue("expected reduced weight", sameExercise.sessionWeight < before.sessionWeight)
-        freshDb.close()
-    }
-
-    @Test
-    fun skipDetraining_leavesWeightsAndOverridesUntouched() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        freshDb.userProfileDao().insert(
-            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
-        )
-        freshDb.exerciseDao().insertAll(listOf(
-            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
-            Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
-        ))
-        val freshRepo = WorkoutRepository(freshDb)
-        seedDerivedStrength(freshDb, freshRepo)
-        val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS - 60_000
-        freshDb.workoutSessionDao().insert(
-            WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo + 1000)
-        )
-        val freshController = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
-        freshController.initializeSession(
-            locationId = null, locationName = null, preferredExerciseCount = 5,
-            preferredRepMin = 5, preferredRepMax = 10, weightUnit = WeightUnit.KG,
-        )
-        val before = (freshController.state.value as WorkoutState.PlanPreview).plan.exercises
-
-        freshController.skipDetraining()
-
-        val after = (freshController.state.value as WorkoutState.PlanPreview)
-        assertNull(after.detraining)
-        assertTrue(after.plan.detrainOverrides.isEmpty())
-        assertEquals(before.map { it.sessionWeight }, after.plan.exercises.map { it.sessionWeight })
-        freshDb.close()
+        assertTrue(freshController.state.value is WorkoutState.PlanPreview)
     }
 
     @Test

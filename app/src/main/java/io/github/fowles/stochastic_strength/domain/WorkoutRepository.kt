@@ -35,6 +35,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
+import kotlin.math.exp
+
+private const val WEEK_MS = 7f * 24 * 60 * 60 * 1000
 
 class WorkoutRepository(
     private val db: AppDatabase,
@@ -76,6 +79,13 @@ class WorkoutRepository(
                 pooled[id] = PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
             }
         }
+        val config = EstimatorConfig()
+        val muscleEased = muscleIds.keys.associateWith { m ->
+            val last = policyState.muscleLastObs[m] ?: return@associateWith 0f
+            val idleMs = (now - (last + config.detrainGraceMs)).coerceAtLeast(0L)
+            val drift = minOf(config.detrainRatePerWeek * (idleMs.toFloat() / WEEK_MS), config.detrainCap)
+            1f - exp(-drift)
+        }
         val recentSessions = db.workoutSessionDao().getRecentCompletedSessions(limit = 50)
         val recentSets = if (recentSessions.isNotEmpty())
             db.workoutSetDao().getSetsForSessions(recentSessions.map { it.id })
@@ -87,7 +97,7 @@ class WorkoutRepository(
         val policy = PrescriptionPolicy(
             pooled = pooled,
             state = policyState,
-            config = EstimatorConfig(),
+            config = config,
             progressionEngine = progressionEngine,
             weightUnit = weightUnit,
             nowMs = now,
@@ -101,6 +111,7 @@ class WorkoutRepository(
             progressionEngine = progressionEngine,
             pacingEstimator = pacingEstimator,
             exerciseE1rmOverrides = exerciseOverrides,
+            muscleEasedFraction = muscleEased,
         )
     }
 
@@ -173,24 +184,6 @@ class WorkoutRepository(
                     e1rm = e1rm,
                     asOf = asOf,
                     reason = BaselineChangeReason.OVERRIDE,
-                )
-            )
-        }
-        replayDerivedState()
-    }
-
-    suspend fun applyDetrainingReduction(sessionId: Long, overrides: Map<Long, Float>) {
-        if (overrides.isEmpty()) return
-        val session = db.workoutSessionDao().getById(sessionId)
-        val asOf = session?.startTime ?: System.currentTimeMillis()
-        for ((exerciseId, e1rm) in overrides) {
-            db.exerciseStrengthOverrideDao().insert(
-                ExerciseStrengthOverride(
-                    sessionId = sessionId,
-                    exerciseId = exerciseId,
-                    e1rm = e1rm,
-                    asOf = asOf,
-                    reason = BaselineChangeReason.DETRAIN,
                 )
             )
         }

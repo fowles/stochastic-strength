@@ -7,7 +7,6 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
@@ -92,63 +91,6 @@ class WorkoutSessionController(
             repMax = preferredRepMax,
         ))
         adjustExerciseCount(preferredExerciseCount)
-        maybeOfferDetraining()
-    }
-
-    private suspend fun maybeOfferDetraining() {
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        val lastCompleted = database.workoutSessionDao().getRecentCompletedSessions(limit = 1)
-            .firstOrNull()?.endTime ?: return
-        val weeks = DetrainingModel.weeksOff(lastCompleted, System.currentTimeMillis())
-        if (!DetrainingModel.qualifies(weeks)) return
-        val strengths = repository.getMuscleGroupStrengths()
-        if (strengths.isEmpty()) return
-        setState(
-            preview.copy(
-                detraining = DetrainingPrompt(
-                    weeksOff = weeks,
-                    suggestedFraction = DetrainingModel.suggestedFraction(weeks),
-                    currentStrengths = strengths,
-                ),
-            ),
-        )
-    }
-
-    fun applyDetraining(fraction: Float) {
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        if (preview.detraining == null) return
-        if (fraction <= 0f) { skipDetraining(); return }
-        scope.launch {
-            val p = repository.buildPlanner(
-                sessionLocationId,
-                weightUnit,
-                preview.plan.exerciseOverrides,
-            )
-            planner = p
-            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-            val detrainOverrides = mutableMapOf<Long, Float>()
-            val recomputed = current.plan.exercises.map { ex ->
-                if (ex.sessionWeight <= 0f) return@map ex
-                val cur = p.e1rmFromSessionWeight(ex.sessionWeight, ex.sessionReps)
-                val reduced = DetrainingModel.reduce(cur, fraction)
-                detrainOverrides[ex.exercise.id] = reduced
-                p.recomputeExercise(ex, reduced)
-            }
-            setState(
-                current.copy(
-                    plan = current.plan.copy(
-                        exercises = recomputed,
-                        detrainOverrides = detrainOverrides,
-                    ),
-                    detraining = null,
-                ),
-            )
-        }
-    }
-
-    fun skipDetraining() {
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        setState(preview.copy(detraining = null))
     }
 
     fun startFirstExercise() {
@@ -162,7 +104,6 @@ class WorkoutSessionController(
             val sessionId = database.workoutSessionDao().insert(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
-            repository.applyDetrainingReduction(sessionId, plan.detrainOverrides)
             repository.applyManualExerciseOverrides(sessionId, plan.exerciseOverrides)
             setState(WorkoutState.ActiveSet(
                 plan = plan,
@@ -193,7 +134,7 @@ class WorkoutSessionController(
                 sessionRejectedIds = current.plan.sessionRejectedIds + rejectedId
             )
             val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
-                repository.buildPlanner(sessionLocationId, weightUnit, updatedPlan.effectiveOverrides)
+                repository.buildPlanner(sessionLocationId, weightUnit, updatedPlan.exerciseOverrides)
                     .also { planner = it }
             } else {
                 planner ?: return@launch
@@ -261,7 +202,7 @@ class WorkoutSessionController(
         setState(state.copy(plan = state.plan.copy(exercises = exercises, exerciseOverrides = updatedOverrides)))
         weightAdjustJob?.cancel()
         weightAdjustJob = scope.launch {
-            planner = repository.buildPlanner(sessionLocationId, weightUnit, state.plan.detrainOverrides + updatedOverrides)
+            planner = repository.buildPlanner(sessionLocationId, weightUnit, updatedOverrides)
         }
     }
 
@@ -424,7 +365,7 @@ class WorkoutSessionController(
         val locationId = sessionLocationId ?: return
         scope.launch {
             val locationName = database.knownLocationDao().getById(locationId)?.name
-            val freshPlanner = repository.buildPlanner(locationId, weightUnit, preview.plan.effectiveOverrides)
+            val freshPlanner = repository.buildPlanner(locationId, weightUnit, preview.plan.exerciseOverrides)
             planner = freshPlanner
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
             var plan = preview.plan
@@ -619,7 +560,7 @@ class WorkoutSessionController(
         val staged = current.staged
         if (staged != null) {
             scope.launch {
-                staged.pendingSwap?.let { persistSwap(it, current.plan.effectiveOverrides) }
+                staged.pendingSwap?.let { persistSwap(it, current.plan.exerciseOverrides) }
                 val target = staged.commitTarget
                 if (target != null) setState(target) else finishWorkout(current.plan, current.sessionId)
             }

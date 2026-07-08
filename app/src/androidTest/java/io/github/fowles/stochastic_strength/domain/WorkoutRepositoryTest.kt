@@ -159,58 +159,6 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun detrainingReduction_lowersEstimateAndTagsOverrideRow() = runBlocking {
-        // Seed a single CHEST exercise's per-exercise initial estimate (the replay starting point).
-        val benchId = db.exerciseDao().insert(Exercise(
-            name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
-            equipment = Equipment.BARBELL,
-        ))
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = benchId, e1rm = 100f, asOf = 0L,
-        ))
-        repository.replayDerivedState()
-        val before = repository.derivedState.snapshot().exerciseBeliefs()[benchId]!!.e1rm
-        assertEquals(100f, before, 0.01f)
-
-        // Detrain the exercise to 80% of its current estimate, applied at a completed session.
-        val sessionId = db.workoutSessionDao().insert(
-            WorkoutSession(startTime = 1_000L, endTime = 2_000L)
-        )
-        repository.applyDetrainingReduction(sessionId, mapOf(benchId to before * 0.8f))
-
-        // The detrain adjustment lands as a per-exercise override row tagged DETRAIN…
-        val rows = db.exerciseStrengthOverrideDao().getForSession(sessionId)
-        val detrain = rows.first { it.reason == BaselineChangeReason.DETRAIN }
-        assertEquals(benchId, detrain.exerciseId)
-        assertEquals(before * 0.8f, detrain.e1rm, 0.01f)
-
-        // …and applyDetrainingReduction re-ran replay, so the live estimate is now the reduced value.
-        val after = repository.derivedState.snapshot().exerciseBeliefs()[benchId]!!.e1rm
-        assertEquals(before * 0.8f, after, 0.01f)
-    }
-
-    @Test
-    fun manualOverride_winsOverDetrain_inSameSession() = runBlocking {
-        val benchId = db.exerciseDao().insert(Exercise(
-            name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
-            equipment = Equipment.BARBELL,
-        ))
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = benchId, e1rm = 100f, asOf = 0L,
-        ))
-        val sessionId = db.workoutSessionDao().insert(
-            WorkoutSession(startTime = 1_000L, endTime = 2_000L)
-        )
-        // Detrain first, then a manual override at the same session: the override is applied
-        // last during replay, so it wins.
-        repository.applyDetrainingReduction(sessionId, mapOf(benchId to 50f))
-        repository.applyManualExerciseOverrides(sessionId, mapOf(benchId to 70f))
-
-        val estimate = repository.derivedState.snapshot().exerciseBeliefs()[benchId]!!.e1rm
-        assertEquals(70f, estimate, 0.01f)
-    }
-
-    @Test
     fun seedInitialWeights_writesExerciseInitialsThatSeedTheEstimateMap() = runBlocking {
         // seedInitialWeights writes one per-exercise initial per loaded exercise present in the DB.
         db.exerciseDao().insertAll(listOf(
