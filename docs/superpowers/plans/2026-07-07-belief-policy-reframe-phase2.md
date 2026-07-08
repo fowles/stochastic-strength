@@ -1498,7 +1498,9 @@ Then the deletion sweep (Files list above): remove the dialog, prompt, controlle
 
 - [ ] **Step 4: Commit** `jj commit -m "phase2: detraining dialog deleted — automatic drift + passive layoff notice"`.
 
----### Task 9: Simulation rewrite + tuning (z, δ, poolObsVar pinned)
+---
+
+### Task 9: Simulation rewrite + tuning (z, δ, poolObsVar pinned)
 
 **Files:**
 - Create: `app/src/test/java/io/github/fowles/stochastic_strength/domain/progression/BeliefSimulationTest.kt` (replaces the deleted `ExerciseEstimatorSimulationTest`)
