@@ -77,10 +77,16 @@ They are binding for this plan; phase 3 replaces №1–2.
    drift. An override row re-anchors `updatedAt`, so drift counts from the
    override when it is newer than muscleLast + grace.
 8. **ProdBss pin handling.** Task 5 (the swap) temporarily relaxes
-   `ProdBssPrescriptionTest` to safety bounds (prescription > 0 and ≤ the
-   demonstrated 20 lb); Task 7 re-pins the exact value after z/δ/fatigue land
+   `ProdBssPrescriptionTest` to safety bounds (prescription > 0 and ≤ 30 lb);
+   Task 7 re-pins the exact value after z/δ/fatigue land
    (spec §9 expects ≈ 20 lb — if the run disagrees, report DONE_WITH_CONCERNS
    with the observed value; do not pin silently).
+   [AMENDED during Task 5 execution: the original ≤ 20 lb bound is
+   unsatisfiable at Task 5 — with wDownSnap deleted and z/δ still 0f the raw
+   belief rides high, and the binding safety line is the phase-1 failure
+   ceiling (~25.3 kg 1RM from the session-18 clear), which prescribes exactly
+   30 lb @ 10 reps. Both paths measured 30.0 lb at Task 5. 20 lb returns as
+   the expectation at Task 7's re-pin, which already guards it.]
 
 ## File Structure
 
@@ -979,9 +985,11 @@ class SessionProgressionStepperTest {
 
     @Test
     fun failureLowersTheBeliefMean() {
+        // [AMENDED during Task 5: was w = 90f, but rawToOneRepMax(90, 5.5) ≈ 110 kg > seed
+        // (100 kg) — that observation pulls mu UP. 5 reps at 70 kg implies ≈ 85.5 kg < seed.]
         val snap = snapshot()
         val before = snap.currentBeliefs.getValue(1L).mu
-        stepper.step(listOf(set(1L, 1, SetFeedback.TOO_HARD, w = 90f, actual = 5)), snap, 1000L)
+        stepper.step(listOf(set(1L, 1, SetFeedback.TOO_HARD, w = 70f, actual = 5)), snap, 1000L)
         assertTrue(snap.currentBeliefs.getValue(1L).mu < before)
     }
 
@@ -1148,7 +1156,7 @@ class SessionProgressionStepper(
   8. Move `EstimatorConfig` into `ExerciseBelief.kt`; delete fields `halfLifeMs`, `confidenceCap`, `wUp`, `wDown`, `wDownSnap`; delete files `ExerciseEstimate.kt`, `ExerciseEstimateUpdater.kt`, `SessionSignalExtractor.kt`; delete the old projector/cross-tuning overloads from Task 4.
   9. `ExerciseDetailViewModel.observedSessionPoints`: switch `SessionSignalExtractor.aggregateSession(s.sets)?.est1RM` → `impliedSessionE1rm(s.sets)` (import from progression package).
   10. Tests: delete `ExerciseEstimateUpdaterTest`, `SessionSignalExtractorTest`, `BulgarianBracketCharacterizationTest`, `ExerciseEstimatorSimulationTest`; mechanically update `ReplayEngineTest`, `ReplayHistoryTest`, `ReplayProjectionTest`, `PolicyStateBuilderTest`, `ExerciseProgressionSeriesBuilderTest`, `derived` store tests, androidTest `WorkoutSessionControllerTest` (constructor/assertion renames only — keep scenarios).
-  11. `ProdBssPrescriptionTest`: rebuild setup on beliefs; both tests assert the SAFETY property for now: prescribed weight > 0 and ≤ the demonstrated 20 lb (in kg via `WeightUnit.LBS.toKg(20f) + 1e-3f`). Add `// Task 7 re-pins the exact value.`
+  11. `ProdBssPrescriptionTest`: rebuild setup on beliefs; both tests assert the SAFETY property for now: prescribed weight > 0 and ≤ 30 lb (in kg via `WeightUnit.LBS.toKg(30f) + 1e-3f`). Add `// Task 7 re-pins the exact value.` [AMENDED during Task 5: was ≤ 20 lb — unsatisfiable at Task 5; the binding safety line is the phase-1 failure ceiling (~25.3 kg 1RM), which prescribes exactly 30 lb @ 10 reps; both paths measured 30.0 lb. See amended Bridge Decision №8.]
 
 - [ ] **Step 4: Full unit suite — PASS.** `./gradlew :app:testDebugUnitTest`. Also `./gradlew :app:assembleDebug` (androidTest compile check: `./gradlew :app:compileDebugAndroidTestKotlin`).
 
