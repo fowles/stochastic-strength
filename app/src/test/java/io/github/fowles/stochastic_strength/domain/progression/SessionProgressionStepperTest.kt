@@ -57,6 +57,8 @@ class SessionProgressionStepperTest {
         snap.currentBeliefs[9L] = ExerciseBelief.seed(50f, 0L, config)
         val result = stepper.step(listOf(set(9L, 1, SetFeedback.RIR_0_1)), snap, 1000L)
         assertTrue(result.steps.isEmpty())
+        // The skip must reach the fold, not just the projection: the belief stays at its seed.
+        assertEquals(ExerciseBelief.seed(50f, 0L, config), snap.currentBeliefs.getValue(9L))
     }
 
     @Test

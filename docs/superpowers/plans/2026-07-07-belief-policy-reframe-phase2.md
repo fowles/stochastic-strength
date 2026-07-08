@@ -82,11 +82,15 @@ They are binding for this plan; phase 3 replaces №1–2.
    (spec §9 expects ≈ 20 lb — if the run disagrees, report DONE_WITH_CONCERNS
    with the observed value; do not pin silently).
    [AMENDED during Task 5 execution: the original ≤ 20 lb bound is
-   unsatisfiable at Task 5 — with wDownSnap deleted and z/δ still 0f the raw
-   belief rides high, and the binding safety line is the phase-1 failure
-   ceiling (~25.3 kg 1RM from the session-18 clear), which prescribes exactly
-   30 lb @ 10 reps. Both paths measured 30.0 lb at Task 5. 20 lb returns as
-   the expectation at Task 7's re-pin, which already guards it.]
+   unsatisfiable at Task 5 — with wDownSnap deleted and z/δ still 0f the
+   pooled belief rides at ~23 kg e1rm; both paths measured 30.0 lb.
+   CORRECTED post-review 2026-07-08: the earlier amendment blamed the failure
+   ceiling; in fact the ceiling is INERT (cap ≈ 25.3 kg would prescribe
+   ~35 lb if it bound — the pooled value sits below it), so 30 lb is
+   projector pass-through. Task 7's lever for closing 30 → ≈20 lb is the
+   base target (z·σ shading + fatigue discount) acting on the pooled belief,
+   NOT the ceiling. 20 lb returns as the expectation at Task 7's re-pin,
+   which already guards it.]
 
 ## File Structure
 
@@ -1156,7 +1160,7 @@ class SessionProgressionStepper(
   8. Move `EstimatorConfig` into `ExerciseBelief.kt`; delete fields `halfLifeMs`, `confidenceCap`, `wUp`, `wDown`, `wDownSnap`; delete files `ExerciseEstimate.kt`, `ExerciseEstimateUpdater.kt`, `SessionSignalExtractor.kt`; delete the old projector/cross-tuning overloads from Task 4.
   9. `ExerciseDetailViewModel.observedSessionPoints`: switch `SessionSignalExtractor.aggregateSession(s.sets)?.est1RM` → `impliedSessionE1rm(s.sets)` (import from progression package).
   10. Tests: delete `ExerciseEstimateUpdaterTest`, `SessionSignalExtractorTest`, `BulgarianBracketCharacterizationTest`, `ExerciseEstimatorSimulationTest`; mechanically update `ReplayEngineTest`, `ReplayHistoryTest`, `ReplayProjectionTest`, `PolicyStateBuilderTest`, `ExerciseProgressionSeriesBuilderTest`, `derived` store tests, androidTest `WorkoutSessionControllerTest` (constructor/assertion renames only — keep scenarios).
-  11. `ProdBssPrescriptionTest`: rebuild setup on beliefs; both tests assert the SAFETY property for now: prescribed weight > 0 and ≤ 30 lb (in kg via `WeightUnit.LBS.toKg(30f) + 1e-3f`). Add `// Task 7 re-pins the exact value.` [AMENDED during Task 5: was ≤ 20 lb — unsatisfiable at Task 5; the binding safety line is the phase-1 failure ceiling (~25.3 kg 1RM), which prescribes exactly 30 lb @ 10 reps; both paths measured 30.0 lb. See amended Bridge Decision №8.]
+  11. `ProdBssPrescriptionTest`: rebuild setup on beliefs; both tests assert the SAFETY property for now: prescribed weight > 0 and ≤ 30 lb (in kg via `WeightUnit.LBS.toKg(30f) + 1e-3f`). Add `// Task 7 re-pins the exact value.` [AMENDED during Task 5: was ≤ 20 lb — unsatisfiable at Task 5; both paths measured 30.0 lb. CORRECTED post-review 2026-07-08: 30 lb is the pooled projector value passing through a neutral policy — the failure ceiling is inert here (it would give ~35 lb if it bound). See amended Bridge Decision №8.]
 
 - [ ] **Step 4: Full unit suite — PASS.** `./gradlew :app:testDebugUnitTest`. Also `./gradlew :app:assembleDebug` (androidTest compile check: `./gradlew :app:compileDebugAndroidTestKotlin`).
 

@@ -17,8 +17,10 @@ import org.junit.Test
 
 /**
  * End-to-end regression from the prod backup pulled 2026-06-24 (the Bulgarian-Split-Squat
- * over-prescription bug). Replays that user's QUADS history exactly as production does and pins
- * SAFETY PROPERTIES for the projected BSS (exerciseId 55) prescription at 10 reps.
+ * over-prescription bug). Replays that user's QUADS history through the production stack and pins
+ * SAFETY PROPERTIES for the projected BSS (exerciseId 55) prescription at 10 reps. (One knowing
+ * divergence from buildPlanner: project() is called without muscleLastObs — inert here because the
+ * fixture's 6-day gap is inside the 14-day detraining grace.)
  *
  * Task 7 re-pins the exact value after z/δ/fatigue activation lands.
  */
@@ -137,8 +139,11 @@ class ProdBssPrescriptionTest {
         val bss = Exercise(id = 55L, name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.DUMBBELL)
         val weightKg = policy.prescribe(bss, 10)!!
 
-        // The phase-1 failure ceiling (~25.3 kg 1RM from the session-18 clear failures) binds at
-        // 30 lb @ 10 reps over the optimistic T5 belief. Task 7 re-pins the exact value.
+        // The failure ceiling is INERT here: cap = 0.97 × rawToOneRepMax(15.876, 10) ≈ 25.3 kg
+        // would prescribe ~35 lb if it bound, but the pooled belief (~23 kg e1rm) sits below it,
+        // so with z/δ still 0f and no HURT the policy passes the pooled value through — the same
+        // 30 lb the projector path measures. Task 7's lever for closing 30 → ≈20 lb is the base
+        // target (z·σ shading + fatigue discount), not the ceiling. Task 7 re-pins the exact value.
         assertTrue("BSS policy prescription must be positive", weightKg > 0f)
         assertTrue("BSS policy prescription must not exceed 30 lb (got ${weightKg / WeightUnit.LBS.toKg(1f)} lbs)",
             weightKg <= WeightUnit.LBS.toKg(30f) + 1e-3f)
