@@ -21,6 +21,8 @@ class ChartRangeTest {
                 merged = listOf(pt(90f), pt(100f)),
                 ownObservations = listOf(pt(95f)),
                 siblingObservations = listOf(pt(85f), pt(105f)),
+                ownBandUpper = listOf(pt(500f)),    // band extremes — must NOT widen the shared range
+                ownBandLower = listOf(pt(1f)),
             ),
             frames = emptyList(),
         )

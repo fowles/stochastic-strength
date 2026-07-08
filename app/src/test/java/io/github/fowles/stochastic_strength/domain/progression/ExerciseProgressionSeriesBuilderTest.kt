@@ -198,4 +198,52 @@ class ExerciseProgressionSeriesBuilderTest {
         val frame = buildFrame(1L, listOf(1L, 2L), snap, sets, 1_000L, names, MuscleStrengthProjector())
         assertEquals(listOf(2L), frame.observations.map { it.exerciseId })
     }
+
+    @Test
+    fun sigmaBandBracketsOwnEstimateWhenBeliefExists() {
+        val snap = snapshot() // target 1 has a belief: E=100, sigma=sigmaMin
+        val sample = sampleSession(
+            targetId = 1L,
+            muscleIds = listOf(1L, 2L),
+            snapshot = snap,
+            sets = listOf(set(exerciseId = 1L, weight = 100f, reps = 5)),
+            asOf = 1_000L,
+            projector = MuscleStrengthProjector(),
+        )
+
+        assertEquals(1, sample.ownBandUpper.size)
+        assertEquals(1, sample.ownBandLower.size)
+        assertEquals(1, sample.ownEstimate.size)
+
+        val own = sample.ownEstimate.single().value
+        val upper = sample.ownBandUpper.single().value
+        val lower = sample.ownBandLower.single().value
+
+        assertTrue("upper $upper should be > own $own", upper > own)
+        assertTrue("own $own should be > lower $lower", own > lower)
+    }
+
+    @Test
+    fun sigmaBandEmptyWhenNoOwnBeliefExists() {
+        // A snapshot where target exercise 1 has NO belief in currentBeliefs.
+        val snapNoBelief = ReplaySnapshot(
+            exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
+            seedCoefficients = mapOf(1L to 1.0f, 2L to 0.6f),
+        )
+        // Only add belief for sibling 2, not for target 1.
+        snapNoBelief.currentBeliefs[2L] = ExerciseBelief(lnE(60f), config.sigmaMin * config.sigmaMin, updatedAt = 0L)
+
+        val sample = sampleSession(
+            targetId = 1L,
+            muscleIds = listOf(1L, 2L),
+            snapshot = snapNoBelief,
+            sets = listOf(set(exerciseId = 2L, weight = 60f, reps = 5)),
+            asOf = 1_000L,
+            projector = MuscleStrengthProjector(),
+        )
+
+        assertEquals(0, sample.ownEstimate.size)
+        assertEquals(0, sample.ownBandUpper.size)
+        assertEquals(0, sample.ownBandLower.size)
+    }
 }

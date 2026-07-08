@@ -13,9 +13,13 @@ data class ExerciseProgressionSeries(
     val merged: List<ProgressionPoint>,
     val ownObservations: List<ProgressionPoint>,
     val siblingObservations: List<ProgressionPoint>,
+    val ownBandUpper: List<ProgressionPoint>,
+    val ownBandLower: List<ProgressionPoint>,
 ) {
     companion object {
-        fun empty() = ExerciseProgressionSeries(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+        fun empty() = ExerciseProgressionSeries(
+            emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(),
+        )
     }
 }
 
@@ -39,13 +43,15 @@ data class ExerciseProgressionData(
     val frames: List<ProgressionFrame>,
 )
 
-/** One session's contribution to the five series. Pure; no DB. */
+/** One session's contribution to the seven series. Pure; no DB. */
 internal data class SessionSample(
     val ownEstimate: List<ProgressionPoint>,
     val siblingsEstimate: List<ProgressionPoint>,
     val merged: List<ProgressionPoint>,
     val ownObservations: List<ProgressionPoint>,
     val siblingObservations: List<ProgressionPoint>,
+    val ownBandUpper: List<ProgressionPoint>,
+    val ownBandLower: List<ProgressionPoint>,
 )
 
 /**
@@ -63,10 +69,11 @@ internal fun sampleSession(
 ): SessionSample {
     val targetSeed = snapshot.seedCoefficients[targetId] ?: 0f
 
-    // Lines: own estimate (stored post-fold mean), leave-one-out siblings prediction, engine merged effectiveE1rm.
-    val ownEstimate = snapshot.currentBeliefs[targetId]?.let {
-        listOf(ProgressionPoint(asOf, exp(it.mu)))
-    } ?: emptyList()
+    // Lines: own estimate (stored post-fold mean), σ band, leave-one-out siblings prediction, engine merged effectiveE1rm.
+    val belief = snapshot.currentBeliefs[targetId]
+    val ownEstimate = belief?.let { listOf(ProgressionPoint(asOf, exp(it.mu))) } ?: emptyList()
+    val ownBandUpper = belief?.let { listOf(ProgressionPoint(asOf, exp(it.mu + it.sigma))) } ?: emptyList()
+    val ownBandLower = belief?.let { listOf(ProgressionPoint(asOf, exp(it.mu - it.sigma))) } ?: emptyList()
 
     val fullProjection = projector.project(snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds, asOf)
     val merged = fullProjection.effectiveE1rm[targetId]?.let { listOf(ProgressionPoint(asOf, it)) } ?: emptyList()
@@ -97,7 +104,7 @@ internal fun sampleSession(
         ProgressionPoint(asOf, implied * (targetSeed / sibSeed))
     }
 
-    return SessionSample(ownEstimate, siblingsEstimate, merged, ownObservations, siblingObservations)
+    return SessionSample(ownEstimate, siblingsEstimate, merged, ownObservations, siblingObservations, ownBandUpper, ownBandLower)
 }
 
 /**
@@ -167,6 +174,8 @@ class ExerciseProgressionSeriesBuilder(
         val merged = mutableListOf<ProgressionPoint>()
         val ownObservations = mutableListOf<ProgressionPoint>()
         val siblingObservations = mutableListOf<ProgressionPoint>()
+        val ownBandUpper = mutableListOf<ProgressionPoint>()
+        val ownBandLower = mutableListOf<ProgressionPoint>()
         val frames = mutableListOf<ProgressionFrame>()
 
         engine.run(db, snapshot) { _, asOf, sets, snap, result ->
@@ -177,6 +186,8 @@ class ExerciseProgressionSeriesBuilder(
                 merged += sample.merged
                 ownObservations += sample.ownObservations
                 siblingObservations += sample.siblingObservations
+                ownBandUpper += sample.ownBandUpper
+                ownBandLower += sample.ownBandLower
                 frames += buildFrame(exerciseId, muscleIds, snap, sets, asOf, namesById, projector)
             }
         }
@@ -188,6 +199,8 @@ class ExerciseProgressionSeriesBuilder(
                 merged = merged,
                 ownObservations = ownObservations,
                 siblingObservations = siblingObservations,
+                ownBandUpper = ownBandUpper,
+                ownBandLower = ownBandLower,
             ),
             frames = frames,
         )

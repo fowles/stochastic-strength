@@ -112,6 +112,8 @@ class ExerciseCoefficientDetailViewModel(
                 ProgressionChartSeries("Merged", pts(series.merged), ProgressionSeriesStyle.LINE, ProgressionColorRole.MERGED),
                 ProgressionChartSeries("Sessions", pts(series.ownObservations), ProgressionSeriesStyle.FILLED_DOTS, ProgressionColorRole.OWN_OBS),
                 ProgressionChartSeries("Siblings (scaled)", pts(series.siblingObservations), ProgressionSeriesStyle.HOLLOW_DOTS, ProgressionColorRole.SIBLING_OBS),
+                ProgressionChartSeries("±σ", pts(series.ownBandUpper), ProgressionSeriesStyle.LINE, ProgressionColorRole.BAND),
+                ProgressionChartSeries("±σ", pts(series.ownBandLower), ProgressionSeriesStyle.LINE, ProgressionColorRole.BAND),
             )
 
             _state.value = ExerciseCoefficientDetailState(
