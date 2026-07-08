@@ -76,7 +76,6 @@ class ProdBssPrescriptionTest {
     )
 
     private val config = EstimatorConfig()
-    private val demonstratedCapacityKg = WeightUnit.LBS.toKg(20f)
 
     @Test
     fun reportBssPrescription() {
@@ -100,12 +99,11 @@ class ProdBssPrescriptionTest {
         val sessionWeightKg = DefaultProgressionEngine.fromOneRepMax(effE1rm, 10)
         val prescribedKg = WeightFormatter.round(sessionWeightKg, WeightUnit.LBS)
 
-        // Safety: prescription must be > 0 and not astronomically high.
-        // New Kalman system gives ~30 lbs for this history (vs old wDownSnap's 20 lbs).
-        // Task 7 re-pins the exact value after z/δ/fatigue activation.
+        // This path has no policy; 30.0 lb is the measured T5-intermediate value (z/δ still 0f,
+        // wDownSnap gone). Task 7 re-pins the exact value.
         assertTrue("BSS prescription must be positive", prescribedKg > 0f)
-        assertTrue("BSS prescription sanity bound (got ${prescribedKg / WeightUnit.LBS.toKg(1f)} lbs)",
-            prescribedKg <= WeightUnit.LBS.toKg(40f))
+        assertTrue("BSS prescription must not exceed 30 lb (got ${prescribedKg / WeightUnit.LBS.toKg(1f)} lbs)",
+            prescribedKg <= WeightUnit.LBS.toKg(30f) + 1e-3f)
     }
 
     @Test
@@ -139,11 +137,10 @@ class ProdBssPrescriptionTest {
         val bss = Exercise(id = 55L, name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.DUMBBELL)
         val weightKg = policy.prescribe(bss, 10)!!
 
-        // Safety: prescription must be > 0 and not astronomically high.
-        // New Kalman system gives ~30 lbs for this history (vs old wDownSnap's 20 lbs).
-        // Task 7 re-pins the exact value after z/δ/fatigue activation.
+        // The phase-1 failure ceiling (~25.3 kg 1RM from the session-18 clear failures) binds at
+        // 30 lb @ 10 reps over the optimistic T5 belief. Task 7 re-pins the exact value.
         assertTrue("BSS policy prescription must be positive", weightKg > 0f)
-        assertTrue("BSS policy prescription sanity bound (got ${weightKg / WeightUnit.LBS.toKg(1f)} lbs)",
-            weightKg <= WeightUnit.LBS.toKg(40f))
+        assertTrue("BSS policy prescription must not exceed 30 lb (got ${weightKg / WeightUnit.LBS.toKg(1f)} lbs)",
+            weightKg <= WeightUnit.LBS.toKg(30f) + 1e-3f)
     }
 }
