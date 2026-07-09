@@ -22,13 +22,16 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
         if (now <= belief.updatedAt) return belief
         val idleDays = (now - belief.updatedAt).toFloat() / DAY_MS
         val sigma2 = clampVar(belief.sigma2 + config.processNoisePerDay * idleDays)
+        val evidenceVar = clampVar(belief.evidenceVar + config.processNoisePerDay * idleDays)
         var mu = belief.mu
         if (muscleLastObs != null) {
             mu -= detrainDrift(maxOf(belief.updatedAt, muscleLastObs + config.detrainGraceMs), now)
         }
         // Carry innovationRun forward: aging models time passing (variance growth + detraining
         // drift), not a filter reset. Wiping the run here would defeat cross-session adaptation.
-        return ExerciseBelief(mu = mu, sigma2 = sigma2, updatedAt = now, innovationRun = belief.innovationRun)
+        // evidenceVar ages exactly like sigma2 so a stale exercise's evidence fades and it re-borrows from siblings.
+        return ExerciseBelief(mu = mu, sigma2 = sigma2, updatedAt = now,
+            innovationRun = belief.innovationRun, evidenceVar = evidenceVar)
     }
 
     /**

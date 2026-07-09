@@ -21,16 +21,27 @@ data class ExerciseBelief(
      * persisted (in-memory derived state, rebuilt by replay).
      */
     val innovationRun: Float = 0f,
+    /**
+     * Clean variance (projector-evidence-gate): the variance this belief WOULD have if adaptation had
+     * never inflated it. Drives pooling n_eff so adaptive σ-inflation isn't misread as "uninformed".
+     * Folds update it from the UN-inflated prior; age() grows it like sigma2; adaptPrior never touches
+     * it. Default = EstimatorConfig().sigmaSeed² (0.0625) for the default config; seed()/override() set
+     * it precisely from config. Only ever the raw default on non-pooled constructions (chart broad-prior,
+     * unit tests). Not persisted (in-memory derived, rebuilt by replay).
+     */
+    val evidenceVar: Float = 0.0625f,
 ) {
     val e1rm: Float get() = exp(mu)
     val sigma: Float get() = sqrt(sigma2)
 
     companion object {
         fun seed(e1rm: Float, at: Long, config: EstimatorConfig = EstimatorConfig()): ExerciseBelief =
-            ExerciseBelief(mu = ln(e1rm), sigma2 = config.sigmaSeed * config.sigmaSeed, updatedAt = at)
+            ExerciseBelief(mu = ln(e1rm), sigma2 = config.sigmaSeed * config.sigmaSeed, updatedAt = at,
+                evidenceVar = config.sigmaSeed * config.sigmaSeed)
 
         fun override(e1rm: Float, at: Long, config: EstimatorConfig = EstimatorConfig()): ExerciseBelief =
-            ExerciseBelief(mu = ln(e1rm), sigma2 = config.sigmaOverride * config.sigmaOverride, updatedAt = at)
+            ExerciseBelief(mu = ln(e1rm), sigma2 = config.sigmaOverride * config.sigmaOverride, updatedAt = at,
+                evidenceVar = config.sigmaOverride * config.sigmaOverride)
     }
 }
 
