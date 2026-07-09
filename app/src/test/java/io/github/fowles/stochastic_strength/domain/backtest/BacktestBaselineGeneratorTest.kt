@@ -5,9 +5,12 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * One-shot baseline freezer. Skipped unless history.json is present locally AND no baseline
- * exists yet. Deleting baseline_prescriptions.json re-arms it — only do that BEFORE phase-1
- * behavior changes land, or from a jj commit at the pre-phase-1 baseline.
+ * One-shot baseline freezer for [BacktestComparisonTest]. Freezes the CURRENT code's
+ * [BacktestHarness.replayPolicyPrescriptions] (the production policy path) as the reference.
+ * Skipped unless history.json is present locally AND no baseline exists yet; deleting
+ * baseline_prescriptions.json re-arms it. Re-baseline only deliberately, after attributing the
+ * intended deltas vs the existing reference (as done at the 2026-07-09 phase-2 re-baseline) —
+ * casually regenerating would hide regressions. The reference is machine-local and gitignored.
  */
 class BacktestBaselineGeneratorTest {
     @Test

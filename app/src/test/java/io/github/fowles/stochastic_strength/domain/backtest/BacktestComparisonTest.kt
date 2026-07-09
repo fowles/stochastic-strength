@@ -8,19 +8,27 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Old-vs-new gate over the real exported history (spec §9). Skipped when the local fixture
- * files are absent. BAND is pinned after inspecting the printed delta table — phase-1 deltas
- * must be attributable to the intended HURT-healing / failure-ceiling semantic changes only.
+ * Real-history regression gate (spec §9): replay the exported history through the current stack
+ * and assert per-session prescriptions stay within a pinned band of a frozen reference, and never
+ * go NaN. Skipped when the local fixture files are absent.
+ *
+ * REFERENCE RE-BASELINED 2026-07-09 to the phase-2 (belief-swap) output. Phase 2 is a deliberate
+ * SYSTEMIC reprice, not an incremental change: vs the old phase-0 baseline it moved the median
+ * prescription ~15% down (mean 18.7%, tail to 100%). That whole distribution was attributed and is
+ * intended — the downward bulk is the newly activated z-shading (~−9.5% at cold σ_seed) + last-set
+ * fatigue discount (−6.1%); the upward spikes are the belief estimator tracking one-sided strong
+ * performances (RIR_5_PLUS) harder than the old EMA; and the 50–100% tail is grid quantization on
+ * sub-8 kg lifts (4.5↔9.1 kg is one grid step). No NaN, no anomalies. Comparing phase-2 output to a
+ * phase-0 baseline can only ever re-measure that intended reprice, so the baseline was re-frozen
+ * here (user-approved deviation from the plan's "never regenerate" constraint) to restore a tight,
+ * meaningful gate for phases 3–4. Phase 0 remains regenerable from commit 92205abd if ever needed.
  */
 class BacktestComparisonTest {
 
-    // PINNED 2026-07-06 against the baseline frozen from pre-change commit 92205abd (22 sessions,
-    // 1452 rows). Observed worst delta: 14% — Preacher Curl capped 35→30 lb by the clear failure
-    // ceiling from its session-13 misses (4/8 at 20.4 kg, uncounted at 15.88 kg; the old system
-    // re-prescribed the failed 35 lb). Also 3%: Sumo Deadlift capped 170→165 lb after session 27's
-    // drop-cascade (7/10 at both 83.9 and 77.1 kg). No HURT sets in history, so no healing deltas.
-    // Every >2% delta attributable to intended failure-ceiling semantics. Band = worst + 0.05.
-    private val BAND = 0.19f
+    // PINNED 2026-07-09: reference == current phase-2 output, so the observed worst delta is 0.
+    // BAND = 0.05 is nominal headroom (phase-1's worst+0.05 convention) — a tripwire for phase 3's
+    // τ-pooling swap, which re-attributes its deltas against THIS baseline and re-pins.
+    private val BAND = 0.05f
 
     @Test
     fun policyPrescriptionsStayWithinBandOfFrozenBaselineAndNeverGoNaN() {
