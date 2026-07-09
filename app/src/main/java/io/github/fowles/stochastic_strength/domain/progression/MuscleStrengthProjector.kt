@@ -24,13 +24,14 @@ class MuscleStrengthProjector(private val config: EstimatorConfig = EstimatorCon
     private val updater = BeliefUpdater(config)
 
     /**
-     * Bridge vote weight (phase 2 only): the belief's effective sample size in poolObsVar units —
-     * precision above the seed floor. Seed-fresh → 0; fully trained → ≈5 (today's scale); stale
-     * (σ² grown past σ_seed²) → 0, so a stale lone voter decays to the seed-anchored prior.
+     * Bridge vote weight (phase 2): the belief's effective sample size in poolObsVar units — precision
+     * above the seed floor, computed from the ADAPTATION-IMMUNE evidenceVar (not the live sigma2, which
+     * adaptive attention inflates to move the mean). Seed-fresh → 0; well-observed → ≈2–5; stale
+     * (evidenceVar grown past σ_seed²) → 0, so a stale lone voter decays to the seed-anchored prior.
      */
     fun neff(aged: ExerciseBelief): Float {
         val seedVar = config.sigmaSeed * config.sigmaSeed
-        return ((1f / aged.sigma2 - 1f / seedVar) * config.poolObsVar).coerceAtLeast(0f)
+        return ((1f / aged.evidenceVar - 1f / seedVar) * config.poolObsVar).coerceAtLeast(0f)
     }
 
     fun project(

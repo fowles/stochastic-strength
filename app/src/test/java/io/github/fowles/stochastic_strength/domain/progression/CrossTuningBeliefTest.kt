@@ -15,7 +15,7 @@ class CrossTuningBeliefTest {
     private val config = EstimatorConfig()
 
     private fun trained(e1rm: Float, sigma: Float = 0.03f) =
-        ExerciseBelief(mu = ln(e1rm), sigma2 = sigma * sigma, updatedAt = 0L)
+        ExerciseBelief(mu = ln(e1rm), sigma2 = sigma * sigma, updatedAt = 0L, evidenceVar = sigma * sigma)
 
     private fun cold(e1rm: Float) = ExerciseBelief.seed(e1rm, at = 0L, config = config)
 

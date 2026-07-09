@@ -12,16 +12,16 @@ class MuscleStrengthProjectorTest {
     private val projector = MuscleStrengthProjector(config)
     private fun days(d: Int): Long = d.toLong() * 24 * 60 * 60 * 1000
     private fun trained(e1rm: Float, at: Long, sigma: Float = 0.03f) =
-        ExerciseBelief(ln(e1rm), sigma * sigma, at)
+        ExerciseBelief(ln(e1rm), sigma * sigma, at, evidenceVar = sigma * sigma)
     private fun cold(e1rm: Float, at: Long = 0L) = ExerciseBelief.seed(e1rm, at, config)
 
     @Test
     fun neffScalesFromZeroAtSeedToTrainedRange() {
         assertEquals(0f, projector.neff(cold(100f)), 1e-6f)
-        val full = projector.neff(ExerciseBelief(4f, config.sigmaMin * config.sigmaMin, 0L))
+        val full = projector.neff(ExerciseBelief(4f, config.sigmaMin * config.sigmaMin, 0L, evidenceVar = config.sigmaMin * config.sigmaMin))
         assertTrue("trained neff $full should land in today's confidence range", full in 3f..7f)
-        // Stale (σ² above seed²): clamped to zero, never negative.
-        assertEquals(0f, projector.neff(ExerciseBelief(4f, config.sigmaMax * config.sigmaMax, 0L)), 1e-6f)
+        // Stale (evidenceVar above seed²): clamped to zero, never negative.
+        assertEquals(0f, projector.neff(ExerciseBelief(4f, config.sigmaMax * config.sigmaMax, 0L, evidenceVar = config.sigmaMax * config.sigmaMax)), 1e-6f)
     }
 
     @Test
