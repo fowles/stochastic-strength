@@ -16,7 +16,9 @@ Beliefs are defined on **fresh capacity** — your 1RM on the very first set of 
 exercise. Set k (1-indexed) happens under cumulative fatigue: capacity at set k equals
 fresh × (1 − φ·(k−1)), where φ = 0.03 per set. Before folding, each set's bounds or
 value are divided by (1 − φ·(k−1)) — in log space, shifted by −ln(1 − φ·(k−1)) — so
-the observation speaks to fresh capacity rather than fatigued capacity.
+the observation speaks to fresh capacity rather than fatigued capacity. The φ·(k−1)
+term is capped at 0.5 (`coerceAtMost(0.5f)`) so the divisor stays positive on very
+long sets.
 
 ## Feedback → censored observation
 
@@ -49,7 +51,8 @@ s_reps = √(base² + (ρ_rel · r)²)
 ```
 
 where `base = repNoiseCounted = 0.5` for counted failures and `base = repNoiseBucket = 0.75`
-for the RIR buckets; `ρ_rel = 0.06` adds a rep-magnitude term. The log-1RM noise is then
+for the RIR buckets and for an uncounted `TOO_HARD` (a one-sided upper bound); `ρ_rel = 0.06`
+adds a rep-magnitude term. The log-1RM noise is then
 `s = λ · s_reps`. At light absolute loads the slope λ is steeper, so accessory-lift
 observations are automatically noisier — no special case needed.
 

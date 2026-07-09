@@ -66,8 +66,9 @@ This is the truncated-Gaussian moment match — exact for this model. Numericall
 clamped to ±6; if Z < 1e-6 (prior mass misses the window) the update falls back to a
 Gaussian at the violated bound.
 
-After all sets for an exercise are folded, σ² is clamped to [σ_min², σ_max²] =
-[0.02², 0.30²] after each step.
+σ² is clamped to [σ_min², σ_max²] = [0.02², 0.30²] inside every fold step (per set,
+not once per exercise). Later sets in the same session age with Δt = 0, so only the
+first set of a session pays the variance-growth term.
 
 ## HURT never touches the belief
 
