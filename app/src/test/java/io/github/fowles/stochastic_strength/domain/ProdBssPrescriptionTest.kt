@@ -24,7 +24,8 @@ import org.junit.Test
  * divergence from buildPlanner: project() is called without muscleLastObs — inert here because the
  * fixture's 6-day gap is inside the 14-day detraining grace.)
  *
- * Task 7 re-pins the exact value after z/δ/fatigue activation lands.
+ * Pins the demonstrated 20 lb (restored 2026-07-09 via adaptive attention + the projector evidence
+ * gate — see policyPathSafetyBounds for the full derivation).
  */
 class ProdBssPrescriptionTest {
 
@@ -103,11 +104,13 @@ class ProdBssPrescriptionTest {
         val sessionWeightKg = DefaultProgressionEngine.fromOneRepMax(effE1rm, 10)
         val prescribedKg = WeightFormatter.round(sessionWeightKg, WeightUnit.LBS)
 
-        // This path intentionally pins the PRE-policy value: projector only, no z/δ/fatigue applied.
-        // Measured at Task 7: exactly 30.0 lb (BSS effective e1rm ≈ 23.9 kg; LBS grid coarse enough
-        // that the 6.5% policy factor lands on the same 30 lb grid point on the policy path).
-        assertEquals("BSS projector-only prescription must be exactly 30 lb",
-            WeightUnit.LBS.toKg(30f), prescribedKg, 1e-3f)
+        // Pre-policy belief-only figure (projector effective e1rm → session weight, no z/δ/fatigue).
+        // Re-measured 2026-07-09 after adaptive attention + the projector evidence gate: BSS effective
+        // e1rm ≈ 18.7 kg (own belief, fully adopting the set-3 RIR_0_1 evidence; no sibling re-nudge
+        // because n_eff now reads the adaptation-immune evidenceVar) → 25 lb on the pre-policy grid.
+        // The z·σ + fatigue discount then brings the actual prescription to 20 lb (policyPathSafetyBounds).
+        assertEquals("BSS projector-only (pre-policy) prescription pinned at 25 lb",
+            WeightUnit.LBS.toKg(25f), prescribedKg, 1e-3f)
     }
 
     @Test
@@ -143,22 +146,21 @@ class ProdBssPrescriptionTest {
         val bss = Exercise(id = 55L, name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.DUMBBELL)
         val weightKg = policy.prescribe(bss, 10)!!
 
-        // PINNED 30 lb, adjudicated 2026-07-08 (deviates from spec §9's "≈ 20 lb", which was
-        // calibrated to the deleted wDownSnap semantics). Why 30 is the honest answer here:
-        // session 18's evidence CONTRADICTS itself — 2 reps at 24.9 kg fresh implies ~28 kg 1RM
-        // (and session 16's 2×29.5 kg implied ~33), while the rank-2 collapse (2 reps at 15.9 kg)
-        // and the 10×9.07 kg RIR_0_1 set imply ~18–19. The Kalman posterior of that mix is
-        // ~23.9 kg (σ ≈ 0.030, tight BECAUSE the failures are informative), with no sibling pull
-        // (sibling excess ≈ 0; pooled == own). Policy factor exp(−z·σ + δ + ln(1−2φ)) ≈ 0.935
-        // → 22.4 kg target → 12.8 kg session weight → 30 lb grid. The failure ceiling is inert
-        // (cap ≈ 25.3 kg would prescribe ~35 lb if it bound; the target sits below it). The old
-        // 20 lb came from snapping to the most pessimistic reading; the belief system instead
-        // relies on ceiling DYNAMICS: the spec safety pin (next weight strictly below every failed
-        // weight: 30 < 35 < 55 lb) holds now, and one further clear miss at 30 lb caps ≈25, then
-        // ≈20 — self-correcting within ~2 sessions (Task 9's bad-day pin exercises this generally).
+        // PINNED to the user's directly-demonstrated set-3 capacity: 20 lb (session 18 set 3 was
+        // 20 lb × 10 at RIR_0_1 — the ONLY clean 10-rep RIR_0_1 set in the history; every ≥35 lb
+        // attempt at 10 reps was TOO_HARD). Restored 2026-07-09 (was 30 lb, a fatigue-blind fresh-1RM
+        // reading the static filter couldn't walk back). Three changes get here HONESTLY — no snap-down:
+        //   1. Adaptive attention: the consistent down-run of failures ending in the clean RIR_0_1 set
+        //      re-opens σ so the belief adopts the set-3 evidence (own → ~18.7 kg, inside its fresh
+        //      interval [17.9, 19.5]) instead of compromising at ~24 kg.
+        //   2. Projector evidence gate: n_eff reads the adaptation-immune evidenceVar, so BSS's confident
+        //      siblings no longer pull the inflated-σ belief back up (effective e1rm == own, 18.7 kg).
+        //   3. Policy factor exp(−z·σ + δ + ln(1−2φ)) discounts 18.7 kg → set-3 target → 9.07 kg = 20 lb.
+        // The belief only rises again on NEW successful data. Spec safety property still holds
+        // (20 < 35 < 55 lb — strictly below every failed weight).
         assertTrue("BSS policy prescription must stay below the lightest failed weight (35 lb = 15.876 kg)",
             weightKg < 15.875f)
-        assertEquals("BSS policy prescription pinned at 30 lb (got ${weightKg / WeightUnit.LBS.toKg(1f)} lbs)",
-            WeightUnit.LBS.toKg(30f), weightKg, 1e-3f)
+        assertEquals("BSS policy prescription pinned at demonstrated 20 lb (got ${weightKg / WeightUnit.LBS.toKg(1f)} lbs)",
+            WeightUnit.LBS.toKg(20f), weightKg, 1e-3f)
     }
 }
