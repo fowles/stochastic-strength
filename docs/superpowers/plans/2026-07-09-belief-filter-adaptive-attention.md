@@ -307,7 +307,12 @@ Replace `foldGaussian` and `foldCensored` (lines ~42–96) with:
             prev == 0f || sign(prev) == sign(zstd) -> prev + zstd     // consistent direction: accumulate
             else -> zstd                                              // direction flipped: restart
         }
-        val excess = (abs(run) - config.adaptRunThreshold).coerceAtLeast(0f)
+        // AMENDED during execution (2026-07-09, controller-adjudicated): inflate from |prev| (the
+        // run BEFORE this observation), NOT |run|. With |run|, a single ~3.5σ outlier from a fresh
+        // belief (prev=0 → run≈zstd) would inflate immediately — the exact "chase one noisy set"
+        // failure this design exists to prevent. |prev| requires a run that ALREADY crossed threshold
+        // in a prior fold, so a lone surprise never re-opens the filter. Honors the spec intent.
+        val excess = (abs(prev) - config.adaptRunThreshold).coerceAtLeast(0f)
         val inflate = 1f + config.adaptInflationPerExcess * excess * excess
         return aged.copy(sigma2 = clampVar(aged.sigma2 * inflate), innovationRun = run)
     }
@@ -376,6 +381,16 @@ Replace `foldGaussian` and `foldCensored` (lines ~42–96) with:
 ```
 
 > Note: the `z < MIN_MASS` fallback now calls the private `kalmanStep` (no re-aging, no double-adaptation) — the prior is already aged and adapted at this point.
+
+- [ ] **Step 4b (AMENDED during execution — Task 3a): carry `innovationRun` through `age()`**
+
+`age()` rebuilds the belief when `now > belief.updatedAt` and originally omitted `innovationRun`, defaulting it to 0 — so the accumulated surprise run reset to 0 at every session boundary and cross-session adaptation was impossible (within-session it survives because `age()` is a no-op when `now == updatedAt`). Aging models time passing (variance growth, detraining drift); it must carry the augmented filter state forward, not wipe it. In `BeliefUpdater.age()`, preserve the field:
+
+```kotlin
+        return ExerciseBelief(mu = mu, sigma2 = sigma2, updatedAt = now, innovationRun = belief.innovationRun)
+```
+
+Add a cross-session regression test to `BeliefAdaptationTest.kt` proving the run persists across a fold at a later timestamp (no time-decay applied for now; decaying the run over long layoffs is a possible future refinement, logged to the roll-up).
 
 - [ ] **Step 5: Run the adaptation tests + exact-math fold tests**
 
