@@ -22,14 +22,15 @@ class BeliefAdaptationTest {
     }
 
     @Test
-    fun oneConfidentFailureDoesNotCollapseSigmaToFloor() {
-        // Fold one tight failure from the seed prior; σ must stay well above the floor so the
-        // filter can still hear later sets in the same session.
+    fun obsModelFloorKeepsSingleFoldOffTheHardFloor() {
+        // The light obsModelSd floor keeps one confident failure from slamming σ onto the hard
+        // sigmaMin floor (a mild fluke regularizer). Full recovery from an over-collapsed belief is
+        // adaptation's job, not this floor's — see consistentRunOfSurprisesReopensAndTracks.
         val seed = ExerciseBelief.seed(e1rm = 38f, at = 0L, config = config)
         val obs = SetObservation.from(tooHard(w = 29.5f, reps = 10, got = 2), fatigueRank = 1, config = config)!!
         val after = updater.foldGaussian(seed, obs.gaussianLn!!, obs.noiseSd, at = 0L, muscleLastObs = null)
-        assertTrue("σ must not collapse to the floor after one fold (σ=${after.sigma})",
-            after.sigma > 0.06f)
+        assertTrue("σ must stay off the hard floor after one fold (σ=${after.sigma})",
+            after.sigma > config.sigmaMin * 1.3f)
     }
 
     // --- Fix B: adaptive attention ---

@@ -111,12 +111,15 @@ data class EstimatorConfig(
     val repNoiseCounted: Float = 0.5f,
     val repNoiseRel: Float = 0.06f,
     /**
-     * Irreducible per-observation uncertainty about FRESH 1RM (log-units, ≈ ±8%). Combined in
-     * quadrature with the rep-derived noise so a single set — especially a low-rep failure where
-     * the 1RM curve is flat and the rep-noise term is tiny — cannot drive σ to the floor and
-     * deafen the filter. This is the "one session can't tell you fresh 1RM to ±2.5%" floor.
+     * Light per-observation model-uncertainty floor (log-units), combined in quadrature with the
+     * rep-derived noise. Keeps a single confident set from slamming σ onto the hard [sigmaMin] floor
+     * (a mild fluke regularizer). It is deliberately SMALL: the real recovery from an over-collapsed
+     * belief is the adaptive-attention re-opening ([adaptRunThreshold]), not a wide static floor.
+     * Tuned down 0.08→0.02 on 2026-07-09 because the calibration gate (BeliefSimulationTest, on the
+     * model-matched synthetic lifter) showed a larger floor over-widened every belief into
+     * over-coverage. Fit to the calibration + ProdBss gates.
      */
-    val obsModelSd: Float = 0.08f,
+    val obsModelSd: Float = 0.02f,
     /**
      * Bridge: per-observation variance defining n_eff pooling votes (phase 3 deletes). Default kept:
      * the calibration pin's coverage-vs-p table brackets it to ~[1.2e-3, 2.9e-3] and 2.0e-3 sits
@@ -132,10 +135,14 @@ data class EstimatorConfig(
      * one bad set cannot yank the belief; above it a *consistent* run (the belief is wrong, not the
      * observation noisy) re-opens σ so the clear signal lands. Symmetric up/down. Tuning surface fit
      * to the ProdBss + BeliefSimulation gates; pinned by BeliefSimulationTest.
+     * Tuned 2026-07-09 (with the projector evidence gate): 3.5→2.5 / 1.0→2.0 so the prod-BSS belief
+     * fully adopts its clean set-3 RIR_0_1 evidence (own → ~19.05 kg, mid-interval [17.9, 19.5]) →
+     * demonstrated 20 lb. The synthetic lifter's innovations stay well below 2.5 (its fatigue matches
+     * the model), so adaptation still rarely fires on well-behaved histories.
      */
-    val adaptRunThreshold: Float = 3.5f,
+    val adaptRunThreshold: Float = 2.5f,
     /** Prior-variance multiplier added per (run-excess-over-threshold)², i.e. inflate = 1 + g·excess². */
-    val adaptInflationPerExcess: Float = 1.0f,
+    val adaptInflationPerExcess: Float = 2.0f,
     /** Decay applied to the run when an observation lands on-belief (no surprise), so it fades toward 0. */
     val adaptRunDecay: Float = 0.5f,
 )
