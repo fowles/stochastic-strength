@@ -13,6 +13,14 @@ data class ExerciseBelief(
     val mu: Float,
     val sigma2: Float,
     val updatedAt: Long,
+    /**
+     * Augmented adaptive-filter state (spec §2 / adaptive-attention): a signed running sum of
+     * standardized innovations while they stay one-signed. A large |innovationRun| means the belief
+     * has been consistently surprised in one direction — the prior variance is understated — and the
+     * fold re-inflates it (see [BeliefUpdater.adaptPrior]). Reset to 0 by seed/override. Not
+     * persisted (in-memory derived state, rebuilt by replay).
+     */
+    val innovationRun: Float = 0f,
 ) {
     val e1rm: Float get() = exp(mu)
     val sigma: Float get() = sqrt(sigma2)
