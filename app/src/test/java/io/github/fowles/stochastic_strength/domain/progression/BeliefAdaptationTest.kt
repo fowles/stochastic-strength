@@ -31,4 +31,43 @@ class BeliefAdaptationTest {
         assertTrue("σ must not collapse to the floor after one fold (σ=${after.sigma})",
             after.sigma > 0.06f)
     }
+
+    // --- Fix B: adaptive attention ---
+
+    /** A single surprising observation (run below threshold) must NOT yank a tight belief. */
+    @Test
+    fun loneSurpriseDoesNotYankTightBelief() {
+        val tight = ExerciseBelief(mu = 3.6f, sigma2 = 0.02f * 0.02f, updatedAt = 0L)
+        val after = updater.foldGaussian(tight, obsLnE1rm = 3.2f, noiseSd = 0.05f, at = 0L, muscleLastObs = null)
+        assertTrue("one surprise should barely move a tight belief (μ=${after.mu})", after.mu > 3.5f)
+    }
+
+    /** A consistent one-signed run of surprises must re-open σ and let the belief track the data. */
+    @Test
+    fun consistentRunOfSurprisesReopensAndTracks() {
+        var b = ExerciseBelief(mu = 3.6f, sigma2 = 0.02f * 0.02f, updatedAt = 0L)
+        repeat(5) { b = updater.foldGaussian(b, obsLnE1rm = 3.2f, noiseSd = 0.05f, at = 0L, muscleLastObs = null) }
+        assertTrue("consistent down-run must drag the belief toward the data (μ=${b.mu})", b.mu < 3.35f)
+        assertTrue("innovationRun must have accumulated downward (${b.innovationRun})", b.innovationRun < -config.adaptRunThreshold)
+    }
+
+    /** Turning adaptation off (threshold huge) leaves the belief stuck — proves the run is doing the work. */
+    @Test
+    fun withoutAdaptationTheBeliefStaysStuck() {
+        val noAdapt = EstimatorConfig(adaptRunThreshold = 1e6f)
+        val u = BeliefUpdater(noAdapt)
+        var b = ExerciseBelief(mu = 3.6f, sigma2 = 0.02f * 0.02f, updatedAt = 0L)
+        repeat(5) { b = u.foldGaussian(b, obsLnE1rm = 3.2f, noiseSd = 0.05f, at = 0L, muscleLastObs = null) }
+        assertTrue("without adaptation a tight belief cannot follow (μ=${b.mu})", b.mu > 3.35f)
+    }
+
+    /** A direction flip restarts the run rather than compounding it. */
+    @Test
+    fun signFlipRestartsRun() {
+        var b = ExerciseBelief(mu = 3.6f, sigma2 = 0.02f * 0.02f, updatedAt = 0L)
+        repeat(3) { b = updater.foldGaussian(b, obsLnE1rm = 3.2f, noiseSd = 0.05f, at = 0L, muscleLastObs = null) }
+        assertTrue("run is negative after a down-sequence", b.innovationRun < 0f)
+        val flipped = updater.foldGaussian(b, obsLnE1rm = b.mu + 0.5f, noiseSd = 0.05f, at = 0L, muscleLastObs = null)
+        assertTrue("an up-surprise restarts the run positive (${flipped.innovationRun})", flipped.innovationRun > 0f)
+    }
 }

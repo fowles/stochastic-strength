@@ -114,4 +114,17 @@ data class EstimatorConfig(
     val poolObsVar: Float = 2.0e-3f,
     /** Layoff notice threshold (fraction of strength eased). */
     val noticeThresholdFraction: Float = 0.03f,
+    /**
+     * Adaptive attention (innovation-covariance matching). The filter re-inflates its prior variance
+     * only once the standardized-innovation run — a signed sum of consecutive one-signed surprises —
+     * exceeds [adaptRunThreshold] (in std units). Below it a lone surprise is treated as noise, so
+     * one bad set cannot yank the belief; above it a *consistent* run (the belief is wrong, not the
+     * observation noisy) re-opens σ so the clear signal lands. Symmetric up/down. Tuning surface fit
+     * to the ProdBss + BeliefSimulation gates; pinned by BeliefSimulationTest.
+     */
+    val adaptRunThreshold: Float = 3.5f,
+    /** Prior-variance multiplier added per (run-excess-over-threshold)², i.e. inflate = 1 + g·excess². */
+    val adaptInflationPerExcess: Float = 1.0f,
+    /** Decay applied to the run when an observation lands on-belief (no surprise), so it fades toward 0. */
+    val adaptRunDecay: Float = 0.5f,
 )

@@ -1,5 +1,7 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
+import kotlin.math.abs
+import kotlin.math.sign
 import kotlin.math.sqrt
 
 /**
@@ -39,6 +41,39 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
         return minOf(config.detrainRatePerWeek * (driftMs.toFloat() / WEEK_MS), config.detrainCap)
     }
 
+    /** Pure Kalman measurement update — no aging, no adaptation; carries [run] onto the result. */
+    private fun kalmanStep(prior: ExerciseBelief, obsLnE1rm: Float, s2: Float, run: Float, at: Long): ExerciseBelief {
+        val k = prior.sigma2 / (prior.sigma2 + s2)
+        return ExerciseBelief(
+            mu = prior.mu + k * (obsLnE1rm - prior.mu),
+            sigma2 = clampVar((1f - k) * prior.sigma2),
+            updatedAt = at,
+            innovationRun = run,
+        )
+    }
+
+    /**
+     * Adaptive-attention step (spec §2). Measures the standardized innovation of [obsLoc] against the
+     * aged prior with predicted variance [predVar], accumulates it into a signed run while one-signed,
+     * and — once the run passes [EstimatorConfig.adaptRunThreshold] — inflates the prior variance so a
+     * *consistent* surprise re-opens the belief. Returns the (possibly inflated) prior with its updated
+     * run. A lone or direction-flipping surprise leaves σ² essentially untouched.
+     */
+    private fun adaptPrior(aged: ExerciseBelief, obsLoc: Float, predVar: Float): ExerciseBelief {
+        val zstd = (obsLoc - aged.mu) / sqrt(predVar)
+        val prev = aged.innovationRun
+        val run = when {
+            abs(zstd) < 1e-3f -> prev * config.adaptRunDecay          // on-belief obs: fade the run
+            prev == 0f || sign(prev) == sign(zstd) -> prev + zstd     // consistent direction: accumulate
+            else -> zstd                                              // direction flipped: restart
+        }
+        // Inflation uses |prev| (the run BEFORE this observation) so a lone surprise (prev==0)
+        // never re-opens the filter; only a prior consistent run drives inflation.
+        val excess = (abs(prev) - config.adaptRunThreshold).coerceAtLeast(0f)
+        val inflate = 1f + config.adaptInflationPerExcess * excess * excess
+        return aged.copy(sigma2 = clampVar(aged.sigma2 * inflate), innovationRun = run)
+    }
+
     fun foldGaussian(
         prior: ExerciseBelief,
         obsLnE1rm: Float,
@@ -46,19 +81,16 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
         at: Long,
         muscleLastObs: Long?,
     ): ExerciseBelief {
-        val aged = age(prior, at, muscleLastObs)
+        val aged0 = age(prior, at, muscleLastObs)
         val s2 = noiseSd * noiseSd
-        val k = aged.sigma2 / (aged.sigma2 + s2)
-        return ExerciseBelief(
-            mu = aged.mu + k * (obsLnE1rm - aged.mu),
-            sigma2 = clampVar((1f - k) * aged.sigma2),
-            updatedAt = at,
-        )
+        val prior1 = adaptPrior(aged0, obsLoc = obsLnE1rm, predVar = aged0.sigma2 + s2)
+        return kalmanStep(prior1, obsLnE1rm, s2, prior1.innovationRun, at)
     }
 
     /**
      * Fold one censored observation z = x + s·ε constrained to [lowerLn, upperLn] (either side
      * may be null = unbounded). Truncated-Gaussian moment match (spec §2) — exact for this model.
+     * Adaptation uses the violated bound as the observation location for the innovation.
      */
     fun foldCensored(
         prior: ExerciseBelief,
@@ -68,7 +100,15 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
         at: Long,
         muscleLastObs: Long?,
     ): ExerciseBelief {
-        val aged = age(prior, at, muscleLastObs)
+        val aged0 = age(prior, at, muscleLastObs)
+        // Innovation location: the bound the prior violates (if any); otherwise the prior mean → no surprise.
+        val obsLoc = when {
+            upperLn != null && aged0.mu > upperLn -> upperLn
+            lowerLn != null && aged0.mu < lowerLn -> lowerLn
+            else -> aged0.mu
+        }
+        val aged = adaptPrior(aged0, obsLoc, predVar = aged0.sigma2 + noiseSd * noiseSd)
+        val run = aged.innovationRun
         val st2 = aged.sigma2 + noiseSd * noiseSd
         val st = sqrt(st2)
         val alpha = (if (lowerLn != null) (lowerLn - aged.mu) / st else -CLAMP).coerceIn(-CLAMP, CLAMP)
@@ -81,7 +121,7 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
                 lowerLn != null && aged.mu <= lowerLn -> lowerLn
                 else -> lowerLn ?: upperLn ?: aged.mu
             }
-            return foldGaussian(aged, bound, noiseSd, at, muscleLastObs)
+            return kalmanStep(aged, bound, noiseSd * noiseSd, run, at)
         }
         val phiA = NormalCdf.pdf(alpha)
         val phiB = NormalCdf.pdf(beta)
@@ -92,6 +132,7 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
             mu = aged.mu + k * (mz - aged.mu),
             sigma2 = clampVar(aged.sigma2 - k * k * (st2 - vz)),
             updatedAt = at,
+            innovationRun = run,
         )
     }
 
