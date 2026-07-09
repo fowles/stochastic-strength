@@ -70,4 +70,19 @@ class BeliefAdaptationTest {
         val flipped = updater.foldGaussian(b, obsLnE1rm = b.mu + 0.5f, noiseSd = 0.05f, at = 0L, muscleLastObs = null)
         assertTrue("an up-surprise restarts the run positive (${flipped.innovationRun})", flipped.innovationRun > 0f)
     }
+
+    /** The innovation run must survive aging across a time gap (cross-session adaptation). */
+    @Test
+    fun innovationRunCarriesAcrossAgingGap() {
+        val DAY = 24L * 60 * 60 * 1000
+        // Build up a negative run within one "session" (same timestamp).
+        var b = ExerciseBelief(mu = 3.6f, sigma2 = 0.02f * 0.02f, updatedAt = 0L)
+        repeat(3) { b = updater.foldGaussian(b, obsLnE1rm = 3.2f, noiseSd = 0.05f, at = 0L, muscleLastObs = null) }
+        val runBefore = b.innovationRun
+        assertTrue("precondition: run accumulated negative ($runBefore)", runBefore < 0f)
+        // A fold 3 days later must NOT reset the run to 0 — it continues from runBefore.
+        val later = updater.foldGaussian(b, obsLnE1rm = 3.2f, noiseSd = 0.05f, at = 3 * DAY, muscleLastObs = null)
+        assertTrue("run must persist across the aging gap, not reset (${later.innovationRun})",
+            later.innovationRun < runBefore)
+    }
 }

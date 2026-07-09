@@ -26,7 +26,9 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
         if (muscleLastObs != null) {
             mu -= detrainDrift(maxOf(belief.updatedAt, muscleLastObs + config.detrainGraceMs), now)
         }
-        return ExerciseBelief(mu = mu, sigma2 = sigma2, updatedAt = now)
+        // Carry innovationRun forward: aging models time passing (variance growth + detraining
+        // drift), not a filter reset. Wiping the run here would defeat cross-session adaptation.
+        return ExerciseBelief(mu = mu, sigma2 = sigma2, updatedAt = now, innovationRun = belief.innovationRun)
     }
 
     /**
