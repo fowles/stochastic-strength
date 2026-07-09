@@ -46,14 +46,17 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
         return minOf(config.detrainRatePerWeek * (driftMs.toFloat() / WEEK_MS), config.detrainCap)
     }
 
-    /** Pure Kalman measurement update — no aging, no adaptation; carries [run] onto the result. */
+    /** Pure Kalman measurement update — no aging, no adaptation; carries [run] and advances the clean
+     *  evidence track from [prior]'s UN-inflated evidenceVar (never sigma2). */
     private fun kalmanStep(prior: ExerciseBelief, obsLnE1rm: Float, s2: Float, run: Float, at: Long): ExerciseBelief {
         val k = prior.sigma2 / (prior.sigma2 + s2)
+        val kc = prior.evidenceVar / (prior.evidenceVar + s2)
         return ExerciseBelief(
             mu = prior.mu + k * (obsLnE1rm - prior.mu),
             sigma2 = clampVar((1f - k) * prior.sigma2),
             updatedAt = at,
             innovationRun = run,
+            evidenceVar = clampVar((1f - kc) * prior.evidenceVar),
         )
     }
 
@@ -138,7 +141,31 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
             sigma2 = clampVar(aged.sigma2 - k * k * (st2 - vz)),
             updatedAt = at,
             innovationRun = run,
+            evidenceVar = censoredPosteriorVar(aged.mu, aged.evidenceVar, lowerLn, upperLn, noiseSd),
         )
+    }
+
+    /**
+     * Posterior variance of a censored fold (truncated-Gaussian moment match, spec §2 shape) given a
+     * prior (mu, priorVar) and obs noise s — the exact information credit for the interval. Used to
+     * advance the clean evidence track; the real sigma2 track keeps its inline computation because it
+     * also needs the posterior mean mz.
+     */
+    private fun censoredPosteriorVar(mu: Float, priorVar: Float, lowerLn: Float?, upperLn: Float?, s: Float): Float {
+        val st2 = priorVar + s * s
+        val st = sqrt(st2)
+        val alpha = (if (lowerLn != null) (lowerLn - mu) / st else -CLAMP).coerceIn(-CLAMP, CLAMP)
+        val beta = (if (upperLn != null) (upperLn - mu) / st else CLAMP).coerceIn(-CLAMP, CLAMP)
+        val z = NormalCdf.cdf(beta) - NormalCdf.cdf(alpha)
+        if (z < MIN_MASS) {
+            val k = priorVar / (priorVar + s * s)
+            return clampVar((1f - k) * priorVar)
+        }
+        val phiA = NormalCdf.pdf(alpha)
+        val phiB = NormalCdf.pdf(beta)
+        val vz = st2 * (1f + (alpha * phiA - beta * phiB) / z - ((phiA - phiB) / z).let { it * it })
+        val k = priorVar / st2
+        return clampVar(priorVar - k * k * (st2 - vz))
     }
 
     internal fun clampVar(v: Float): Float =
