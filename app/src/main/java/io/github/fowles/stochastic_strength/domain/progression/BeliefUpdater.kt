@@ -22,14 +22,21 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
         val sigma2 = clampVar(belief.sigma2 + config.processNoisePerDay * idleDays)
         var mu = belief.mu
         if (muscleLastObs != null) {
-            val driftStart = maxOf(belief.updatedAt, muscleLastObs + config.detrainGraceMs)
-            val driftMs = now - driftStart
-            if (driftMs > 0) {
-                val weeks = driftMs.toFloat() / WEEK_MS
-                mu -= minOf(config.detrainRatePerWeek * weeks, config.detrainCap)
-            }
+            mu -= detrainDrift(maxOf(belief.updatedAt, muscleLastObs + config.detrainGraceMs), now)
         }
         return ExerciseBelief(mu = mu, sigma2 = sigma2, updatedAt = now)
+    }
+
+    /**
+     * Detraining μ-drift (log-units of fresh-1RM lost) accrued over [driftStart, now]: driftRate
+     * per week, capped per gap, floored at 0. [driftStart] is the point drift begins — the later
+     * of the belief's last update and the muscle's grace-adjusted last observation. Shared by
+     * aging above and the planner's layoff notice so the two never diverge.
+     */
+    fun detrainDrift(driftStart: Long, now: Long): Float {
+        val driftMs = now - driftStart
+        if (driftMs <= 0) return 0f
+        return minOf(config.detrainRatePerWeek * (driftMs.toFloat() / WEEK_MS), config.detrainCap)
     }
 
     fun foldGaussian(

@@ -31,15 +31,23 @@ class WorkoutPlanner(
         val plannable = availableExercises.filter { muscleGroupRested(it) }
         val exercises = WorkoutGenerator.generate(WorkoutGenerator.Input(plannable, random))
             .map { withWeight(it, sessionReps) }
-        val eased = exercises.filter { it.sessionWeight > 0f }
-            .mapNotNull { muscleEasedFraction[it.exercise.primaryMuscle] }
-            .maxOrNull() ?: 0f
         return WorkoutPlan(
             exercises = exercises,
             locationId = locationId,
             sessionReps = sessionReps,
-            layoffEasedFraction = eased.takeIf { it >= layoffNoticeThreshold },
+            layoffEasedFraction = layoffEasedFraction(exercises),
         )
+    }
+
+    /**
+     * The passive layoff notice for this plan: the largest detraining ease across the muscles
+     * actually trained today (loaded exercises only), or null when it's below the notice threshold.
+     */
+    private fun layoffEasedFraction(exercises: List<PlannedExercise>): Float? {
+        val eased = exercises.filter { it.sessionWeight > 0f }
+            .mapNotNull { muscleEasedFraction[it.exercise.primaryMuscle] }
+            .maxOrNull() ?: 0f
+        return eased.takeIf { it >= layoffNoticeThreshold }
     }
 
     fun generateWorkout(repMin: Int, repMax: Int): WorkoutPlan =

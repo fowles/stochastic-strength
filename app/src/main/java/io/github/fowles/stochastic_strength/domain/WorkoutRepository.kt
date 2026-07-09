@@ -21,6 +21,7 @@ import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
+import io.github.fowles.stochastic_strength.domain.progression.BeliefUpdater
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseBelief
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
@@ -36,8 +37,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.exp
-
-private const val WEEK_MS = 7f * 24 * 60 * 60 * 1000
 
 class WorkoutRepository(
     private val db: AppDatabase,
@@ -80,11 +79,10 @@ class WorkoutRepository(
             }
         }
         val config = EstimatorConfig()
+        val updater = BeliefUpdater(config)
         val muscleEased = muscleIds.keys.associateWith { m ->
             val last = policyState.muscleLastObs[m] ?: return@associateWith 0f
-            val idleMs = (now - (last + config.detrainGraceMs)).coerceAtLeast(0L)
-            val drift = minOf(config.detrainRatePerWeek * (idleMs.toFloat() / WEEK_MS), config.detrainCap)
-            1f - exp(-drift)
+            1f - exp(-updater.detrainDrift(last + config.detrainGraceMs, now))
         }
         val recentSessions = db.workoutSessionDao().getRecentCompletedSessions(limit = 50)
         val recentSets = if (recentSessions.isNotEmpty())
