@@ -143,8 +143,8 @@ class FatigueNoDownwardBiasReplayTest {
          * [ReplaySnapshot.loadStaticFromDb] derives each exercise's seed coefficient via
          * `ExerciseCoefficients.get(exercise)` which looks up by [Exercise.name]. If this name
          * is removed or its coefficient changes in [ExerciseCoefficients], the seed coefficient
-         * assumed by this test will silently diverge, potentially altering the 1RM estimate used
-         * by [SessionSignalExtractor] and producing unexpected coefficient proposals.
+         * assumed by this test will silently diverge, potentially altering the 1RM estimate the
+         * belief folds produce and thus the coefficient proposals.
          *
          * If [ExerciseCoefficients.byName]["Barbell Bench Press"] ever changes from 1.0f, update
          * [BENCH_EXERCISE_NAME] and [BENCH_SEED_COEFFICIENT] together.
