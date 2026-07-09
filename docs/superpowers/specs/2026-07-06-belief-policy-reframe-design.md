@@ -286,9 +286,10 @@ of the `prescribedE1rm` map, loses `recentlyFailedMuscles`; `DerivedStateStore`
 `WorkoutGenerator`, the rep→1RM formula, warmups, backup, Strava.
 
 **Display continuity:** `MuscleGroupStrength`/`baseline_history` = exp(level);
-`coefficient_history` = pooled ÷ level; chart dots (the shared
-`impliedObservedSet` semantics) become the post-session belief mean per
-session; debug gains a σ band and a fitted-θ panel.
+`coefficient_history` = pooled ÷ level; chart dots = the session's broad-prior implied
+observation (`impliedSessionE1rm`); the post-session belief mean is already the own-estimate
+line, so dots keep showing what the session said. *(Amended during phase 2: dots equal to
+the line would carry no information.)* Debug gains a σ band and a fitted-θ panel.
 
 ## 8. Implementation phases
 

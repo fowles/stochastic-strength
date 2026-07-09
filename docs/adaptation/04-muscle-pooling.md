@@ -2,85 +2,108 @@
 
 Source: `domain/progression/MuscleStrengthProjector.kt`
 (cross-tuning view: `domain/progression/CrossTuning.kt`)
-Design note: `docs/superpowers/specs/2026-06-23-seed-vote-projector-design.md`
+Design note: `docs/superpowers/specs/2026-07-06-belief-policy-reframe-design.md` §3
 
-Folding is local: each [exercise estimate](03-exercise-estimates.md) moves on its own
+Folding is local: each [exercise belief](03-exercise-estimates.md) moves on its own
 evidence only. That keeps failures from corrupting siblings, but on its own it would
-leave a cold or long-unseen exercise stuck at a stale guess. The fix is to let exercises
-borrow strength from each other **at read time**, without ever mutating the stored
-estimates. That is `MuscleStrengthProjector.project`, and it runs every time the app
-needs a weight (and after every session, to record the derived projections).
+leave a cold or long-unseen exercise stuck at an uncertain guess. The fix is to let
+exercises borrow strength from each other **at read time**, without ever mutating the
+stored beliefs. That is `MuscleStrengthProjector.project`, and it runs every time the
+app needs a weight (and after every session, to record derived projections).
 
 It does two things: compute a muscle **level**, then **shrink** each exercise toward what
 that level predicts.
 
-## Step 1 — the muscle level (a seed-anchored vote)
+## Step 1 — the muscle level (n_eff-weighted with seed anchor)
 
 Each loaded exercise (positive seed coefficient) offers a seed-relative opinion of how
-strong the muscle is: `lnE − ln(seedCoef)`. If every exercise matched its seed exactly,
-these would all agree on `ln(baseline)`.
-
-The level is a **confidence-weighted average of those opinions, anchored to a fixed-weight
-seed prior**:
+strong the muscle is: `μ_i − ln(seedCoef_i)`. The level is the n_eff-weighted average
+of those opinions against a fixed-weight seed prior:
 
 ```
-lnPrior = mean over loaded exercises of (lnE − ln(seedCoef))      // the cold-muscle anchor
-lnLevel = (levelPrior · lnPrior + Σ confᵢ · (lnEᵢ − ln(seedCoefᵢ))) / (levelPrior + Σ confᵢ)
+lnPrior = mean over loaded exercises of (μ_i − ln(seedCoef_i))  // seed-anchored anchor
+lnLevel = (levelPrior · lnPrior + Σ neff_i · (μ_i − ln(seedCoef_i))) /
+          (levelPrior + Σ neff_i)
 ```
 
-- Every exercise votes with its **full decayed confidence** — there is no confidence
-  threshold or cold/confident gate. Low-confidence exercises simply contribute little.
-- `levelPrior = 0.5` is the effective sample size of the seed anchor. A thinly-evidenced
-  muscle leans on the seed; a stale lone voter decays back toward it instead of defining
-  the level by itself. For a genuinely cold muscle, `lnLevel == lnPrior == ln(baseline)`,
-  so a fresh exercise is prescribed exactly its seed weight.
+**n_eff** (effective sample size) is the exercise's precision above the seed floor, in
+`poolObsVar` units:
 
-## Step 2 — shrink each exercise toward its prediction
+```
+neff(belief) = max(0, (1/σ² − 1/σ_seed²) · poolObsVar)
+```
+
+- A **seed-fresh or stale exercise** has σ² ≈ σ_seed² or larger → neff ≈ 0 → it
+  contributes little to the level and is carried by the anchor and siblings.
+- A **well-trained exercise** (small σ²) has neff > 0 and votes with weight proportional
+  to how much its precision exceeds the seed floor.
+- `levelPrior = 0.5` is the fixed effective sample size of the seed anchor. A
+  thinly-evidenced muscle leans on it; a stale lone voter decays back toward the seed
+  level rather than defining the level by itself.
+
+`poolObsVar = 2.0e-3` defines the scale of one vote (calibrated by `BeliefSimulationTest`
+to bracket the coverage-vs-p table at 2.0e-3 mid-band). Phase 3 deletes this and
+replaces it with per-equipment-class τ (see below).
+
+## Step 2 — shrink each exercise toward its prediction (bridge pooling)
 
 For each exercise, the level predicts a target via that exercise's seed coefficient, and
-the exercise's own estimate is blended toward it by confidence:
+the belief mean is blended toward that prediction. The prediction's evidence is capped
+at what a τ-noised transfer earns (`kappa = min(poolObsVar / tauBridge², siblingExcess)`):
 
 ```
-lnPred = ln(seedCoef) + lnLevel
-lnUsed = (confSelf · lnE + priorStrength · lnPred) / (confSelf + priorStrength)
+lnPred  = ln(seedCoef) + lnLevel
+kappa   = min(poolObsVar / tauBridge², siblingExcess)
+lnUsed  = (neff_self · μ + kappa · lnPred) / (neff_self + kappa)
 ```
 
-`priorStrength = 1.0` is how many confidence units the sibling prediction is worth.
+where `tauBridge = 0.25` and `siblingExcess` is the sum of `max(0, neff_j − neff_self)`
+over all sibling exercises j. The evidence gate means:
 
-- A **confident** exercise (high `confSelf`) trusts its own estimate; the prediction
-  barely moves it.
-- A **cold or stale** exercise (low `confSelf`) leans on the prediction — its sibling
-  pool carries it until it earns its own evidence.
+- A **confident** exercise (large neff_self) is barely moved by the level prediction —
+  same-age or staler siblings cannot lift a fresh own measurement.
+- A **cold or stale** exercise (neff_self ≈ 0) leaks authority to the sibling pool and
+  adopts the prediction weighted by kappa.
+
+`pooledSigma` — reported as the own aged belief σ — is the uncertainty fed into
+`PrescriptionPolicy` for z-shading ([#5](05-prescription-policy.md)).
 
 `exp(lnUsed)` is the exercise's **projected effective 1RM** (`effectiveE1rm`). The derived
-coefficient is just `effectiveE1rm / level`, kept so that `level × coef == effectiveE1rm`
-for display and history.
+coefficient is `effectiveE1rm / level`, kept so that `level × coef == effectiveE1rm` for
+display and history.
 
-This shrink is **non-destructive**: it reads the estimate map but never writes it. The
+This shrink is **non-destructive**: it reads the belief map but never writes it. The
 durable state stays purely per-exercise; pooling is a lens applied on the way out.
 
 ## How the prescription uses it
 
-`MuscleStrengthProjector.project(...).effectiveE1rm[exerciseId]` is passed to the planner
-as `prescribedE1rm`, which `DefaultProgressionEngine` scales to the session's chosen rep
-target via the load-aware 1RM formula. The per-muscle level is also written to
-`MuscleGroupStrength` + a `baseline_history` row, and the derived coefficients to
-`coefficient_history` — all projections in the in-memory `DerivedStateStore`, rebuilt by
-replay, never a stored source of truth.
+`MuscleProjection.effectiveE1rm[exerciseId]` (the pooled mean) and
+`MuscleProjection.pooledSigma[exerciseId]` (the own σ) are packaged into `PooledBelief`
+and handed to `PrescriptionPolicy.prescribe(exercise, sessionReps)`, which applies
+z-shading, overload δ, fatigue discount, failure ceiling, HURT caution, and grid rounding
+([#5](05-prescription-policy.md)). The per-muscle level is written to `MuscleGroupStrength`
++ a `baseline_history` row, and the derived coefficients to `coefficient_history` — all
+projections in the in-memory `DerivedStateStore`, rebuilt by replay, never a stored
+source of truth.
 
-## The cross-tuning view (debug)
+## What replaced the old gauge problem and old gate
 
-`computeCrossTuning` is a read-only diagnostic built on the same projector. For each
-exercise it reports **agreement** — how far its own estimate sits from a *leave-one-out*
-sibling prediction (`project` run without that exercise) — and **contribution**, its
-share of the muscle's total decayed confidence. It powers the debug exercise-detail
-screen and changes no state.
+**Gauge:** The old baseline × coefficient design had a gauge where you could
+scale coefficients up and divide baseline down for identical weights — a separate
+`SeedNormalizer` had to sweep it back. That ambiguity is **gone**: there is no stored
+coefficient to drift. The durable state is one belief per exercise; level and
+coefficients are derived from a fixed seed anchor on every read.
 
-## What replaced the old gauge problem
+**Old priorStrength/evidence gate:** The previous phase-1 pooling used a `priorStrength = 1.0`
+fixed weight for the sibling prediction and an evidence gate that blocked siblings from
+pulling up a fresh measurement. Both are replaced. The tauBridge kappa cap provides the
+same safety — a fresh own measurement (high neff) is arithmetically barely moved by the
+prediction (kappa ≪ neff), while the evidence gate (siblingExcess) preserves the
+directionality invariant without a hard threshold.
 
-The previous baseline×coefficient design had a *gauge*: you could scale a whole muscle's
-coefficients up and divide its baseline down for identical weights, so the scale could
-silently drift and a separate renormalization pass (`SeedNormalizer`) had to sweep it
-back. That ambiguity is **gone**: there is no stored coefficient to drift. The durable
-state is one estimate per exercise; the level and coefficients are derived freshly from a
-fixed seed anchor on every read, so there is nothing to renormalize.
+## Phase 3 note
+
+Phase 3 (pooling swap) will replace `tauBridge` with per-equipment-class transfer
+tightness τ (barbell 0.08, machine/cable 0.20, other loaded 0.25) and the kappa cap with
+proper leave-one-out shrink (LOO-σ²_ℓ in place of the kappa formula). That swap requires
+a `BeliefSimulationTest` re-pin and a real-history backtest re-baseline.

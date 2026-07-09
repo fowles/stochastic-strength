@@ -1,75 +1,100 @@
-# Per-exercise estimates — the durable progression state
+# Per-exercise beliefs — the durable progression state
 
-Source: `domain/progression/ExerciseEstimate.kt`, `domain/progression/ExerciseEstimateUpdater.kt`
-Tuning: `EstimatorConfig` (pinned by `ExerciseEstimatorSimulationTest`)
-Applied by: `WorkoutRepository.applySessionProgression`
+Source: `domain/progression/ExerciseBelief.kt`, `domain/progression/BeliefUpdater.kt`
+Tuning: `EstimatorConfig` (pinned by `BeliefSimulationTest`)
+Applied by: `WorkoutRepository.applySessionProgression` via `SessionProgressionStepper`
 
-The **only durable progression state** is one `ExerciseEstimate` per loaded exercise:
-
-```
-ExerciseEstimate(lnE, confidence, updatedAt)
-```
-
-`lnE` is the natural log of the estimated 1RM in kg (everything lives in log space, so a
-fixed percentage move is a fixed additive step). `confidence` is a recency-decayed
-effective sample size — it grows as sessions are folded in and decays with staleness, so
-a long-unseen exercise quietly hands authority to its siblings at read time
-([#4](04-muscle-pooling.md)). There is no stored baseline and no stored coefficient.
-
-A brand-new exercise is `seed`ed at its starting 1RM with `confidence = 0`.
-
-## Folding a session into the estimate
-
-Each session gives one exercise an observed implied 1RM and a bracket confidence (from
-[the signal layer](02-strength-signal.md)). `ExerciseEstimateUpdater.fold` blends that
-observation into the stored estimate as a **confidence-weighted log-space average**:
+The **only durable progression state** is one `ExerciseBelief` per loaded exercise:
 
 ```
-c   = decayedConfidence(prior, now)          // prior confidence, aged to now
-lnE = (c · prior.lnE + w · ln(obsE1rm)) / (c + w)
-confidence = min(c + w, confidenceCap)
+ExerciseBelief(mu: Float, sigma2: Float, updatedAt: Long)
 ```
 
-The observation weight `w` is **asymmetric**, and this asymmetry is the heart of the
-controller:
+`mu` is the mean of ln(fresh 1RM, kg) — the log of your first-set, pre-fatigue one-rep
+max. `sigma2` is the variance; √sigma2 reads as **relative uncertainty** (0.04 ≈ ±4%).
+There is no stored baseline and no stored coefficient.
 
-- **Up-signal** (observation above the current estimate): small weight `wUp = 1.48`.
-  Success nudges the estimate up gently — progressive overload that creeps rather than
-  jumps.
-- **Down-signal** (observation below the current estimate): larger weight, interpolated
-  by bracket confidence from `wDown = 3.0` toward `wDownSnap = 8.0`. A failure pulls the
-  estimate down fast, and a *demonstrated* drop-cascade (high bracket confidence) snaps
-  it down nearly all the way — so a weight you just failed is not prescribed again next
-  session.
+A brand-new exercise is seeded at its starting 1RM with `sigma = sigmaSeed = 0.25`
+(±25% uncertainty). A manual weight override (including historical DETRAIN rows) is
+written with `sigma = sigmaOverride = 0.10` — tighter, because the user has just stated
+a number.
 
-Because `confidence` is capped (`confidenceCap = 6`), a long-trained exercise keeps a
-floor learning rate: the fold behaves like an EMA that can always still move, rather than
-freezing once it has seen many sessions.
+## Aging: variance growth and detraining drift
 
-### Decay
+Whenever a belief is read or folded, it is first **aged** from `updatedAt` to `now`:
 
-Confidence decays on a **~21-day half-life** (`halfLifeMs`). `decayedConfidence` ages the
-prior confidence to "now" before every fold and every read, so evidence from months ago
-counts for little and a stale exercise naturally defers to fresher siblings.
+1. **Variance growth.** σ² increases by `processNoisePerDay = 8e-5` per idle day,
+   clamped to [σ_min², σ_max²] = [0.02², 0.30²]. A belief gets progressively
+   less certain the longer the exercise goes untrained. At the seed uncertainty (0.25²),
+   variance is already near the ceiling and barely grows further — but a well-trained
+   belief (σ near σ_min) doubles in about 3 weeks of inactivity.
 
-## Pain never touches the estimate
+2. **Detraining drift.** μ decreases when the **muscle** (not just this exercise) has
+   been unloaded long enough. Drift counts the overlap of [updatedAt, now] with the
+   window (muscleLastObs + 14 d, ∞) — the 14-day grace period means skipping a couple
+   of weeks doesn't immediately reduce the estimate. After grace: μ decreases by
+   `detrainRatePerWeek = 0.01` per idle week, capped at `detrainCap = 0.25` per idle
+   gap. A new observation on any exercise in the muscle resets the gap. A muscle that
+   has never been observed does not drift. This replaces the old detraining dialog —
+   detraining now happens automatically and passively; if the drift was large enough to
+   matter at next prescription, `PlanPreview` shows a one-line notice.
 
-HURT carries no load signal and — since the belief+policy reframe (phase 1) — no longer
-alters any estimate. It is recorded as a muscle-level policy event during replay and applied
-at prescription time as a decaying caution multiplier (×(1 − 0.15) immediately, healing with
-a ~2-week half-life, floored). See `domain/policy/PrescriptionPolicy.kt` and
-`docs/superpowers/specs/2026-07-06-belief-policy-reframe-design.md` §4.
+Aging is a **pure function of timestamps**, so replay is deterministic.
+
+## Folding per-set observations into the belief
+
+`SessionProgressionStepper` feeds each `SetObservation` into `BeliefUpdater`, in set
+order by `setNumber`. Each fold ages the belief first, then applies either a Gaussian or
+censored (Tobit) update.
+
+**Gaussian update** (counted failure, TOO_HARD with actualReps): standard scalar Kalman
+step. Kalman gain k = σ²/(σ² + s²) where s is the observation noise from the set.
+
+**Censored update** (RIR buckets, uncounted failure, RIR_5_PLUS): observation z = x + s·ε
+constrained to [L, U] (either bound may be null = unbounded). With σ_t² = σ² + s²:
+
+```
+α = (L − μ) / σ_t,  β = (U − μ) / σ_t,  Z = Φ(β) − Φ(α)
+m_z = μ + σ_t · (φ(α) − φ(β)) / Z
+v_z = σ_t² · (1 + (α·φ(α) − β·φ(β)) / Z − ((φ(α) − φ(β)) / Z)²)
+k   = σ² / σ_t²
+μ'  = μ + k · (m_z − μ)
+σ'² = clamp(σ² − k²·(σ_t² − v_z))
+```
+
+This is the truncated-Gaussian moment match — exact for this model. Numerically: α, β
+clamped to ±6; if Z < 1e-6 (prior mass misses the window) the update falls back to a
+Gaussian at the violated bound.
+
+After all sets for an exercise are folded, σ² is clamped to [σ_min², σ_max²] =
+[0.02², 0.30²] after each step.
+
+## HURT never touches the belief
+
+HURT sets produce no `SetObservation` and reach neither μ nor σ². They are collected as
+muscle-level policy events during replay and applied at prescription time as a decaying
+caution multiplier. See [#5](05-prescription-policy.md) and `domain/policy/PrescriptionPolicy.kt`.
 
 ## Why folding is local
 
-A fold for exercise *i* touches only *i*'s estimate. A failure on the
-barbell bench never reaches into the dumbbell fly's stored number. This makes the
-"a failure must not corrupt siblings" guarantee **structural** rather than something the
-math has to be careful about. Sharing strength between an exercise and its siblings is
-deferred entirely to read time, where it is a non-destructive shrink
+A fold for exercise *i* touches only *i*'s belief. A failure on the barbell bench never
+reaches into the dumbbell fly's stored numbers. This makes the "a failure must not
+corrupt siblings" guarantee **structural** rather than something the math has to be
+careful about. Sharing strength between exercises happens at read time, non-destructively
 ([#4](04-muscle-pooling.md)).
+
+## What replaced the old fold
+
+`ExerciseEstimateUpdater.fold` with its asymmetric `wUp`/`wDown`/`wDownSnap` weights,
+`confidenceCap`, and `halfLifeMs` is deleted. The belief model separates these concerns
+cleanly: the Bayesian update has no policy bias (no up/down asymmetry), uncertainty grows
+via process noise (aging), and evidence accumulates as reduced σ² (clamp plays the role
+of the old confidence cap). Prescription preferences (conservative shading, overload push)
+live entirely in `PrescriptionPolicy` ([#5](05-prescription-policy.md)).
 
 ## Output
 
-An updated `ExerciseEstimate` per trained exercise, written back into the estimate map
-that `replayDerivedState` rebuilds and `MuscleStrengthProjector` reads.
+An updated `ExerciseBelief` per trained exercise, written back into the belief map that
+`replayDerivedState` rebuilds and `MuscleStrengthProjector` reads. Phase 3 note:
+`processNoisePerDay`, `detrainRatePerWeek`, and the rep-noise bases are candidates for
+per-user MAP fitting in phase 4.
