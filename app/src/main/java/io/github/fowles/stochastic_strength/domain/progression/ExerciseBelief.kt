@@ -46,10 +46,20 @@ data class EstimatorConfig(
      * stale lone voter decays back toward it. Pinned by BeliefSimulationTest.
      */
     val levelPrior: Float = 0.5f,
-    /** Overload push δ (log-space). Activated in phase 2; Task 9 may re-tune. */
-    val overloadDelta: Float = 0.01f,
-    /** Uncertainty shading z. Activated in phase 2; Task 9 may re-tune. */
-    val uncertaintyZ: Float = 0.5f,
+    /**
+     * Overload push δ (log-space). Forced up from 0.01 by the bad-day recovery pin: post-incident
+     * RIR_5_PLUS bounds are weak, so δ is what lifts the recovered prescription back onto the
+     * pre-incident grid point within the pinned session budget.
+     * Pinned by BeliefSimulationTest 2026-07-08.
+     */
+    val overloadDelta: Float = 0.02f,
+    /**
+     * Uncertainty shading z. Forced down from 0.5 by the first-session guard: at σ_seed the
+     * light-weight end of the 1RM formula amplifies e1rm shading ~3x in weight space, so
+     * z ≥ ~0.45 collapses small-lift cold starts below 60% of their seed-implied weight.
+     * Pinned by BeliefSimulationTest 2026-07-08.
+     */
+    val uncertaintyZ: Float = 0.4f,
     /** A CLEAR failure binds the ceiling at this fraction of the failed 1RM, with round-down. */
     val ceilingFactorClear: Float = 0.97f,
     /** Failure ceilings expire after this long (superseded earlier by any newer session). */
@@ -81,7 +91,11 @@ data class EstimatorConfig(
     val repNoiseBucket: Float = 0.75f,
     val repNoiseCounted: Float = 0.5f,
     val repNoiseRel: Float = 0.06f,
-    /** Bridge: per-observation variance defining n_eff pooling votes (phase 3 deletes). Sim-pinned. */
+    /**
+     * Bridge: per-observation variance defining n_eff pooling votes (phase 3 deletes). Default kept:
+     * the calibration pin's coverage-vs-p table brackets it to ~[1.2e-3, 2.9e-3] and 2.0e-3 sits
+     * mid-band. Pinned by BeliefSimulationTest 2026-07-08.
+     */
     val poolObsVar: Float = 2.0e-3f,
     /** Layoff notice threshold (fraction of strength eased). */
     val noticeThresholdFraction: Float = 0.03f,
