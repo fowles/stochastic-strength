@@ -33,7 +33,10 @@ data class SetObservation(
             val freshShift = -ln(1f - (config.fatiguePerSet * (fatigueRank - 1)).coerceAtMost(0.5f))
             fun capLn(reps: Float) = ln(DefaultProgressionEngine.rawToOneRepMax(w, reps)) + freshShift
             val lambda = repSlope(w, r)
-            fun noise(base: Float) = lambda * sqrt(base * base + (config.repNoiseRel * r) * (config.repNoiseRel * r))
+            fun noise(base: Float): Float {
+                val repSd = lambda * sqrt(base * base + (config.repNoiseRel * r) * (config.repNoiseRel * r))
+                return sqrt(repSd * repSd + config.obsModelSd * config.obsModelSd)
+            }
             return when (feedback) {
                 SetFeedback.TOO_HARD -> {
                     val a = set.actualReps

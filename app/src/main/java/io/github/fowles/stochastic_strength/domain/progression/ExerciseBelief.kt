@@ -92,6 +92,13 @@ data class EstimatorConfig(
     val repNoiseCounted: Float = 0.5f,
     val repNoiseRel: Float = 0.06f,
     /**
+     * Irreducible per-observation uncertainty about FRESH 1RM (log-units, ≈ ±8%). Combined in
+     * quadrature with the rep-derived noise so a single set — especially a low-rep failure where
+     * the 1RM curve is flat and the rep-noise term is tiny — cannot drive σ to the floor and
+     * deafen the filter. This is the "one session can't tell you fresh 1RM to ±2.5%" floor.
+     */
+    val obsModelSd: Float = 0.08f,
+    /**
      * Bridge: per-observation variance defining n_eff pooling votes (phase 3 deletes). Default kept:
      * the calibration pin's coverage-vs-p table brackets it to ~[1.2e-3, 2.9e-3] and 2.0e-3 sits
      * mid-band. Pinned by BeliefSimulationTest 2026-07-08.

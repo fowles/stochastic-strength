@@ -38,8 +38,9 @@ class SetObservationTest {
         val obs = SetObservation.from(set(SetFeedback.TOO_HARD, actual = 6), 1, config)!!
         assertEquals(capLn(60f, 6.5f), obs.gaussianLn!!, 1e-5f)
         assertNull(obs.lowerLn); assertNull(obs.upperLn)
-        val expected = SetObservation.repSlope(60f, 10) *
+        val repSd = SetObservation.repSlope(60f, 10) *
             sqrt(config.repNoiseCounted * config.repNoiseCounted + (config.repNoiseRel * 10) * (config.repNoiseRel * 10))
+        val expected = sqrt(repSd * repSd + config.obsModelSd * config.obsModelSd)
         assertEquals(expected, obs.noiseSd, 1e-6f)
     }
 
