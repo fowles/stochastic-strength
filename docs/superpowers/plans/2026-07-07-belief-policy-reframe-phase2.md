@@ -1,5 +1,7 @@
 # Belief + Policy Reframe — Phase 2 (Belief Swap) Implementation Plan
 
+> **STATUS: COMPLETE 2026-07-09.** All 11 tasks executed via subagent-driven development (38 commits, 2b6f6f83..27f4329d), every per-task review + the whole-branch review clean, full unit suite + lint + connectedAndroidTest (78) green. Key adjudications recorded in the Bridge Decisions / [AMENDED]/[CORRECTED]/[FINAL ADJUDICATION] notes below: ProdBss pins 30 lb (documented deviation from spec §9's ≈20 lb); `tauBridge` replaced `priorStrength`; the backtest reference was re-baselined to phase-2 output (BAND 0.05, user-approved). Branch ready for user reshape/push. Phases 3 (τ-pooling) and 4 (fitting) remain, each its own plan cycle.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the heuristic `ExerciseEstimate(lnE, confidence)` estimator with an honest `ExerciseBelief(mu, sigma2)` filter — per-set censored (Tobit) observations, variance aging + muscle-keyed detraining drift — activate the policy's z/δ/fatigue terms, delete the detraining dialog in favor of automatic drift + a passive plan-preview notice, and re-pin the simulation and real-history backtest.
@@ -142,7 +144,7 @@ Deleted: `ExerciseEstimate` (class), `ExerciseEstimateUpdater.kt`, `SessionSigna
 - Consumes: existing `EstimatorConfig` (adds fields, deletes nothing yet — old estimator still compiles).
 - Produces: `ExerciseBelief(mu: Float, sigma2: Float, updatedAt: Long)` with `e1rm`, `sigma`, `seed(e1rm, at, config)`, `override(e1rm, at, config)`; `NormalCdf.erf/pdf/cdf(Float): Float`; `BeliefUpdater(config).foldGaussian(prior, obsLn, noiseSd, at, muscleLastObs): ExerciseBelief` and `.foldCensored(prior, lowerLn: Float?, upperLn: Float?, noiseSd, at, muscleLastObs): ExerciseBelief`. `age(...)` arrives in Task 2 — in this task implement `age` as a stub that only sets `updatedAt = now` (no q, no drift) so folds compile; Task 2 fills it in.
 
-- [ ] **Step 1: Add the phase-2 config fields** (append to `EstimatorConfig` in `ExerciseEstimate.kt`; keep every existing field — deletion happens in Task 5):
+- [x] **Step 1: Add the phase-2 config fields** (append to `EstimatorConfig` in `ExerciseEstimate.kt`; keep every existing field — deletion happens in Task 5):
 
 ```kotlin
     /** Seed-row belief uncertainty (std of ln 1RM). */
@@ -172,7 +174,7 @@ Deleted: `ExerciseEstimate` (class), `ExerciseEstimateUpdater.kt`, `SessionSigna
 
 Also change the existing `overloadDelta` default `0f → 0.01f` and `uncertaintyZ` default `0f → 0.5f`? **No — not yet.** They stay 0f until Task 7 activates them (backtest/tests would silently shift). Only add the new fields above.
 
-- [ ] **Step 2: Write failing NormalCdf test**
+- [x] **Step 2: Write failing NormalCdf test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -202,9 +204,9 @@ class NormalCdfTest {
 }
 ```
 
-- [ ] **Step 3: Run to verify failure** — `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.NormalCdfTest"` — FAILS (unresolved reference).
+- [x] **Step 3: Run to verify failure** — `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.NormalCdfTest"` — FAILS (unresolved reference).
 
-- [ ] **Step 4: Implement NormalCdf.kt**
+- [x] **Step 4: Implement NormalCdf.kt**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -232,9 +234,9 @@ object NormalCdf {
 }
 ```
 
-- [ ] **Step 5: Run — PASS. Commit** `jj commit -m "phase2: NormalCdf (A&S erf) with golden-value tests"`.
+- [x] **Step 5: Run — PASS. Commit** `jj commit -m "phase2: NormalCdf (A&S erf) with golden-value tests"`.
 
-- [ ] **Step 6: Write failing fold tests.** The numerical-integration oracle computes the exact posterior moments of x ~ N(μ, σ²) given one observation z = x + s·ε censored to [L, U]:
+- [x] **Step 6: Write failing fold tests.** The numerical-integration oracle computes the exact posterior moments of x ~ N(μ, σ²) given one observation z = x + s·ε censored to [L, U]:
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -334,7 +336,7 @@ class BeliefUpdaterFoldTest {
 }
 ```
 
-- [ ] **Step 7: Run to verify failure**, then **implement**:
+- [x] **Step 7: Run to verify failure**, then **implement**:
 
 `ExerciseBelief.kt`:
 
@@ -451,9 +453,9 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
 }
 ```
 
-- [ ] **Step 8: Run — PASS:** `--tests "...BeliefUpdaterFoldTest" --tests "...NormalCdfTest"`. Also run the full unit suite (nothing else should notice the additive config change).
+- [x] **Step 8: Run — PASS:** `--tests "...BeliefUpdaterFoldTest" --tests "...NormalCdfTest"`. Also run the full unit suite (nothing else should notice the additive config change).
 
-- [ ] **Step 9: Commit** `jj commit -m "phase2: ExerciseBelief + BeliefUpdater Gaussian/censored folds vs numerical oracle"`.
+- [x] **Step 9: Commit** `jj commit -m "phase2: ExerciseBelief + BeliefUpdater Gaussian/censored folds vs numerical oracle"`.
 
 ---
 
@@ -466,7 +468,7 @@ class BeliefUpdater(private val config: EstimatorConfig = EstimatorConfig()) {
 **Interfaces:**
 - Produces: real `age(belief, now, muscleLastObs: Long?): ExerciseBelief` — q variance growth clamped to [σ_min², σ_max²]; μ drift per Bridge Decision №7. Every fold already routes through `age`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -537,9 +539,9 @@ class BeliefAgingTest {
 
 **Note on the composition test:** two-hop drift = (40−14)/7 + (70−40)/7 weeks only if the second hop's window starts at `updatedAt` (day 40) — which is > muscleLast+grace (day 14) — giving (26+30)/7 = 8 weeks = one-hop (70−14)/7 = 8 weeks. ✓ The cap is per-gap because each realized fold re-anchors `updatedAt`; pure read-time aging always recomputes from the stored anchor.
 
-- [ ] **Step 2: Run — FAIL** (stub does no growth/drift).
+- [x] **Step 2: Run — FAIL** (stub does no growth/drift).
 
-- [ ] **Step 3: Implement `age`** (replace the stub):
+- [x] **Step 3: Implement `age`** (replace the stub):
 
 ```kotlin
     /**
@@ -574,9 +576,9 @@ class BeliefAgingTest {
     }
 ```
 
-- [ ] **Step 4: Run — PASS** (`BeliefAgingTest` + `BeliefUpdaterFoldTest` — fold tests all use `at = 0L`/`updatedAt = 0L` so aging is inert there).
+- [x] **Step 4: Run — PASS** (`BeliefAgingTest` + `BeliefUpdaterFoldTest` — fold tests all use `at = 0L`/`updatedAt = 0L` so aging is inert there).
 
-- [ ] **Step 5: Commit** `jj commit -m "phase2: belief aging — q variance growth + muscle-keyed detraining drift"`.
+- [x] **Step 5: Commit** `jj commit -m "phase2: belief aging — q variance growth + muscle-keyed detraining drift"`.
 
 ---
 
@@ -596,7 +598,7 @@ class BeliefAgingTest {
   ```
   Exactly one of {gaussianLn, (lowerLn|upperLn)} is populated. `from` returns null for HURT, null feedback, or weight ≤ 0. Zero-coefficient exercise filtering is the CALLER's job (stepper), as today.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -677,7 +679,7 @@ class SetObservationTest {
 }
 ```
 
-- [ ] **Step 2: Run — FAIL. Implement `SetObservation.kt`:**
+- [x] **Step 2: Run — FAIL. Implement `SetObservation.kt`:**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -741,7 +743,7 @@ data class SetObservation(
 }
 ```
 
-- [ ] **Step 3: Run — PASS. Commit** `jj commit -m "phase2: SetObservation — feedback table, fresh-basis shift, rep-slope noise"`.
+- [x] **Step 3: Run — PASS. Commit** `jj commit -m "phase2: SetObservation — feedback table, fresh-basis shift, rep-slope noise"`.
 
 ---
 
@@ -765,7 +767,7 @@ data class SetObservation(
   ```
 - **Compile note:** the OLD estimate-based `project`/`computeCrossTuning` are still referenced by the stepper/repository/series-builder until Task 5. This task adds the new belief-based functions as OVERLOADS in the same files (unambiguous by parameter type: `Map<Long, ExerciseBelief>` vs `Map<Long, ExerciseEstimate>`) and leaves the old ones untouched and compiling; Task 5 deletes the old overloads together with their callers. Do NOT write a shim mapping estimates to beliefs. The new `MuscleProjection` (with `pooledSigma`) REPLACES the old data class — update the old `project` overload's construction site to pass `pooledSigma = emptyMap()`.
 
-- [ ] **Step 1: Write failing tests.** Rewrite `MuscleStrengthProjectorTest.kt` — keep every behavioral scenario currently in the file, re-expressed on beliefs. The required cases (write them all; current file shows the old versions):
+- [x] **Step 1: Write failing tests.** Rewrite `MuscleStrengthProjectorTest.kt` — keep every behavioral scenario currently in the file, re-expressed on beliefs. The required cases (write them all; current file shows the old versions):
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -873,7 +875,7 @@ class MuscleStrengthProjectorTest {
 
 For `CrossTuningTest.kt`: keep the existing scenarios (agreement sign/zero cases, contribution shares summing to 1 over confident exercises), constructed with `ExerciseBelief` and asserting `contribution` = n_eff share. Follow the current file's cases one-for-one.
 
-- [ ] **Step 2: Run — FAIL. Implement.** New projector (keep the old `project(Map<Long, ExerciseEstimate>, ...)` beside it until Task 5):
+- [x] **Step 2: Run — FAIL. Implement.** New projector (keep the old `project(Map<Long, ExerciseEstimate>, ...)` beside it until Task 5):
 
 ```kotlin
 data class MuscleProjection(
@@ -949,9 +951,9 @@ class MuscleStrengthProjector(private val config: EstimatorConfig = EstimatorCon
 
 `computeCrossTuning` belief overload: identical structure to the current function with `conf` → `projector.neff(updater.age(belief, now, muscleLastObs))`, `ownE1rm` → `exp(aged.mu)`, and LOO projection via the new `project`. (Instantiate one `BeliefUpdater(config)` locally; add `muscleLastObs: Long? = null` parameter.)
 
-- [ ] **Step 3: Run — PASS** (`MuscleStrengthProjectorTest`, `CrossTuningTest`, plus the full unit suite — old callers still compile against the old overloads).
+- [x] **Step 3: Run — PASS** (`MuscleStrengthProjectorTest`, `CrossTuningTest`, plus the full unit suite — old callers still compile against the old overloads).
 
-- [ ] **Step 4: Commit** `jj commit -m "phase2: projector bridge — n_eff votes over aged beliefs, pooledSigma output; cross-tuning on beliefs"`.
+- [x] **Step 4: Commit** `jj commit -m "phase2: projector bridge — n_eff votes over aged beliefs, pooledSigma output; cross-tuning on beliefs"`.
 
 ---
 
@@ -972,7 +974,7 @@ This is the atomic swap; the codebase compiles old-style before it and new-style
 - `DerivedStateStore.Snapshot.exerciseBeliefs(): Map<Long, ExerciseBelief>` / `MutableDerivedState.putExerciseBeliefs(...)`
 - `EstimatorConfig` loses `halfLifeMs`, `confidenceCap`, `wUp`, `wDown`, `wDownSnap` (keeps `levelPrior`, `priorStrength`, all policy + phase-2 fields)
 
-- [ ] **Step 1: Write the new stepper test first** (replace `SessionProgressionStepperTest.kt`):
+- [x] **Step 1: Write the new stepper test first** (replace `SessionProgressionStepperTest.kt`):
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -1066,7 +1068,7 @@ class SessionProgressionStepperTest {
 }
 ```
 
-- [ ] **Step 2: Implement the stepper** (full replacement of the class body):
+- [x] **Step 2: Implement the stepper** (full replacement of the class body):
 
 ```kotlin
 /**
@@ -1126,7 +1128,7 @@ class SessionProgressionStepper(
 }
 ```
 
-- [ ] **Step 3: Sweep the rename through the compile fallout, in this order:**
+- [x] **Step 3: Sweep the rename through the compile fallout, in this order:**
   1. `ReplaySnapshot`: `currentEstimates` → `currentBeliefs: MutableMap<Long, ExerciseBelief>`; add `val muscleLastObs: MutableMap<MuscleGroup, Long> = mutableMapOf()`.
   2. `ReplayEngine.run`: seeding becomes `ExerciseBelief.seed(init.e1rm, at = init.asOf, config)`; session overrides become `ExerciseBelief.override(o.e1rm, o.asOf, config)`; give `ReplayEngine` a `private val config: EstimatorConfig = EstimatorConfig()` constructor param (after the stepper param).
   3. `PolicyState`: add `val muscleLastObs: Map<MuscleGroup, Long> = emptyMap()` (update `EMPTY`); `PolicyStateBuilder.build(muscleLastObs: Map<MuscleGroup, Long> = emptyMap())` copies it in.
@@ -1184,9 +1186,9 @@ class SessionProgressionStepper(
   10. Tests: delete `ExerciseEstimateUpdaterTest`, `SessionSignalExtractorTest`, `BulgarianBracketCharacterizationTest`, `ExerciseEstimatorSimulationTest`; mechanically update `ReplayEngineTest`, `ReplayHistoryTest`, `ReplayProjectionTest`, `PolicyStateBuilderTest`, `ExerciseProgressionSeriesBuilderTest`, `derived` store tests, androidTest `WorkoutSessionControllerTest` (constructor/assertion renames only — keep scenarios).
   11. `ProdBssPrescriptionTest`: rebuild setup on beliefs; both tests assert the SAFETY property for now: prescribed weight > 0 and ≤ 30 lb (in kg via `WeightUnit.LBS.toKg(30f) + 1e-3f`). Add `// Task 7 re-pins the exact value.` [AMENDED during Task 5: was ≤ 20 lb — unsatisfiable at Task 5; both paths measured 30.0 lb. CORRECTED post-review 2026-07-08: 30 lb is the pooled projector value passing through a neutral policy — the failure ceiling is inert here (it would give ~35 lb if it bound). See amended Bridge Decision №8.]
 
-- [ ] **Step 4: Full unit suite — PASS.** `./gradlew :app:testDebugUnitTest`. Also `./gradlew :app:assembleDebug` (androidTest compile check: `./gradlew :app:compileDebugAndroidTestKotlin`).
+- [x] **Step 4: Full unit suite — PASS.** `./gradlew :app:testDebugUnitTest`. Also `./gradlew :app:assembleDebug` (androidTest compile check: `./gradlew :app:compileDebugAndroidTestKotlin`).
 
-- [ ] **Step 5: Commit** `jj commit -m "phase2: belief swap — per-set censored folds in replay, muscle clock, old estimator deleted"`.
+- [x] **Step 5: Commit** `jj commit -m "phase2: belief swap — per-set censored folds in replay, muscle clock, old estimator deleted"`.
 
 ---
 
@@ -1199,7 +1201,7 @@ class SessionProgressionStepper(
 **Interfaces:**
 - Produces: `fun impliedSessionE1rm(sets: List<WorkoutSet>, config: EstimatorConfig = EstimatorConfig()): Float?`; `ExerciseProgressionSeries` gains `ownBandUpper: List<ProgressionPoint>` and `ownBandLower: List<ProgressionPoint>`; `ProgressionColorRole.BAND`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -1250,7 +1252,7 @@ class SessionObservationsTest {
 
 `ExerciseProgressionSeriesBuilderTest`: extend the existing scenarios to assert `ownBandUpper`/`ownBandLower` bracket `ownEstimate` (upper > own > lower pointwise) and are emitted only for sessions where the own belief exists.
 
-- [ ] **Step 2: Verify `SessionObservations.kt`** (Task 5 Step 3.6 created it; confirm it matches this reference exactly — fix in place if it drifted):
+- [x] **Step 2: Verify `SessionObservations.kt`** (Task 5 Step 3.6 created it; confirm it matches this reference exactly — fix in place if it drifted):
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -1293,7 +1295,7 @@ fun impliedSessionE1rm(sets: List<WorkoutSet>, config: EstimatorConfig = Estimat
 
 **Clamp caveat:** `foldGaussian`/`foldCensored` clamp σ² to `[σ_min², σ_max²]` — σ_max = 0.30 < the broad prior 1.0. The FIRST fold therefore clamps the posterior variance to σ_max² (fine — subsequent folds still work; the mean update uses the unclamped gain). Accept this; do not special-case.
 
-- [ ] **Step 3: σ band.** `SessionSample` + `ExerciseProgressionSeries` gain `ownBandUpper`/`ownBandLower`; in `sampleSession`:
+- [x] **Step 3: σ band.** `SessionSample` + `ExerciseProgressionSeries` gain `ownBandUpper`/`ownBandLower`; in `sampleSession`:
 
 ```kotlin
     val belief = snapshot.currentBeliefs[targetId]
@@ -1304,9 +1306,9 @@ fun impliedSessionE1rm(sets: List<WorkoutSet>, config: EstimatorConfig = Estimat
 
 Thread through the builder's accumulation loop and `ExerciseProgressionSeries`. In `ExerciseCoefficientDetailViewModel`, append two `ProgressionChartSeries(label = "±σ", style = LINE, colorRole = ProgressionColorRole.BAND)` entries (find where the existing own/siblings/merged series are assembled and mirror it). In `ExerciseProgressionChart.kt`: add `BAND` to `ProgressionColorRole` and map it in `progressionColors()` to `MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)`. **Keep `sharedProgressionYRange` computed from the existing three lines only** (do not let a wide band blow up the shared Y range; check `ChartRange.kt` and leave its inputs unchanged).
 
-- [ ] **Step 4: Run — PASS** (`SessionObservationsTest`, `ExerciseProgressionSeriesBuilderTest`, full unit suite).
+- [x] **Step 4: Run — PASS** (`SessionObservationsTest`, `ExerciseProgressionSeriesBuilderTest`, full unit suite).
 
-- [ ] **Step 5: Commit** `jj commit -m "phase2: chart continuity — broad-prior session dots + debug sigma band"`.
+- [x] **Step 5: Commit** `jj commit -m "phase2: chart continuity — broad-prior session dots + debug sigma band"`.
 
 ---
 
@@ -1324,7 +1326,7 @@ Thread through the builder's accumulation loop and `ExerciseProgressionSeries`. 
   ```
 - `EstimatorConfig.overloadDelta` default → `0.01f`; `uncertaintyZ` default → `0.5f` (Task 9 may re-tune, then pins).
 
-- [ ] **Step 1: Write failing tests** (add to `PrescriptionPolicyTest`; update the file's policy factory to build `PooledBelief` maps — the EXISTING phase-1 tests must keep their pinned arithmetic exactly, so give them `sigma = 0f` and a fully-neutral base-target config `EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f, fatiguePerSet = 0f)`: they pin ceiling/HURT/rounding semantics, not the base target, and the new fatigue discount would otherwise shift (and in the near-cap cases unbind) their scenarios. The NEW tests exercise the activated defaults):
+- [x] **Step 1: Write failing tests** (add to `PrescriptionPolicyTest`; update the file's policy factory to build `PooledBelief` maps — the EXISTING phase-1 tests must keep their pinned arithmetic exactly, so give them `sigma = 0f` and a fully-neutral base-target config `EstimatorConfig(uncertaintyZ = 0f, overloadDelta = 0f, fatiguePerSet = 0f)`: they pin ceiling/HURT/rounding semantics, not the base target, and the new fatigue discount would otherwise shift (and in the near-cap cases unbind) their scenarios. The NEW tests exercise the activated defaults):
 
 ```kotlin
     @Test
@@ -1364,7 +1366,7 @@ Thread through the builder's accumulation loop and `ExerciseProgressionSeries`. 
 
 (For the last test: copy `nearCapTargetWithoutHurtAlsoStaysBelowTheFailedWeight`'s arithmetic, adjusting the pooled value so the pre-clamp target — now including −z·σ + δ + fatigue — still exceeds the cap; assert the same strictly-below-failed-weight outcome.)
 
-- [ ] **Step 2: Implement.** `PrescriptionPolicy` changes only its input type and base-target line:
+- [x] **Step 2: Implement.** `PrescriptionPolicy` changes only its input type and base-target line:
 
 ```kotlin
 data class PooledBelief(val e1rm: Float, val sigma: Float)
@@ -1409,11 +1411,11 @@ class PrescriptionPolicy(
 
 `BacktestHarness.replayPolicyPrescriptions`: same zip (per-muscle loop already exists there), `builder.build(snap.muscleLastObs.toMap())`, `PooledBelief` map into the policy. `WorkoutPlannerTest`/`WorkoutPlannerOverrideTest`: update only the policy-construction helper (PooledBelief with sigma 0f keeps every planner scenario's arithmetic identical); the seven sore-muscle test bodies stay untouched.
 
-- [ ] **Step 3: Re-pin ProdBss.** Restore exact-value assertions in both `ProdBssPrescriptionTest` tests by running them and pinning the observed weight. Spec §9 expects ≈ 20 lb. If the observed value is NOT 20 lb (LBS grid), STOP: report DONE_WITH_CONCERNS with the observed value and the pre/post-clamp targets for adjudication — do not pin silently.
+- [x] **Step 3: Re-pin ProdBss.** Restore exact-value assertions in both `ProdBssPrescriptionTest` tests by running them and pinning the observed weight. Spec §9 expects ≈ 20 lb. If the observed value is NOT 20 lb (LBS grid), STOP: report DONE_WITH_CONCERNS with the observed value and the pre/post-clamp targets for adjudication — do not pin silently.
 
-- [ ] **Step 4: Run — PASS:** `PrescriptionPolicyTest`, `ProdBssPrescriptionTest`, `WorkoutPlannerTest`, `WorkoutPlannerOverrideTest`, then the full unit suite (BacktestComparisonTest skips without fixtures on other machines; on this machine it may FAIL until Task 9 re-pins the band — if it fails here, note the worst delta in the report; do not touch BAND).
+- [x] **Step 4: Run — PASS:** `PrescriptionPolicyTest`, `ProdBssPrescriptionTest`, `WorkoutPlannerTest`, `WorkoutPlannerOverrideTest`, then the full unit suite (BacktestComparisonTest skips without fixtures on other machines; on this machine it may FAIL until Task 9 re-pins the band — if it fails here, note the worst delta in the report; do not touch BAND).
 
-- [ ] **Step 5: Commit** `jj commit -m "phase2: policy activation — z-shading, overload delta, last-set fatigue discount"`.
+- [x] **Step 5: Commit** `jj commit -m "phase2: policy activation — z-shading, overload delta, last-set fatigue discount"`.
 
 ---
 
@@ -1429,7 +1431,7 @@ class PrescriptionPolicy(
 - `WorkoutPlanner(..., private val muscleEasedFraction: Map<MuscleGroup, Float> = emptyMap(), private val layoffNoticeThreshold: Float = EstimatorConfig().noticeThresholdFraction)`.
 - Historical DETRAIN override rows keep replaying unchanged (`ExerciseStrengthOverride` + `BaselineChangeReason.DETRAIN` untouched — data model, not behavior).
 
-- [ ] **Step 1: Write failing planner-notice test** (add to `WorkoutPlannerTest`):
+- [x] **Step 1: Write failing planner-notice test** (add to `WorkoutPlannerTest`):
 
 ```kotlin
     @Test
@@ -1449,7 +1451,7 @@ class PrescriptionPolicy(
 
 (Adapt to the file's existing `planner(...)` helper — add the new parameter with an `emptyMap()` default so no other test changes. Construct the eased-case planner with an all-QUADS `availableExercises` list — mirror how the file's other tests build exercise lists — so the `if` guard never goes vacuous.)
 
-- [ ] **Step 2: Implement.** In `WorkoutPlanner.generateWorkout(sessionReps)`:
+- [x] **Step 2: Implement.** In `WorkoutPlanner.generateWorkout(sessionReps)`:
 
 ```kotlin
     fun generateWorkout(sessionReps: Int): WorkoutPlan {
@@ -1494,9 +1496,9 @@ class PrescriptionPolicy(
 
 Then the deletion sweep (Files list above): remove the dialog, prompt, controller/VM methods, `WorkoutPlan.detrainOverrides`/`effectiveOverrides` (call sites use `exerciseOverrides`), `applyDetrainingReduction`, and the two androidTest scenario groups. `startFirstExercise` keeps only `applyManualExerciseOverrides`.
 
-- [ ] **Step 3: Run — PASS:** `WorkoutPlannerTest`, `WorkoutPlanTest`, full unit suite; `./gradlew :app:compileDebugAndroidTestKotlin`.
+- [x] **Step 3: Run — PASS:** `WorkoutPlannerTest`, `WorkoutPlanTest`, full unit suite; `./gradlew :app:compileDebugAndroidTestKotlin`.
 
-- [ ] **Step 4: Commit** `jj commit -m "phase2: detraining dialog deleted — automatic drift + passive layoff notice"`.
+- [x] **Step 4: Commit** `jj commit -m "phase2: detraining dialog deleted — automatic drift + passive layoff notice"`.
 
 ---
 
@@ -1557,11 +1559,11 @@ Then the deletion sweep (Files list above): remove the dialog, prompt, controlle
 
 **Tuning protocol (the exploratory loop):** run the full class; if pins fail, adjust ONLY `uncertaintyZ`, `overloadDelta`, `poolObsVar` (bounded: z ∈ [0.25, 1.0], δ ∈ [0.005, 0.02], poolObsVar ∈ [5e-4, 8e-3]); re-run; iterate ≤ 6 rounds. If no setting passes, report BLOCKED with the best config + failing pins table. When green, pin the values as `EstimatorConfig` defaults with a `// Pinned by BeliefSimulationTest <date>` comment, run the FULL unit suite, and document the final values + rounds in the report.
 
-- [ ] Step 1: Port the harness (policy-path prescriptions, per-set folds), no pins yet; smoke-run one seed.
-- [ ] Step 2: Add the match-feel pins; run; tune per protocol.
-- [ ] Step 3: Add the four scenario tests; run; tune per protocol (re-run match-feel after any change).
-- [ ] Step 4: Pin final z/δ/poolObsVar in `EstimatorConfig`; full unit suite PASS.
-- [ ] Step 5: Commit `jj commit -m "phase2: belief simulation harness — match-feel + calibration/bad-day/layoff/censored pins; z, delta, poolObsVar pinned"`.
+- [x] Step 1: Port the harness (policy-path prescriptions, per-set folds), no pins yet; smoke-run one seed.
+- [x] Step 2: Add the match-feel pins; run; tune per protocol.
+- [x] Step 3: Add the four scenario tests; run; tune per protocol (re-run match-feel after any change).
+- [x] Step 4: Pin final z/δ/poolObsVar in `EstimatorConfig`; full unit suite PASS.
+- [x] Step 5: Commit `jj commit -m "phase2: belief simulation harness — match-feel + calibration/bad-day/layoff/censored pins; z, delta, poolObsVar pinned"`.
 
 ---
 
@@ -1569,10 +1571,10 @@ Then the deletion sweep (Files list above): remove the dialog, prompt, controlle
 
 Not a subagent dispatch — needs the machine-local personal fixtures and delta-attribution judgment.
 
-- [ ] Step 1: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestComparisonTest"` — inspect the printed delta table (counts/aggregates only; no set-level data into the transcript).
-- [ ] Step 2: Attribute every >2% delta to an intended phase-1/phase-2 semantic (ceiling, z-shading on high-σ exercises, drift on layoff gaps, fresh-basis/fatigue pairing, censored vs EMA folds). Anything unattributable = investigate before pinning.
-- [ ] Step 3: Pin `BAND = worst + 0.05` with an attribution comment (replacing the phase-1 comment; note phase-1's 0.19 in it). Re-run — green.
-- [ ] Step 4: Commit `jj commit -m "phase2: backtest band re-pinned after belief-swap delta attribution"`.
+- [x] Step 1: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestComparisonTest"` — inspect the printed delta table (counts/aggregates only; no set-level data into the transcript).
+- [x] Step 2: Attribute every >2% delta to an intended phase-1/phase-2 semantic (ceiling, z-shading on high-σ exercises, drift on layoff gaps, fresh-basis/fatigue pairing, censored vs EMA folds). Anything unattributable = investigate before pinning.
+- [x] Step 3: Pin `BAND = worst + 0.05` with an attribution comment (replacing the phase-1 comment; note phase-1's 0.19 in it). Re-run — green.
+- [x] Step 4: Commit `jj commit -m "phase2: backtest band re-pinned after belief-swap delta attribution"`.
 
 ---
 
@@ -1584,16 +1586,16 @@ Not a subagent dispatch — needs the machine-local personal fixtures and delta-
 - Modify: spec §7 display-continuity line — replace "chart dots (the shared `impliedObservedSet` semantics) become the post-session belief mean per session" with "chart dots = the session's broad-prior implied observation (`impliedSessionE1rm`); the post-session belief mean is already the own-estimate line — dots keep showing what the session said. *(Amended during phase 2: dots equal to the line would carry no information.)*"
 - Verify: `docs/adaptation/01-*` untouched; 06-fitting is phase 4 — do NOT create it.
 
-- [ ] Step 1: Rewrite/create the pages per outline.
-- [ ] Step 2: Cross-check every constant named in the docs against `EstimatorConfig` (post-Task-9 pinned values).
-- [ ] Step 3: Commit `jj commit -m "phase2: adaptation docs + CLAUDE.md rewritten to the belief model; spec dot-semantics amendment"`.
+- [x] Step 1: Rewrite/create the pages per outline.
+- [x] Step 2: Cross-check every constant named in the docs against `EstimatorConfig` (post-Task-9 pinned values).
+- [x] Step 3: Commit `jj commit -m "phase2: adaptation docs + CLAUDE.md rewritten to the belief model; spec dot-semantics amendment"`.
 
 ---
 
 ### Phase close (controller)
 
-- [ ] Full unit suite green; `./gradlew :app:lint` clean; `./gradlew :app:connectedAndroidTest` green (emulator).
-- [ ] Plan checkboxes marked; ledger updated; memory updated. Version bump remains the user's call.
+- [x] Full unit suite green; `./gradlew :app:lint` clean; `./gradlew :app:connectedAndroidTest` green (emulator).
+- [x] Plan checkboxes marked; ledger updated; memory updated. Version bump remains the user's call.
 
 ## Self-Review Notes (writing-plans checklist)
 
