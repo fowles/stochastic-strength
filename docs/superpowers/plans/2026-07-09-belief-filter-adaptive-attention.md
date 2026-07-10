@@ -1,6 +1,15 @@
 # Belief Filter — Adaptive Attention Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> ✅ **COMPLETE 2026-07-09.** Executed subagent-driven. BSS 30→20 lb (demonstrated). During execution:
+> Task 3's inflation gate adjudicated to `abs(prev)` (better than the plan's `abs(run)`); `age()` amended
+> to carry `innovationRun` cross-session (Task 3a fix). The re-baseline (Tasks 4–6) was controller-driven
+> and coupled with a companion plan — **[projector evidence gate](2026-07-09-projector-evidence-gate.md)** —
+> which closed the last 25→20 lb gap (the pooling `n_eff` was reading adaptation-inflated σ). Final tuning
+> (user-approved): obsModelSd demoted 0.08→0.02 (calibration gate; adaptation carries recovery),
+> adaptRunThreshold 3.5→2.5, adaptInflationPerExcess 1.0→2.0. Backtest re-baselined (user-approved) after
+> attribution. Full suite 278/0, instrumented 78/78, whole-branch review (opus): Ready to merge.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make the per-exercise Kalman belief actually follow clear, consistent evidence (e.g. a run of failed heavy sets ending in a clean RIR_0_1 set) instead of discounting it, so the prod Bulgarian-Split-Squat (BSS) prescription returns to the user-demonstrated ~20 lb rather than the current 30 lb — with no post-hoc snap-down heuristic.
 
@@ -55,7 +64,7 @@ Stops a single confident set from collapsing σ to the floor. Every observation 
 **Interfaces:**
 - Produces: `EstimatorConfig.obsModelSd: Float` (default `0.08f`); `SetObservation.from(...)` returns observations whose `noiseSd >= obsModelSd`.
 
-- [ ] **Step 1: Write the failing test** — create `BeliefAdaptationTest.kt`
+- [x] **Step 1: Write the failing test** — create `BeliefAdaptationTest.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -94,12 +103,12 @@ class BeliefAdaptationTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefAdaptationTest"`
 Expected: FAIL — `obsModelSd` unresolved (compile error), or (once added) σ collapses below 0.06.
 
-- [ ] **Step 3: Add `obsModelSd` to `EstimatorConfig`**
+- [x] **Step 3: Add `obsModelSd` to `EstimatorConfig`**
 
 Insert after the `repNoiseRel` field (near the report-noise bases block):
 
@@ -113,7 +122,7 @@ Insert after the `repNoiseRel` field (near the report-noise bases block):
     val obsModelSd: Float = 0.08f,
 ```
 
-- [ ] **Step 4: Apply the floor in `SetObservation.noise`**
+- [x] **Step 4: Apply the floor in `SetObservation.noise`**
 
 In `SetObservation.from`, replace the `noise` helper (line ~36):
 
@@ -124,12 +133,12 @@ In `SetObservation.from`, replace the `noise` helper (line ~36):
             }
 ```
 
-- [ ] **Step 5: Run the new test + the exact-math fold test**
+- [x] **Step 5: Run the new test + the exact-math fold test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefAdaptationTest" --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefUpdaterFoldTest"`
 Expected: `BeliefAdaptationTest` PASS. `BeliefUpdaterFoldTest` PASS (it calls folds with explicit `noiseSd`, not via `SetObservation`, so it is unaffected).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/EstimatorConfig.kt \
@@ -150,7 +159,7 @@ Adds the augmented-filter state that tracks a signed run of consistent surprises
 **Interfaces:**
 - Produces: `ExerciseBelief.innovationRun: Float` (default `0f`), reset to `0f` by `seed()` and `override()`.
 
-- [ ] **Step 1: Add the field with a default**
+- [x] **Step 1: Add the field with a default**
 
 Replace the `ExerciseBelief` data class declaration:
 
@@ -170,16 +179,16 @@ data class ExerciseBelief(
 ) {
 ```
 
-- [ ] **Step 2: Confirm `seed`/`override` reset the run**
+- [x] **Step 2: Confirm `seed`/`override` reset the run**
 
 They construct `ExerciseBelief(mu = ..., sigma2 = ..., updatedAt = at)`, so `innovationRun` defaults to `0f`. No change needed — verify by reading the companion object.
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefUpdaterFoldTest"`
 Expected: PASS (field is additive, defaulted; nothing reads it yet).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ExerciseBelief.kt
@@ -201,7 +210,7 @@ The core mechanism. Before computing the gain, measure the standardized innovati
 - Consumes: `ExerciseBelief.innovationRun`, `EstimatorConfig.obsModelSd`.
 - Produces: `EstimatorConfig.adaptRunThreshold` (`3.5f`), `adaptInflationPerExcess` (`1.0f`), `adaptRunDecay` (`0.5f`); folds now write `innovationRun` on the returned belief and inflate the prior when the run is large.
 
-- [ ] **Step 1: Write the failing tests** — append to `BeliefAdaptationTest.kt`
+- [x] **Step 1: Write the failing tests** — append to `BeliefAdaptationTest.kt`
 
 ```kotlin
     // --- Fix B: adaptive attention ---
@@ -244,12 +253,12 @@ The core mechanism. Before computing the gain, measure the standardized innovati
     }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefAdaptationTest"`
 Expected: FAIL — `adaptRunThreshold` unresolved; `consistentRunOfSurprisesReopensAndTracks` and `signFlipRestartsRun` fail (no adaptation).
 
-- [ ] **Step 3: Add the adaptation constants to `EstimatorConfig`**
+- [x] **Step 3: Add the adaptation constants to `EstimatorConfig`**
 
 Insert after `obsModelSd`:
 
@@ -269,7 +278,7 @@ Insert after `obsModelSd`:
     val adaptRunDecay: Float = 0.5f,
 ```
 
-- [ ] **Step 4: Refactor `BeliefUpdater` — extract `kalmanStep`, add `adaptPrior`, wire both folds**
+- [x] **Step 4: Refactor `BeliefUpdater` — extract `kalmanStep`, add `adaptPrior`, wire both folds**
 
 Add these imports at the top of `BeliefUpdater.kt` (alongside `import kotlin.math.sqrt`):
 
@@ -382,7 +391,7 @@ Replace `foldGaussian` and `foldCensored` (lines ~42–96) with:
 
 > Note: the `z < MIN_MASS` fallback now calls the private `kalmanStep` (no re-aging, no double-adaptation) — the prior is already aged and adapted at this point.
 
-- [ ] **Step 4b (AMENDED during execution — Task 3a): carry `innovationRun` through `age()`**
+- [x] **Step 4b (AMENDED during execution — Task 3a): carry `innovationRun` through `age()`**
 
 `age()` rebuilds the belief when `now > belief.updatedAt` and originally omitted `innovationRun`, defaulting it to 0 — so the accumulated surprise run reset to 0 at every session boundary and cross-session adaptation was impossible (within-session it survives because `age()` is a no-op when `now == updatedAt`). Aging models time passing (variance growth, detraining drift); it must carry the augmented filter state forward, not wipe it. In `BeliefUpdater.age()`, preserve the field:
 
@@ -392,12 +401,12 @@ Replace `foldGaussian` and `foldCensored` (lines ~42–96) with:
 
 Add a cross-session regression test to `BeliefAdaptationTest.kt` proving the run persists across a fold at a later timestamp (no time-decay applied for now; decaying the run over long layoffs is a possible future refinement, logged to the roll-up).
 
-- [ ] **Step 5: Run the adaptation tests + exact-math fold tests**
+- [x] **Step 5: Run the adaptation tests + exact-math fold tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefAdaptationTest" --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefUpdaterFoldTest"`
 Expected: `BeliefAdaptationTest` all PASS. `BeliefUpdaterFoldTest` PASS — its cases use priors far from the floor and single folds, so `adaptPrior` produces `run` below threshold → `inflate == 1f` → identical moments (the numeric-integration assertions have 5% tolerance and are unaffected). If any exact-math case now fails, STOP and use `superpowers:systematic-debugging` — do not loosen the tolerance.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/EstimatorConfig.kt \
@@ -418,21 +427,21 @@ Fix A raises observation noise and Fix B changes how surprises propagate; the sy
 **Interfaces:**
 - Consumes: the new `EstimatorConfig` defaults.
 
-- [ ] **Step 1: Run the simulation as-is and read the failures**
+- [x] **Step 1: Run the simulation as-is and read the failures**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefSimulationTest"`
 Expected: either PASS (nothing to do — skip to Step 4) or FAIL with concrete measured deltas (the assertions print measured vs. pinned).
 
-- [ ] **Step 2: If any pin moved, update the pinned assertion values**
+- [x] **Step 2: If any pin moved, update the pinned assertion values**
 
 For each failing assertion, replace the pinned expected value with the measured value the failure message reports. Do **not** change the tolerance/BAND. Only the three tuning-surface constants (`uncertaintyZ`, `overloadDelta`, `poolObsVar`) or their pinned targets are eligible; if any *other* constant appears to need changing to pass, STOP — that indicates a mechanism bug, use `superpowers:systematic-debugging`.
 
-- [ ] **Step 3: Re-run to green**
+- [x] **Step 3: Re-run to green**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefSimulationTest"`
 Expected: PASS.
 
-- [ ] **Step 4: Add an NIS calibration guard** — append to `BeliefSimulationTest.kt`
+- [x] **Step 4: Add an NIS calibration guard** — append to `BeliefSimulationTest.kt`
 
 A well-tuned filter has mean normalized-innovation-squared ≈ 1; a value ≫ 1 means it is still overconfident and will discount signals. Add a test that folds the synthetic lifter's sessions and asserts the mean NIS over Gaussian folds sits in a sane band. Use the existing helpers in the class (`achievableReps`, the per-session fold loop) as a template; if extracting NIS is awkward, gate it as a coarse assertion:
 
@@ -450,7 +459,7 @@ A well-tuned filter has mean normalized-innovation-squared ≈ 1; a value ≫ 1 
 
 Implement `meanNormalizedInnovationSquaredOverSyntheticLifter()` by reusing the class's existing session-generation loop: for each Gaussian fold, accumulate `(obsLn - agedMu)² / (agedSigma2 + noiseSd²)` and average. If the existing scaffolding does not expose aged μ/σ cleanly, compute it inline via `updater.age(...)` before each fold (the class already holds `updater`).
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefSimulationTest"`
 Expected: PASS.
@@ -469,16 +478,16 @@ This is the acceptance criterion for the user's intent: respect the user's direc
 **Files:**
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/ProdBssPrescriptionTest.kt`
 
-- [ ] **Step 1: Run both ProdBss cases and read the new number**
+- [x] **Step 1: Run both ProdBss cases and read the new number**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: FAIL — both `reportBssPrescription` (projector-only) and `policyPathSafetyBounds` (policy path) now produce a lower weight than the pinned 30 lb. Record the measured lbs from each failure message.
 
-- [ ] **Step 2: Confirm the target is met**
+- [x] **Step 2: Confirm the target is met**
 
 The measured policy-path prescription MUST be `<= WeightUnit.LBS.toKg(20f)` within grid tolerance (i.e. 20 lb, or the nearest grid point at/below the demonstrated set-3 capacity). If it is materially above 20 lb (e.g. 25 lb+), the fixes are under-powered: STOP and tune the Task 3 starting constants toward stronger attention — raise `adaptInflationPerExcess` and/or lower `adaptRunThreshold` — re-running Task 4 (sim + NIS) after each change to keep those gates green. Iterate constants, not mechanism. If ≥3 constant settings fail to reconcile ProdBss with the sim gate, STOP and escalate (this indicates the mechanism needs rethinking — invoke `superpowers:systematic-debugging`, do not keep nudging).
 
-- [ ] **Step 3: Update the two assertions to the demonstrated capacity**
+- [x] **Step 3: Update the two assertions to the demonstrated capacity**
 
 In `policyPathSafetyBounds`, replace the pinned block (currently 30 lb) with the measured value and an honest comment:
 
@@ -498,12 +507,12 @@ In `policyPathSafetyBounds`, replace the pinned block (currently 30 lb) with the
 
 In `reportBssPrescription`, replace the projector-only pin (currently 30 lb) with the measured projector-only value and update its comment to note it is the pre-policy belief-only figure (drop the stale "exactly 30 lb" text). If the measured projector-only value is not exactly 20 lb, pin the measured value — this case documents the belief before z/δ/fatigue, not the final prescription.
 
-- [ ] **Step 4: Run to green**
+- [x] **Step 4: Run to green**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/ProdBssPrescriptionTest.kt
@@ -518,25 +527,25 @@ git commit -m "belief: re-pin ProdBss to demonstrated 20 lb — adaptive attenti
 - Modify: `docs/adaptation/03-exercise-estimates.md`
 - Modify: `CLAUDE.md` (Progression system section, item 2)
 
-- [ ] **Step 1: Full unit suite**
+- [x] **Step 1: Full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS. If a *different* pinned test fails (e.g. a chart/backtest test that consumed the old belief trajectory), read it, decide whether the new behavior is correct, and re-pin the *measured* value with a one-line justification. Do not weaken a test to hide a regression — if the change looks wrong, use `superpowers:systematic-debugging`.
 
-- [ ] **Step 2: Instrumented suite (emulator up)**
+- [x] **Step 2: Instrumented suite (emulator up)**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS (per repo norm, ~78 instrumented green). If the emulator is down, note it and proceed; flag for the user.
 
-- [ ] **Step 3: Update `docs/adaptation/03-exercise-estimates.md`**
+- [x] **Step 3: Update `docs/adaptation/03-exercise-estimates.md`**
 
 Add a subsection documenting: (a) the observation model-uncertainty floor (`obsModelSd`) and why a single low-rep failure must not collapse σ; (b) innovation-driven adaptive inflation (`adaptRunThreshold`, `adaptInflationPerExcess`, `adaptRunDecay`) as native adaptive-Kalman / innovation-covariance matching — a *consistent* one-signed run re-opens σ, a lone surprise does not; (c) the NIS ≈ 1 calibration target. Match the file's existing prose style and cross-reference the prescription-policy doc.
 
-- [ ] **Step 4: Update `CLAUDE.md` Progression system item 2**
+- [x] **Step 4: Update `CLAUDE.md` Progression system item 2**
 
 Amend the sentence describing the fold ("Each fold ages the prior first: variance grows by q ...") to note that after aging, the fold (i) floors observation noise by `obsModelSd`, and (ii) applies innovation-run adaptive variance inflation so a consistent surprise re-opens the belief; Gaussian updates use a Kalman step, censored updates use truncated-Gaussian moment matching. Keep it to one or two sentences consistent with the surrounding density.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/adaptation/03-exercise-estimates.md CLAUDE.md

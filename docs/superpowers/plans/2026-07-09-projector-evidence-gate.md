@@ -1,6 +1,12 @@
 # Projector Evidence Gate Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> ✅ **COMPLETE 2026-07-09.** Executed subagent-driven (3 tasks, combined review Approved). Companion to
+> the [adaptive-attention plan](2026-07-09-belief-filter-adaptive-attention.md); together they land prod
+> BSS at the demonstrated 20 lb. Measured effect: effective e1rm now equals the own belief (the sibling
+> re-nudge 18.7→20.4 kg is gone). User chose the "uniform"/replace-everywhere blast radius and the
+> shadow-variance representation. Full suite 278/0; whole-branch review (opus): Ready to merge.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Decouple the muscle-pooling projector's `n_eff` from the belief's adaptation-inflated σ by giving each belief a clean "evidence variance" (`evidenceVar`), so a well-observed exercise whose σ was re-inflated by adaptive attention keeps a strong self-anchor and its confident siblings can no longer pull it toward the muscle level — closing the last 25→20 lb gap on prod BSS.
 
@@ -46,7 +52,7 @@ Add the field and make `age()` grow it. No fold/projector wiring yet.
 **Interfaces:**
 - Produces: `ExerciseBelief.evidenceVar: Float` (default `0.0625f`); `seed()` sets it to `sigmaSeed²`, `override()` to `sigmaOverride²`; `age()` grows it by `processNoisePerDay·idleDays` (clamped).
 
-- [ ] **Step 1: Write the failing test** — create `EvidenceVarTest.kt`
+- [x] **Step 1: Write the failing test** — create `EvidenceVarTest.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -83,12 +89,12 @@ class EvidenceVarTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.EvidenceVarTest"`
 Expected: FAIL — `evidenceVar` unresolved (compile error).
 
-- [ ] **Step 3: Add the field to `ExerciseBelief`**
+- [x] **Step 3: Add the field to `ExerciseBelief`**
 
 Replace the data class declaration (keep the getters/companion below it):
 
@@ -110,7 +116,7 @@ data class ExerciseBelief(
 ) {
 ```
 
-- [ ] **Step 4: Set `evidenceVar` in `seed()` and `override()`**
+- [x] **Step 4: Set `evidenceVar` in `seed()` and `override()`**
 
 In the companion object, update both factories:
 
@@ -124,7 +130,7 @@ In the companion object, update both factories:
                 evidenceVar = config.sigmaOverride * config.sigmaOverride)
 ```
 
-- [ ] **Step 5: Age `evidenceVar` in `BeliefUpdater.age()`**
+- [x] **Step 5: Age `evidenceVar` in `BeliefUpdater.age()`**
 
 Replace the body of `age()` (currently returns `ExerciseBelief(mu, sigma2, updatedAt=now, innovationRun=belief.innovationRun)`):
 
@@ -145,12 +151,12 @@ Replace the body of `age()` (currently returns `ExerciseBelief(mu, sigma2, updat
     }
 ```
 
-- [ ] **Step 6: Run the test + the exact-math fold test**
+- [x] **Step 6: Run the test + the exact-math fold test**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.EvidenceVarTest" --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefUpdaterFoldTest"`
 Expected: `EvidenceVarTest` PASS; `BeliefUpdaterFoldTest` PASS (folds don't touch `evidenceVar` yet; `age()`'s `mu`/`sigma2` arms are unchanged).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```
 jj commit -m "belief: add evidenceVar clean-variance field + age it like sigma2 (projector evidence gate, part 1)
@@ -173,7 +179,7 @@ Wire both fold paths to update `evidenceVar`, and add a `censoredPosteriorVar` h
 - Consumes: `ExerciseBelief.evidenceVar`.
 - Produces: after any fold, the returned belief's `evidenceVar` = the clean-track posterior variance computed from the pre-fold `evidenceVar` (never from the adaptation-inflated `sigma2`). A private `censoredPosteriorVar(mu, priorVar, lowerLn, upperLn, s): Float`.
 
-- [ ] **Step 1: Write the failing tests** — append to `EvidenceVarTest.kt`
+- [x] **Step 1: Write the failing tests** — append to `EvidenceVarTest.kt`
 
 ```kotlin
     @Test
@@ -211,12 +217,12 @@ Wire both fold paths to update `evidenceVar`, and add a `censoredPosteriorVar` h
     }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.EvidenceVarTest"`
 Expected: FAIL — `evidenceVar` unchanged by folds (still seed value), so `gaussianFoldReducesEvidenceVar`/`censoredFoldReducesEvidenceVar` fail.
 
-- [ ] **Step 3: Update `kalmanStep` to advance the clean track**
+- [x] **Step 3: Update `kalmanStep` to advance the clean track**
 
 Replace `kalmanStep`:
 
@@ -238,7 +244,7 @@ Replace `kalmanStep`:
 
 > Why this is correct: `foldGaussian` calls `kalmanStep(prior1, ...)` where `prior1 = adaptPrior(aged0, ...)`. `adaptPrior` does `aged.copy(sigma2 = ...)`, so `prior1.evidenceVar == aged0.evidenceVar` (un-inflated). The censored `z < MIN_MASS` fallback calls `kalmanStep(aged, ...)` where `aged` is likewise the adaptPrior result — same guarantee.
 
-- [ ] **Step 4: Add the `censoredPosteriorVar` helper**
+- [x] **Step 4: Add the `censoredPosteriorVar` helper**
 
 Insert just above `internal fun clampVar` in `BeliefUpdater`:
 
@@ -267,7 +273,7 @@ Insert just above `internal fun clampVar` in `BeliefUpdater`:
     }
 ```
 
-- [ ] **Step 5: Advance the clean track in `foldCensored`'s main-path return**
+- [x] **Step 5: Advance the clean track in `foldCensored`'s main-path return**
 
 Replace the final `return ExerciseBelief(...)` in `foldCensored` (the one after `val k = aged.sigma2 / st2`):
 
@@ -283,12 +289,12 @@ Replace the final `return ExerciseBelief(...)` in `foldCensored` (the one after 
 
 > The `z < MIN_MASS` branch already returns via `kalmanStep`, which now advances `evidenceVar` correctly — no change needed there.
 
-- [ ] **Step 6: Run the evidence tests + exact-math fold tests**
+- [x] **Step 6: Run the evidence tests + exact-math fold tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.EvidenceVarTest" --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefUpdaterFoldTest" --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefAdaptationTest"`
 Expected: all PASS. `BeliefUpdaterFoldTest` unaffected (its `mu`/`sigma2` assertions are unchanged; the new `evidenceVar` field isn't asserted there). If any `BeliefUpdaterFoldTest` exact-math case fails, STOP and report BLOCKED — the `sigma2`/`mu` math must not have changed.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```
 jj commit -m "belief: folds advance evidenceVar from the un-inflated prior (projector evidence gate, part 2)
@@ -311,7 +317,7 @@ Point `neff` at `evidenceVar` and prove the regression: an adaptation-inflated-�
 - Consumes: `ExerciseBelief.evidenceVar`.
 - Produces: `MuscleStrengthProjector.neff(aged)` computed from `aged.evidenceVar`; `project(...)` unchanged in shape, its three `neff` consumers now evidence-based.
 
-- [ ] **Step 1: Write the failing test** — create `ProjectorEvidenceGateTest.kt`
+- [x] **Step 1: Write the failing test** — create `ProjectorEvidenceGateTest.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -356,12 +362,12 @@ class ProjectorEvidenceGateTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ProjectorEvidenceGateTest"`
 Expected: FAIL — `neff` still reads `sigma2`, so `neffReadsEvidenceVarNotSigma` mismatches and `wellEvidencedBeliefResistsConfidentSiblings` shows self pulled above 20 kg (the current bug).
 
-- [ ] **Step 3: Point `neff` at `evidenceVar`**
+- [x] **Step 3: Point `neff` at `evidenceVar`**
 
 In `MuscleStrengthProjector`, replace `neff`:
 
@@ -378,17 +384,17 @@ In `MuscleStrengthProjector`, replace `neff`:
     }
 ```
 
-- [ ] **Step 4: Run the projector tests**
+- [x] **Step 4: Run the projector tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ProjectorEvidenceGateTest"`
 Expected: PASS both.
 
-- [ ] **Step 5: Full suite — confirm no NEW red beyond the known three**
+- [x] **Step 5: Full suite — confirm no NEW red beyond the known three**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: failures limited to `BeliefSimulationTest`, `ProdBssPrescriptionTest`, `BacktestComparisonTest` (the pre-existing known-red set that the adaptive-attention plan's Task 4/5/6 re-baselines). Report the exact failing-class list. If any OTHER class fails, STOP and use `superpowers:systematic-debugging` — that's a real regression from this change (e.g. a chart/projection test that consumed σ-based n_eff). Do NOT re-pin the known-red three here.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```
 jj commit -m "projector: n_eff reads adaptation-immune evidenceVar (closes the sibling re-nudge; BSS own belief holds)
