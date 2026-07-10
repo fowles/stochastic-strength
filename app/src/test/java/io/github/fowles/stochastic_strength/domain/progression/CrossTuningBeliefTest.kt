@@ -7,7 +7,7 @@ import kotlin.math.ln
 
 /**
  * Belief-based computeCrossTuning overload. Ports CrossTuningTest's scenarios one-for-one:
- * trained ≈ tight sigma, cold = seed belief; contribution is the exercise's n_eff share.
+ * trained ≈ tight sigma, cold = seed belief; contribution is the exercise's precision share.
  * The estimate-based CrossTuningTest is deleted with the old overload in Task 5.
  */
 class CrossTuningBeliefTest {
@@ -37,7 +37,7 @@ class CrossTuningBeliefTest {
     }
 
     @Test
-    fun contributionsSumToOneAndColdExerciseIsNearZero() {
+    fun contributionsSumToOneAndColdExerciseCarriesLessThanTrained() {
         val beliefs = mapOf(1L to trained(100f), 2L to cold(60f))
         val seed = mapOf(1L to 1.0f, 2L to 0.6f)
         val rows = computeCrossTuning(
@@ -49,6 +49,12 @@ class CrossTuningBeliefTest {
         )
         val sum = rows.sumOf { it.contribution.toDouble() }.toFloat()
         assertEquals(1f, sum, 1e-3f)
-        assertTrue("cold exercise carries ~no n_eff share", rows.first { it.exerciseId == 2L }.contribution < 0.05f)
+        // Phase-3 pooling: contribution is the exercise's precision share 1/(evidenceVar+τ²). A cold
+        // exercise still carries a real (nonzero) seed-floor precision, so it is a MINORITY of the
+        // pool rather than ~zero — the trained exercise carries the larger share.
+        val trainedShare = rows.first { it.exerciseId == 1L }.contribution
+        val coldShare = rows.first { it.exerciseId == 2L }.contribution
+        assertTrue("trained carries the larger precision share", trainedShare > coldShare)
+        assertTrue("cold carries the minority share", coldShare < 0.5f)
     }
 }
