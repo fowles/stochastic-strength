@@ -25,9 +25,13 @@ import kotlin.math.roundToInt
  */
 class BacktestComparisonTest {
 
-    // PINNED 2026-07-09: reference == current phase-2 output, so the observed worst delta is 0.
-    // BAND = 0.05 is nominal headroom (phase-1's worst+0.05 convention) — a tripwire for phase 3's
-    // τ-pooling swap, which re-attributes its deltas against THIS baseline and re-pins.
+    // RE-BASELINED 2026-07-10 (phase 3, reliability-weighted pooling): reference == current phase-3
+    // output, so the observed worst delta is 0 again. The τ-pooling swap re-priced systemically UP
+    // (median |Δ| 14%, mean 17%, worst 50%, 0 rows >50%, no NaN/anomalies) vs the phase-2 baseline —
+    // attributed to real precision-weighted borrowing replacing the old near-zero kappa cap
+    // (poolObsVar/tauBridge² ≈ 0.032); worst deltas are light-lift grid quantization (one 5-lb step).
+    // BSS safety gate (ProdBssPrescriptionTest, 20 lb) holds. User approved the re-baseline after
+    // attribution (same call as phase-2). BAND = 0.05 nominal headroom; phase 4 re-attributes vs this.
     private val BAND = 0.05f
 
     @Test
