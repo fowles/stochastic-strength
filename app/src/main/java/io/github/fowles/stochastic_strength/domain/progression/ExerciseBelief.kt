@@ -51,10 +51,12 @@ data class ExerciseBelief(
  * pinned by BeliefSimulationTest (phase 2 Task 9).
  */
 data class EstimatorConfig(
-    /** Per-equipment-class transfer tightness τ (personal-offset std). Barbell lifts track the muscle
-     *  level tightly; machines/cables medium; all other loaded classes loosest. Pinned by BeliefSimulationTest. */
+    /** Per-equipment-class transfer tightness τ (personal-offset std), pinned by BeliefSimulationTest.
+     *  See [tauFor]. Barbell lifts track the muscle level tightly. */
     val tauBarbell: Float = 0.08f,
+    /** τ for machines/cables — medium coupling to the muscle level. */
     val tauMachineCable: Float = 0.20f,
+    /** τ for all other loaded classes (dumbbell/kettlebell/etc.) — loosest coupling. */
     val tauOtherLoaded: Float = 0.25f,
     /** λ₀: fixed precision of the seed anchor in the muscle-level pool. A
      *  thinly-evidenced muscle leans on it. Pinned by BeliefSimulationTest. */

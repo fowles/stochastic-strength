@@ -71,9 +71,10 @@ class WorkoutRepository(
         val now = System.currentTimeMillis()
         val policyState = derivedState.snapshot().policyState()
         val projector = MuscleStrengthProjector()
+        val equipmentById = available.associate { it.id to it.equipment }
         val pooled = mutableMapOf<Long, PooledBelief>()
         for ((muscle, ids) in muscleIds) {
-            val proj = projector.project(beliefs, seedCoef, ids, now, policyState.muscleLastObs[muscle], equipment = available.associate { it.id to it.equipment })
+            val proj = projector.project(beliefs, seedCoef, ids, now, policyState.muscleLastObs[muscle], equipment = equipmentById)
             for ((id, e1rm) in proj.effectiveE1rm) {
                 pooled[id] = PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
             }
