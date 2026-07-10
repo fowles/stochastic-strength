@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -65,4 +66,21 @@ class BacktestComparisonTest {
         println("worst relative delta: ${(worst * 100).roundToInt()}% ($worstDesc)")
         assertTrue("worst delta $worst ($worstDesc) exceeds band $BAND", worst <= BAND)
     }
+
+    @Test fun fittedThetaIsInBoundsAndScoresAtLeastDefaults() {
+        val data = BacktestHarness.load()
+        assumeTrue("no local backtest history; skipping", data != null)
+        val result = BacktestHarness.fitConfigFor(data!!)
+        // In-bounds: every fitted parameter within ÷4..×4 of its default (spec §8).
+        val d = EstimatorConfig(); val c = result.config
+        fun within(f: Float, def: Float) = f in def * 0.25f..def * 4f
+        assertTrue(within(c.fatiguePerSet, d.fatiguePerSet))
+        assertTrue(within(c.processNoisePerDay, d.processNoisePerDay))
+        assertTrue(within(c.detrainRatePerWeek, d.detrainRatePerWeek))
+        assertTrue(within(c.tauBarbell, d.tauBarbell))
+        assertTrue(within(c.repNoiseBucket, d.repNoiseBucket))
+        // MAP: fitted never scores below defaults (else fallback fires).
+        assertTrue(result.score >= result.defaultScore)
+    }
+
 }

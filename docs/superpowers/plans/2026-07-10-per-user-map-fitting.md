@@ -994,31 +994,30 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Test: the modified `BacktestComparisonTest`.
 
 **Interfaces:**
-- Consumes: `HyperparameterFitter`, `FitConfig`, `BacktestData` (existing).
+- Consumes: `HyperparameterFitter`, `FitConfig`, `BacktestData` (existing). NOTE: `BacktestHarness` is a Kotlin `object` (singleton) — call `BacktestHarness.load()`, `BacktestHarness.readBaseline()`, `BacktestHarness.replayPolicyPrescriptions(...)` statically. `BacktestData` has fields `backup`, `weightUnit`, `history` and a method `newSnapshot(): ReplaySnapshot`. `BAND = 0.05f` is already a field on `BacktestComparisonTest` — reuse it, do not redeclare. Tests use `assumeTrue(...)` to SKIP when local fixtures are absent — follow that idiom.
 - Produces: `BacktestHarness.replayPolicyPrescriptions(data: BacktestData, config: EstimatorConfig = EstimatorConfig()): List<Row>` — the existing method gains a config param threaded into both the `ReplayEngine` stepper and the `PrescriptionPolicy`. New helper `BacktestHarness.fitConfigFor(data: BacktestData): HyperparameterFitter.Result`.
 
 - [ ] **Step 1: Write the failing test (fitting gate)**
 
-Add to `BacktestComparisonTest.kt`:
+Add to `BacktestComparisonTest.kt` (matches the existing `assumeTrue` skip idiom and static `BacktestHarness` calls):
 
 ```kotlin
     @Test fun fittedThetaIsInBoundsAndScoresAtLeastDefaults() {
-        val data = BacktestHarness(resourcesDir()).load()
-        val result = BacktestHarness(resourcesDir()).fitConfigFor(data)
+        val data = BacktestHarness.load()
+        assumeTrue("no local backtest history; skipping", data != null)
+        val result = BacktestHarness.fitConfigFor(data!!)
         // In-bounds: every fitted parameter within ÷4..×4 of its default (spec §8).
         val d = EstimatorConfig(); val c = result.config
         fun within(f: Float, def: Float) = f in def * 0.25f..def * 4f
-        assert(within(c.fatiguePerSet, d.fatiguePerSet))
-        assert(within(c.processNoisePerDay, d.processNoisePerDay))
-        assert(within(c.detrainRatePerWeek, d.detrainRatePerWeek))
-        assert(within(c.tauBarbell, d.tauBarbell))
-        assert(within(c.repNoiseBucket, d.repNoiseBucket))
+        assertTrue(within(c.fatiguePerSet, d.fatiguePerSet))
+        assertTrue(within(c.processNoisePerDay, d.processNoisePerDay))
+        assertTrue(within(c.detrainRatePerWeek, d.detrainRatePerWeek))
+        assertTrue(within(c.tauBarbell, d.tauBarbell))
+        assertTrue(within(c.repNoiseBucket, d.repNoiseBucket))
         // MAP: fitted never scores below defaults (else fallback fires).
-        assert(result.score >= result.defaultScore)
+        assertTrue(result.score >= result.defaultScore)
     }
 ```
-
-(`resourcesDir()` is the existing helper the other tests use; reuse it verbatim. If the helper name differs, grep `BacktestComparisonTest` for how `BacktestHarness` is constructed and match it.)
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -1027,7 +1026,7 @@ Expected: FAIL — no `fitConfigFor`.
 
 - [ ] **Step 3: Thread config into replayPolicyPrescriptions and add fitConfigFor**
 
-In `BacktestHarness.kt`, change the signature and internal uses:
+In `BacktestHarness.kt` (a Kotlin `object`), change the signature and internal uses:
 
 ```kotlin
     fun replayPolicyPrescriptions(data: BacktestData, config: EstimatorConfig = EstimatorConfig()): List<Row> {
@@ -1079,23 +1078,26 @@ Add a second test that compares fitted-config prescriptions to the frozen baseli
 
 ```kotlin
     @Test fun fittedPrescriptionsWithinBandOfBaseline() {
-        val harness = BacktestHarness(resourcesDir())
-        val data = harness.load()
-        val baseline = harness.readBaseline() ?: error("no baseline; run the generator")
-        val fitted = harness.replayPolicyPrescriptions(data, harness.fitConfigFor(data).config)
-        val byKey = baseline.associate { (it.sessionId to it.exerciseId) to it.weightKg }
-        var maxRel = 0.0
+        val data = BacktestHarness.load()
+        assumeTrue("no local backtest history; skipping", data != null)
+        val baseline = BacktestHarness.readBaseline()
+        assumeTrue("baseline not frozen; run BacktestBaselineGeneratorTest first", baseline != null)
+        val fitted = BacktestHarness.replayPolicyPrescriptions(data!!, BacktestHarness.fitConfigFor(data).config)
+        val byKey = baseline!!.associateBy { it.sessionId to it.exerciseId }
+        var maxRel = 0f
+        var worstDesc = ""
         for (r in fitted) {
             val b = byKey[r.sessionId to r.exerciseId] ?: continue
-            val rel = kotlin.math.abs(r.weightKg - b) / b.coerceAtLeast(1e-3f)
-            if (rel > maxRel) maxRel = rel.toDouble()
+            if (b.weightKg <= 0f) continue
+            val rel = abs(r.weightKg - b.weightKg) / b.weightKg
+            if (rel > maxRel) { maxRel = rel; worstDesc = "session=${r.sessionId} exercise=${r.exerciseId} old=${b.weightKg} new=${r.weightKg}" }
         }
-        println("BACKTEST fitted-vs-baseline maxRel=$maxRel")
-        assert(maxRel <= BAND) { "fitted prescriptions drifted $maxRel > band $BAND — inspect before re-baselining" }
+        println("BACKTEST fitted-vs-baseline maxRel=${(maxRel * 100).roundToInt()}% ($worstDesc)")
+        assertTrue("fitted drifted $maxRel ($worstDesc) > band $BAND — inspect before re-baselining", maxRel <= BAND)
     }
 ```
 
-Add `private const val BAND = 0.05` if not already present in the test (match the phase-3 band constant; reuse the existing one if defined).
+`BAND` is already the `0.05f` field on `BacktestComparisonTest` — reuse it; do not redeclare.
 
 - [ ] **Step 6: Run and adjudicate**
 

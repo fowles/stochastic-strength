@@ -11,9 +11,11 @@ import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
 import io.github.fowles.stochastic_strength.domain.policy.PooledBelief
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
+import io.github.fowles.stochastic_strength.domain.progression.HyperparameterFitter
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.ReplayHistory
+import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -61,13 +63,13 @@ object BacktestHarness {
     }
 
     /** Prescriptions right after each session via the production policy path (belief-based semantics). */
-    fun replayPolicyPrescriptions(data: BacktestData): List<Row> {
+    fun replayPolicyPrescriptions(data: BacktestData, config: EstimatorConfig = EstimatorConfig()): List<Row> {
         val snapshot = data.newSnapshot()
-        val projector = MuscleStrengthProjector()
+        val projector = MuscleStrengthProjector(config)
         val builder = PolicyStateBuilder()
         val exercisesById = data.backup.exercises.associateBy { it.id }
         val rows = mutableListOf<Row>()
-        ReplayEngine().run(data.history, snapshot) { sessionId, asOf, sets, snap, _ ->
+        ReplayEngine(SessionProgressionStepper(config = config), config).run(data.history, snapshot) { sessionId, asOf, sets, snap, _ ->
             builder.onSession(asOf, sets, snap)
             val policyState = builder.build(snap.muscleLastObs.toMap())
             for ((muscle, ids) in snap.muscleExerciseIds) {
@@ -78,7 +80,7 @@ object BacktestHarness {
                 val policy = PrescriptionPolicy(
                     pooled = pooledMap,
                     state = policyState,
-                    config = EstimatorConfig(),
+                    config = config,
                     progressionEngine = DefaultProgressionEngine,
                     weightUnit = data.weightUnit,
                     nowMs = asOf,
@@ -92,6 +94,9 @@ object BacktestHarness {
         }
         return rows
     }
+
+    fun fitConfigFor(data: BacktestData): HyperparameterFitter.Result =
+        HyperparameterFitter().fit(data.history) { data.newSnapshot() }
 
     fun writeBaseline(rows: List<Row>) {
         val arr = JSONArray()
