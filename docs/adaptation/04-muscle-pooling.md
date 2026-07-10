@@ -17,19 +17,21 @@ exercise toward a leave-one-out prediction from that level.
 ## Step 1 — the muscle level (precision-weighted with seed anchor)
 
 Each loaded exercise (positive seed coefficient) offers a seed-relative opinion of how
-strong the muscle is: `μ_i − ln(seedCoef_i)`. These opinions are blended with a fixed
-seed anchor using precision weights:
+strong the muscle is: `o_i = μ_i − ln(seedCoef_i)`. These opinions are blended with an
+anchor prior using precision weights:
 
 ```
 votePrec_i = 1 / (evidenceVar_i + τ_i²)
-lnLevel = (λ₀ · 0 + Σ votePrec_i · (μ_i − ln(seedCoef_i))) /
+ℓ₀ = unweighted mean of the o_i            // anchor mean
+lnLevel = (λ₀ · ℓ₀ + Σ votePrec_i · o_i) /
           (λ₀ + Σ votePrec_i)
 ```
 
-where **λ₀ = `levelAnchorPrecision` = 1.0** is the fixed precision of the seed anchor
+where **λ₀ = `levelAnchorPrecision` = 1.0** is the fixed precision of the anchor
 (pinned by `BeliefSimulationTest`), and **τ_i** is the per-equipment-class transfer
-tightness (see table below). The anchor is centred at 0 (the seed level), so a
-thinly-evidenced muscle falls back to seed rather than drifting.
+tightness (see table below). The anchor mean **ℓ₀** is the unweighted mean of the
+opinions — which for a cold muscle equals the seed level — so a thinly-evidenced muscle
+falls back to that seed-anchored consensus rather than being defined by one loud voter.
 
 Reading **`evidenceVar`** — the variance the belief would have without adaptation
 inflation ([#3](03-exercise-estimates.md)) — is deliberate: adaptive attention inflates
@@ -69,9 +71,9 @@ the own measurement arithmetically dominates the sibling prediction. A **cold or
 stale** exercise (large `evidenceVar`, tiny `ownPrec`) adopts the LOO prediction
 almost fully, borrowing strength from its siblings.
 
-A **single-exercise muscle** has an empty LOO pool, so `ℓ_LOO(i)` collapses to the
-seed anchor (lnPred = ln(seedCoef)) and the shrink is entirely from own evidence vs.
-the seed-level prediction.
+A **single-exercise muscle** has an empty LOO pool, so `ℓ_LOO(i)` falls back to the
+exercise's own opinion `o_i`; then `lnPred = ln(seedCoef) + o_i = μ_i`, so the shrink is
+a no-op and the projection is exactly the own belief (nothing to borrow from).
 
 ### Reported σ = own live belief σ (un-shrunk by design)
 
