@@ -34,6 +34,7 @@ class StochasticStrengthApp : Application() {
         WorkoutRepository(
             database,
             derivedState = derivedStateStore,
+            scope = applicationScope,
         )
     }
     val backupManager: BackupManager by lazy {

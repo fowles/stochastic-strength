@@ -18,11 +18,14 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
+import io.github.fowles.stochastic_strength.domain.derived.FitDiagnostics
+import io.github.fowles.stochastic_strength.domain.derived.FitKey
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.BeliefUpdater
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseBelief
+import io.github.fowles.stochastic_strength.domain.progression.HyperparameterFitter
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
@@ -30,9 +33,14 @@ import io.github.fowles.stochastic_strength.domain.policy.PolicyStateBuilder
 import io.github.fowles.stochastic_strength.domain.policy.PooledBelief
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
+import io.github.fowles.stochastic_strength.domain.progression.ReplayHistory
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
@@ -42,10 +50,10 @@ class WorkoutRepository(
     private val db: AppDatabase,
     val derivedState: DerivedStateStore = DerivedStateStore(),
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
     private val replayMutex = Mutex()
-    private val stepper = SessionProgressionStepper()
-    private val replayEngine = ReplayEngine(stepper)
+    private val fitMutex = Mutex()
 
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -70,7 +78,8 @@ class WorkoutRepository(
             .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
         val now = System.currentTimeMillis()
         val policyState = derivedState.snapshot().policyState()
-        val projector = MuscleStrengthProjector()
+        val config = derivedState.activeConfig()
+        val projector = MuscleStrengthProjector(config)
         val equipmentById = available.associate { it.id to it.equipment }
         val pooled = mutableMapOf<Long, PooledBelief>()
         for ((muscle, ids) in muscleIds) {
@@ -79,7 +88,6 @@ class WorkoutRepository(
                 pooled[id] = PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
             }
         }
-        val config = EstimatorConfig()
         val updater = BeliefUpdater(config)
         val muscleEased = muscleIds.keys.associateWith { m ->
             val last = policyState.muscleLastObs[m] ?: return@associateWith 0f
@@ -198,12 +206,14 @@ class WorkoutRepository(
     }
 
     suspend fun replayDerivedState() = replayMutex.withLock {
+        val activeConfig = derivedState.activeConfig()
+        val history = ReplayHistory.loadFromDb(db)
+        val engine = ReplayEngine(SessionProgressionStepper(config = activeConfig), activeConfig)
         derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
-            val config = EstimatorConfig()
             val policyBuilder = PolicyStateBuilder()
 
-            replayEngine.run(db, snapshot) { sessionId, asOf, sets, snap, result ->
+            engine.run(history, snapshot) { sessionId, asOf, sets, snap, result ->
                 policyBuilder.onSession(asOf, sets, snap)
                 for (stepResult in result.steps) {
                     writeLevelUpdate(stepResult.muscle, stepResult.projection.level, sessionId, asOf, scratch)
@@ -228,7 +238,7 @@ class WorkoutRepository(
             // onboarding behavior instead of showing an empty grid. Session-filled muscles are
             // guarded out, so this changes nothing for trained muscles and keeps replay idempotent.
             // No baseline_history row is written (there is no session boundary here).
-            val displayProjector = MuscleStrengthProjector(config)
+            val displayProjector = MuscleStrengthProjector(activeConfig)
             val displayNow = snapshot.currentBeliefs.values.maxOfOrNull { it.updatedAt } ?: 0L
             for ((muscle, exerciseIds) in snapshot.muscleExerciseIds) {
                 if (scratch.muscleGroupStrength(muscle) != null) continue
@@ -247,7 +257,39 @@ class WorkoutRepository(
                 }
             }
         }
+        maybeLaunchFit(history)
     }
+
+    /** Kicks a background fit when the history changed since the cached θ was fit. Keyed on history
+     *  only, so the fit's own follow-up rebuild sees an unchanged key and does not relaunch. */
+    private fun maybeLaunchFit(history: ReplayHistory) {
+        val key = keyFor(history)
+        if (key == derivedState.activeFitKey()) return
+        scope.launch { fitBlocking(history) }
+    }
+
+    private fun keyFor(history: ReplayHistory): FitKey {
+        val completed = history.sessions.filter { it.endTime != null }
+        return FitKey(sessionCount = completed.size, latestEndTime = completed.maxOfOrNull { it.endTime!! } ?: 0L)
+    }
+
+    /** Fit θ over [history] (loaded if null), install it, and rebuild once with the fitted config. */
+    suspend fun fitBlocking(history: ReplayHistory? = null) = fitMutex.withLock {
+        val h = history ?: ReplayHistory.loadFromDb(db)
+        val key = keyFor(h)
+        if (key == derivedState.activeFitKey()) return@withLock
+        val staticInputs = ReplaySnapshot.loadStaticFromDb(db)
+        val result = HyperparameterFitter().fit(h) { freshSnapshot(staticInputs) }
+        derivedState.setFit(
+            result.config, key,
+            FitDiagnostics(result.config, EstimatorConfig(), result.score, result.defaultScore, result.atDefaults, result.sessionCount),
+        )
+        replayDerivedState()
+    }
+
+    /** A fresh scored-replay snapshot: shared static inputs, fresh mutable belief maps per evaluation. */
+    private fun freshSnapshot(staticInputs: ReplaySnapshot): ReplaySnapshot =
+        ReplaySnapshot(staticInputs.exerciseMuscle, staticInputs.seedCoefficients, staticInputs.exerciseEquipment)
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
         db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit, perExerciseSeedsBackfilled = true))
