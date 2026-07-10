@@ -499,15 +499,19 @@ class HyperparameterFitterTest {
     }
 
     @Test fun belowFloorReturnsDefaults() {
-        val history = syntheticHistory(nSessions = 5, fatigue = 0.03f)
+        val history = fatiguePlantedHistory(nSessions = 5, trueFatigue = 0.09f)
         val r = HyperparameterFitter(defaults).fit(history) { syntheticSnapshot() }
         assertTrue(r.atDefaults)
         assertEquals(defaults.fatiguePerSet, r.config.fatiguePerSet, 0f)
     }
 
     @Test fun recoversHigherFatigueFromSyntheticHistory() {
-        // Lifter whose true per-set fatigue is well above default → fitter moves fatiguePerSet up.
-        val history = syntheticHistory(nSessions = 30, fatigue = 0.09f)
+        // A lifter whose TRUE per-set fatigue (0.09) is well above default (0.03). Each session is three
+        // counted TOO_HARD sets at a fixed weight whose achieved reps are generated from the true fatigue
+        // via the SAME 1RM formula the estimator uses — so the data is exactly what such a lifter produces
+        // and recovering high fatigue is a genuine round-trip. The fitter should move fatiguePerSet up
+        // toward truth (bounded at ×4 = 0.12).
+        val history = fatiguePlantedHistory(nSessions = 30, trueFatigue = 0.09f)
         val r = HyperparameterFitter(defaults).fit(history) { syntheticSnapshot() }
         assertTrue("expected a real fit", !r.atDefaults)
         assertTrue("fatigue should rise toward truth, got ${r.config.fatiguePerSet}",
@@ -515,22 +519,28 @@ class HyperparameterFitterTest {
         assertTrue(r.score >= r.defaultScore)
     }
 
-    // --- synthetic fixtures: one exercise, three sets/session, deeper reps on later sets under fatigue ---
+    // --- synthetic fixtures: one barbell exercise; three counted sets/session with reps that fall
+    // set-over-set exactly as a lifter with [trueFatigue] would produce at a fixed weight. ---
     private fun syntheticSnapshot() = ReplaySnapshot(
         exerciseMuscle = mapOf(1L to MuscleGroup.QUADS),
         seedCoefficients = mapOf(1L to 1.0f),
         exerciseEquipment = mapOf(1L to Equipment.BARBELL),
     ).also { it.currentBeliefs[1L] = ExerciseBelief.seed(100f, at = 0L) }
 
-    private fun syntheticHistory(nSessions: Int, fatigue: Float): ReplayHistory {
+    private fun fatiguePlantedHistory(
+        nSessions: Int, trueFatigue: Float, trueFresh1RM: Float = 100f, weight: Float = 80f,
+    ): ReplayHistory {
         val dayMs = 86_400_000L
+        // Integer reps at [weight] whose implied 1RM is closest to a target capacity (formula inverse).
+        fun repsFor(capacity: Float): Int = (1..15).minByOrNull { rep ->
+            kotlin.math.abs(DefaultProgressionEngine.rawToOneRepMax(weight, rep.toFloat()) - capacity)
+        }!!
         val sessions = (1..nSessions).map { WorkoutSession(id = it.toLong(), endTime = it * dayMs) }
         val sets = sessions.associate { s ->
-            // Set k reps fall as true fatigue bites; feedback encodes that via bucket boundaries.
             val rows = (1..3).map { k ->
-                val reps = (8 - ((fatigue * (k - 1)) * 10).toInt()).coerceAtLeast(3)
-                WorkoutSet(sessionId = s.id, exerciseId = 1L, setNumber = k, targetWeight = 80f,
-                    targetReps = reps, actualReps = null, feedback = SetFeedback.RIR_0_1)
+                val capacity = trueFresh1RM * (1f - trueFatigue * (k - 1))
+                WorkoutSet(sessionId = s.id, exerciseId = 1L, setNumber = k, targetWeight = weight,
+                    targetReps = 8, actualReps = repsFor(capacity), feedback = SetFeedback.TOO_HARD)
             }
             s.id to rows
         }
@@ -538,6 +548,8 @@ class HyperparameterFitterTest {
     }
 }
 ```
+
+Add the import `import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine` to the test file.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
