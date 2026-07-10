@@ -313,11 +313,11 @@ class BeliefSimulationTest {
                 if (errs.isNotEmpty() && errs.average() <= 0.10) convAt = s
             }
             if (s >= sessions) {
-                // "Trained" gate = the estimator's own: aged n_eff >= 1 (stale beliefs pool away).
+                // "Trained" gate = well-observed: poolPrecision above cold-floor (≈ neff≥1 equivalent).
                 val well = loaded.filter { ex ->
                     val b = sim.snapshot.currentBeliefs[ex.id] ?: return@filter false
                     val aged = updater.age(b, sim.t, sim.snapshot.muscleLastObs[ex.primaryMuscle])
-                    projector.neff(aged) >= 1f
+                    projector.poolPrecision(aged, config.tauOtherLoaded) >= 15f
                 }
                 val wellErrs = well.mapNotNull { errOf(it) }
                 if (wellErrs.isNotEmpty()) tailTrainedErr.add(wellErrs.average().toFloat() * 100f)

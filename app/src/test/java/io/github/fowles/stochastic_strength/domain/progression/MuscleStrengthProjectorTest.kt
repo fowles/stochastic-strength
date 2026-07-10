@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,12 +17,13 @@ class MuscleStrengthProjectorTest {
     private fun cold(e1rm: Float, at: Long = 0L) = ExerciseBelief.seed(e1rm, at, config)
 
     @Test
-    fun neffScalesFromZeroAtSeedToTrainedRange() {
-        assertEquals(0f, projector.neff(cold(100f)), 1e-6f)
-        val full = projector.neff(ExerciseBelief(4f, config.sigmaMin * config.sigmaMin, 0L, evidenceVar = config.sigmaMin * config.sigmaMin))
-        assertTrue("trained neff $full should land in today's confidence range", full in 3f..7f)
-        // Stale (evidenceVar above seed²): clamped to zero, never negative.
-        assertEquals(0f, projector.neff(ExerciseBelief(4f, config.sigmaMax * config.sigmaMax, 0L, evidenceVar = config.sigmaMax * config.sigmaMax)), 1e-6f)
+    fun poolPrecisionRisesWithEvidenceAndTightness() {
+        val cold = cold(100f)                                   // evidenceVar = σ_seed² = 0.0625
+        assertEquals(1f / (0.0625f + 0.25f * 0.25f), projector.poolPrecision(cold, 0.25f), 1e-3f)
+        val trainedOther = ExerciseBelief(4f, 0.0004f, 0L, evidenceVar = 0.0004f)
+        assertTrue("trained beats cold", projector.poolPrecision(trainedOther, 0.25f) > projector.poolPrecision(cold, 0.25f))
+        assertTrue("barbell τ gives higher precision than other-loaded",
+            projector.poolPrecision(trainedOther, 0.08f) > projector.poolPrecision(trainedOther, 0.25f))
     }
 
     @Test
@@ -35,18 +37,22 @@ class MuscleStrengthProjectorTest {
     }
 
     @Test
-    fun coldExerciseWithTrainedSiblingsIsPredictedFromTheirLevel() {
-        // Two siblings trained to 130-level truth; the cold third (seeded at 100-level) is pulled
-        // to within 12% of the sibling-implied capacity (carried-forward spec §9 pin, on the MEAN).
+    fun coldBarbellAdoptsSiblingsWhileColdDumbbellPartiallyAdopts() {
         val seed = mapOf(1L to 1.0f, 2L to 0.8f, 3L to 0.6f)
         val beliefs = mapOf(
             1L to trained(130f, days(30)),
             2L to trained(104f, days(30)),
-            3L to cold(60f), // seeded at level 100 × 0.6
+            3L to cold(60f),                                   // sibling-implied ≈ 130 × 0.6 = 78
         )
-        val proj = projector.project(beliefs, seed, listOf(1L, 2L, 3L), now = days(30))
-        val predicted = proj.effectiveE1rm[3L]!!
-        assertTrue("cold exercise $predicted should approach 78 (130×0.6)", abs(predicted - 78f) / 78f <= 0.12f)
+        val barbell = projector.project(beliefs, seed, listOf(1L, 2L, 3L), now = days(30),
+            equipment = mapOf(1L to Equipment.BARBELL, 2L to Equipment.BARBELL, 3L to Equipment.BARBELL))
+        assertTrue("cold barbell should approach 78", abs(barbell.effectiveE1rm[3L]!! - 78f) / 78f <= 0.12f)
+
+        val dumbbell = projector.project(beliefs, seed, listOf(1L, 2L, 3L), now = days(30),
+            equipment = mapOf(1L to Equipment.BARBELL, 2L to Equipment.BARBELL, 3L to Equipment.DUMBBELL))
+        val own3 = 60f
+        assertTrue("cold dumbbell pulls up from own toward 78 but not all the way",
+            dumbbell.effectiveE1rm[3L]!! in (own3 + 1f)..(78f - 1f))
     }
 
     @Test

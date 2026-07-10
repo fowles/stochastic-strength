@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import kotlin.math.exp
 
 data class CrossTuningRow(
@@ -7,13 +8,13 @@ data class CrossTuningRow(
     val name: String,
     /** (ownE1rm - leaveOneOutPrediction) / leaveOneOutPrediction; signed. 0 when no consensus exists. */
     val agreement: Float,
-    /** This exercise's n_eff as a share of the muscle's total (0..1). */
+    /** This exercise's pooling precision as a share of the muscle's total (0..1). */
     val contribution: Float,
 )
 
 /**
  * Per-muscle cross-tuning at [now]: how far each exercise's own belief sits from what its siblings
- * predict (agreement), and how much of the muscle's total n_eff it carries (contribution).
+ * predict (agreement), and how much of the muscle's total pooling precision it carries (contribution).
  * Sorted by agreement descending. Pure.
  */
 fun computeCrossTuning(
@@ -25,12 +26,14 @@ fun computeCrossTuning(
     muscleLastObs: Long? = null,
     config: EstimatorConfig = EstimatorConfig(),
     projector: MuscleStrengthProjector = MuscleStrengthProjector(config),
+    equipment: Map<Long, Equipment> = emptyMap(),
 ): List<CrossTuningRow> {
     val updater = BeliefUpdater(config)
-    val neffById = muscleExerciseIds.associateWith { id ->
-        beliefs[id]?.let { projector.neff(updater.age(it, now, muscleLastObs)) } ?: 0f
+    val precById = muscleExerciseIds.associateWith { id ->
+        val b = beliefs[id] ?: return@associateWith 0f
+        projector.poolPrecision(updater.age(b, now, muscleLastObs), config.tauFor(equipment[id]))
     }
-    val totalNeff = neffById.values.sum()
+    val totalPrec = precById.values.sum()
 
     val rows = muscleExerciseIds.mapNotNull { id ->
         val belief = beliefs[id] ?: return@mapNotNull null
@@ -40,11 +43,11 @@ fun computeCrossTuning(
 
         val aged = updater.age(belief, now, muscleLastObs)
         val leaveOneOut =
-            projector.project(beliefs, seedCoef, muscleExerciseIds.filter { it != id }, now, muscleLastObs)
+            projector.project(beliefs, seedCoef, muscleExerciseIds.filter { it != id }, now, muscleLastObs, equipment)
         val prediction = leaveOneOut.level * seed
         val ownE1rm = exp(aged.mu)
         val agreement = if (prediction > 0f) ownE1rm / prediction - 1f else 0f
-        val contribution = if (totalNeff > 0f) neffById.getValue(id) / totalNeff else 0f
+        val contribution = if (totalPrec > 0f) precById.getValue(id) / totalPrec else 0f
 
         CrossTuningRow(exerciseId = id, name = name, agreement = agreement, contribution = contribution)
     }
