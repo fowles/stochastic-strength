@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.sqrt
@@ -59,6 +60,14 @@ data class EstimatorConfig(
      * with per-equipment-class τ.
      */
     val tauBridge: Float = 0.25f,
+    /** Per-equipment-class transfer tightness τ (personal-offset std). Barbell lifts track the muscle
+     *  level tightly; machines/cables medium; all other loaded classes loosest. Pinned by BeliefSimulationTest. */
+    val tauBarbell: Float = 0.08f,
+    val tauMachineCable: Float = 0.20f,
+    val tauOtherLoaded: Float = 0.25f,
+    /** λ₀: fixed precision of the seed anchor in the muscle-level pool (replaces levelPrior). A
+     *  thinly-evidenced muscle leans on it. Pinned by BeliefSimulationTest. */
+    val levelAnchorPrecision: Float = 1.0f,
     /**
      * Effective sample size of the seed prior in the muscle-level pool. Every exercise votes with its
      * n_eff against this fixed-weight prior, so a thinly-evidenced muscle leans on the seed and a
@@ -146,3 +155,10 @@ data class EstimatorConfig(
     /** Decay applied to the run when an observation lands on-belief (no surprise), so it fades toward 0. */
     val adaptRunDecay: Float = 0.5f,
 )
+
+/** τ for an exercise's equipment class; unknown/other-loaded → the loosest class. */
+fun EstimatorConfig.tauFor(equipment: Equipment?): Float = when (equipment) {
+    Equipment.BARBELL -> tauBarbell
+    Equipment.MACHINE, Equipment.CABLE_MACHINE -> tauMachineCable
+    else -> tauOtherLoaded
+}
