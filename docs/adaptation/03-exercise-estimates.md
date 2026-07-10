@@ -7,12 +7,16 @@ Applied by: `WorkoutRepository.applySessionProgression` via `SessionProgressionS
 The **only durable progression state** is one `ExerciseBelief` per loaded exercise:
 
 ```
-ExerciseBelief(mu: Float, sigma2: Float, updatedAt: Long)
+ExerciseBelief(mu: Float, sigma2: Float, updatedAt: Long, innovationRun: Float, evidenceVar: Float)
 ```
 
 `mu` is the mean of ln(fresh 1RM, kg) — the log of your first-set, pre-fatigue one-rep
 max. `sigma2` is the variance; √sigma2 reads as **relative uncertainty** (0.04 ≈ ±4%).
-There is no stored baseline and no stored coefficient.
+There is no stored baseline and no stored coefficient. Two augmented fields support the
+adaptive machinery below: `innovationRun` (a signed run of consistent surprises, drives
+[adaptive attention](#adaptive-attention-when-the-belief-is-consistently-wrong)) and
+`evidenceVar` (the "clean" variance the belief would have without adaptation inflation,
+drives pooling — see [#4](04-muscle-pooling.md)).
 
 A brand-new exercise is seeded at its starting 1RM with `sigma = sigmaSeed = 0.25`
 (±25% uncertainty). A manual weight override (including historical DETRAIN rows) is
@@ -69,6 +73,45 @@ Gaussian at the violated bound.
 σ² is clamped to [σ_min², σ_max²] = [0.02², 0.30²] inside every fold step (per set,
 not once per exercise). Later sets in the same session age with Δt = 0, so only the
 first set of a session pays the variance-growth term.
+
+Every observation's noise `s` carries a light **model-uncertainty floor**: `s` is combined
+in quadrature with `obsModelSd = 0.02`, so a single confident set (a low-rep failure, where
+the 1RM curve is flat and the rep-derived noise is tiny) can't slam σ onto the hard floor in
+one fold. It is deliberately small — the real recovery from an over-collapsed belief is
+adaptive attention, not a wide static floor.
+
+## Adaptive attention: when the belief is consistently wrong
+
+A static Kalman filter with fixed noise discounts a large but *consistent* signal: once σ
+has tightened, a surprising observation gets little gain and barely moves the mean. The
+symptom was a user who failed a Bulgarian Split Squat across several sets and a whole extra
+session, ending on a clean 20 lb × 10 at RIR 0–1 — yet the belief stayed up near a
+fatigue-blind fresh-1RM reading, because the early failures had already collapsed σ.
+
+The fix is **innovation-driven adaptive variance inflation** (textbook adaptive Kalman /
+innovation-covariance matching). Before each fold's gain is computed, `BeliefUpdater.adaptPrior`
+measures the standardized innovation (how many σ away the observation is) and accumulates a
+signed **run** (`innovationRun`) while surprises stay one-signed. Once the run exceeds
+`adaptRunThreshold = 2.5`, the prior variance is re-inflated by `1 + adaptInflationPerExcess·excess²`
+so the belief *re-opens* and the clear signal lands. The gate is what separates "the belief is
+wrong" from "one noisy set": a lone surprise (run below threshold) is left alone; only a
+consistent run re-opens σ. It is symmetric — a run of PRs re-opens upward just as a run of
+failures re-opens downward. `age()` carries the run forward across time gaps, so the signal
+accumulates across sessions; `seed()`/`override()` reset it.
+
+The calibration gate (`BeliefSimulationTest.calibration…`) keeps this honest: the 80%
+predictive interval must roughly cover, so the filter can't be chronically over- or
+under-confident.
+
+### The clean variance `evidenceVar`
+
+Adaptation inflates σ to *move the mean*, but that inflation would wrongly signal "this
+exercise is uninformed" to the read-time pooling (which weights by precision). So each fold
+also advances `evidenceVar` — the variance the belief would have **without** any adaptation
+inflation — using the same Kalman/censored math but from the un-inflated prior. `age()` grows
+it like σ²; `adaptPrior` never touches it. Pooling reads `evidenceVar`, not `sigma2`, so a
+well-observed exercise whose σ was re-opened by a surprise keeps its full pooling weight and
+isn't overridden by confident siblings ([#4](04-muscle-pooling.md)).
 
 ## HURT never touches the belief
 

@@ -27,16 +27,24 @@ lnLevel = (levelPrior · lnPrior + Σ neff_i · (μ_i − ln(seedCoef_i))) /
 ```
 
 **n_eff** (effective sample size) is the exercise's precision above the seed floor, in
-`poolObsVar` units:
+`poolObsVar` units, computed from the **clean `evidenceVar`** (not the live `sigma2`):
 
 ```
-neff(belief) = max(0, (1/σ² − 1/σ_seed²) · poolObsVar)
+neff(belief) = max(0, (1/evidenceVar − 1/σ_seed²) · poolObsVar)
 ```
 
-- A **seed-fresh or stale exercise** has σ² ≈ σ_seed² or larger → neff ≈ 0 → it
+Reading `evidenceVar` — the variance the belief would have without adaptation inflation
+([#3](03-exercise-estimates.md)) — is deliberate: adaptive attention inflates `sigma2` to
+move a consistently-surprised belief's mean, and if pooling read `sigma2` it would misread
+that re-opening as "uninformed" and let confident siblings pull the belief back (the prod-BSS
+regression). `evidenceVar` tracks accumulated evidence and is immune to that inflation, so a
+well-observed exercise keeps its full pooling weight and self-anchor even right after a
+surprise.
+
+- A **seed-fresh or stale exercise** has evidenceVar ≈ σ_seed² or larger → neff ≈ 0 → it
   contributes little to the level and is carried by the anchor and siblings.
-- A **well-trained exercise** (small σ²) has neff > 0 and votes with weight proportional
-  to how much its precision exceeds the seed floor.
+- A **well-trained exercise** (small evidenceVar) has neff > 0 and votes with weight
+  proportional to how much its precision exceeds the seed floor.
 - `levelPrior = 0.5` is the fixed effective sample size of the seed anchor. A
   thinly-evidenced muscle leans on it; a stale lone voter decays back toward the seed
   level rather than defining the level by itself.
