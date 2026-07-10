@@ -80,6 +80,18 @@ class ProdBssPrescriptionTest {
         WorkoutSet(sessionId = 18, exerciseId = 55, setNumber = 3, targetWeight = 9.071858406066895f, targetReps = 10, actualReps = 10, feedback = SetFeedback.RIR_0_1),
     )
 
+    private val equipment: Map<Long, Equipment> = mapOf(
+        48L to Equipment.BARBELL,   // Barbell Squat
+        49L to Equipment.BARBELL,   // Front Squat
+        50L to Equipment.MACHINE,   // Leg Press
+        51L to Equipment.MACHINE,   // Leg Extension
+        52L to Equipment.MACHINE,   // Hack Squat
+        54L to Equipment.DUMBBELL,  // Goblet Squat
+        55L to Equipment.DUMBBELL,  // Bulgarian Split Squat
+        56L to Equipment.DUMBBELL,  // Step-Up
+        100L to Equipment.DUMBBELL, // Dumbbell Lunge
+    )
+
     private val config = EstimatorConfig()
 
     @Test
@@ -98,6 +110,7 @@ class ProdBssPrescriptionTest {
             seedCoef = seedCoef,
             muscleExerciseIds = seedCoef.keys.toList(),
             now = EXPORTED_AT,
+            equipment = equipment,
         )
 
         val effE1rm = proj.effectiveE1rm.getValue(55L)
@@ -132,6 +145,7 @@ class ProdBssPrescriptionTest {
             seedCoef = seedCoef,
             muscleExerciseIds = seedCoef.keys.toList(),
             now = EXPORTED_AT,
+            equipment = equipment,
         )
         val policy = PrescriptionPolicy(
             pooled = proj.effectiveE1rm.entries.associate { (id, e1rm) ->
