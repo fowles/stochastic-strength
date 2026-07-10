@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.domain.policy.PolicyState
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseBelief
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -23,6 +24,22 @@ class DerivedStateStore {
 
     @Volatile
     private var live: Snapshot = Snapshot.empty()
+
+    @Volatile private var activeEstimatorConfig: EstimatorConfig = EstimatorConfig()
+    @Volatile private var fitKey: FitKey? = null
+    @Volatile private var diagnostics: FitDiagnostics? = null
+
+    /** The active (fitted, or default) config — single source for replay + prescription. */
+    fun activeConfig(): EstimatorConfig = activeEstimatorConfig
+    fun activeFitKey(): FitKey? = fitKey
+    fun fitDiagnostics(): FitDiagnostics? = diagnostics
+
+    /** Installs a completed fit. θ lives only here (never persisted). */
+    fun setFit(config: EstimatorConfig, key: FitKey, diagnostics: FitDiagnostics) {
+        this.activeEstimatorConfig = config
+        this.fitKey = key
+        this.diagnostics = diagnostics
+    }
 
     fun snapshot(): Snapshot = live
 
