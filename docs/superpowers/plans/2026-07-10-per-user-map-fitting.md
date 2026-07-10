@@ -474,7 +474,6 @@ import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.ln
 
 class HyperparameterFitterTest {
     private val defaults = EstimatorConfig()
@@ -535,9 +534,6 @@ class HyperparameterFitterTest {
         }
         return ReplayHistory(sessions, sets, initialOverrides = emptyList(), sessionOverrides = emptyMap())
     }
-
-    // Guards that ln is imported/available for local reasoning about the fixture.
-    @Test fun fixtureUsesFreshBasisImplicitly() { assertTrue(ln(100f) > 0f) }
 }
 ```
 
@@ -553,7 +549,6 @@ package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import kotlin.math.exp
-import kotlin.math.ln
 
 /** Guardrail constants for per-user fitting (spec §8). Multipliers are on each parameter's default. */
 data class FitConfig(
@@ -601,31 +596,31 @@ class HyperparameterFitter(
 
     fun fit(history: ReplayHistory, newSnapshot: () -> ReplaySnapshot): Result {
         val sessionCount = history.sessions.count { it.endTime != null }
-        val defaultScore = objective(DoubleArray(5) { 0.0 }, history, newSnapshot)
+        val defaultScore = mapObjective(DoubleArray(5) { 0.0 }, history, newSnapshot)
         if (sessionCount < fitConfig.minFitSessions) {
             return Result(defaults, defaultScore, defaultScore, atDefaults = true, sessionCount)
         }
+        // NelderMead minimizes, so it optimizes the negated MAP objective.
         val best = NelderMead.minimize(DoubleArray(5) { 0.0 }, step = 0.35, maxIter = fitConfig.maxIterations) {
-            objective(it, history, newSnapshot)
+            -mapObjective(it, history, newSnapshot)
         }
-        val bestScore = -objective(best, history, newSnapshot) // objective returns negatives; flip to MAP
-        val defScore = -defaultScore
-        return if (bestScore > defScore) {
-            Result(applyTheta(best), bestScore, defScore, atDefaults = false, sessionCount)
+        val bestScore = mapObjective(best, history, newSnapshot)
+        return if (bestScore > defaultScore) {
+            Result(applyTheta(best), bestScore, defaultScore, atDefaults = false, sessionCount)
         } else {
-            Result(defaults, defScore, defScore, atDefaults = true, sessionCount)
+            Result(defaults, defaultScore, defaultScore, atDefaults = true, sessionCount)
         }
     }
 
-    /** Negated MAP objective (Nelder-Mead minimizes): −(predictive log-likelihood + log-priors). */
-    private fun objective(logTheta: DoubleArray, history: ReplayHistory, newSnapshot: () -> ReplaySnapshot): Double {
+    /** MAP objective (higher is better): predictive log-likelihood + lognormal log-priors. */
+    private fun mapObjective(logTheta: DoubleArray, history: ReplayHistory, newSnapshot: () -> ReplaySnapshot): Double {
         val config = applyTheta(logTheta)
         val acc = PredictiveScoreAccumulator()
         val engine = ReplayEngine(SessionProgressionStepper(config = config, scorer = acc), config)
         engine.run(history, newSnapshot()) { _, _, _, _, _ -> }
         var logPrior = 0.0
         for (t in logTheta) logPrior += -0.5 * (t / fitConfig.priorSd) * (t / fitConfig.priorSd)
-        return -(acc.total + logPrior)
+        return acc.total + logPrior
     }
 }
 ```
@@ -635,14 +630,9 @@ Note: `ReplayEngine.run(history, snapshot, observer)` is the existing preloaded 
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.HyperparameterFitterTest"`
-Expected: PASS (5 tests). If `recoversHigherFatigueFromSyntheticHistory` is flaky on the synthetic fixture, widen `nSessions` to 40 and confirm direction (fitted fatigue strictly above default); do not weaken the `score >= defaultScore` assertion.
+Expected: PASS (4 tests). If `recoversHigherFatigueFromSyntheticHistory` is flaky on the synthetic fixture, widen `nSessions` to 40 and confirm direction (fitted fatigue strictly above default); do not weaken the `score >= defaultScore` assertion.
 
-- [ ] **Step 5: Remove any unused import flagged by the compiler and re-run**
-
-Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.HyperparameterFitterTest"`
-Expected: PASS, no warnings.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(fit): HyperparameterFitter — MAP objective, floor, fallback
