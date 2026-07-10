@@ -1,6 +1,9 @@
 # Reliability-Weighted Muscle Pooling (Phase 3) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **✅ COMPLETE 2026-07-10** — all 7 tasks shipped via subagent-driven development (commits b558b5c6..0796f72d, 10 total). Full JVM suite 279/0/1skip + assembleDebug + connectedAndroidTest green; final whole-branch review (opus) READY TO MERGE, zero Critical/Important. BSS safety gate held 20 lb; backtest RE-BASELINED to phase-3 output (user-approved, BAND 0.05). Phase 4 (per-user MAP fitting) pending.
+
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the read-time muscle projector's hand-rolled `neff`/`kappa`/`siblingExcess` pooling with the clean precision-weighted Gaussian level + leave-one-out shrink from the design spec, using per-equipment-class transfer tightness τ.
 
@@ -33,7 +36,7 @@
 - Consumes: `io.github.fowles.stochastic_strength.data.model.Equipment`.
 - **Leave the old `tauBridge`, `levelPrior`, `poolObsVar` fields in place for now** (removed in Task 7) so consumers keep compiling.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `EstimatorConfigTauTest.kt`:
 
@@ -61,12 +64,12 @@ class EstimatorConfigTauTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.EstimatorConfigTauTest"`
 Expected: FAIL — `tauFor` / `tauBarbell` unresolved.
 
-- [ ] **Step 3: Add the config fields**
+- [x] **Step 3: Add the config fields**
 
 In `ExerciseBelief.kt`, add these fields to the `EstimatorConfig` data class (near the existing `tauBridge` field; keep `tauBridge`/`levelPrior`/`poolObsVar` for now):
 
@@ -81,7 +84,7 @@ In `ExerciseBelief.kt`, add these fields to the `EstimatorConfig` data class (ne
     val levelAnchorPrecision: Float = 1.0f,
 ```
 
-- [ ] **Step 4: Add the `tauFor` helper**
+- [x] **Step 4: Add the `tauFor` helper**
 
 At the bottom of `ExerciseBelief.kt` (top-level in the file, and add `import io.github.fowles.stochastic_strength.data.model.Equipment` to the imports):
 
@@ -94,12 +97,12 @@ fun EstimatorConfig.tauFor(equipment: Equipment?): Float = when (equipment) {
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.EstimatorConfigTauTest"`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ExerciseBelief.kt \
@@ -122,7 +125,7 @@ git commit -m "config: per-equipment τ + levelAnchorPrecision + tauFor (phase 3
 - Removes: `fun neff(aged): Float`.
 - Consumes: `EstimatorConfig.tauFor`, `Equipment` (Task 1).
 
-- [ ] **Step 1: Rewrite the projector**
+- [x] **Step 1: Rewrite the projector**
 
 Replace the whole class in `MuscleStrengthProjector.kt` (keep the `MuscleProjection` data class and its doc; add `import io.github.fowles.stochastic_strength.data.model.Equipment`):
 
@@ -197,7 +200,7 @@ class MuscleStrengthProjector(private val config: EstimatorConfig = EstimatorCon
 
 Update the `MuscleProjection.pooledSigma` doc comment to: `/** Own live aged belief std per exercise (un-shrunk) — the z-shading input for the policy. */`.
 
-- [ ] **Step 2: Update `CrossTuning.kt`**
+- [x] **Step 2: Update `CrossTuning.kt`**
 
 Add `equipment: Map<Long, Equipment> = emptyMap()` param (and `import ...Equipment`). Replace the `neffById`/`totalNeff`/`contribution` computation:
 
@@ -211,7 +214,7 @@ Add `equipment: Map<Long, Equipment> = emptyMap()` param (and `import ...Equipme
 
 Update the `contribution` line to `if (totalPrec > 0f) precById.getValue(id) / totalPrec else 0f`, pass `equipment` into the `projector.project(...)` LOO call, and update `CrossTuningRow.contribution`'s doc to `/** This exercise's pooling precision as a share of the muscle's total (0..1). */`.
 
-- [ ] **Step 3: Update `MuscleStrengthProjectorTest.kt`**
+- [x] **Step 3: Update `MuscleStrengthProjectorTest.kt`**
 
 Replace `neffScalesFromZeroAtSeedToTrainedRange` with:
 
@@ -252,21 +255,21 @@ Replace `coldExerciseWithTrainedSiblingsIsPredictedFromTheirLevel` with an equip
 
 Add `import io.github.fowles.stochastic_strength.data.model.Equipment` to the test file. Leave `coldMuscleProjectsTheSeedLevel`, `staleOrSameAgeSiblingsDoNotLiftAFreshBelief`, `staleLoneVoterDecaysTowardTheSeedAnchor`, `pooledSigmaExposesTheOwnAgedUncertainty`, `driftLowersProjectionAfterAMuscleWideLayoff` unchanged (they hold under the new math: lone/stale exercises fall out via empty-LOO ⇒ prediction == own μ; a fresh tight belief has ownPrec ≫ predPrec).
 
-- [ ] **Step 4: Update `ProjectorEvidenceGateTest.kt`**
+- [x] **Step 4: Update `ProjectorEvidenceGateTest.kt`**
 
 Read the file first. Rewrite its two assertions to the new API: (a) an adaptation-inflated `sigma2` with small `evidenceVar` yields a HIGH `poolPrecision` (uses `poolPrecision(inflated, config.tauFor(Equipment.DUMBBELL))` instead of the `neff`/`poolObsVar` formula); (b) in a `project(...)` with confident siblings, the inflated-σ / small-evidenceVar exercise's `effectiveE1rm` stays ≈ its own `exp(mu)` (not pulled up). Keep the existing belief fixtures; only swap the removed `neff`/`poolObsVar` references for `poolPrecision`/`effectiveE1rm`.
 
-- [ ] **Step 5: Run the projector tests**
+- [x] **Step 5: Run the projector tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjectorTest" --tests "io.github.fowles.stochastic_strength.domain.progression.ProjectorEvidenceGateTest"`
 Expected: PASS. If the dumbbell partial-adoption bounds are tight, adjust the asserted band to the emitted value (the property — strictly between own and full — is the gate, not the exact number).
 
-- [ ] **Step 6: Verify main still compiles**
+- [x] **Step 6: Verify main still compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL. (Existing `project(...)` callers still compile via the `equipment` default; they pass real equipment in Task 3.)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/MuscleStrengthProjector.kt \
@@ -289,30 +292,30 @@ git commit -m "projector: reliability-weighted pooling (per-equipment τ + LOO s
 
 **Interfaces:** Consumes `project(..., equipment=...)` and `ReplaySnapshot.exerciseEquipment` (already DB-populated).
 
-- [ ] **Step 1: Thread equipment in main-source call sites**
+- [x] **Step 1: Thread equipment in main-source call sites**
 
 - `SessionProgressionStepper.kt` line ~50 `projector.project(...)`: add `equipment = snapshot.exerciseEquipment,`.
 - `ExerciseProgressionSeriesBuilder.kt` lines 78 and 81 `projector.project(...)`: add `equipment = snapshot.exerciseEquipment,` to each.
 - `WorkoutRepository.kt` line ~234 display projector: add `equipment = snapshot.exerciseEquipment,`.
 - `WorkoutRepository.kt` line ~76 `buildPlanner`: add `equipment = available.associate { it.id to it.equipment },` (`available` is the `List<Exercise>` already in scope at line 66).
 
-- [ ] **Step 2: Thread equipment into the CrossTuning caller**
+- [x] **Step 2: Thread equipment into the CrossTuning caller**
 
 Run: `grep -rn "computeCrossTuning(" app/src/main/java`
 For each caller (a debug ViewModel), pass `equipment = <the exercises' id→equipment map available there>` (build from the loaded `Exercise` list, or from a `ReplaySnapshot`/DerivedState the caller already holds). If a caller has no equipment source at hand, pass the DAO-loaded exercises' `associate { it.id to it.equipment }`.
 
-- [ ] **Step 3: Thread equipment in the backtest harness**
+- [x] **Step 3: Thread equipment in the backtest harness**
 
 `BacktestHarness.kt` line ~74 `projector.project(...)`: add `equipment = snap.exerciseEquipment,`.
 
-- [ ] **Step 4: Build + run the fast projection/replay tests**
+- [x] **Step 4: Build + run the fast projection/replay tests**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ReplayProjectionTest" --tests "io.github.fowles.stochastic_strength.domain.progression.ReplayHistoryTest"`
 Expected: PASS (these don't pin tuned constants). If any assert a specific projected number that moved, update it to the emitted value — the structural property is the gate.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/WorkoutRepository.kt \
@@ -333,20 +336,20 @@ git commit -m "projector: pass real equipment class into pooling at every call s
 
 **Interfaces:** Consumes the final pooling math (Tasks 2–3). Sets `EstimatorConfig.levelAnchorPrecision`.
 
-- [ ] **Step 1: Replace the poolObsVar coverage machinery**
+- [x] **Step 1: Replace the poolObsVar coverage machinery**
 
 In `calibration_eightyPercentIntervalRoughlyCovers` (around lines 445–483): the current test computes coverage as a function of the deleted `poolObsVar` using the old `n_eff` gate. Rewrite it to the new interval: a sample is "trained/counted" when its `poolPrecision` exceeds the seed-floor precision `1/(σ_seed² + τ²)` for its τ class, and coverage checks `absDiff <= 1.2816 · sqrt(sigma2)` (the own live σ is what the policy actually shades with — no `+ p` term). Keep the `assertTrue(coverage in 0.60f..0.95f)` gate. Print the coverage so it can be read.
 
-- [ ] **Step 2: Replace the `neff >= 1` trained selector**
+- [x] **Step 2: Replace the `neff >= 1` trained selector**
 
 At line ~320 (`projector.neff(aged) >= 1f`) replace with an evidence-based selector, e.g. `updater.age(...).evidenceVar < config.sigmaSeed * config.sigmaSeed` (an exercise that has learned something about itself). Update the line-188 / line-47 doc comments that mention `neff`/`poolObsVar`.
 
-- [ ] **Step 3: Run and tune `levelAnchorPrecision`**
+- [x] **Step 3: Run and tune `levelAnchorPrecision`**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefSimulationTest"`
 If `calibration` coverage is outside [0.60, 0.95] or a scenario pin (`badDay_*`, growth pins) fails, adjust `EstimatorConfig.levelAnchorPrecision` (and only if necessary the τ constants) and re-run. Record the final coverage value in the test comment. Expected end state: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ExerciseBelief.kt \
@@ -363,7 +366,7 @@ git commit -m "test: re-pin BeliefSimulationTest to reliability-weighted pooling
 
 **Interfaces:** Consumes final pooling math + `levelAnchorPrecision` (Task 4).
 
-- [ ] **Step 1: Pass real equipment into the two `project(...)` calls**
+- [x] **Step 1: Pass real equipment into the two `project(...)` calls**
 
 Add an equipment map matching the QUADS fixture ids (confirm each id's `equipment` from `ExerciseLibrary` seed data — expected: 48 Barbell Squat=BARBELL, 49 Front Squat=BARBELL, 50 Leg Press=MACHINE, 51 Leg Extension=MACHINE, 52 Hack Squat=MACHINE, 54 Goblet Squat=DUMBBELL/KETTLEBELL, 55 Bulgarian Split Squat=DUMBBELL, 56 Step-Up=DUMBBELL, 100 Dumbbell Lunge=DUMBBELL):
 
@@ -377,13 +380,13 @@ Add an equipment map matching the QUADS fixture ids (confirm each id's `equipmen
 
 Add `equipment = equipment,` to both `MuscleStrengthProjector().project(...)` calls (lines ~96 and ~130).
 
-- [ ] **Step 2: Run and re-pin the pre-policy figure if it moved**
+- [x] **Step 2: Run and re-pin the pre-policy figure if it moved**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 `policyPathSafetyBounds` (the real gate: `weightKg < 15.875` AND `== 20 lb`) MUST pass — BSS is DUMBBELL (τ 0.25, loosest) and its `evidenceVar` is tight after the surprise, so `ownPrec ≫ predPrec` and the belief holds its own mean, exactly as designed. If `reportBssPrescription`'s pre-policy pin (currently 25 lb) shifts, update that `assertEquals` to the emitted grid value and its comment. **If `policyPathSafetyBounds` does NOT hold, stop — that is a design regression, not a re-pin;** investigate before changing the assertion.
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/ProdBssPrescriptionTest.kt
@@ -399,18 +402,18 @@ git commit -m "test: ProdBss holds 20 lb under reliability-weighted pooling (rea
 
 **Interfaces:** Consumes final pooling math.
 
-- [ ] **Step 1: Locate the backtest and run it**
+- [x] **Step 1: Locate the backtest and run it**
 
 Run: `grep -rln "BAND\|Backtest\|backtest" app/src/test/java`
 Run the full backtest test class: `./gradlew :app:testDebugUnitTest --tests "*Backtest*"`
 Read the emitted per-exercise / systemic reprice diff.
 
-- [ ] **Step 2: Attribute and re-baseline**
+- [x] **Step 2: Attribute and re-baseline**
 
 Confirm the reprice is attributable to the pooling swap (per-equipment τ tightening barbell coupling, LOO shrink). Update the baseline snapshot / expected values to the new output and keep BAND at its current tolerance (0.05 unless the emitted spread demands documenting a wider band). Record a one-line attribution in the test comment referencing this plan.
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add <backtest-test-file>
@@ -426,24 +429,24 @@ git commit -m "test: re-baseline full backtest to reliability-weighted pooling o
 - Modify: `docs/adaptation/04-muscle-pooling.md`
 - Modify: `CLAUDE.md` (progression section)
 
-- [ ] **Step 1: Delete the dead fields**
+- [x] **Step 1: Delete the dead fields**
 
 Remove `tauBridge`, `levelPrior`, `poolObsVar` from `EstimatorConfig`. Run: `grep -rn "tauBridge\|levelPrior\|poolObsVar" app/src` — expect ZERO hits. Fix any stragglers (should all be gone after Tasks 2–5).
 
-- [ ] **Step 2: Run the full unit suite**
+- [x] **Step 2: Run the full unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL, all green. Fix any remaining compile/reference breaks.
 
-- [ ] **Step 3: Rewrite `docs/adaptation/04-muscle-pooling.md`**
+- [x] **Step 3: Rewrite `docs/adaptation/04-muscle-pooling.md`**
 
 Replace Step 1 / Step 2 math with the precision-weighted level (`v_i = evidenceVar + τ²`) and LOO shrink (`ownPrec = 1/evidenceVar`, `predPrec = 1/(σ²_ℓLOO + τ²)`); remove the `poolObsVar`/`neff`/`kappa`/`siblingExcess` language and the "Phase 3 note"; add the per-equipment τ table and the "reported σ = own live, un-shrunk" divergence paragraph.
 
-- [ ] **Step 4: Update `CLAUDE.md`**
+- [x] **Step 4: Update `CLAUDE.md`**
 
 In the Progression section, update the pooling bullet (item 3) to describe per-equipment τ (0.08/0.20/0.25), precision-weighted level from `evidenceVar`, and LOO shrink; note `poolObsVar`/`tauBridge`/`levelPrior` are gone and `levelAnchorPrecision`/`tauBarbell`/`tauMachineCable`/`tauOtherLoaded` are the new constants pinned by `BeliefSimulationTest`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ExerciseBelief.kt \
