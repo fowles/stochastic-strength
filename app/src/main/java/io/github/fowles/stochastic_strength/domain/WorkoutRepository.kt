@@ -73,7 +73,7 @@ class WorkoutRepository(
         val projector = MuscleStrengthProjector()
         val pooled = mutableMapOf<Long, PooledBelief>()
         for ((muscle, ids) in muscleIds) {
-            val proj = projector.project(beliefs, seedCoef, ids, now, policyState.muscleLastObs[muscle])
+            val proj = projector.project(beliefs, seedCoef, ids, now, policyState.muscleLastObs[muscle], equipment = available.associate { it.id to it.equipment })
             for ((id, e1rm) in proj.effectiveE1rm) {
                 pooled[id] = PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
             }
@@ -237,6 +237,7 @@ class WorkoutRepository(
                     muscleExerciseIds = exerciseIds,
                     now = displayNow,
                     muscleLastObs = snapshot.muscleLastObs[muscle],
+                    equipment = snapshot.exerciseEquipment,
                 )
                 if (projection.level > 0f) {
                     scratch.upsertMuscleGroupStrength(
@@ -390,6 +391,7 @@ class WorkoutRepository(
             muscleExerciseIds = muscleIds,
             now = now,
             muscleLastObs = policyState.muscleLastObs[muscle],
+            equipment = snapshot.exerciseEquipment,
         )
     }
 

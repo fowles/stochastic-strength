@@ -75,11 +75,12 @@ internal fun sampleSession(
     val ownBandUpper = belief?.let { listOf(ProgressionPoint(asOf, exp(it.mu + it.sigma))) } ?: emptyList()
     val ownBandLower = belief?.let { listOf(ProgressionPoint(asOf, exp(it.mu - it.sigma))) } ?: emptyList()
 
-    val fullProjection = projector.project(snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds, asOf)
+    val fullProjection = projector.project(snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds, asOf, equipment = snapshot.exerciseEquipment)
     val merged = fullProjection.effectiveE1rm[targetId]?.let { listOf(ProgressionPoint(asOf, it)) } ?: emptyList()
 
     val leaveOneOut = projector.project(
         snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds.filter { it != targetId }, asOf,
+        equipment = snapshot.exerciseEquipment,
     )
     val siblingsEstimate = if (targetSeed > 0f && leaveOneOut.level > 0f) {
         listOf(ProgressionPoint(asOf, leaveOneOut.level * targetSeed))
@@ -129,6 +130,7 @@ internal fun buildFrame(
         muscleExerciseIds = muscleIds,
         now = asOf,
         projector = projector,
+        equipment = snapshot.exerciseEquipment,
     )
     val setsByExercise = sets.groupBy { it.exerciseId }
     val orderedIds = listOf(targetId) + muscleIds.filter { it != targetId }

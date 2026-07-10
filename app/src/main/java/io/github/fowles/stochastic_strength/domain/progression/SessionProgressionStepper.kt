@@ -53,6 +53,7 @@ class SessionProgressionStepper(
                     muscleExerciseIds = exerciseIds,
                     now = asOf,
                     muscleLastObs = snapshot.muscleLastObs[m],
+                    equipment = snapshot.exerciseEquipment,
                 ),
             )
         }

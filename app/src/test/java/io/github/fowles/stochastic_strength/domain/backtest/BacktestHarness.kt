@@ -71,7 +71,7 @@ object BacktestHarness {
             builder.onSession(asOf, sets, snap)
             val policyState = builder.build(snap.muscleLastObs.toMap())
             for ((muscle, ids) in snap.muscleExerciseIds) {
-                val proj = projector.project(snap.currentBeliefs, snap.seedCoefficients, ids, asOf, policyState.muscleLastObs[muscle])
+                val proj = projector.project(snap.currentBeliefs, snap.seedCoefficients, ids, asOf, policyState.muscleLastObs[muscle], equipment = snap.exerciseEquipment)
                 val pooledMap = proj.effectiveE1rm.entries.associate { (id, e1rm) ->
                     id to PooledBelief(e1rm, proj.pooledSigma[id] ?: 0f)
                 }
