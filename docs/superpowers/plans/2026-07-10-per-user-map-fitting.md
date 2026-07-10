@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Auto-tune five per-user hyperparameters by one-step-ahead predictive scoring during replay, regularized toward global defaults, with zero schema change and no observable behavior for thin histories.
+**Goal:** Auto-tune four per-user hyperparameters by one-step-ahead predictive scoring during replay, regularized toward global defaults, with zero schema change and no observable behavior for thin histories.
 
-**Architecture:** A pure `HyperparameterFitter` runs Nelder-Mead over five log-multipliers on `EstimatorConfig` defaults; each evaluation is one in-memory replay over preloaded `ReplayHistory` accumulating a predictive log-likelihood (half-blended pooled mean + clean own variance) plus lognormal log-priors. `DerivedStateStore` becomes the single source of the active (fitted) `EstimatorConfig`; the fit runs in the background off the workout-finish path, keyed on history so it self-warms and never loops.
+**Architecture:** A pure `HyperparameterFitter` runs Nelder-Mead over four log-multipliers on `EstimatorConfig` defaults; each evaluation is one in-memory replay over preloaded `ReplayHistory` accumulating a predictive log-likelihood (half-blended pooled mean + clean own variance) plus lognormal log-priors. `DerivedStateStore` becomes the single source of the active (fitted) `EstimatorConfig`; the fit runs in the background off the workout-finish path, keyed on history so it self-warms and never loops.
 
 **Tech Stack:** Kotlin, Android (min SDK 33), JUnit4 JVM unit tests, jj (Jujutsu) for commits, Gradle.
 
@@ -16,8 +16,8 @@
 - **Package root:** `io.github.fowles.stochastic_strength`.
 - **Unit test command:** `./gradlew :app:testDebugUnitTest --tests "<fqcn>"` for one class; `./gradlew :app:testDebugUnitTest` for the full JVM suite.
 - **No Room migration.** θ is never persisted. Nothing new is stored in the database.
-- **Not fitted:** `uncertaintyZ`, `overloadDelta`, `levelAnchorPrecision`. Fitting these is out of scope.
-- **Fitted set (exactly five):** `detrainRatePerWeek`, a shared multiplier on `repNoiseBucket`+`repNoiseCounted`, `fatiguePerSet`, `processNoisePerDay`, a shared multiplier on `tauBarbell`+`tauMachineCable`+`tauOtherLoaded`.
+- **Not fitted:** `uncertaintyZ`, `overloadDelta`, `levelAnchorPrecision`, **and `repNoiseBucket`/`repNoiseCounted` (feedback-trust)**. Fitting any of these is out of scope. Feedback-trust was removed from the fitted set on 2026-07-10 (the real-history fit saturated its ×4 cap — learning to distrust the user's own feedback is a failure mode; the user's feedback is our clearest signal and stays pinned at default).
+- **Fitted set (exactly four):** `detrainRatePerWeek`, `fatiguePerSet`, `processNoisePerDay`, a shared multiplier on `tauBarbell`+`tauMachineCable`+`tauOtherLoaded`. Order in the θ vector: `[drift, fatigue, procNoise, tau]`.
 - **Scorer decisions (from the spec):** predict from the pooled/LOO-shrunk mean (`MuscleProjection.effectiveE1rm`), paired with the exercise's **clean** own variance (`ExerciseBelief.evidenceVar`, aged); predictive variance = clean var + observation noise `s²`.
 - Spec: `docs/superpowers/specs/2026-07-10-per-user-map-fitting-design.md`.
 
@@ -460,7 +460,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `class HyperparameterFitter(defaults: EstimatorConfig = EstimatorConfig(), fitConfig: FitConfig = FitConfig())`
   - `HyperparameterFitter.Result(config: EstimatorConfig, score: Double, defaultScore: Double, atDefaults: Boolean, sessionCount: Int)`
   - `HyperparameterFitter.fit(history: ReplayHistory, newSnapshot: () -> ReplaySnapshot): Result` — `newSnapshot` builds a fresh scored-replay snapshot (fresh mutable belief maps, shared static inputs) per evaluation.
-  - `HyperparameterFitter.applyTheta(logTheta: DoubleArray): EstimatorConfig` — maps five log-multipliers (order: drift, repNoise, fatigue, procNoise, tau) onto defaults, each multiplier clamped to `[lo, hi]`. Public for the mapping test.
+  - `HyperparameterFitter.applyTheta(logTheta: DoubleArray): EstimatorConfig` — maps four log-multipliers (order: drift, fatigue, procNoise, tau) onto defaults, each multiplier clamped to `[lo, hi]`. Public for the mapping test.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -482,19 +482,26 @@ class HyperparameterFitterTest {
     private val fitter = HyperparameterFitter(defaults)
 
     @Test fun applyThetaZeroIsDefaults() {
-        val c = fitter.applyTheta(DoubleArray(5) { 0.0 })
+        val c = fitter.applyTheta(DoubleArray(4) { 0.0 })
         assertEquals(defaults.fatiguePerSet, c.fatiguePerSet, 1e-7f)
         assertEquals(defaults.processNoisePerDay, c.processNoisePerDay, 1e-9f)
         assertEquals(defaults.tauBarbell, c.tauBarbell, 1e-7f)
         assertEquals(defaults.detrainRatePerWeek, c.detrainRatePerWeek, 1e-7f)
-        assertEquals(defaults.repNoiseBucket, c.repNoiseBucket, 1e-7f)
+    }
+
+    @Test fun repNoiseIsNeverFitted() {
+        // Feedback-trust is deliberately pinned: no θ vector can move it off the default.
+        val c = fitter.applyTheta(doubleArrayOf(5.0, 5.0, 5.0, 5.0))
+        assertEquals(defaults.repNoiseBucket, c.repNoiseBucket, 0f)
+        assertEquals(defaults.repNoiseCounted, c.repNoiseCounted, 0f)
     }
 
     @Test fun applyThetaClampsToBounds() {
-        // A huge positive log-multiplier saturates at ×4; huge negative at ÷4.
-        val hi = fitter.applyTheta(doubleArrayOf(0.0, 0.0, 10.0, 0.0, 0.0))
+        // θ order is [drift, fatigue, procNoise, tau]; a huge +log-multiplier on fatigue saturates
+        // at ×4, huge negative at ÷4.
+        val hi = fitter.applyTheta(doubleArrayOf(0.0, 10.0, 0.0, 0.0))
         assertEquals(defaults.fatiguePerSet * 4f, hi.fatiguePerSet, 1e-6f)
-        val lo = fitter.applyTheta(doubleArrayOf(0.0, 0.0, -10.0, 0.0, 0.0))
+        val lo = fitter.applyTheta(doubleArrayOf(0.0, -10.0, 0.0, 0.0))
         assertEquals(defaults.fatiguePerSet * 0.25f, lo.fatiguePerSet, 1e-6f)
     }
 
@@ -574,7 +581,7 @@ data class FitConfig(
 )
 
 /**
- * Per-user MAP fitting (spec §2–§3). Nelder-Mead over five log-multipliers on [defaults]
+ * Per-user MAP fitting (spec §2–§3). Nelder-Mead over four log-multipliers on [defaults]
  * (order: drift, repNoise, fatigue, procNoise, tau). Each objective evaluation is one in-memory
  * scored replay (predictive log-likelihood via [PredictiveScoreAccumulator]) plus lognormal
  * log-priors centered on the defaults. MAP; regularized so a thin history stays at defaults.
@@ -592,30 +599,29 @@ class HyperparameterFitter(
         val sessionCount: Int,
     )
 
-    /** Maps five log-multipliers onto the defaults, each multiplier clamped to [lo, hi]. */
+    /** Maps four log-multipliers (order: drift, fatigue, procNoise, tau) onto the defaults, each
+     *  multiplier clamped to [lo, hi]. Feedback-trust (repNoise) is deliberately NOT fitted. */
     fun applyTheta(logTheta: DoubleArray): EstimatorConfig {
         fun m(i: Int): Float =
             exp(logTheta[i]).coerceIn(fitConfig.boundMultiplierLo, fitConfig.boundMultiplierHi).toFloat()
         return defaults.copy(
             detrainRatePerWeek = defaults.detrainRatePerWeek * m(0),
-            repNoiseBucket = defaults.repNoiseBucket * m(1),
-            repNoiseCounted = defaults.repNoiseCounted * m(1),
-            fatiguePerSet = defaults.fatiguePerSet * m(2),
-            processNoisePerDay = defaults.processNoisePerDay * m(3),
-            tauBarbell = defaults.tauBarbell * m(4),
-            tauMachineCable = defaults.tauMachineCable * m(4),
-            tauOtherLoaded = defaults.tauOtherLoaded * m(4),
+            fatiguePerSet = defaults.fatiguePerSet * m(1),
+            processNoisePerDay = defaults.processNoisePerDay * m(2),
+            tauBarbell = defaults.tauBarbell * m(3),
+            tauMachineCable = defaults.tauMachineCable * m(3),
+            tauOtherLoaded = defaults.tauOtherLoaded * m(3),
         )
     }
 
     fun fit(history: ReplayHistory, newSnapshot: () -> ReplaySnapshot): Result {
         val sessionCount = history.sessions.count { it.endTime != null }
-        val defaultScore = mapObjective(DoubleArray(5) { 0.0 }, history, newSnapshot)
+        val defaultScore = mapObjective(DoubleArray(4) { 0.0 }, history, newSnapshot)
         if (sessionCount < fitConfig.minFitSessions) {
             return Result(defaults, defaultScore, defaultScore, atDefaults = true, sessionCount)
         }
         // NelderMead minimizes, so it optimizes the negated MAP objective.
-        val best = NelderMead.minimize(DoubleArray(5) { 0.0 }, step = 0.35, maxIter = fitConfig.maxIterations) {
+        val best = NelderMead.minimize(DoubleArray(4) { 0.0 }, step = 0.35, maxIter = fitConfig.maxIterations) {
             -mapObjective(it, history, newSnapshot)
         }
         val bestScore = mapObjective(best, history, newSnapshot)
@@ -1193,13 +1199,13 @@ class FitPanelRowsTest {
         assertEquals(emptyList<FitPanelRow>(), buildFitPanelRows(null))
     }
 
-    @Test fun rowsCoverFiveParamsPlusScore() {
+    @Test fun rowsCoverFourParamsPlusScore() {
         val d = EstimatorConfig()
         val fitted = d.copy(fatiguePerSet = d.fatiguePerSet * 1.5f)
         val diag = FitDiagnostics(fitted, d, score = -100.0, defaultScore = -110.0, atDefaults = false, sessionCount = 30)
         val rows = buildFitPanelRows(diag)
-        // five parameters + one score-gain row
-        assertEquals(6, rows.size)
+        // four fitted parameters + one score-gain row
+        assertEquals(5, rows.size)
         assertTrue(rows.any { it.label.contains("fatigue", ignoreCase = true) })
         assertTrue(rows.any { it.label.contains("score", ignoreCase = true) })
     }
@@ -1226,7 +1232,6 @@ fun buildFitPanelRows(diag: FitDiagnostics?): List<FitPanelRow> {
     val gain = diag.score - diag.defaultScore
     return listOf(
         row("Drift rate/wk", f.detrainRatePerWeek, d.detrainRatePerWeek),
-        row("Rep-noise bucket", f.repNoiseBucket, d.repNoiseBucket),
         row("Fatigue/set", f.fatiguePerSet, d.fatiguePerSet),
         row("Var growth/day", f.processNoisePerDay, d.processNoisePerDay),
         row("τ barbell", f.tauBarbell, d.tauBarbell),
@@ -1291,7 +1296,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the fitting docs page**
 
-Create `docs/adaptation/06-fitting.md` describing: the five fitted parameters; the half-blended + clean-variance predictive objective; MAP with lognormal priors; the ÷4/×4 bounds, `minFitSessions`, prior sd, and default-fallback guardrails; the background self-warming execution model; and that θ is never persisted. Keep it consistent with the existing `docs/adaptation/` page style (prose, no code dumps). Cross-reference the spec.
+Create `docs/adaptation/06-fitting.md` describing: the four fitted parameters (and that feedback-trust/rep-noise is deliberately NOT fitted — the user's feedback is our clearest signal); the half-blended + clean-variance predictive objective; MAP with lognormal priors; the ÷4/×4 bounds, `minFitSessions`, prior sd, and default-fallback guardrails; the background self-warming execution model; and that θ is never persisted. Keep it consistent with the existing `docs/adaptation/` page style (prose, no code dumps). Cross-reference the spec.
 
 - [ ] **Step 2: Bump the app version**
 
@@ -1314,7 +1319,7 @@ Expected: PASS. (If no device is attached, note it and defer — do not claim gr
 
 - [ ] **Step 6: Tick every checkbox in this plan and update CLAUDE.md**
 
-Edit this plan file to mark all `- [ ]` as `- [x]`. Add one sentence to `CLAUDE.md`'s progression section noting per-user MAP fitting (phase 4) is live: five hyperparameters fit by predictive scoring during replay, background, θ never persisted.
+Edit this plan file to mark all `- [ ]` as `- [x]`. Add one sentence to `CLAUDE.md`'s progression section noting per-user MAP fitting (phase 4) is live: four hyperparameters (strength-drift, per-set fatigue, variance-growth, cross-exercise τ) fit by predictive scoring during replay, background, θ never persisted; feedback-trust is deliberately not fitted.
 
 - [ ] **Step 7: Commit**
 

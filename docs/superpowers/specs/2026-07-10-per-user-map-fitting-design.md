@@ -51,27 +51,39 @@ decisions and is the authoritative Phase 4 spec.
 |---|---|
 | Predictive distribution the scorer uses | Half-blended: pooled/LOO-shrunk mean `μ̃`, own variance |
 | Which own variance | Clean (`evidenceVar`), adaptation-immune — not working `sigma2` |
-| Fitted parameter set | §5's five, unchanged (see §1) |
+| Fitted parameter set | **Four** scalars — see §1. Feedback-trust (rep-noise) was **removed** from fitting (amended 2026-07-10 during execution; see below). |
 | When the fit runs | Background; summary uses cached θ, new θ applies on the next rebuild |
 | θ persistence | In-memory only (`DerivedStateStore`); never written to Room |
 | Fitted-θ visibility | Debug-only panel; no user-facing surface |
 
+**Amendment (2026-07-10, mid-execution): feedback-trust is not fitted.** The first
+real-history backtest with the five-parameter fit drove `reportNoiseScale` to its
+×4 cap — the fitter wanted to *distrust the user's own RIR/rep feedback ~4× more
+than default*. The user's self-reported feedback is our single clearest signal;
+letting the fitter learn to discount it is a failure mode (in the limit the system
+stops listening and coasts on priors), and the saturated cap was the tell. So
+feedback-trust joins `uncertaintyZ`/`overloadDelta`/`levelAnchorPrecision` in the
+**not-fitted, deliberately-pinned** set. The fitted set is now the four quantities
+that are genuine body/physics facts with no "stop listening to the user" failure
+mode. This shrank the backtest reprice to near-nothing (median 0%, mean 3%).
+
 ## 1. Fitted parameters
 
-Five personal scalars, each a bounded adjustment applied to an `EstimatorConfig`
+**Four** personal scalars, each a bounded adjustment applied to an `EstimatorConfig`
 default. Fitting produces a single derived `EstimatorConfig` = defaults with θ
 applied.
 
 | θ component | Applies to | Form |
 |---|---|---|
-| drift rate | `detrainRatePerWeek` | direct value |
-| rep-noise scale | `repNoiseBucket` **and** `repNoiseCounted` | one multiplier on both |
-| fatigue | `fatiguePerSet` | direct value |
-| variance growth | `processNoisePerDay` | direct value |
+| drift rate | `detrainRatePerWeek` | direct value (as multiplier on default) |
+| fatigue | `fatiguePerSet` | direct value (as multiplier on default) |
+| variance growth | `processNoisePerDay` | direct value (as multiplier on default) |
 | τ scale | `tauBarbell`, `tauMachineCable`, `tauOtherLoaded` | one multiplier on all three |
 
-`uncertaintyZ` and `overloadDelta` are **not** fitted — training preferences, not
-properties of the user's body. `levelAnchorPrecision` is not fitted.
+**Not fitted — deliberately pinned:** `repNoiseBucket`/`repNoiseCounted`
+(feedback-trust — see the amendment above; the user's feedback is the clearest
+signal and must not be tuned away), `uncertaintyZ` and `overloadDelta` (training
+preferences, not body properties), and `levelAnchorPrecision`.
 
 ## 2. The objective
 
@@ -103,7 +115,7 @@ is calibrated (by the simulation harness) so under ~20 sessions the fitted θ st
 
 ## 3. The fitter
 
-- **Search:** Nelder-Mead over the five parameters in **log space** (keeps every
+- **Search:** Nelder-Mead over the four parameters in **log space** (keeps every
   value positive; makes the ÷4/×4 bounds symmetric). Fixed initial simplex around
   the defaults, iteration cap ~200.
 - **Each evaluation** is one in-memory replay over history loaded **once** — no DB
@@ -162,7 +174,7 @@ in place.
 
 ## 7. Debug panel
 
-A read-only debug section: for each of the five parameters, fitted value vs
+A read-only debug section: for each of the four parameters, fitted value vs
 default; the MAP score gain over defaults; and the completed-session count (so the
 `minFitSessions` floor is legible). No user-facing surface.
 
