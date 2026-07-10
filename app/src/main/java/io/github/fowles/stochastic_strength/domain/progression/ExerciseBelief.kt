@@ -51,29 +51,14 @@ data class ExerciseBelief(
  * pinned by BeliefSimulationTest (phase 2 Task 9).
  */
 data class EstimatorConfig(
-    /**
-     * Bridge transfer tightness (phase 2 only): the sibling-implied prediction enters the shrink
-     * with the evidence a τ-noised transfer would earn — poolObsVar/τ² n_eff units (≈0.03) — which
-     * is spec §3's blend with σ²_ℓLOO ≈ 0 and one uniform class. Keeps a fresh own measurement
-     * from being pulled toward a mispredicting sibling level (the prod-BSS regression) while a
-     * cold exercise (n_eff 0) still adopts the sibling prediction fully. Phase 3 replaces this
-     * with per-equipment-class τ.
-     */
-    val tauBridge: Float = 0.25f,
     /** Per-equipment-class transfer tightness τ (personal-offset std). Barbell lifts track the muscle
      *  level tightly; machines/cables medium; all other loaded classes loosest. Pinned by BeliefSimulationTest. */
     val tauBarbell: Float = 0.08f,
     val tauMachineCable: Float = 0.20f,
     val tauOtherLoaded: Float = 0.25f,
-    /** λ₀: fixed precision of the seed anchor in the muscle-level pool (replaces levelPrior). A
+    /** λ₀: fixed precision of the seed anchor in the muscle-level pool. A
      *  thinly-evidenced muscle leans on it. Pinned by BeliefSimulationTest. */
     val levelAnchorPrecision: Float = 1.0f,
-    /**
-     * Effective sample size of the seed prior in the muscle-level pool. Every exercise votes with its
-     * n_eff against this fixed-weight prior, so a thinly-evidenced muscle leans on the seed and a
-     * stale lone voter decays back toward it. Pinned by BeliefSimulationTest.
-     */
-    val levelPrior: Float = 0.5f,
     /**
      * Overload push δ (log-space). Forced up from 0.01 by the bad-day recovery pin: post-incident
      * RIR_5_PLUS bounds are weak, so δ is what lifts the recovered prescription back onto the
@@ -129,12 +114,6 @@ data class EstimatorConfig(
      * over-coverage. Fit to the calibration + ProdBss gates.
      */
     val obsModelSd: Float = 0.02f,
-    /**
-     * Bridge: per-observation variance defining n_eff pooling votes (phase 3 deletes). Default kept:
-     * the calibration pin's coverage-vs-p table brackets it to ~[1.2e-3, 2.9e-3] and 2.0e-3 sits
-     * mid-band. Pinned by BeliefSimulationTest 2026-07-08.
-     */
-    val poolObsVar: Float = 2.0e-3f,
     /** Layoff notice threshold (fraction of strength eased). */
     val noticeThresholdFraction: Float = 0.03f,
     /**

@@ -457,9 +457,10 @@ class BeliefSimulationTest {
         // poolPrecision(aged, τ) > seedFloorPrecision = 1/(sigmaSeed² + τ²) for any τ class.
         //
         // Coverage check: absDiff <= 1.2816 * sqrt(sigma2). The own live σ is what the policy
-        // shades with, so that is what the 80%-interval is built on — no poolObsVar term added.
+        // shades with, so that is what the 80%-interval is built on — pooling does not add
+        // a sibling-variance term (reported σ = own live, un-shrunk by design).
         //
-        // Final tuned levelAnchorPrecision = 1.0; coverage ≈ 0.71 (2026-07-10).
+        // Final tuned levelAnchorPrecision = 1.0; coverage ≈ 0.83 (2026-07-10).
         data class Sample(val absDiff: Float, val sigma2: Float, val evidenceVar: Float)
         val samples = mutableListOf<Sample>()
         for (seed in seeds) {
