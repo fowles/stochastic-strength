@@ -16,19 +16,24 @@ class HyperparameterFitterTest {
     private val fitter = HyperparameterFitter(defaults)
 
     @Test fun applyThetaZeroIsDefaults() {
-        val c = fitter.applyTheta(DoubleArray(5) { 0.0 })
+        val c = fitter.applyTheta(DoubleArray(4) { 0.0 })
         assertEquals(defaults.fatiguePerSet, c.fatiguePerSet, 1e-7f)
         assertEquals(defaults.processNoisePerDay, c.processNoisePerDay, 1e-9f)
         assertEquals(defaults.tauBarbell, c.tauBarbell, 1e-7f)
         assertEquals(defaults.detrainRatePerWeek, c.detrainRatePerWeek, 1e-7f)
-        assertEquals(defaults.repNoiseBucket, c.repNoiseBucket, 1e-7f)
+    }
+
+    @Test fun repNoiseIsNeverFitted() {
+        val c = fitter.applyTheta(doubleArrayOf(5.0, 5.0, 5.0, 5.0))
+        assertEquals(defaults.repNoiseBucket, c.repNoiseBucket, 0f)
+        assertEquals(defaults.repNoiseCounted, c.repNoiseCounted, 0f)
     }
 
     @Test fun applyThetaClampsToBounds() {
-        // A huge positive log-multiplier saturates at ×4; huge negative at ÷4.
-        val hi = fitter.applyTheta(doubleArrayOf(0.0, 0.0, 10.0, 0.0, 0.0))
+        // A huge positive log-multiplier saturates at ×4; huge negative at ÷4. Fatigue is index 1.
+        val hi = fitter.applyTheta(doubleArrayOf(0.0, 10.0, 0.0, 0.0))
         assertEquals(defaults.fatiguePerSet * 4f, hi.fatiguePerSet, 1e-6f)
-        val lo = fitter.applyTheta(doubleArrayOf(0.0, 0.0, -10.0, 0.0, 0.0))
+        val lo = fitter.applyTheta(doubleArrayOf(0.0, -10.0, 0.0, 0.0))
         assertEquals(defaults.fatiguePerSet * 0.25f, lo.fatiguePerSet, 1e-6f)
     }
 

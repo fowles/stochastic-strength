@@ -13,11 +13,15 @@ data class FitConfig(
 )
 
 /**
- * Per-user MAP fitting (spec §2–§3). Nelder-Mead over five log-multipliers on [defaults]
- * (order: drift, repNoise, fatigue, procNoise, tau). Each objective evaluation is one in-memory
+ * Per-user MAP fitting (spec §2–§3). Nelder-Mead over four log-multipliers on [defaults]
+ * (order: drift, fatigue, procNoise, tau). Each objective evaluation is one in-memory
  * scored replay (predictive log-likelihood via [PredictiveScoreAccumulator]) plus lognormal
  * log-priors centered on the defaults. MAP; regularized so a thin history stays at defaults.
  * θ is never persisted; the caller caches the returned config.
+ *
+ * Feedback-trust (repNoise) is deliberately NOT fitted: on real history the rep-noise multiplier
+ * saturated at its ×4 cap, i.e. the fit learned to distrust the user's own feedback — a failure
+ * mode. It is pinned at its default and left out of the fitted set.
  */
 class HyperparameterFitter(
     private val defaults: EstimatorConfig = EstimatorConfig(),
@@ -31,30 +35,28 @@ class HyperparameterFitter(
         val sessionCount: Int,
     )
 
-    /** Maps five log-multipliers onto the defaults, each multiplier clamped to [lo, hi]. */
+    /** Maps four log-multipliers onto the defaults, each multiplier clamped to [lo, hi]. */
     fun applyTheta(logTheta: DoubleArray): EstimatorConfig {
         fun m(i: Int): Float =
             exp(logTheta[i]).coerceIn(fitConfig.boundMultiplierLo, fitConfig.boundMultiplierHi).toFloat()
         return defaults.copy(
             detrainRatePerWeek = defaults.detrainRatePerWeek * m(0),
-            repNoiseBucket = defaults.repNoiseBucket * m(1),
-            repNoiseCounted = defaults.repNoiseCounted * m(1),
-            fatiguePerSet = defaults.fatiguePerSet * m(2),
-            processNoisePerDay = defaults.processNoisePerDay * m(3),
-            tauBarbell = defaults.tauBarbell * m(4),
-            tauMachineCable = defaults.tauMachineCable * m(4),
-            tauOtherLoaded = defaults.tauOtherLoaded * m(4),
+            fatiguePerSet = defaults.fatiguePerSet * m(1),
+            processNoisePerDay = defaults.processNoisePerDay * m(2),
+            tauBarbell = defaults.tauBarbell * m(3),
+            tauMachineCable = defaults.tauMachineCable * m(3),
+            tauOtherLoaded = defaults.tauOtherLoaded * m(3),
         )
     }
 
     fun fit(history: ReplayHistory, newSnapshot: () -> ReplaySnapshot): Result {
         val sessionCount = history.sessions.count { it.endTime != null }
-        val defaultScore = mapObjective(DoubleArray(5) { 0.0 }, history, newSnapshot)
+        val defaultScore = mapObjective(DoubleArray(4) { 0.0 }, history, newSnapshot)
         if (sessionCount < fitConfig.minFitSessions) {
             return Result(defaults, defaultScore, defaultScore, atDefaults = true, sessionCount)
         }
         // NelderMead minimizes, so it optimizes the negated MAP objective.
-        val best = NelderMead.minimize(DoubleArray(5) { 0.0 }, step = 0.35, maxIter = fitConfig.maxIterations) {
+        val best = NelderMead.minimize(DoubleArray(4) { 0.0 }, step = 0.35, maxIter = fitConfig.maxIterations) {
             -mapObjective(it, history, newSnapshot)
         }
         val bestScore = mapObjective(best, history, newSnapshot)
