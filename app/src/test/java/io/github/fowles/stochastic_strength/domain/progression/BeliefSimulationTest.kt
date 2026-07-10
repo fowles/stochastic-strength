@@ -44,8 +44,8 @@ import kotlin.random.Random
  * (toOneRepMax(prescribedWeight, reps)) against the LAST set's effective 1RM,
  * truth × (1 − φ·(S−1)) — the set the policy targets at RIR 0–1.
  *
- * The tuning constants pinned here are EstimatorConfig.uncertaintyZ, overloadDelta and poolObsVar
- * (Task 9's tuning surface); everything else in EstimatorConfig is locked by unit tests.
+ * The tuning constants pinned here are EstimatorConfig.uncertaintyZ, overloadDelta, and
+ * levelAnchorPrecision (λ₀); everything else in EstimatorConfig is locked by unit tests.
  */
 class BeliefSimulationTest {
 
@@ -185,7 +185,7 @@ class BeliefSimulationTest {
 
     private data class RMetrics(
         val convSessions: Int,     // sessions until mean prescribed err over ever-trained <= 10%
-        val trainedEndErr: Float,  // % — tail mean prescribed err over trained (neff >= 1) exercises
+        val trainedEndErr: Float,  // % — tail mean prescribed err over trained (evidenceVar < sigmaSeed²) exercises
         val jitter: Float,         // % — tail std of prescribed/target over trainCount >= 3 exercises
         val lastSetReserve: Float, // continuous reps of reserve on tail last full-weight sets
         val failRate: Float,       // fraction of tail last full-weight sets that failed
@@ -313,11 +313,12 @@ class BeliefSimulationTest {
                 if (errs.isNotEmpty() && errs.average() <= 0.10) convAt = s
             }
             if (s >= sessions) {
-                // "Trained" gate = well-observed: poolPrecision above cold-floor (≈ neff≥1 equivalent).
+                // "Trained" gate = has learned something about itself: evidenceVar has shrunk below
+                // the seed prior (sigmaSeed²), meaning at least one real fold drove it down.
                 val well = loaded.filter { ex ->
                     val b = sim.snapshot.currentBeliefs[ex.id] ?: return@filter false
                     val aged = updater.age(b, sim.t, sim.snapshot.muscleLastObs[ex.primaryMuscle])
-                    projector.poolPrecision(aged, config.tauOtherLoaded) >= 15f
+                    aged.evidenceVar < config.sigmaSeed * config.sigmaSeed
                 }
                 val wellErrs = well.mapNotNull { errOf(it) }
                 if (wellErrs.isNotEmpty()) tailTrainedErr.add(wellErrs.average().toFloat() * 100f)
@@ -446,39 +447,36 @@ class BeliefSimulationTest {
 
     @Test
     fun calibration_eightyPercentIntervalRoughlyCovers() {
-        // Collected over the tail of the realistic growth run (the brief's "tail of the realistic
-        // run"): the single-muscle rig cannot host this pin — its 3-day cadence makes every
-        // pre-session sigma^2 identical, so the n_eff >= 1 gate and the coverage ceiling demand
-        // contradictory poolObsVar. The realistic tail has the sigma^2 / staleness spread the
-        // predictive interval is supposed to cover.
-        data class Sample(val absDiff: Float, val sigma2: Float)
+        // Collected over the tail of the realistic growth run: the single-muscle rig cannot host
+        // this pin — its 3-day cadence makes every pre-session sigma² identical, so any staleness-
+        // spread gate would see identical samples. The realistic tail has the sigma²/staleness spread
+        // the predictive interval is supposed to cover.
+        //
+        // "Trained" = the exercise has informed itself: evidenceVar < sigmaSeed² means at least
+        // one real fold drove the adaptation-immune clean variance below the cold seed floor, i.e.
+        // poolPrecision(aged, τ) > seedFloorPrecision = 1/(sigmaSeed² + τ²) for any τ class.
+        //
+        // Coverage check: absDiff <= 1.2816 * sqrt(sigma2). The own live σ is what the policy
+        // shades with, so that is what the 80%-interval is built on — no poolObsVar term added.
+        //
+        // Final tuned levelAnchorPrecision = 1.0; coverage ≈ 0.71 (2026-07-10).
+        data class Sample(val absDiff: Float, val sigma2: Float, val evidenceVar: Float)
         val samples = mutableListOf<Sample>()
         for (seed in seeds) {
             simulateRealistic(0.8f, seed, sessions = 120, tail = 30, growthPerSession = behavioralGrowth) { preAged, sets ->
                 val implied = impliedSessionE1rm(sets, config)
-                if (implied != null) samples.add(Sample(abs(ln(implied) - preAged.mu), preAged.sigma2))
+                if (implied != null) samples.add(Sample(abs(ln(implied) - preAged.mu), preAged.sigma2, preAged.evidenceVar))
             }
         }
-        // Coverage as a function of poolObsVar (gate n_eff = (1/sigma^2 - 1/sigmaSeed^2) * p, the
-        // projector's formula): tuning table for the poolObsVar knob.
         val seedVar = config.sigmaSeed * config.sigmaSeed
-        fun coverageAt(p: Float): Pair<Float, Int> {
-            var inside = 0
-            var n = 0
-            for (s in samples) {
-                if ((1f / s.sigma2 - 1f / seedVar) * p < 1f) continue
-                n++
-                if (s.absDiff <= 1.2816f * sqrt(s.sigma2 + p)) inside++
-            }
-            return (if (n == 0) Float.NaN else inside.toFloat() / n) to n
+        val trained = samples.filter { it.evidenceVar < seedVar }
+        var inside = 0
+        for (s in trained) {
+            if (s.absDiff <= 1.2816f * sqrt(s.sigma2)) inside++
         }
-        for (p in listOf(7e-4f, 1e-3f, 1.5e-3f, 2e-3f, 3e-3f, 5e-3f, 8e-3f)) {
-            val (c, n) = coverageAt(p)
-            println("  [calibDebug] p=${"%.1e".format(p)} coverage=${"%.3f".format(c)} n=$n")
-        }
-        val (coverage, totalN) = coverageAt(config.poolObsVar)
-        println("[calibration] coverage=${"%.3f".format(coverage)} (0.60..0.95) n=$totalN of ${samples.size}")
-        assertTrue("no trained calibration samples collected", totalN > 0)
+        val coverage = if (trained.isEmpty()) Float.NaN else inside.toFloat() / trained.size
+        println("[calibration] coverage=${"%.3f".format(coverage)} (0.60..0.95) n=${trained.size} of ${samples.size}")
+        assertTrue("no trained calibration samples collected", trained.isNotEmpty())
         assertTrue("80% predictive-interval coverage $coverage outside [0.60, 0.95]", coverage in 0.60f..0.95f)
     }
 
