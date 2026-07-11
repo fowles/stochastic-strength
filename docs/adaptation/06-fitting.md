@@ -43,9 +43,10 @@ Your own RIR and rep feedback is the clearest training signal the system has. An
 experiment that allowed the fit to tune observation noise found it converging to near
 its maximum allowed value: the optimizer discovered it could lower the predictive loss
 by nearly ignoring the very data it was supposed to explain. That is a failure mode,
-not an insight. Leaving feedback trust pinned to the global obsModelSd = 0.02 means
-the system always takes your reported effort seriously, and the four structural
-parameters are fit against that honest foundation.
+not an insight. Leaving feedback trust pinned to the global rep-noise defaults
+(`repNoiseBucket` 0.75 / `repNoiseCounted` 0.5 reps) means the system always takes your
+reported effort seriously, and the four structural parameters are fit against that
+honest foundation.
 
 ## The objective: predictive scoring
 

@@ -11,9 +11,13 @@ import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
  * BEFORE this session; the clock advances after all of the session's folds.
  */
 class SessionProgressionStepper(
-    private val updater: BeliefUpdater = BeliefUpdater(),
-    private val projector: MuscleStrengthProjector = MuscleStrengthProjector(),
     private val config: EstimatorConfig = EstimatorConfig(),
+    // updater and projector DERIVE from [config] by default so a candidate/fitted config actually
+    // reaches the belief folds (processNoise, detrain, adaptive, sigma bounds) and the pooling (τ),
+    // not just SetObservation's fatigue. Constructing them with default config here silently made the
+    // fitter blind to every parameter except fatiguePerSet.
+    private val updater: BeliefUpdater = BeliefUpdater(config),
+    private val projector: MuscleStrengthProjector = MuscleStrengthProjector(config),
     private val scorer: PredictiveScoreAccumulator? = null,
 ) {
     data class MuscleStep(val muscle: MuscleGroup, val projection: MuscleProjection)
