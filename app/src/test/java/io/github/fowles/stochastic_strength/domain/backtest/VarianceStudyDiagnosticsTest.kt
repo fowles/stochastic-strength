@@ -35,4 +35,17 @@ class VarianceStudyDiagnosticsTest {
         assertEquals(1.0, corrs[0].correlation, 1e-6)
         assertEquals(3, corrs[0].nSessions)
     }
+
+    @Test fun lightestLiftSwingPicksSmallestMedianAndMaxStep() {
+        val rows = listOf(
+            BacktestHarness.Row(1L, 10L, 100f), BacktestHarness.Row(2L, 10L, 100f), // heavy exercise, stable
+            BacktestHarness.Row(1L, 20L, 5f), BacktestHarness.Row(2L, 20L, 15f), BacktestHarness.Row(3L, 20L, 10f),
+        )
+        val swing = lightestLiftSwing(rows)!!
+        assertEquals(20L, swing.exerciseId)
+        assertEquals(5f, swing.minKg, 1e-6f)
+        assertEquals(15f, swing.maxKg, 1e-6f)
+        assertEquals(10f, swing.maxStepKg, 1e-6f) // |15-5| across sessions 1->2
+        assertEquals(3, swing.sessions)
+    }
 }

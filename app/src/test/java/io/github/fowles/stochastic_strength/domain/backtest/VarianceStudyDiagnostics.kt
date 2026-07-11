@@ -61,3 +61,18 @@ fun sameMusclePairCorrelations(stream: List<ScoredSet>): List<PairCorrelation> {
     }
     return out
 }
+
+data class LightLiftSwing(
+    val exerciseId: Long, val minKg: Float, val maxKg: Float, val maxStepKg: Float, val sessions: Int,
+)
+
+/** The lightest accessory's prescription volatility: smallest-median exercise, its range and max step. */
+fun lightestLiftSwing(rows: List<BacktestHarness.Row>): LightLiftSwing? {
+    if (rows.isEmpty()) return null
+    val byExercise = rows.groupBy { it.exerciseId }
+    fun median(xs: List<Float>): Float { val s = xs.sorted(); return s[s.size / 2] }
+    val lightest = byExercise.minByOrNull { median(it.value.map { r -> r.weightKg }) } ?: return null
+    val ordered = lightest.value.sortedBy { it.sessionId }.map { it.weightKg }
+    val maxStep = ordered.zipWithNext { a, b -> kotlin.math.abs(b - a) }.maxOrNull() ?: 0f
+    return LightLiftSwing(lightest.key, ordered.min(), ordered.max(), maxStep, ordered.size)
+}
