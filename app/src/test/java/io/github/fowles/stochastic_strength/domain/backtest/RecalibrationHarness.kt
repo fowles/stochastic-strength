@@ -70,6 +70,76 @@ object RecalibrationHarness {
      * by differencing scored replays of [1..k+1] and [1..k] under the same θ. Default θ scored
      * the same way is the honest baseline.
      */
+    enum class Flag { STABLE, PINS_BOUND, FRAGILE }
+
+    data class ParamVerdict(
+        val name: String,
+        val trajectory: List<Double>,
+        val proposedMultiplier: Double,
+        val cvDelta: Double,
+        val flag: Flag,
+    )
+
+    data class RecalibrationReport(
+        val sessionCount: Int,
+        val foldCount: Int,
+        val params: List<ParamVerdict>,
+        val cvTotalProposed: Double,
+        val cvTotalDefault: Double,
+    )
+
+    private fun percentile(sorted: List<Double>, p: Double): Double {
+        if (sorted.isEmpty()) return Double.NaN
+        val idx = (p * (sorted.size - 1)).coerceIn(0.0, (sorted.size - 1).toDouble())
+        val lo = idx.toInt()
+        val hi = minOf(lo + 1, sorted.size - 1)
+        val frac = idx - lo
+        return sorted[lo] * (1 - frac) + sorted[hi] * frac
+    }
+
+    private fun median(xs: List<Double>): Double = percentile(xs.sorted(), 0.5)
+
+    /** Later half of the trajectory (most data); at least the last element. */
+    private fun matureHalf(trajectory: List<Double>): List<Double> {
+        if (trajectory.isEmpty()) return trajectory
+        val from = trajectory.size / 2
+        return trajectory.subList(from, trajectory.size)
+    }
+
+    fun classify(trajectory: List<Double>, loBound: Double, hiBound: Double): Flag {
+        val mature = matureHalf(trajectory)
+        if (mature.isEmpty()) return Flag.FRAGILE
+        val atBound = mature.count { m ->
+            kotlin.math.abs(m - loBound) <= 0.01 * loBound || kotlin.math.abs(m - hiBound) <= 0.01 * hiBound
+        }
+        if (atBound * 2 >= mature.size) return Flag.PINS_BOUND
+        val sorted = mature.sorted()
+        val med = median(mature)
+        val spread = if (med == 0.0) Double.MAX_VALUE else (percentile(sorted, 0.75) - percentile(sorted, 0.25)) / med
+        return if (spread <= 0.25) Flag.STABLE else Flag.FRAGILE
+    }
+
+    fun assemble(user: UserHistory, rows: List<FoldRow>, loBound: Double, hiBound: Double): RecalibrationReport {
+        val names = listOf("drift", "fatigue", "procNoise", "tau")
+        val verdicts = names.mapIndexed { i, name ->
+            val trajectory = rows.map { it.multipliers[i] }
+            ParamVerdict(
+                name = name,
+                trajectory = trajectory,
+                proposedMultiplier = median(matureHalf(trajectory)),
+                cvDelta = rows.sumOf { it.heldOutProposed } - rows.sumOf { it.heldOutDefault },
+                flag = classify(trajectory, loBound, hiBound),
+            )
+        }
+        return RecalibrationReport(
+            sessionCount = user.history.sessions.count { it.endTime != null },
+            foldCount = rows.size,
+            params = verdicts,
+            cvTotalProposed = rows.sumOf { it.heldOutProposed },
+            cvTotalDefault = rows.sumOf { it.heldOutDefault },
+        )
+    }
+
     fun foldScores(
         user: UserHistory,
         minFoldSessions: Int = 8,

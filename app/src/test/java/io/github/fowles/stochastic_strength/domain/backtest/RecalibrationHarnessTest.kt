@@ -85,4 +85,37 @@ class RecalibrationHarnessTest {
             rows.any { kotlin.math.abs(it.heldOutDefault) > 1e-9 },
         )
     }
+
+    @Test
+    fun classify_flagsStablePinnedAndFragileTrajectories() {
+        val lo = 1.0 / 16.0
+        val hi = 16.0
+        // Tight around 6.0 -> STABLE
+        assertEquals(
+            RecalibrationHarness.Flag.STABLE,
+            RecalibrationHarness.classify(listOf(5.9, 6.0, 6.1, 6.0), lo, hi),
+        )
+        // Sitting at the upper bound -> PINS_BOUND
+        assertEquals(
+            RecalibrationHarness.Flag.PINS_BOUND,
+            RecalibrationHarness.classify(listOf(16.0, 16.0, 15.99, 16.0), lo, hi),
+        )
+        // All over the place -> FRAGILE
+        assertEquals(
+            RecalibrationHarness.Flag.FRAGILE,
+            RecalibrationHarness.classify(listOf(0.5, 3.0, 1.0, 9.0), lo, hi),
+        )
+    }
+
+    @Test
+    fun assemble_producesFourVerdictsAndCvTotals() {
+        val user = RecalibrationHarness.UserHistory(history(6)) { emptySnapshot() }
+        val rows = RecalibrationHarness.foldScores(user, minFoldSessions = 3) { EstimatorConfig() }
+        val report = RecalibrationHarness.assemble(user, rows, 1.0 / 16.0, 16.0)
+        assertEquals(4, report.params.size)
+        assertEquals(listOf("drift", "fatigue", "procNoise", "tau"), report.params.map { it.name })
+        // Identity fit -> proposed multipliers all 1.0, CV delta ~0.
+        report.params.forEach { assertEquals(1.0, it.proposedMultiplier, 1e-9) }
+        assertEquals(0.0, report.cvTotalProposed - report.cvTotalDefault, 1e-9)
+    }
 }
