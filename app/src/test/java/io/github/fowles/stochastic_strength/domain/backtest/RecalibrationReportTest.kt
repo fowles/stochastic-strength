@@ -28,9 +28,10 @@ class RecalibrationReportTest {
         assertEquals(listOf("drift", "fatigue", "procNoise", "tau"), report.params.map { it.name })
         assertEquals(maxOf(0, n - 8), report.foldCount)   // folds k = 8 .. N-1
         report.params.forEach { assertEquals(report.foldCount, it.trajectory.size) }
-        // Every proposed multiplier lands inside the widened harness box.
+        // Every proposed multiplier lands inside the widened harness box (bounds tracked from config).
+        val cfg = RecalibrationHarness.harnessFitConfig()
         report.params.forEach {
-            assertTrue(it.proposedMultiplier in (1.0 / 16.0)..16.0)
+            assertTrue(it.proposedMultiplier in cfg.boundMultiplierLo..cfg.boundMultiplierHi)
         }
     }
 }

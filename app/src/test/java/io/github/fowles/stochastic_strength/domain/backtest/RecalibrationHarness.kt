@@ -152,7 +152,13 @@ object RecalibrationHarness {
 
     fun harnessFitConfig(): FitConfig = FitConfig(
         minFitSessions = 8,
-        boundMultiplierLo = 1.0 / 16.0,
+        // Low bound roomy (fatigue wants ~0.13× and some folds go lower); high bound set to the
+        // out-of-sample CV-optimal cap. A bound sweep (2026-07-11) showed procNoise has NO interior —
+        // it pins whatever cap it is given (obs-noise is pinned low by design, so unexplained
+        // session variance dumps into procNoise). Held-out CV delta vs default peaks at cap ×16
+        // (+31.3), plateaus down to ×8 (+30.6), and degrades beyond (×32 +28.3, ×64 +23.3): widening
+        // overfits. So the cap is a regularization choice, and ×16 is the CV-max operating point.
+        boundMultiplierLo = 1.0 / 64.0,
         boundMultiplierHi = 16.0,
         priorSd = 1.5,
         maxIterations = 200,
