@@ -137,17 +137,29 @@ data class EstimatorConfig(
     val adaptRunDecay: Float = 0.5f,
     /**
      * Multiplier on every set's observation noise σ_obs (equivalently, a uniform scale on
-     * repNoiseBucket/Counted/Rel + obsModelSd). The variance-identification study found real obs-noise
-     * is underspecified (within-session residual share 57%); jointly re-fit with sessionDayEffectSd.
-     * 1f = today's behavior.
+     * repNoiseBucket/Counted/Rel + obsModelSd).
+     *
+     * Source: joint (obsNoiseScale × sessionDayEffectSd) held-out one-step-ahead CV fit over the
+     * real 24-session history, 2026-07-11 (report: app/build/variance-budget-jointfit-report.txt).
+     * Rationale: interior optimum in BOTH dims at (2.5, 0.08); held-out log-score −190.08 vs default
+     * −277.5. The within-session residual share is ~57% (obs-noise), between-session ~43% (day-effect);
+     * adopting BOTH at lower magnitudes than their solo optima (solo: obs ×3, day 0.18) because each
+     * absorbs part of the other's residual. Light-lift swing collapsed 2.27→0.0 kg (dampening, not
+     * destabilizing). Pinned by variance-budget study 2026-07-11.
      */
-    val obsNoiseScale: Float = 1f,
+    val obsNoiseScale: Float = 2.5f,
     /**
      * σ_day: std of the shared per-session "good-day/bad-day" random intercept d ~ N(0, σ_day²),
      * estimated from a session's own sets and integrated out of the belief folds (transient, never
-     * durable). Absorbs the between-session residual share (~43%). 0f = no day-effect (today's behavior).
+     * durable).
+     *
+     * Source: joint (obsNoiseScale × sessionDayEffectSd) held-out one-step-ahead CV fit over the
+     * real 24-session history, 2026-07-11 (report: app/build/variance-budget-jointfit-report.txt).
+     * Rationale: interior optimum in BOTH dims at (2.5, 0.08); absorbs the between-session residual
+     * share (~43%). Adopting at lower magnitude than the solo optimum (0.18) because obsNoiseScale
+     * jointly absorbs part of the same residual. Pinned by variance-budget study 2026-07-11.
      */
-    val sessionDayEffectSd: Float = 0f,
+    val sessionDayEffectSd: Float = 0.08f,
 )
 
 /** τ for an exercise's equipment class; unknown/other-loaded → the loosest class. */
