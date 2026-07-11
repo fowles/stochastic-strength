@@ -135,6 +135,19 @@ data class EstimatorConfig(
     val adaptInflationPerExcess: Float = 2.0f,
     /** Decay applied to the run when an observation lands on-belief (no surprise), so it fades toward 0. */
     val adaptRunDecay: Float = 0.5f,
+    /**
+     * Multiplier on every set's observation noise σ_obs (equivalently, a uniform scale on
+     * repNoiseBucket/Counted/Rel + obsModelSd). The variance-identification study found real obs-noise
+     * is underspecified (within-session residual share 57%); jointly re-fit with sessionDayEffectSd.
+     * 1f = today's behavior.
+     */
+    val obsNoiseScale: Float = 1f,
+    /**
+     * σ_day: std of the shared per-session "good-day/bad-day" random intercept d ~ N(0, σ_day²),
+     * estimated from a session's own sets and integrated out of the belief folds (transient, never
+     * durable). Absorbs the between-session residual share (~43%). 0f = no day-effect (today's behavior).
+     */
+    val sessionDayEffectSd: Float = 0f,
 )
 
 /** τ for an exercise's equipment class; unknown/other-loaded → the loosest class. */

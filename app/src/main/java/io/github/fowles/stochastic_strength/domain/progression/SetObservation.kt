@@ -35,7 +35,7 @@ data class SetObservation(
             val lambda = repSlope(w, r)
             fun noise(base: Float): Float {
                 val repSd = lambda * sqrt(base * base + (config.repNoiseRel * r) * (config.repNoiseRel * r))
-                return sqrt(repSd * repSd + config.obsModelSd * config.obsModelSd)
+                return config.obsNoiseScale * sqrt(repSd * repSd + config.obsModelSd * config.obsModelSd)
             }
             return when (feedback) {
                 SetFeedback.TOO_HARD -> {
