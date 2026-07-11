@@ -1,6 +1,11 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
+import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
+import io.github.fowles.stochastic_strength.domain.progression.PredictiveScoreAccumulator
+import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.ReplayHistory
+import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 
 /**
  * Phase-5 offline recalibration: forward-chaining cross-validation over real histories to
@@ -8,6 +13,20 @@ import io.github.fowles.stochastic_strength.domain.progression.ReplayHistory
  * test-tree; changes no production constant (adoption is a separate human-gated step).
  */
 object RecalibrationHarness {
+
+    data class UserHistory(
+        val history: ReplayHistory,
+        val newSnapshot: () -> ReplaySnapshot,
+    )
+
+    data class FoldRow(
+        val k: Int,
+        val multipliers: DoubleArray,
+        val heldOutProposed: Double,
+        val heldOutDefault: Double,
+    )
+
+    private val DEFAULTS = EstimatorConfig()
 
     /** First [k] completed sessions (ordered by endTime), with only their sets/overrides. */
     fun truncateTo(history: ReplayHistory, k: Int): ReplayHistory {
@@ -20,5 +39,58 @@ object RecalibrationHarness {
             setsBySession = history.setsBySession.filterKeys { it in keptIds },
             sessionOverrides = history.sessionOverrides.filterKeys { it in keptIds },
         )
+    }
+
+    /** Sum of one-step-ahead predictive log-scores over a replay of [history] under [config]. */
+    fun scoredReplayTotal(
+        history: ReplayHistory,
+        config: EstimatorConfig,
+        newSnapshot: () -> ReplaySnapshot,
+    ): Double {
+        val acc = PredictiveScoreAccumulator()
+        val engine = ReplayEngine(
+            SessionProgressionStepper(config = config, scorer = acc),
+            config,
+        )
+        engine.run(history, newSnapshot()) { _, _, _, _, _ -> }
+        return acc.total
+    }
+
+    /** Multipliers of a fitted config over the defaults, in applyTheta order (drift,fatigue,procNoise,tau). */
+    private fun multipliersOf(c: EstimatorConfig): DoubleArray = doubleArrayOf(
+        (c.detrainRatePerWeek / DEFAULTS.detrainRatePerWeek).toDouble(),
+        (c.fatiguePerSet / DEFAULTS.fatiguePerSet).toDouble(),
+        (c.processNoisePerDay / DEFAULTS.processNoisePerDay).toDouble(),
+        (c.tauBarbell / DEFAULTS.tauBarbell).toDouble(),
+    )
+
+    /**
+     * Forward-chaining CV over one user history. For each fold k in [minFoldSessions, N-1],
+     * fit θ on sessions[1..k] and score the held-out one-step-ahead prediction of session k+1
+     * by differencing scored replays of [1..k+1] and [1..k] under the same θ. Default θ scored
+     * the same way is the honest baseline.
+     */
+    fun foldScores(
+        user: UserHistory,
+        minFoldSessions: Int = 8,
+        fit: (ReplayHistory) -> EstimatorConfig,
+    ): List<FoldRow> {
+        val n = user.history.sessions.count { it.endTime != null }
+        val rows = mutableListOf<FoldRow>()
+        for (k in minFoldSessions..(n - 1)) {
+            val train = truncateTo(user.history, k)
+            val trainPlus = truncateTo(user.history, k + 1)
+            val theta = fit(train)
+            fun heldOut(config: EstimatorConfig): Double =
+                scoredReplayTotal(trainPlus, config, user.newSnapshot) -
+                    scoredReplayTotal(train, config, user.newSnapshot)
+            rows += FoldRow(
+                k = k,
+                multipliers = multipliersOf(theta),
+                heldOutProposed = heldOut(theta),
+                heldOutDefault = heldOut(DEFAULTS),
+            )
+        }
+        return rows
     }
 }
