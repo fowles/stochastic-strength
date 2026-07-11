@@ -5,7 +5,8 @@ import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 /** Joint (obsNoiseScale, σ_day) grid search over held-out one-step-ahead CV on the real history. */
 object VarianceBudgetJointFit {
     val OBS_SCALES = listOf(1.0, 1.5, 2.0, 2.5, 3.0)
-    val DAY_SDS = listOf(0.0, 0.08, 0.12, 0.16, 0.20, 0.24)
+    /** Refined grid (coarse run peaked at 0.08, the lowest non-zero point; this brackets the peak). */
+    val DAY_SDS = listOf(0.02, 0.04, 0.06, 0.08, 0.10, 0.12)
 
     data class Cell(val obsScale: Double, val sigmaDay: Double, val heldOut: Double)
     data class Result(val grid: List<Cell>, val best: Cell, val interiorObs: Boolean, val interiorDay: Boolean)
