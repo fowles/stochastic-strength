@@ -28,15 +28,35 @@ class StepperDayEffectTest {
     )
 
     @Test fun zeroSigmaDayIsBitIdenticalToNoDayEffect() {
-        val ids = listOf(1L, 2L)
+        // Single exercise: fold via step() at σ_day=0 must equal a plain BeliefUpdater fold sequence
+        // (no day-offset, no cross-exercise pooling) — the foundational no-op invariant.
+        val cfg = EstimatorConfig(sessionDayEffectSd = 0f)
+        val ex = 1L
         val sets = listOf(
-            set(1, 1, 65f, 5, SetFeedback.RIR_0_1), set(1, 2, 65f, 5, SetFeedback.RIR_0_1),
-            set(2, 1, 70f, 5, SetFeedback.RIR_2_4), set(2, 2, 70f, 5, SetFeedback.RIR_2_4),
+            set(ex, 1, 65f, 5, SetFeedback.RIR_0_1),
+            set(ex, 2, 65f, 5, SetFeedback.RIR_2_4),
+            set(ex, 3, 65f, 5, SetFeedback.TOO_HARD),
         )
-        val a = snapshot(ids); val b = snapshot(ids)
-        SessionProgressionStepper(EstimatorConfig(sessionDayEffectSd = 0f)).step(sets, a, asOf = DAY)
-        SessionProgressionStepper(EstimatorConfig(sessionDayEffectSd = 0f)).step(sets, b, asOf = DAY)
-        for (id in ids) assertEquals(a.currentBeliefs[id]!!.mu, b.currentBeliefs[id]!!.mu, 0f)
+        // Actual: through the stepper.
+        val snap = snapshot(listOf(ex))
+        SessionProgressionStepper(cfg).step(sets, snap, asOf = DAY)
+        val actual = snap.currentBeliefs[ex]!!
+
+        // Oracle: fold the identical observations directly through BeliefUpdater, in setNumber order,
+        // starting from the same seed belief. muscleLastObs is null (no prior observation this run).
+        val updater = BeliefUpdater(cfg)
+        var belief = ExerciseBelief.seed(60f, at = 0L, config = cfg)
+        sets.sortedBy { it.setNumber }.forEachIndexed { i, s ->
+            val obs = SetObservation.from(s, fatigueRank = i + 1, config = cfg)!!
+            belief = if (obs.gaussianLn != null) {
+                updater.foldGaussian(belief, obs.gaussianLn, obs.noiseSd, DAY, null)
+            } else {
+                updater.foldCensored(belief, obs.lowerLn, obs.upperLn, obs.noiseSd, DAY, null)
+            }
+        }
+
+        assertEquals(belief.mu, actual.mu, 0f)
+        assertEquals(belief.sigma2, actual.sigma2, 0f)
     }
 
     @Test fun uniformlyHighSessionDampensPerExerciseUpdatesVsNoDayEffect() {
