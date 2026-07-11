@@ -48,6 +48,28 @@ fun interiorVerdict(points: List<SweepPoint>): InteriorVerdict {
  * The LEARNING step uses obsLocation for censored sets (moment-match approximation); the SCORE uses the
  * exact censored mass. σ_day = 0 ⇒ dVar = 0 ⇒ the offset never moves ⇒ identical to BaselineScorer.
  */
+/**
+ * Heavy-tailed observation model: Student-t with [nu] dof and scale sqrt(predVar) (ν→∞ ⇒ Gaussian).
+ * Gaussian-point obs use the standardized t log-pdf; censored intervals use the t-interval mass.
+ */
+class StudentTScorer(private val nu: Double) : SetScorer {
+    override fun sessionScore(setsInSession: List<ScoredSet>): Double =
+        setsInSession.sumOf { s ->
+            val predVar = (s.cleanVar + s.obs.noiseSd * s.obs.noiseSd).toDouble()
+            val sd = kotlin.math.sqrt(predVar)
+            if (s.obs.gaussianLn != null) {
+                val z = (s.obs.gaussianLn - s.predMeanLn) / sd
+                StudentT.logPdf(z, nu) - kotlin.math.ln(sd)
+            } else {
+                val a = s.obs.lowerLn?.let { (it - s.predMeanLn) / sd }?.toDouble()
+                val b = s.obs.upperLn?.let { (it - s.predMeanLn) / sd }?.toDouble()
+                val loMass = a?.let { StudentT.cdf(it, nu) } ?: 0.0
+                val hiMass = b?.let { StudentT.cdf(it, nu) } ?: 1.0
+                kotlin.math.ln((hiMass - loMass).coerceAtLeast(1e-12))
+            }
+        }
+}
+
 class DayEffectScorer(private val sigmaDay: Float) : SetScorer {
     override fun sessionScore(setsInSession: List<ScoredSet>): Double {
         var dMean = 0f
