@@ -36,6 +36,7 @@ import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.ReplayHistory
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -261,11 +262,23 @@ class WorkoutRepository(
     }
 
     /** Kicks a background fit when the history changed since the cached θ was fit. Keyed on history
-     *  only, so the fit's own follow-up rebuild sees an unchanged key and does not relaunch. */
+     *  only, so the fit's own follow-up rebuild sees an unchanged key and does not relaunch. The fit
+     *  is best-effort: if the DB is torn down mid-fit (app shutdown, or a test closing its in-memory
+     *  DB at teardown) the DB access throws, and we abandon quietly — θ keeps its last value and the
+     *  next rebuild retries. Swallowing here keeps the fire-and-forget coroutine from crashing on a
+     *  closed connection; [fitBlocking] itself still propagates to direct (awaited) callers. */
     private fun maybeLaunchFit(history: ReplayHistory) {
         val key = keyFor(history)
         if (key == derivedState.activeFitKey()) return
-        scope.launch { fitBlocking(history) }
+        scope.launch {
+            try {
+                fitBlocking(history)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Best-effort: DB closed or fit failed; abandon this fit.
+            }
+        }
     }
 
     private fun keyFor(history: ReplayHistory): FitKey {
