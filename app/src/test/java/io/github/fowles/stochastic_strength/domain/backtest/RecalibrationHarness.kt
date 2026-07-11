@@ -190,6 +190,27 @@ object RecalibrationHarness {
         return sb.toString()
     }
 
+    /** A candidate default config as multipliers on the four fitted params (order: drift, fatigue, procNoise, tau). */
+    fun configWithMultipliers(drift: Double, fatigue: Double, procNoise: Double, tau: Double): EstimatorConfig =
+        DEFAULTS.copy(
+            detrainRatePerWeek = (DEFAULTS.detrainRatePerWeek * drift).toFloat(),
+            fatiguePerSet = (DEFAULTS.fatiguePerSet * fatigue).toFloat(),
+            processNoisePerDay = (DEFAULTS.processNoisePerDay * procNoise).toFloat(),
+            tauBarbell = (DEFAULTS.tauBarbell * tau).toFloat(),
+            tauMachineCable = (DEFAULTS.tauMachineCable * tau).toFloat(),
+            tauOtherLoaded = (DEFAULTS.tauOtherLoaded * tau).toFloat(),
+        )
+
+    /**
+     * Out-of-sample predictive score on the held-out tail (sessions minFoldSessions+1 .. N) under a
+     * FIXED config (no per-fold refit). With a fixed config the forward-chaining held-out sum
+     * telescopes to score(full) − score(first minFoldSessions), i.e. the predictive score of the
+     * held-out tail — so a fixed-config default candidate can be evaluated with two replays.
+     */
+    fun heldOutTailScore(user: UserHistory, config: EstimatorConfig, minFoldSessions: Int = 8): Double =
+        scoredReplayTotal(user.history, config, user.newSnapshot) -
+            scoredReplayTotal(truncateTo(user.history, minFoldSessions), config, user.newSnapshot)
+
     fun foldScores(
         user: UserHistory,
         minFoldSessions: Int = 8,
