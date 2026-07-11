@@ -92,7 +92,7 @@ cross-validation over the real 24-session history, held-out one-step-ahead predi
 - `EstimatorConfig` holds ~20 hand-chosen constants (z, δ, `obsModelSd`, `adaptRunThreshold`,
   `adaptInflationPerExcess`, `levelAnchorPrecision`, `tauBarbell/MachineCable/OtherLoaded`,
   `fatiguePerSet`, `processNoisePerDay`, `repNoiseBucket/Counted/Rel`, `sigmaSeed`, …). Each has a
-  plausible-sounding KDoc justification; almost none were fit to held-out real data.
+  plausible-sounding KDoc justification; none were fit to held-out real data.
 - Most are **pinned by `BeliefSimulationTest`**, a synthetic lifter whose noise/fatigue model is
   *defined to match the estimator's model* (e.g. the sim's cross-set fatigue is set equal to
   `EstimatorConfig.fatiguePerSet`). So the simulation cannot discover that the model is wrong about
@@ -130,6 +130,9 @@ The next phase should approach these from the data, not from the current structu
   even the right way to reason about prescriptions near the grid floor?
 - **Which constants survive contact with data at all?** Re-derive or re-justify each one against
   held-out CV; retire the ones that are only sim-pinned artifacts.
+- **Are the constants for converting to or from pool muscle belief reasonable?**
+  Look at the data to get a sense for it when we have corresponding exercises
+  near each other.
 
 ## 5. What NOT to do (bias traps observed this phase)
 
