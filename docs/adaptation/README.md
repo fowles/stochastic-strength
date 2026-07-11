@@ -12,6 +12,7 @@ real strength instead of a fixed plan.
 | 3 | [Per-exercise beliefs](03-exercise-estimates.md) | The durable progression state — one Gaussian belief (μ, σ²) per exercise | `domain/progression/ExerciseBelief.kt`, `BeliefUpdater.kt` |
 | 4 | [Read-time muscle pooling](04-muscle-pooling.md) | How a muscle's exercises cross-inform at prescription time (n_eff level + bridge shrink) | `domain/progression/MuscleStrengthProjector.kt` |
 | 5 | [Prescription policy](05-prescription-policy.md) | Every training decision between the pooled belief and the weight on the bar | `domain/policy/PrescriptionPolicy.kt` |
+| 6 | [Per-user MAP fitting](06-fitting.md) | Calibrating four structural hyperparameters to your history via predictive scoring | `domain/progression/HyperparameterFitter.kt`, `PredictiveScoreAccumulator.kt` |
 
 ## The shape of the progression system
 

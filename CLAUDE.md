@@ -80,6 +80,8 @@ The tuning constants live in `EstimatorConfig` and are pinned by `BeliefSimulati
 
 Session weight is scaled to the session's chosen rep target via the load-aware 1RM formula from https://arxiv.org/pdf/2603.17495 (see `DefaultProgressionEngine`). Seed coefficients come from `ExerciseCoefficients`; derived coefficients (effectiveE1rm / level) are display projections only. All exercises use a fixed `PlannedExercise.DEFAULT_SETS` (3) sets.
 
+**Phase-4 per-user MAP fitting** (live): four hyperparameter multipliers — strength-drift rate, per-set fatigue (φ), variance-growth rate, and cross-exercise transfer scale (τ) — are fitted by predictive scoring during replay (`HyperparameterFitter`), run in the background after session finish, keyed on history so it never loops; θ is never persisted (in-memory only, recomputed by replay). Feedback trust (obsModelSd) is deliberately not fitted — an early real-history fit allowed to tune it saturated its cap, so it stays pinned. See `docs/adaptation/06-fitting.md`.
+
 ### Location & equipment filtering
 
 On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation`. `WorkoutRepository.buildPlanner` filters out exercises listed in `LocationExcludedExercise` for that location. If location is unknown, no exclusions are applied.
