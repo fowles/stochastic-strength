@@ -26,36 +26,57 @@ class SessionProgressionStepper(
     fun step(sets: List<WorkoutSet>, snapshot: ReplaySnapshot, asOf: Long): StepResult {
         if (sets.isEmpty()) return StepResult(emptyList())
 
-        val affectedMuscles = mutableSetOf<MuscleGroup>()
-        sets.groupBy { it.exerciseId }.forEach { (id, exSets) ->
-            if ((snapshot.seedCoefficients[id] ?: 0f) <= 0f) return@forEach
-            var belief = snapshot.currentBeliefs[id] ?: return@forEach
-            val muscleLast = snapshot.exerciseMuscle[id]?.let { snapshot.muscleLastObs[it] }
-            // Pre-fold pooled prediction for scoring (spec §2): half-blended mean μ̃ from the projector,
-            // clean own variance aged to asOf. Computed once per exercise, before its own sets fold.
-            var predMeanLn: Float? = null
-            var predCleanVar = 0f
-            if (scorer != null) {
-                val muscle = snapshot.exerciseMuscle[id]
-                val ids = muscle?.let { snapshot.muscleExerciseIds[it] }
-                if (ids != null) {
-                    val proj = projector.project(
-                        beliefs = snapshot.currentBeliefs, seedCoef = snapshot.seedCoefficients,
-                        muscleExerciseIds = ids, now = asOf,
-                        muscleLastObs = snapshot.muscleLastObs[muscle], equipment = snapshot.exerciseEquipment,
-                    )
-                    predMeanLn = proj.effectiveE1rm[id]?.let { kotlin.math.ln(it) }
-                    predCleanVar = updater.age(belief, asOf, muscleLast).evidenceVar
-                }
+        val byExercise = sets.groupBy { it.exerciseId }
+            .filter { (id, _) -> (snapshot.seedCoefficients[id] ?: 0f) > 0f && snapshot.currentBeliefs[id] != null }
+
+        // Pre-session pooled prediction per exercise (offset-free), computed once from start-of-session
+        // beliefs — the basis for both the day-offset residual (Pass 1) and predictive scoring.
+        data class Pred(val meanLn: Float, val cleanVar: Float)
+        val pred: Map<Long, Pred> = byExercise.keys.mapNotNull { id ->
+            val muscle = snapshot.exerciseMuscle[id] ?: return@mapNotNull null
+            val ids = snapshot.muscleExerciseIds[muscle] ?: return@mapNotNull null
+            val proj = projector.project(
+                beliefs = snapshot.currentBeliefs, seedCoef = snapshot.seedCoefficients,
+                muscleExerciseIds = ids, now = asOf,
+                muscleLastObs = snapshot.muscleLastObs[muscle], equipment = snapshot.exerciseEquipment,
+            )
+            val meanLn = proj.effectiveE1rm[id]?.let { kotlin.math.ln(it) } ?: return@mapNotNull null
+            val cleanVar = updater.age(snapshot.currentBeliefs[id]!!, asOf, snapshot.muscleLastObs[muscle]).evidenceVar
+            id to Pred(meanLn, cleanVar)
+        }.toMap()
+
+        // Pass 1: estimate the shared session day-offset from all load-bearing residuals.
+        val residuals = mutableListOf<SessionDayEffect.Residual>()
+        for ((id, exSets) in byExercise) {
+            val p = pred[id] ?: continue
+            exSets.sortedBy { it.setNumber }.forEachIndexed { i, set ->
+                val obs = SetObservation.from(set, fatigueRank = i + 1, config = config) ?: return@forEachIndexed
+                residuals += SessionDayEffect.Residual(
+                    value = obsLocation(obs) - p.meanLn,
+                    obsVar = p.cleanVar + obs.noiseSd * obs.noiseSd,
+                )
             }
+        }
+        val day = SessionDayEffect.estimate(config.sessionDayEffectSd, residuals)
+
+        // Pass 2: fold each exercise, shifting the observation by −day.mean and marginalizing day.variance
+        // into the observation noise. day = (0,0) when σ_day = 0 ⇒ identical to the prior model.
+        val affectedMuscles = mutableSetOf<MuscleGroup>()
+        for ((id, exSets) in byExercise) {
+            var belief = snapshot.currentBeliefs[id]!!
+            val muscleLast = snapshot.exerciseMuscle[id]?.let { snapshot.muscleLastObs[it] }
+            val p = pred[id]
             var folded = false
             exSets.sortedBy { it.setNumber }.forEachIndexed { i, set ->
                 val obs = SetObservation.from(set, fatigueRank = i + 1, config = config) ?: return@forEachIndexed
-                if (scorer != null && predMeanLn != null) scorer.accumulate(obs, predMeanLn, predCleanVar)
+                if (scorer != null && p != null) {
+                    scorer.accumulate(shiftObs(obs, -day.mean), p.meanLn, p.cleanVar + day.variance)
+                }
+                val infNoise = kotlin.math.sqrt(obs.noiseSd * obs.noiseSd + day.variance)
                 belief = if (obs.gaussianLn != null) {
-                    updater.foldGaussian(belief, obs.gaussianLn, obs.noiseSd, asOf, muscleLast)
+                    updater.foldGaussian(belief, obs.gaussianLn - day.mean, infNoise, asOf, muscleLast)
                 } else {
-                    updater.foldCensored(belief, obs.lowerLn, obs.upperLn, obs.noiseSd, asOf, muscleLast)
+                    updater.foldCensored(belief, obs.lowerLn?.minus(day.mean), obs.upperLn?.minus(day.mean), infNoise, asOf, muscleLast)
                 }
                 folded = true
             }
@@ -71,15 +92,28 @@ class SessionProgressionStepper(
             MuscleStep(
                 muscle = m,
                 projection = projector.project(
-                    beliefs = snapshot.currentBeliefs,
-                    seedCoef = snapshot.seedCoefficients,
-                    muscleExerciseIds = exerciseIds,
-                    now = asOf,
-                    muscleLastObs = snapshot.muscleLastObs[m],
-                    equipment = snapshot.exerciseEquipment,
+                    beliefs = snapshot.currentBeliefs, seedCoef = snapshot.seedCoefficients,
+                    muscleExerciseIds = exerciseIds, now = asOf,
+                    muscleLastObs = snapshot.muscleLastObs[m], equipment = snapshot.exerciseEquipment,
                 ),
             )
         }
         return StepResult(steps)
     }
+
+    /** Point location of an observation on ln(fresh-1RM): counted point, else interval midpoint, else the finite bound. */
+    private fun obsLocation(obs: SetObservation): Float = when {
+        obs.gaussianLn != null -> obs.gaussianLn
+        obs.lowerLn != null && obs.upperLn != null -> (obs.lowerLn + obs.upperLn) / 2f
+        obs.lowerLn != null -> obs.lowerLn
+        obs.upperLn != null -> obs.upperLn
+        else -> 0f
+    }
+
+    /** An observation with every populated bound/point shifted by [delta] (day-offset removal for scoring). */
+    private fun shiftObs(obs: SetObservation, delta: Float): SetObservation = obs.copy(
+        lowerLn = obs.lowerLn?.plus(delta),
+        upperLn = obs.upperLn?.plus(delta),
+        gaussianLn = obs.gaussianLn?.plus(delta),
+    )
 }
