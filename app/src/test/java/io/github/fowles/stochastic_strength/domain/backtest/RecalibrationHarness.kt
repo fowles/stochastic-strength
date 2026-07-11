@@ -2,6 +2,8 @@ package io.github.fowles.stochastic_strength.domain.backtest
 
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
+import io.github.fowles.stochastic_strength.domain.progression.FitConfig
+import io.github.fowles.stochastic_strength.domain.progression.HyperparameterFitter
 import io.github.fowles.stochastic_strength.domain.progression.PredictiveScoreAccumulator
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.ReplayHistory
@@ -138,6 +140,41 @@ object RecalibrationHarness {
             cvTotalProposed = rows.sumOf { it.heldOutProposed },
             cvTotalDefault = rows.sumOf { it.heldOutDefault },
         )
+    }
+
+    fun harnessFitConfig(): FitConfig = FitConfig(
+        minFitSessions = 8,
+        boundMultiplierLo = 1.0 / 16.0,
+        boundMultiplierHi = 16.0,
+        priorSd = 1.5,
+        maxIterations = 200,
+    )
+
+    fun runHarness(users: List<UserHistory>, minFoldSessions: Int = 8): RecalibrationReport {
+        val fitConfig = harnessFitConfig()
+        val allRows = users.flatMap { user ->
+            foldScores(user, minFoldSessions) { train ->
+                HyperparameterFitter(DEFAULTS, fitConfig)
+                    .fit(train) { user.newSnapshot() }
+                    .config
+            }
+        }
+        val ref = users.first()
+        return assemble(ref, allRows, fitConfig.boundMultiplierLo, fitConfig.boundMultiplierHi)
+            .copy(sessionCount = users.sumOf { u -> u.history.sessions.count { s -> s.endTime != null } })
+    }
+
+    fun format(report: RecalibrationReport): String {
+        val sb = StringBuilder()
+        sb.appendLine("Phase-5 recalibration report")
+        sb.appendLine("sessions=${report.sessionCount} folds=${report.foldCount}")
+        sb.appendLine("CV total: proposed=${"%.3f".format(report.cvTotalProposed)} default=${"%.3f".format(report.cvTotalDefault)} delta=${"%.3f".format(report.cvTotalProposed - report.cvTotalDefault)}")
+        sb.appendLine("param      proposed×  flag        trajectory")
+        for (p in report.params) {
+            val traj = p.trajectory.joinToString(",") { "%.2f".format(it) }
+            sb.appendLine("%-10s %-9s %-11s %s".format(p.name, "%.3f".format(p.proposedMultiplier), p.flag, traj))
+        }
+        return sb.toString()
     }
 
     fun foldScores(
