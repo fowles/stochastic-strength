@@ -121,7 +121,15 @@ object RecalibrationHarness {
         return if (spread <= 0.25) Flag.STABLE else Flag.FRAGILE
     }
 
-    fun assemble(user: UserHistory, rows: List<FoldRow>, loBound: Double, hiBound: Double): RecalibrationReport {
+    /**
+     * Assembles fold rows into a report. Deliberately does NOT take a [UserHistory]: every field
+     * here is derived from [rows] alone, so a multi-user caller can pool rows across users without
+     * any single user's identity leaking in. [RecalibrationReport.sessionCount] is left 0 — the
+     * caller owns it (it is a cross-user total, not a per-fold quantity) and must set it via
+     * `.copy(sessionCount = ...)` (see [runHarness]). Do NOT reintroduce a user param to compute
+     * new fields here without first teaching [runHarness] to aggregate them across users.
+     */
+    fun assemble(rows: List<FoldRow>, loBound: Double, hiBound: Double): RecalibrationReport {
         val names = listOf("drift", "fatigue", "procNoise", "tau")
         val verdicts = names.mapIndexed { i, name ->
             val trajectory = rows.map { it.multipliers[i] }
@@ -134,7 +142,7 @@ object RecalibrationHarness {
             )
         }
         return RecalibrationReport(
-            sessionCount = user.history.sessions.count { it.endTime != null },
+            sessionCount = 0,
             foldCount = rows.size,
             params = verdicts,
             cvTotalProposed = rows.sumOf { it.heldOutProposed },
@@ -159,8 +167,7 @@ object RecalibrationHarness {
                     .config
             }
         }
-        val ref = users.first()
-        return assemble(ref, allRows, fitConfig.boundMultiplierLo, fitConfig.boundMultiplierHi)
+        return assemble(allRows, fitConfig.boundMultiplierLo, fitConfig.boundMultiplierHi)
             .copy(sessionCount = users.sumOf { u -> u.history.sessions.count { s -> s.endTime != null } })
     }
 

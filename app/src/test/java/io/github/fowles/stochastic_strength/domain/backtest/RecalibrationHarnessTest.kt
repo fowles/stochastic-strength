@@ -111,7 +111,7 @@ class RecalibrationHarnessTest {
     fun assemble_producesFourVerdictsAndCvTotals() {
         val user = RecalibrationHarness.UserHistory(history(6)) { emptySnapshot() }
         val rows = RecalibrationHarness.foldScores(user, minFoldSessions = 3) { EstimatorConfig() }
-        val report = RecalibrationHarness.assemble(user, rows, 1.0 / 16.0, 16.0)
+        val report = RecalibrationHarness.assemble(rows, 1.0 / 16.0, 16.0)
         assertEquals(4, report.params.size)
         assertEquals(listOf("drift", "fatigue", "procNoise", "tau"), report.params.map { it.name })
         // Identity fit -> proposed multipliers all 1.0, CV delta ~0.
