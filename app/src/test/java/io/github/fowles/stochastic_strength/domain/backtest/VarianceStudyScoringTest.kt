@@ -31,4 +31,28 @@ class VarianceStudyScoringTest {
         val prod = RecalibrationHarness.scoredReplayTotal(data.history, cfg, data::newSnapshot)
         assertEquals(prod, ours, 1e-3)
     }
+
+    @Test fun dayEffectAtZeroSigmaEqualsBaseline() {
+        val cfg = io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig()
+        val data = BacktestHarness.load()
+        assumeTrue("no personal history.json fixture; skipping", data != null)
+        data!!
+        val stream = captureStream(data.history, cfg, data::newSnapshot)
+        val base = heldOutScore(stream, BaselineScorer, minFold = 0)
+        val day0 = heldOutScore(stream, DayEffectScorer(sigmaDay = 0f), minFold = 0)
+        assertEquals(base, day0, 1e-6)
+    }
+
+    @Test fun dayEffectSharpensLaterSetsInSession() {
+        // Two sets in one session, both far above prediction in the same direction: after learning a
+        // positive day offset from set 1, set 2's score should be higher than the baseline (no-offset) score.
+        val obs = io.github.fowles.stochastic_strength.domain.progression.SetObservation(
+            lowerLn = null, upperLn = null, gaussianLn = 5.0f, noiseSd = 0.1f,
+        )
+        val s1 = ScoredSet(1L, 1L, null, 0L, 0, 1, obs, predMeanLn = 4.5f, cleanVar = 0.04f)
+        val s2 = ScoredSet(1L, 2L, null, 0L, 0, 1, obs, predMeanLn = 4.5f, cleanVar = 0.04f)
+        val baseline = BaselineScorer.sessionScore(listOf(s1, s2))
+        val withDay = DayEffectScorer(sigmaDay = 0.15f).sessionScore(listOf(s1, s2))
+        assertTrue(withDay > baseline)
+    }
 }

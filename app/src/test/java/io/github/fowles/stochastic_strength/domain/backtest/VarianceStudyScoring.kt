@@ -40,3 +40,35 @@ fun interiorVerdict(points: List<SweepPoint>): InteriorVerdict {
     val interior = bestIdx != 0 && bestIdx != points.lastIndex
     return InteriorVerdict(best.param, best.score, interior)
 }
+
+/**
+ * Session day-effect: a shared latent offset d ~ N(0, σ_day²) learned sequentially across the session.
+ * Each set is scored with predVar = cleanVar + noiseSd² + dVar (day integrated out), then d is updated
+ * by a Gaussian Kalman step on the residual (obsLocation − predMean) with obs variance cleanVar+noiseSd².
+ * The LEARNING step uses obsLocation for censored sets (moment-match approximation); the SCORE uses the
+ * exact censored mass. σ_day = 0 ⇒ dVar = 0 ⇒ the offset never moves ⇒ identical to BaselineScorer.
+ */
+class DayEffectScorer(private val sigmaDay: Float) : SetScorer {
+    override fun sessionScore(setsInSession: List<ScoredSet>): Double {
+        var dMean = 0f
+        var dVar = sigmaDay * sigmaDay
+        var total = 0.0
+        val ordered = setsInSession.sortedWith(compareBy({ it.setNumber }, { it.exerciseId }))
+        for (s in ordered) {
+            val r = s.cleanVar + s.obs.noiseSd * s.obs.noiseSd
+            val predMean = s.predMeanLn + dMean
+            val predVar = r + dVar
+            total += if (s.obs.gaussianLn != null) {
+                PredictiveDensity.gaussianLogDensity(s.obs.gaussianLn, predMean, predVar).toDouble()
+            } else {
+                PredictiveDensity.censoredLogMass(s.obs.lowerLn, s.obs.upperLn, predMean, predVar).toDouble()
+            }
+            // Kalman update of the day offset from this set's residual about the (offset-free) prediction.
+            val y = obsLocation(s.obs) - s.predMeanLn
+            val k = dVar / (dVar + r)
+            dMean += k * (y - dMean)
+            dVar = (1f - k) * dVar
+        }
+        return total
+    }
+}
