@@ -61,16 +61,34 @@ class SessionProgressionStepper(
 
         // Pass 2: fold each exercise, shifting the observation by −day.mean and marginalizing day.variance
         // into the observation noise. day = (0,0) when σ_day = 0 ⇒ identical to the prior model.
+        // Scoring prediction is computed lazily per-exercise from current beliefs (after prior exercises
+        // have been folded) — matches the original stepper so scoredReplayTotal parity holds at σ_day = 0.
         val affectedMuscles = mutableSetOf<MuscleGroup>()
         for ((id, exSets) in byExercise) {
             var belief = snapshot.currentBeliefs[id]!!
-            val muscleLast = snapshot.exerciseMuscle[id]?.let { snapshot.muscleLastObs[it] }
-            val p = pred[id]
+            val muscle = snapshot.exerciseMuscle[id]
+            val muscleLast = muscle?.let { snapshot.muscleLastObs[it] }
+            // Lazy per-exercise scoring prediction from CURRENT beliefs (prior exercises already folded)
+            // — matches the original stepper so scoredReplayTotal parity holds at σ_day = 0.
+            var scoreMeanLn: Float? = null
+            var scoreCleanVar = 0f
+            if (scorer != null) {
+                val ids = muscle?.let { snapshot.muscleExerciseIds[it] }
+                if (ids != null) {
+                    val proj = projector.project(
+                        beliefs = snapshot.currentBeliefs, seedCoef = snapshot.seedCoefficients,
+                        muscleExerciseIds = ids, now = asOf,
+                        muscleLastObs = snapshot.muscleLastObs[muscle], equipment = snapshot.exerciseEquipment,
+                    )
+                    scoreMeanLn = proj.effectiveE1rm[id]?.let { kotlin.math.ln(it) }
+                    scoreCleanVar = updater.age(belief, asOf, muscleLast).evidenceVar
+                }
+            }
             var folded = false
             exSets.sortedBy { it.setNumber }.forEachIndexed { i, set ->
                 val obs = SetObservation.from(set, fatigueRank = i + 1, config = config) ?: return@forEachIndexed
-                if (scorer != null && p != null) {
-                    scorer.accumulate(shiftObs(obs, -day.mean), p.meanLn, p.cleanVar + day.variance)
+                if (scorer != null && scoreMeanLn != null) {
+                    scorer.accumulate(shiftObs(obs, -day.mean), scoreMeanLn, scoreCleanVar + day.variance)
                 }
                 val infNoise = kotlin.math.sqrt(obs.noiseSd * obs.noiseSd + day.variance)
                 belief = if (obs.gaussianLn != null) {
@@ -82,7 +100,7 @@ class SessionProgressionStepper(
             }
             if (folded) {
                 snapshot.currentBeliefs[id] = belief
-                snapshot.exerciseMuscle[id]?.let { affectedMuscles.add(it) }
+                muscle?.let { affectedMuscles.add(it) }
             }
         }
         for (m in affectedMuscles) snapshot.muscleLastObs[m] = asOf
