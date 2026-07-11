@@ -33,15 +33,24 @@ data class SetObservation(
             val freshShift = -ln(1f - (config.fatiguePerSet * (fatigueRank - 1)).coerceAtMost(0.5f))
             fun capLn(reps: Float) = ln(DefaultProgressionEngine.rawToOneRepMax(w, reps)) + freshShift
             val lambda = repSlope(w, r)
-            fun noise(base: Float): Float {
+            /**
+             * Observation noise in ln(1RM) space.
+             *
+             * [scale] defaults to [EstimatorConfig.obsNoiseScale] for success / reserve (RIR_*)
+             * observations. FAILURE (TOO_HARD) observations pass [scale] = 1f explicitly — failures
+             * are hard capacity bounds, and obsNoiseScale is fit to success-observation residuals.
+             * Applying it to failures would artificially widen the bound and allow a
+             * demonstrated-fail weight to be re-prescribed (e.g. the BSS safety regression).
+             */
+            fun noise(base: Float, scale: Float = config.obsNoiseScale): Float {
                 val repSd = lambda * sqrt(base * base + (config.repNoiseRel * r) * (config.repNoiseRel * r))
-                return config.obsNoiseScale * sqrt(repSd * repSd + config.obsModelSd * config.obsModelSd)
+                return scale * sqrt(repSd * repSd + config.obsModelSd * config.obsModelSd)
             }
             return when (feedback) {
                 SetFeedback.TOO_HARD -> {
                     val a = set.actualReps
-                    if (a != null) SetObservation(null, null, capLn(a + 0.5f), noise(config.repNoiseCounted))
-                    else SetObservation(null, capLn(r.toFloat()), null, noise(config.repNoiseBucket))
+                    if (a != null) SetObservation(null, null, capLn(a + 0.5f), noise(config.repNoiseCounted, scale = 1f))
+                    else SetObservation(null, capLn(r.toFloat()), null, noise(config.repNoiseBucket, scale = 1f))
                 }
                 SetFeedback.RIR_0_1 -> SetObservation(capLn(r.toFloat()), capLn(r + 2f), null, noise(config.repNoiseBucket))
                 SetFeedback.RIR_2_4 -> SetObservation(capLn(r + 2f), capLn(r + 5f), null, noise(config.repNoiseBucket))
