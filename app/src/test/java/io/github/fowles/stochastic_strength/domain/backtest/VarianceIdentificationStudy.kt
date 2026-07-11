@@ -20,6 +20,7 @@ data class StudyReport(
  * diagnostics, and ranks a recommendation. Analysis-only; changes no production constant.
  */
 object VarianceIdentificationStudy {
+    private const val RECOMMEND_MIN_GAIN = 2.0  // nats of held-out log-score; below this a "gain" is noise
     private val SIGMA_DAY = listOf(0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.14, 0.18, 0.24)
     private val OBS_NOISE = listOf(0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0)
     private val TAU = listOf(0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0)
@@ -108,7 +109,8 @@ object VarianceIdentificationStudy {
         val ranked = r.candidates.sortedWith(compareByDescending<CandidateResult> { it.interior }.thenByDescending { it.deltaVsB0 })
         for (c in ranked) {
             val verdict = when {
-                c.deltaVsB0 > 0 && c.interior -> "RECOMMENDED (beats B0 with interior optimum)"
+                c.deltaVsB0 > RECOMMEND_MIN_GAIN && c.interior -> "RECOMMENDED (beats B0 by >%.0f nat with interior optimum)".format(RECOMMEND_MIN_GAIN)
+                c.deltaVsB0 > 0 && c.interior -> "interior but negligible gain (<%.0f nat over B0)".format(RECOMMEND_MIN_GAIN)
                 c.deltaVsB0 > 0 -> "gains but pins bound (release-valve-like, treat with suspicion)"
                 else -> "no CV gain over B0"
             }
