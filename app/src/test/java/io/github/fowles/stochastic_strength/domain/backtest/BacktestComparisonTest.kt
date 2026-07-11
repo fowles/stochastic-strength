@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -83,4 +84,29 @@ class BacktestComparisonTest {
         assertTrue(result.score >= result.defaultScore)
     }
 
+    @Test fun fittedPrescriptionsWithinBandOfBaseline() {
+        val data = BacktestHarness.load()
+        assumeTrue("no local backtest history; skipping", data != null)
+        val baseline = BacktestHarness.readBaseline()
+        assumeTrue("baseline not frozen; run BacktestBaselineGeneratorTest first", baseline != null)
+        val fitted = BacktestHarness.replayPolicyPrescriptions(data!!, BacktestHarness.fitConfigFor(data).config)
+        val byKey = baseline!!.associateBy { it.sessionId to it.exerciseId }
+        // Two valid configs can land on ADJACENT grid points for a lift sitting on a rounding boundary
+        // (e.g. 5→10 lb on a light accessory) — quantization noise, not a systemic reprice. Skip rows
+        // whose absolute change is within one grid increment; gate the systemic relative reprice on the
+        // rest. (The near-no-op 4-param fit on real history moves nothing beyond a few such single-step
+        // flips; this keeps the gate a real trip-wire for a FUTURE systemic reprice.)
+        val gridStep = WeightFormatter.minIncrement(data.weightUnit)
+        var maxRel = 0f
+        var worstDesc = ""
+        for (r in fitted) {
+            val b = byKey[r.sessionId to r.exerciseId] ?: continue
+            if (b.weightKg <= 0f) continue
+            if (abs(r.weightKg - b.weightKg) <= gridStep + 1e-3f) continue
+            val rel = abs(r.weightKg - b.weightKg) / b.weightKg
+            if (rel > maxRel) { maxRel = rel; worstDesc = "session=${r.sessionId} exercise=${r.exerciseId} old=${b.weightKg} new=${r.weightKg}" }
+        }
+        println("BACKTEST fitted-vs-baseline (excl. single grid step) maxRel=${(maxRel * 100).roundToInt()}% ($worstDesc)")
+        assertTrue("fitted systemic drift $maxRel ($worstDesc) > band $BAND — inspect before re-baselining", maxRel <= BAND)
+    }
 }
