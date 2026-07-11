@@ -32,7 +32,7 @@ Truncate a `ReplayHistory` to its first `k` completed sessions (ordered by `endT
 - Consumes: `ReplayHistory(sessions: List<WorkoutSession>, setsBySession: Map<Long, List<WorkoutSet>>, initialOverrides: List<ExerciseStrengthOverride>, sessionOverrides: Map<Long, List<ExerciseStrengthOverride>>)` from `domain.progression.ReplayHistory`. `WorkoutSession` has `id: Long` and `endTime: Long?`.
 - Produces: `RecalibrationHarness.truncateTo(history: ReplayHistory, k: Int): ReplayHistory`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -72,12 +72,12 @@ class RecalibrationHarnessTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationHarnessTest"`
 Expected: FAIL — `RecalibrationHarness` unresolved (compile error). (Confirm `WorkoutSession` / `WorkoutSet` constructor param names by opening `app/src/main/java/io/github/fowles/stochastic_strength/data/entity/WorkoutSession.kt` and `WorkoutSet.kt`; adjust the test helpers to the real required params — these entities may have more non-default fields.)
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -106,12 +106,12 @@ object RecalibrationHarness {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationHarnessTest"`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationHarness.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationHarnessTest.kt
@@ -136,7 +136,7 @@ Add a scored-replay helper and the forward-chaining fold loop. Fitting is inject
   - `RecalibrationHarness.FoldRow(k: Int, multipliers: DoubleArray, heldOutProposed: Double, heldOutDefault: Double)`.
   - `RecalibrationHarness.foldScores(user: UserHistory, minFoldSessions: Int = 8, fit: (ReplayHistory) -> EstimatorConfig): List<FoldRow>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 // Add to RecalibrationHarnessTest, plus these imports at the top of the file:
@@ -160,12 +160,12 @@ Add a scored-replay helper and the forward-chaining fold loop. Fitting is inject
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationHarnessTest"`
 Expected: FAIL — `UserHistory` / `foldScores` unresolved.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add to `RecalibrationHarness` (new imports at top of file: `ReplaySnapshot`, `EstimatorConfig`, `ReplayEngine`, `SessionProgressionStepper`, `PredictiveScoreAccumulator`):
 
@@ -240,12 +240,12 @@ Add to `RecalibrationHarness` (new imports at top of file: `ReplaySnapshot`, `Es
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationHarnessTest"`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationHarness.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationHarnessTest.kt
@@ -273,7 +273,7 @@ Collapse the fold rows into one verdict per parameter: the multiplier trajectory
 
 Flag rules (over the *mature-half* of the trajectory — the later folds, which have the most data): let `med` = median, `spread` = (p75 − p25) / med (relative IQR). `PINS_BOUND` if ≥ half the mature folds sit within 1% of `loBound` or of `hiBound`. Else `STABLE` if `spread ≤ 0.25`. Else `FRAGILE`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
     @Test
@@ -310,12 +310,12 @@ Flag rules (over the *mature-half* of the trajectory — the later folds, which 
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationHarnessTest"`
 Expected: FAIL — `Flag` / `classify` / `assemble` unresolved.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add to `RecalibrationHarness`:
 
@@ -391,12 +391,12 @@ Add to `RecalibrationHarness`:
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationHarnessTest"`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationHarness.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationHarnessTest.kt
@@ -420,7 +420,7 @@ Wire the real `HyperparameterFitter` (with the widened harness `FitConfig`) as t
   - `RecalibrationHarness.run(users: List<UserHistory>, minFoldSessions: Int = 8): RecalibrationReport` (aggregates fold rows across all users, then assembles).
   - `RecalibrationHarness.format(report: RecalibrationReport): String` (human-readable table).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -461,12 +461,12 @@ class RecalibrationReportTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationReportTest"`
 Expected: FAIL — `run` / `format` / `harnessFitConfig` unresolved (compile error). (If the fixture is absent the test will still fail to compile until Step 3; after Step 3 it will be SKIPPED via the assumption when the fixture is absent.)
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add to `RecalibrationHarness`:
 
@@ -509,12 +509,12 @@ Add to `RecalibrationHarness`:
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.RecalibrationReportTest"`
 Expected: PASS if the personal fixture is present (prints the report, writes `app/build/recalibration-report.txt`); otherwise SKIPPED via the JUnit assumption. Either outcome is green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationHarness.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/RecalibrationReportTest.kt
@@ -529,20 +529,20 @@ Run the whole JVM suite to confirm no regressions, then read the generated repor
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Run the full JVM unit suite**
+- [x] **Step 1: Run the full JVM unit suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS (no regressions; the new tests green, `RecalibrationReportTest` runs on the fixture or is skipped).
 
-- [ ] **Step 2: Read and summarize the report**
+- [x] **Step 2: Read and summarize the report**
 
 Open `app/build/recalibration-report.txt` (if the fixture was present). For each of the four params, note: proposed multiplier, flag (STABLE / PINS_BOUND / FRAGILE), and the aggregate CV delta. Confirm the expectation from Phase 4 that `procNoise` pins high (now against the ÷16…×16 box) — either it lands interior (report the value) or still pins ×16 (report the direction).
 
-- [ ] **Step 3: Present the adoption recommendation (no code change)**
+- [x] **Step 3: Present the adoption recommendation (no code change)**
 
 Write a short summary for the human: which params are STABLE-and-CV-positive (recommend adopting the proposed multiplier × default as the new constant), which PINS_BOUND (recommend adopting cautiously in the indicated direction, and note whether the production ÷4…×4 fitter bound should widen), and which are FRAGILE (recommend leaving at the guessed default). Do NOT edit `EstimatorConfig` — the adoption ceremony (spec §4: constant edit, `BeliefSimulationTest` re-pin, backtest re-baseline, `ProdBssPrescriptionTest` check, version bump, docs) is a separate, explicitly human-gated follow-up.
 
-- [ ] **Step 4: Commit (docs only, if a durable report is wanted)**
+- [x] **Step 4: Commit (docs only, if a durable report is wanted)**
 
 If the human wants the report kept in-repo (it contains only aggregate multipliers, no personal set data), copy it to `docs/adaptation/phase5-recalibration-report.txt` and commit; otherwise skip.
 
