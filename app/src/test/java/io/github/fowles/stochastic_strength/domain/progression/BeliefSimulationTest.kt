@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.data.seed.ExerciseLibrary
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
@@ -600,6 +601,59 @@ class BeliefSimulationTest {
         }
         println("[censored] convergedAt=$convergedAt violations=${violations.size}")
         assertTrue("censored-responsiveness violations:\n${violations.joinToString("\n")}", violations.isEmpty())
+    }
+
+    // ---- planted-parameter recovery pin (spec §9) -----------------------------------------------
+
+    /**
+     * Confirms HyperparameterFitter recovers a planted high per-set fatigue on a 40-session
+     * synthetic history. Fitting is NOT wired into this test's estimator/policy rig — this test
+     * calls the fitter directly, matching its own [plantedSnapshot] fixture.
+     */
+    @Test fun fitting_recoversPlantedFatigueOnLongHistory() {
+        val defaults = EstimatorConfig()
+        val history = buildPlantedFatigueHistory(nSessions = 40, trueFatigue = 0.08f)
+        val result = HyperparameterFitter(defaults).fit(history) { plantedSnapshot() }
+        assert(!result.atDefaults) { "expected a real fit on a 40-session history" }
+        assert(result.config.fatiguePerSet > defaults.fatiguePerSet) {
+            "fitted fatigue ${result.config.fatiguePerSet} did not rise above ${defaults.fatiguePerSet}"
+        }
+        assert(result.score >= result.defaultScore)
+    }
+
+    /** One QUADS barbell exercise seeded at 100 kg — mirrors HyperparameterFitterTest.syntheticSnapshot(). */
+    private fun plantedSnapshot() = ReplaySnapshot(
+        exerciseMuscle = mapOf(1L to MuscleGroup.QUADS),
+        seedCoefficients = mapOf(1L to 1.0f),
+        exerciseEquipment = mapOf(1L to Equipment.BARBELL),
+    ).also { it.currentBeliefs[1L] = ExerciseBelief.seed(100f, at = 0L) }
+
+    /**
+     * 40-session synthetic history whose true per-set fatigue exceeds the default.
+     * Mirrors HyperparameterFitterTest.fatiguePlantedHistory() verbatim so the two tests share
+     * the same fixture shape.
+     */
+    private fun buildPlantedFatigueHistory(
+        nSessions: Int, trueFatigue: Float, trueFresh1RM: Float = 100f, weight: Float = 80f,
+    ): ReplayHistory {
+        val dayMs = 86_400_000L
+        fun repsFor(capacity: Float): Int = (1..15).minByOrNull { rep ->
+            kotlin.math.abs(DefaultProgressionEngine.rawToOneRepMax(weight, rep.toFloat()) - capacity)
+        }!!
+        val sessions = (1..nSessions).map {
+            WorkoutSession(id = it.toLong(), startTime = it * dayMs - 3600_000L, endTime = it * dayMs)
+        }
+        val sets = sessions.associate { s ->
+            val rows = (1..3).map { k ->
+                val capacity = trueFresh1RM * (1f - trueFatigue * (k - 1))
+                WorkoutSet(
+                    sessionId = s.id, exerciseId = 1L, setNumber = k, targetWeight = weight,
+                    targetReps = 8, actualReps = repsFor(capacity), feedback = SetFeedback.TOO_HARD,
+                )
+            }
+            s.id to rows
+        }
+        return ReplayHistory(sessions, sets, initialOverrides = emptyList(), sessionOverrides = emptyMap())
     }
 
     private companion object {
