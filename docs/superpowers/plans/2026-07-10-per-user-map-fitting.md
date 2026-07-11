@@ -61,7 +61,7 @@
   - `NormalCdf.intervalLogMass(mean: Float, sd: Float, lowerLn: Float?, upperLn: Float?): Float` — natural-log of the probability mass in `[lowerLn, upperLn]` under `N(mean, sd²)`; null bound = unbounded that side; clamps standardized bounds to ±6; floors mass at `1e-6`.
   - `object PredictiveDensity { fun gaussianLogDensity(obsLn: Float, predMeanLn: Float, predVar: Float): Float; fun censoredLogMass(lowerLn: Float?, upperLn: Float?, predMeanLn: Float, predVar: Float): Float }` — `predVar` already includes `s²`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -113,12 +113,12 @@ class PredictiveDensityTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.PredictiveDensityTest"`
 Expected: FAIL — unresolved reference `PredictiveDensity` / `intervalLogMass`.
 
-- [ ] **Step 3: Add `intervalLogMass` to NormalCdf**
+- [x] **Step 3: Add `intervalLogMass` to NormalCdf**
 
 Add to `object NormalCdf` in `NormalCdf.kt` (after `cdf`):
 
@@ -136,7 +136,7 @@ Add to `object NormalCdf` in `NormalCdf.kt` (after `cdf`):
     private const val MIN_MASS = 1e-6f
 ```
 
-- [ ] **Step 4: Create PredictiveDensity.kt**
+- [x] **Step 4: Create PredictiveDensity.kt**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -161,12 +161,12 @@ object PredictiveDensity {
 }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.PredictiveDensityTest"`
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat(fit): predictive log-density helpers (gaussian + censored mass)
@@ -189,7 +189,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `class PredictiveScoreAccumulator { val total: Double; fun accumulate(obs: SetObservation, predMeanLn: Float, predCleanVar: Float) }` — adds `predCleanVar + obs.noiseSd²` as the predictive variance.
   - `SessionProgressionStepper(updater, projector, config, scorer: PredictiveScoreAccumulator? = null)` — 4th constructor arg; when non-null, scores each folded observation against the pre-fold pooled prediction. `null` (production) is unchanged.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -241,12 +241,12 @@ class StepperScoringTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.StepperScoringTest"`
 Expected: FAIL — `SessionProgressionStepper` has no `scorer` parameter; `PredictiveScoreAccumulator` unresolved.
 
-- [ ] **Step 3: Create PredictiveScoreAccumulator.kt**
+- [x] **Step 3: Create PredictiveScoreAccumulator.kt**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -271,7 +271,7 @@ class PredictiveScoreAccumulator {
 }
 ```
 
-- [ ] **Step 4: Wire the optional scorer into the stepper**
+- [x] **Step 4: Wire the optional scorer into the stepper**
 
 In `SessionProgressionStepper.kt`, add the constructor arg and the scoring block. Replace the constructor header:
 
@@ -326,17 +326,17 @@ Then inside `step`, in the `sets.groupBy { it.exerciseId }.forEach { (id, exSets
         }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.StepperScoringTest"`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Run the existing stepper/projection tests to confirm no regression**
+- [x] **Step 6: Run the existing stepper/projection tests to confirm no regression**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.*"`
 Expected: PASS (all existing progression tests unchanged).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat(fit): optional predictive-score accumulation in the stepper
@@ -355,7 +355,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Interfaces:**
 - Produces: `object NelderMead { fun minimize(start: DoubleArray, step: Double, maxIter: Int, f: (DoubleArray) -> Double): DoubleArray }` — returns the best point found; deterministic (fixed initial simplex = `start` plus `start + step·e_i`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -382,12 +382,12 @@ class NelderMeadTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.NelderMeadTest"`
 Expected: FAIL — unresolved reference `NelderMead`.
 
-- [ ] **Step 3: Create NelderMead.kt**
+- [x] **Step 3: Create NelderMead.kt**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -432,12 +432,12 @@ object NelderMead {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.NelderMeadTest"`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(fit): pure Nelder-Mead simplex minimizer
@@ -462,7 +462,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `HyperparameterFitter.fit(history: ReplayHistory, newSnapshot: () -> ReplaySnapshot): Result` — `newSnapshot` builds a fresh scored-replay snapshot (fresh mutable belief maps, shared static inputs) per evaluation.
   - `HyperparameterFitter.applyTheta(logTheta: DoubleArray): EstimatorConfig` — maps four log-multipliers (order: drift, fatigue, procNoise, tau) onto defaults, each multiplier clamped to `[lo, hi]`. Public for the mapping test.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -558,12 +558,12 @@ class HyperparameterFitterTest {
 
 Add the import `import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine` to the test file.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.HyperparameterFitterTest"`
 Expected: FAIL — unresolved reference `HyperparameterFitter`.
 
-- [ ] **Step 3: Create HyperparameterFitter.kt**
+- [x] **Step 3: Create HyperparameterFitter.kt**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.progression
@@ -647,12 +647,12 @@ class HyperparameterFitter(
 
 Note: `ReplayEngine.run(history, snapshot, observer)` is the existing preloaded overload; the scorer lives on the stepper, so the observer is a no-op. `ln` import kept for readability parity though not directly referenced — remove if the linter flags it unused.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.HyperparameterFitterTest"`
 Expected: PASS (4 tests). If `recoversHigherFatigueFromSyntheticHistory` is flaky on the synthetic fixture, widen `nSessions` to 40 and confirm direction (fitted fatigue strictly above default); do not weaken the `score >= defaultScore` assertion.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(fit): HyperparameterFitter — MAP objective, floor, fallback
@@ -675,7 +675,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `data class FitDiagnostics(val fitted: EstimatorConfig, val defaults: EstimatorConfig, val score: Double, val defaultScore: Double, val atDefaults: Boolean, val sessionCount: Int)`
   - On `DerivedStateStore`: `fun activeConfig(): EstimatorConfig` (default `EstimatorConfig()`), `fun activeFitKey(): FitKey?`, `fun fitDiagnostics(): FitDiagnostics?`, `fun setFit(config: EstimatorConfig, key: FitKey, diagnostics: FitDiagnostics)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.derived
@@ -706,12 +706,12 @@ class DerivedStateStoreFitTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.derived.DerivedStateStoreFitTest"`
 Expected: FAIL — unresolved `FitKey` / `FitDiagnostics` / `activeConfig`.
 
-- [ ] **Step 3: Create FitDiagnostics.kt**
+- [x] **Step 3: Create FitDiagnostics.kt**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.derived
@@ -732,7 +732,7 @@ data class FitDiagnostics(
 )
 ```
 
-- [ ] **Step 4: Add the slots to DerivedStateStore**
+- [x] **Step 4: Add the slots to DerivedStateStore**
 
 In `DerivedStateStore.kt`, add imports and fields. After the `private var live` declaration add:
 
@@ -760,12 +760,12 @@ Add the import at the top of the file:
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.derived.DerivedStateStoreFitTest"`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat(fit): DerivedStateStore holds the active config + fit diagnostics
@@ -789,7 +789,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `replayDerivedState()` reads `derivedState.activeConfig()` for the replay config and projector; after rebuild, if the current `FitKey` differs from `derivedState.activeFitKey()`, launches a background fit on `scope`.
   - `fitBlocking()` — suspend, testable: loads history, fits, installs via `setFit`, and re-runs `replayDerivedState`. The background launch calls this.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -826,12 +826,12 @@ class WorkoutRepositoryFitWiringTest {
 
 (If the project has no Robolectric test dependency, place this assertion in `androidTest` instead as an instrumented test with the same body using `ApplicationProvider`; the wiring logic is what matters. Verify by grepping `build.gradle` for `robolectric` before choosing.)
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryFitWiringTest"`
 Expected: FAIL — no `scope` parameter / no `fitBlocking`.
 
-- [ ] **Step 3: Add the scope param and imports**
+- [x] **Step 3: Add the scope param and imports**
 
 In `WorkoutRepository.kt`, update the constructor and add imports:
 
@@ -866,7 +866,7 @@ Delete the two fixed fields that hardcode the default config (they are replaced 
     private val replayEngine = ReplayEngine(stepper)
 ```
 
-- [ ] **Step 4: Route replayDerivedState through the active config + preloaded history, and trigger the fit**
+- [x] **Step 4: Route replayDerivedState through the active config + preloaded history, and trigger the fit**
 
 Replace the body of `replayDerivedState` so it (a) reads `derivedState.activeConfig()`, (b) loads history once, (c) builds a config-aware engine, and (d) triggers the fit after rebuild. Replace lines 200–250 region:
 
@@ -950,7 +950,7 @@ Replace the body of `replayDerivedState` so it (a) reads `derivedState.activeCon
         ReplaySnapshot(staticInputs.exerciseMuscle, staticInputs.seedCoefficients, staticInputs.exerciseEquipment)
 ```
 
-- [ ] **Step 5: Route buildPlanner through the active config**
+- [x] **Step 5: Route buildPlanner through the active config**
 
 In `buildPlanner`, replace the two default-config constructions. Change line 73 `val projector = MuscleStrengthProjector()` to use the active config, and line 82 `val config = EstimatorConfig()`:
 
@@ -961,7 +961,7 @@ In `buildPlanner`, replace the two default-config constructions. Change line 73 
 
 Move the `val config = ...` line above its first use (before the `for ((muscle, ids) in muscleIds)` loop at line 76) and delete the later `val config = EstimatorConfig()` at line 82 so `config` is declared once.
 
-- [ ] **Step 6: Pass applicationScope from the app**
+- [x] **Step 6: Pass applicationScope from the app**
 
 In `StochasticStrengthApp.kt`, update the repository construction:
 
@@ -975,14 +975,14 @@ In `StochasticStrengthApp.kt`, update the repository construction:
     }
 ```
 
-- [ ] **Step 7: Run the wiring test + the full replay-touching suite**
+- [x] **Step 7: Run the wiring test + the full replay-touching suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutRepositoryFitWiringTest"`
 Expected: PASS.
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.*"`
 Expected: PASS (existing repository/replay tests unaffected — active config defaults to `EstimatorConfig()` until a real fit installs one).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 jj commit -m "feat(fit): single active-config source + background self-warming fit
@@ -1003,7 +1003,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Consumes: `HyperparameterFitter`, `FitConfig`, `BacktestData` (existing). NOTE: `BacktestHarness` is a Kotlin `object` (singleton) — call `BacktestHarness.load()`, `BacktestHarness.readBaseline()`, `BacktestHarness.replayPolicyPrescriptions(...)` statically. `BacktestData` has fields `backup`, `weightUnit`, `history` and a method `newSnapshot(): ReplaySnapshot`. `BAND = 0.05f` is already a field on `BacktestComparisonTest` — reuse it, do not redeclare. Tests use `assumeTrue(...)` to SKIP when local fixtures are absent — follow that idiom.
 - Produces: `BacktestHarness.replayPolicyPrescriptions(data: BacktestData, config: EstimatorConfig = EstimatorConfig()): List<Row>` — the existing method gains a config param threaded into both the `ReplayEngine` stepper and the `PrescriptionPolicy`. New helper `BacktestHarness.fitConfigFor(data: BacktestData): HyperparameterFitter.Result`.
 
-- [ ] **Step 1: Write the failing test (fitting gate)**
+- [x] **Step 1: Write the failing test (fitting gate)**
 
 Add to `BacktestComparisonTest.kt` (matches the existing `assumeTrue` skip idiom and static `BacktestHarness` calls):
 
@@ -1025,12 +1025,12 @@ Add to `BacktestComparisonTest.kt` (matches the existing `assumeTrue` skip idiom
     }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestComparisonTest"`
 Expected: FAIL — no `fitConfigFor`.
 
-- [ ] **Step 3: Thread config into replayPolicyPrescriptions and add fitConfigFor**
+- [x] **Step 3: Thread config into replayPolicyPrescriptions and add fitConfigFor**
 
 In `BacktestHarness.kt` (a Kotlin `object`), change the signature and internal uses:
 
@@ -1073,12 +1073,12 @@ In `BacktestHarness.kt` (a Kotlin `object`), change the signature and internal u
 
 Add imports for `SessionProgressionStepper` and `HyperparameterFitter` at the top of the harness.
 
-- [ ] **Step 4: Run to verify the fitting-gate test passes**
+- [x] **Step 4: Run to verify the fitting-gate test passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestComparisonTest"`
 Expected: `fittedThetaIsInBoundsAndScoresAtLeastDefaults` PASS. The existing comparison-vs-baseline test still runs against the DEFAULT config (unchanged call site) and should stay within its pinned band.
 
-- [ ] **Step 5: Add the fitted-vs-baseline comparison and inspect deltas**
+- [x] **Step 5: Add the fitted-vs-baseline comparison and inspect deltas**
 
 Add a second test that compares fitted-config prescriptions to the frozen baseline, printing per-exercise deltas:
 
@@ -1112,12 +1112,12 @@ Add a second test that compares fitted-config prescriptions to the frozen baseli
 
 `BAND` is already the `0.05f` field on `BacktestComparisonTest` — reuse it; do not redeclare. Add import `io.github.fowles.stochastic_strength.domain.WeightFormatter`. The grid-step exclusion is a deliberate, user-approved (2026-07-10) gate-hardening: the fitted band test measures *systemic* reprice, tolerating single-increment rounding flips that any two valid configs produce on boundary-sitting light lifts.
 
-- [ ] **Step 6: Run and adjudicate**
+- [x] **Step 6: Run and adjudicate**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestComparisonTest"`
 Expected: If `maxRel <= 0.05`, PASS. **If it exceeds the band, STOP and surface to the user** — a systemic reprice from real per-user fitting is plausible (as in phase 3) and requires explicit approval to re-baseline. Do not silently widen `BAND` or regenerate the baseline.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "test(fit): real-history backtest gate with per-user fitting
@@ -1136,12 +1136,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `HyperparameterFitter`, the existing synthetic-lifter rig in the test.
 
-- [ ] **Step 1: Confirm the existing pins hold unchanged**
+- [x] **Step 1: Confirm the existing pins hold unchanged**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefSimulationTest"`
 Expected: PASS. Fitting is not wired into this test's rig, so its pins are untouched. This step is a guard — record that it is green before adding the recovery pin.
 
-- [ ] **Step 2: Add a planted-parameter recovery test**
+- [x] **Step 2: Add a planted-parameter recovery test**
 
 Append to `BeliefSimulationTest`:
 
@@ -1162,12 +1162,12 @@ Append to `BeliefSimulationTest`:
 
 Add the two private helpers `buildPlantedFatigueHistory(nSessions, trueFatigue): ReplayHistory` and `plantedSnapshot(): ReplaySnapshot` modeled on the `HyperparameterFitterTest` fixtures (one QUADS barbell exercise, three sets/session, later-set reps falling with `trueFatigue`, `RIR_0_1` feedback, one-day session spacing, seeded belief at 100 kg). Reuse the exact fixture shape from Task 4 so the two tests stay consistent.
 
-- [ ] **Step 3: Run to verify the new pin passes and the old pins still pass**
+- [x] **Step 3: Run to verify the new pin passes and the old pins still pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.BeliefSimulationTest"`
 Expected: PASS (existing pins + the new recovery pin).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "test(fit): BeliefSimulation planted-parameter recovery pin
@@ -1190,7 +1190,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
   - `data class FitPanelRow(val label: String, val fitted: String, val default: String)`
   - `fun buildFitPanelRows(diag: FitDiagnostics?): List<FitPanelRow>` — top-level function in the debug package; returns empty list when `diag == null`, otherwise one row per fitted parameter plus a score-gain row. Pure and unit-testable.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.debug
@@ -1219,12 +1219,12 @@ class FitPanelRowsTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.debug.FitPanelRowsTest"`
 Expected: FAIL — unresolved `buildFitPanelRows` / `FitPanelRow`.
 
-- [ ] **Step 3: Add the pure row builder**
+- [x] **Step 3: Add the pure row builder**
 
 Add to `ExerciseCoefficientDetailViewModel.kt` (top-level, below the existing helper functions):
 
@@ -1249,12 +1249,12 @@ fun buildFitPanelRows(diag: FitDiagnostics?): List<FitPanelRow> {
 
 Add the import `import io.github.fowles.stochastic_strength.domain.derived.FitDiagnostics`.
 
-- [ ] **Step 4: Run to verify the row builder passes**
+- [x] **Step 4: Run to verify the row builder passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ui.debug.FitPanelRowsTest"`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Surface diagnostics in the VM state and render the panel**
+- [x] **Step 5: Surface diagnostics in the VM state and render the panel**
 
 In the ViewModel, add `fitRows: List<FitPanelRow> = emptyList()` to its UI state data class, and populate it in the load block from `repository.derivedState.snapshot()`… — note `fitDiagnostics()` is on the store itself, so use `app.workoutRepository.derivedState.fitDiagnostics()`:
 
@@ -1278,12 +1278,12 @@ In `ExerciseCoefficientDetailScreen.kt`, render a small section when `state.fitR
 
 Match the existing imports/composables in that file (`SectionHeader`, `Row`, `Text`, `Modifier`, `Arrangement`, `MaterialTheme`); add any missing import to match the file's style.
 
-- [ ] **Step 6: Build to confirm the UI compiles**
+- [x] **Step 6: Build to confirm the UI compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat(fit): debug panel showing fitted-vs-default hyperparameters
@@ -1301,34 +1301,34 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Modify: `docs/superpowers/plans/2026-07-10-per-user-map-fitting.md` — tick all checkboxes.
 - Modify: `CLAUDE.md` — one sentence noting phase-4 fitting is live (progression section).
 
-- [ ] **Step 1: Write the fitting docs page**
+- [x] **Step 1: Write the fitting docs page**
 
 Create `docs/adaptation/06-fitting.md` describing: the four fitted parameters (and that feedback-trust/rep-noise is deliberately NOT fitted — the user's feedback is our clearest signal); the half-blended + clean-variance predictive objective; MAP with lognormal priors; the ÷4/×4 bounds, `minFitSessions`, prior sd, and default-fallback guardrails; the background self-warming execution model; and that θ is never persisted. Keep it consistent with the existing `docs/adaptation/` page style (prose, no code dumps). Cross-reference the spec.
 
-- [ ] **Step 2: Bump the app version**
+- [x] **Step 2: Bump the app version**
 
 In `app/build.gradle`, increment `versionCode` by 1 and bump `versionName` per convention (grep the current values first; do not guess). No `AppDatabase` version change — there is no migration.
 
-- [ ] **Step 3: Run the full JVM suite**
+- [x] **Step 3: Run the full JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS (all tests, including the new Task 1–9 tests and the untouched pins).
 
-- [ ] **Step 4: Run lint and assemble**
+- [x] **Step 4: Run lint and assemble**
 
 Run: `./gradlew :app:lint :app:assembleDebug`
 Expected: BUILD SUCCESSFUL; no new lint errors introduced by the fit code.
 
-- [ ] **Step 5: Run the instrumented suite (device/emulator)**
+- [x] **Step 5: Run the instrumented suite (device/emulator)**
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS. (If no device is attached, note it and defer — do not claim green without running.)
 
-- [ ] **Step 6: Tick every checkbox in this plan and update CLAUDE.md**
+- [x] **Step 6: Tick every checkbox in this plan and update CLAUDE.md**
 
 Edit this plan file to mark all `- [ ]` as `- [x]`. Add one sentence to `CLAUDE.md`'s progression section noting per-user MAP fitting (phase 4) is live: four hyperparameters (strength-drift, per-set fatigue, variance-growth, cross-exercise τ) fit by predictive scoring during replay, background, θ never persisted; feedback-trust is deliberately not fitted.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "docs(fit): 06-fitting page, version bump, phase-4 complete
