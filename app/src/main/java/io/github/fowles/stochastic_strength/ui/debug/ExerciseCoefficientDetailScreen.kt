@@ -62,6 +62,20 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             ?.let { state.framesByEpochDay[it] }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (state.fitRows.isNotEmpty()) {
+                item { SectionHeader("Per-user fit") }
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        state.fitRows.forEach { r ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(r.label, style = MaterialTheme.typography.bodySmall)
+                                Text("${r.fitted}  (def ${r.default})", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
+
             item { SectionHeader("Estimated 1RM over time", verticalPadding = 4.dp) }
 
             item {

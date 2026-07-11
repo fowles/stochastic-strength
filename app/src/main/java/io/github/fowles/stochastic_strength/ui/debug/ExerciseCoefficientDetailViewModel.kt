@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.domain.derived.FitDiagnostics
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
@@ -26,6 +27,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.ZoneId
+
+data class FitPanelRow(val label: String, val fitted: String, val default: String)
+
+/** Pure fitted-vs-default rows for the debug panel (spec §7). Empty when no fit has run. */
+fun buildFitPanelRows(diag: FitDiagnostics?): List<FitPanelRow> {
+    if (diag == null) return emptyList()
+    val f = diag.fitted; val d = diag.defaults
+    fun row(label: String, a: Float, b: Float) = FitPanelRow(label, "%.4g".format(a), "%.4g".format(b))
+    val gain = diag.score - diag.defaultScore
+    return listOf(
+        row("Drift rate/wk", f.detrainRatePerWeek, d.detrainRatePerWeek),
+        row("Fatigue/set", f.fatiguePerSet, d.fatiguePerSet),
+        row("Var growth/day", f.processNoisePerDay, d.processNoisePerDay),
+        row("τ barbell", f.tauBarbell, d.tauBarbell),
+        FitPanelRow("Score gain (n=${diag.sessionCount})", "%.2f".format(gain), if (diag.atDefaults) "at defaults" else "fitted"),
+    )
+}
 
 data class FrameView(
     val timestampMs: Long,
@@ -79,6 +97,7 @@ data class ExerciseCoefficientDetailState(
     val defaultEpochDay: Long? = null,
     val weightUnit: WeightUnit = WeightUnit.KG,
     val chartYRange: ClosedFloatingPointRange<Double>? = null,
+    val fitRows: List<FitPanelRow> = emptyList(),
 )
 
 class ExerciseCoefficientDetailViewModel(
@@ -124,6 +143,7 @@ class ExerciseCoefficientDetailViewModel(
                 defaultEpochDay = defaultEpochDay,
                 weightUnit = weightUnit,
                 chartYRange = sharedProgressionYRange(data),
+                fitRows = buildFitPanelRows(repository.derivedState.fitDiagnostics()),
             )
         }
     }
