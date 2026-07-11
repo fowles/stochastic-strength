@@ -2,9 +2,17 @@ package io.github.fowles.stochastic_strength.domain.backtest
 
 import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
 
-/** Joint (obsNoiseScale, σ_day) grid search over held-out one-step-ahead CV on the real history. */
+/**
+ * Joint (obsNoiseScale, σ_day) grid search over held-out one-step-ahead CV on the real history.
+ *
+ * OBS_SCALES extended to [1.0, 4.0] (was [1.0, 3.0]) because obsNoiseScale now applies ONLY to
+ * success (RIR_*) observations — failures (TOO_HARD bounds) remain sharp. With fewer observations
+ * inflated, the CV optimum may sit at a higher scale factor and the grid must stay interior.
+ *
+ * DAY_SDS unchanged: coarse run peaked at 0.08, bracket [0.02, 0.12] still covers the range.
+ */
 object VarianceBudgetJointFit {
-    val OBS_SCALES = listOf(1.0, 1.5, 2.0, 2.5, 3.0)
+    val OBS_SCALES = listOf(1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)
     /** Refined grid (coarse run peaked at 0.08, the lowest non-zero point; this brackets the peak). */
     val DAY_SDS = listOf(0.02, 0.04, 0.06, 0.08, 0.10, 0.12)
 
