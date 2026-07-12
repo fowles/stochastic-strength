@@ -17,6 +17,7 @@ local.properties
 *.jks
 *.keystore
 keystore.properties
+/app/src/test/resources/backtest/
 
 # Superpowers SDD scratch (ledger, briefs, review packages)
 .superpowers/
