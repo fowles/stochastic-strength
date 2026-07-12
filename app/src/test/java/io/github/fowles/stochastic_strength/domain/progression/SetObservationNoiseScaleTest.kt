@@ -21,8 +21,8 @@ class SetObservationNoiseScaleTest {
     @Test fun defaultAppliesAdoptedScale() {
         val unit = SetObservation.from(set(), fatigueRank = 1, config = EstimatorConfig(obsNoiseScale = 1f))!!
         val deflt = SetObservation.from(set(), fatigueRank = 1, config = EstimatorConfig())!!
-        // Default adopted obsNoiseScale = 2.5 (joint-fit 2026-07-11); fails loudly if it reverts.
-        assertEquals(2.5f * unit.noiseSd, deflt.noiseSd, 1e-6f)
+        // Default adopted obsNoiseScale = 2.0 (failures-sharp joint-fit 2026-07-11); fails loudly if it reverts.
+        assertEquals(2.0f * unit.noiseSd, deflt.noiseSd, 1e-6f)
     }
 
     /** TOO_HARD (bucket, no actualReps): noise is a hard capacity bound — obsNoiseScale must not soften it. */
