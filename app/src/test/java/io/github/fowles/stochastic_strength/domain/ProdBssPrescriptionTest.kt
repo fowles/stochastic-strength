@@ -14,6 +14,7 @@ import io.github.fowles.stochastic_strength.domain.progression.ExerciseBelief
 import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -117,14 +118,15 @@ class ProdBssPrescriptionTest {
         val prescribedKg = WeightFormatter.round(sessionWeightKg, WeightUnit.LBS)
 
         // Pre-policy belief-only figure (projector effective e1rm → session weight, no z/δ/fatigue).
-        // RE-MEASURED 2026-07-11 after variance-budget adoption (obsNoiseScale=2.5, sessionDayEffectSd=0.08):
-        // BSS pre-policy session weight rose 25 lb → 40 lb. Driver: obsNoiseScale=2.5 widens per-set
-        // observation noise by ×2.5, making the three consecutive TOO_HARD sets for BSS LESS informative.
-        // The belief absorbs failures more weakly and stays closer to the seed, producing a higher effective
-        // e1rm (~18.1 kg) than the old value (~11.3 kg). This is a CONCERN: the safety bound
-        // (prescription below 35 lb = lightest failed weight) is now violated — see policyPathSafetyBounds.
-        assertEquals("BSS projector-only (pre-policy) prescription pinned at 40 lb",
-            WeightUnit.LBS.toKg(40f), prescribedKg, 1e-3f)
+        // RE-MEASURED 2026-07-12 after day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.08):
+        // BSS pre-policy session weight is 35 lb (15.876 kg). With obsNoiseScale=1.0 the failures are
+        // sharp again; the belief absorbs the three consecutive TOO_HARD sets more strongly than the
+        // discarded obsNoiseScale=2.5 adoption (which gave 40 lb). The value is higher than the original
+        // pre-phase 25 lb because sessionDayEffectSd=0.08 adds honest session-level variance, widening
+        // sigma2 slightly and shifting the projector's pooled estimate. See policyPathSafetyBounds for
+        // the policy-path result and the safety assertion.
+        assertEquals("BSS projector-only (pre-policy) prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.08)",
+            WeightUnit.LBS.toKg(35f), prescribedKg, 1e-3f)
     }
 
     @Test
@@ -161,26 +163,19 @@ class ProdBssPrescriptionTest {
         val bss = Exercise(id = 55L, name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.DUMBBELL)
         val weightKg = policy.prescribe(bss, 10)!!
 
-        // RE-PINNED 2026-07-11 after variance-budget adoption (obsNoiseScale=2.5, sessionDayEffectSd=0.08).
-        // CONCERN: the prescription moved 20 lb → 35 lb, exactly AT the lightest failed weight.
+        // RE-PINNED 2026-07-12 after day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.08).
+        // With obsNoiseScale=1.0 the failures are sharp again; the policy prescription returned to
+        // 30 lb (13.607788 kg), well below the lightest failed weight (35 lb = 15.876 kg).
         //
-        // Driver: obsNoiseScale=2.5 widens per-set observation noise ×2.5, making the three consecutive
-        // TOO_HARD sets LESS informative to the belief. The belief absorbs failures more weakly, stays
-        // closer to the seed, and produces a higher effective e1rm (~29.7 kg vs old ~18.7 kg). Even
-        // though the failure ceiling caps the target (ceilingE1rm from session-18 set-2: 15.876 kg × 10
-        // reps ≈ 26.6 kg, ×0.97 cap = 25.8 kg), the prescription ends at exactly 35 lb rather than
-        // rounding DOWN to 30 lb (the round-down guard fires only when nearest >= failedWeightAtReps,
-        // which requires floating-point equality — a borderline case here).
-        //
-        // OLD VALUE: 20 lb (demonstrated capacity). OLD SAFETY: prescription < 35 lb (lightest failure).
-        // NEW VALUE: 35 lb. SAFETY PROPERTY NOW VIOLATED: 35 lb equals the lightest failed weight.
-        //
-        // This is recorded as DONE_WITH_CONCERNS (2026-07-11). The variance-budget adoption reduces
-        // reactivity broadly (most backtest exercises reprice DOWN ~12% median), but on failure-dominated
-        // histories the weaker-update effect overrides the ceiling's protection.
+        // The original pre-phase pin was 20 lb; the shift to 30 lb under the day-effect-only config
+        // reflects the sessionDayEffectSd=0.08 term adding honest session-level variance that widens
+        // sigma2 slightly, which raises the pooled estimate via the belief mean staying higher after
+        // the failure ceiling absorbs the TOO_HARD sets. The safety property (prescription strictly
+        // below the lightest failed weight) is RESTORED and HOLDS: 30 lb < 35 lb.
+        assertTrue("BSS policy prescription must stay below the lightest failed weight (35 lb = 15.876 kg)", weightKg < 15.875f)
         assertEquals(
-            "BSS policy prescription (post variance-budget) — was 20 lb, now 35 lb [CONCERN: equals lightest failed weight]",
-            WeightUnit.LBS.toKg(35f), weightKg, 1e-3f
+            "BSS policy prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.08) — 30 lb",
+            WeightUnit.LBS.toKg(30f), weightKg, 1e-3f
         )
     }
 }
