@@ -118,15 +118,13 @@ class ProdBssPrescriptionTest {
         val prescribedKg = WeightFormatter.round(sessionWeightKg, WeightUnit.LBS)
 
         // Pre-policy belief-only figure (projector effective e1rm → session weight, no z/δ/fatigue).
-        // RE-MEASURED 2026-07-12 after day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.08):
-        // BSS pre-policy session weight is 35 lb (15.876 kg). With obsNoiseScale=1.0 the failures are
-        // sharp again; the belief absorbs the three consecutive TOO_HARD sets more strongly than the
-        // discarded obsNoiseScale=2.5 adoption (which gave 40 lb). The value is higher than the original
-        // pre-phase 25 lb because sessionDayEffectSd=0.08 adds honest session-level variance, widening
-        // sigma2 slightly and shifting the projector's pooled estimate. See policyPathSafetyBounds for
-        // the policy-path result and the safety assertion.
-        assertEquals("BSS projector-only (pre-policy) prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.08)",
-            WeightUnit.LBS.toKg(35f), prescribedKg, 1e-3f)
+        // RE-MEASURED 2026-07-12 after final day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.02):
+        // BSS pre-policy session weight is 30 lb (13.608 kg). With obsNoiseScale=1.0 the failures are
+        // sharp; with sessionDayEffectSd=0.02 (small day-effect) the belief's sigma2 is only slightly
+        // widened vs no-day-effect, yielding a lower pooled estimate than the σ_day=0.08 config (35 lb).
+        // See policyPathSafetyBounds for the policy-path result and the safety assertion.
+        assertEquals("BSS projector-only (pre-policy) prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.02)",
+            WeightUnit.LBS.toKg(30f), prescribedKg, 1e-3f)
     }
 
     @Test
@@ -163,19 +161,18 @@ class ProdBssPrescriptionTest {
         val bss = Exercise(id = 55L, name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.DUMBBELL)
         val weightKg = policy.prescribe(bss, 10)!!
 
-        // RE-PINNED 2026-07-12 after day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.08).
-        // With obsNoiseScale=1.0 the failures are sharp again; the policy prescription returned to
-        // 30 lb (13.607788 kg), well below the lightest failed weight (35 lb = 15.876 kg).
+        // RE-PINNED 2026-07-12 for final day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.02).
+        // With σ_day=0.02 (small day-effect only), sigma2 widens very slightly; the policy prescription
+        // is 25 lb (11.339824 kg), well below the lightest failed weight (35 lb = 15.876 kg).
         //
-        // The original pre-phase pin was 20 lb; the shift to 30 lb under the day-effect-only config
-        // reflects the sessionDayEffectSd=0.08 term adding honest session-level variance that widens
-        // sigma2 slightly, which raises the pooled estimate via the belief mean staying higher after
-        // the failure ceiling absorbs the TOO_HARD sets. The safety property (prescription strictly
-        // below the lightest failed weight) is RESTORED and HOLDS: 30 lb < 35 lb.
+        // Note: the original pre-phase demonstrated pin was 20 lb; σ_day=0.02 gives 25 lb because the
+        // small day-effect term slightly widens sigma2, raising the pooled estimate slightly above the
+        // no-day-effect equilibrium. The safety property HOLDS: 25 lb < 35 lb (lightest failed weight).
+        // The pre-policy figure (reportBssPrescription) is 30 lb at this config.
         assertTrue("BSS policy prescription must stay below the lightest failed weight (35 lb = 15.876 kg)", weightKg < 15.875f)
         assertEquals(
-            "BSS policy prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.08) — 30 lb",
-            WeightUnit.LBS.toKg(30f), weightKg, 1e-3f
+            "BSS policy prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.02) — 25 lb (day-effect-only σ_day=0.02)",
+            WeightUnit.LBS.toKg(25f), weightKg, 1e-3f
         )
     }
 }
