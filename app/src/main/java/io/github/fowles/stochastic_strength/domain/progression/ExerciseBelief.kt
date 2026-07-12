@@ -137,32 +137,33 @@ data class EstimatorConfig(
     val adaptRunDecay: Float = 0.5f,
     /**
      * Multiplier on the observation noise σ_obs of SUCCESS/reserve (RIR_*) sets only. Failure
-     * (TOO_HARD) observations are kept SHARP (unscaled) because they are hard capacity bounds, not
-     * noisy point estimates — scaling them over-prescribes failure-dominated lifts (see
-     * [SetObservation.from]).
+     * (TOO_HARD) observations are always kept SHARP (unscaled) because they are hard capacity bounds,
+     * not noisy point estimates (see [SetObservation.from]).
      *
-     * Source: joint (obsNoiseScale × sessionDayEffectSd) held-out one-step-ahead CV fit over the
-     * real 24-session history, 2026-07-11 (report: app/build/variance-budget-jointfit-report.txt).
-     * Rationale: interior optimum in BOTH dims at (2.0, 0.10); held-out log-score −200.34 vs default
-     * −277.5 (+77 nats). The within-session residual share is ~57% (obs-noise), between-session ~43%
-     * (day-effect); adopting BOTH at lower magnitudes than their solo optima because each absorbs part
-     * of the other's residual. The failures-sharp cut moved obsNoiseScale 2.5→2.0 (it no longer has to
-     * counterbalance loose failure bounds) and restored the prod-BSS safety pin (demonstrated 20 lb).
-     * Light-lift swing 0.0 kg (dampening, not destabilizing). Pinned by variance-budget study 2026-07-11.
+     * ADOPTED AT 1.0 (no obs-noise scaling) — the day-effect ([sessionDayEffectSd]) carries the
+     * variance-budget fix. Rationale (variance-budget study 2026-07-11, failures-sharp joint fit over
+     * the real 24-session history; report: app/build/variance-budget-jointfit-report.txt): once
+     * failure bounds are kept sharp, obs-noise scaling is a MARGINAL knob — day-effect alone
+     * (obsNoiseScale=1.0, σ_day=0.08) scores held-out −203.9 (+73.6 vs default −277.5, ~95% of the
+     * total win); pushing obsNoiseScale to the joint optimum (2.0) buys only ~3.6 more nats AND
+     * discounts the clean RIR_0_1 success that pins the demonstrated prod-BSS at 20 lb, floating it up
+     * to the failed weight (35 lb). So the aggregate-CV gain from obs-noise scaling is not worth the
+     * safety/accuracy cost; kept at 1.0. The knob (and the failures-sharp cut) remain for future use.
      */
-    val obsNoiseScale: Float = 2.0f,
+    val obsNoiseScale: Float = 1.0f,
     /**
      * σ_day: std of the shared per-session "good-day/bad-day" random intercept d ~ N(0, σ_day²),
      * estimated from a session's own sets and integrated out of the belief folds (transient, never
      * durable).
      *
-     * Source: joint (obsNoiseScale × sessionDayEffectSd) held-out one-step-ahead CV fit over the
-     * real 24-session history, 2026-07-11 (report: app/build/variance-budget-jointfit-report.txt).
-     * Rationale: interior optimum in BOTH dims at (2.0, 0.10); absorbs the between-session residual
-     * share (~43%). Adopting at lower magnitude than the solo optimum (0.18) because obsNoiseScale
-     * jointly absorbs part of the same residual. Pinned by variance-budget study 2026-07-11.
+     * Source: variance-budget study 2026-07-11, held-out one-step-ahead CV over the real 24-session
+     * history (report: app/build/variance-budget-jointfit-report.txt). This is the primary structural
+     * fix: it absorbs the between-session (~43%) residual share the model previously lacked, and unlike
+     * obs-noise scaling it is a shared per-session nuisance that never discounts individual
+     * observations — so it is safe for failure-dominated lifts. At obsNoiseScale=1.0 the day-effect
+     * optimum is σ_day≈0.08 (held-out −203.9 vs default −277.5, +73.6 nats). Pinned 2026-07-11.
      */
-    val sessionDayEffectSd: Float = 0.10f,
+    val sessionDayEffectSd: Float = 0.08f,
 )
 
 /** τ for an exercise's equipment class; unknown/other-loaded → the loosest class. */

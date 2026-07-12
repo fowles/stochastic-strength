@@ -18,11 +18,12 @@ class SetObservationNoiseScaleTest {
         assertEquals(3f * base.noiseSd, scaled.noiseSd, 1e-6f)
     }
 
-    @Test fun defaultAppliesAdoptedScale() {
-        val unit = SetObservation.from(set(), fatigueRank = 1, config = EstimatorConfig(obsNoiseScale = 1f))!!
-        val deflt = SetObservation.from(set(), fatigueRank = 1, config = EstimatorConfig())!!
-        // Default adopted obsNoiseScale = 2.0 (failures-sharp joint-fit 2026-07-11); fails loudly if it reverts.
-        assertEquals(2.0f * unit.noiseSd, deflt.noiseSd, 1e-6f)
+    @Test fun adoptedDefaultsPinned() {
+        // Variance-budget study 2026-07-11 adopted the day-effect ONLY; obs-noise scaling stays at
+        // 1.0 (its aggregate-CV gain was marginal and it discounted the clean success pinning prod-BSS
+        // at 20 lb). Fails loudly if either default is re-changed without re-running the ceremony.
+        assertEquals(1.0f, EstimatorConfig().obsNoiseScale, 0f)
+        assertEquals(0.08f, EstimatorConfig().sessionDayEffectSd, 0f)
     }
 
     /** TOO_HARD (bucket, no actualReps): noise is a hard capacity bound — obsNoiseScale must not soften it. */
