@@ -23,7 +23,7 @@ class SetObservationNoiseScaleTest {
         // 1.0 (its aggregate-CV gain was marginal and it discounted the clean success pinning prod-BSS
         // at 20 lb). Fails loudly if either default is re-changed without re-running the ceremony.
         assertEquals(1.0f, EstimatorConfig().obsNoiseScale, 0f)
-        assertEquals(0.08f, EstimatorConfig().sessionDayEffectSd, 0f)
+        assertEquals(0.02f, EstimatorConfig().sessionDayEffectSd, 0f)
     }
 
     /** TOO_HARD (bucket, no actualReps): noise is a hard capacity bound — obsNoiseScale must not soften it. */

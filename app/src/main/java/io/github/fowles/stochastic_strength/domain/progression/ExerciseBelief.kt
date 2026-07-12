@@ -158,12 +158,18 @@ data class EstimatorConfig(
      *
      * Source: variance-budget study 2026-07-11, held-out one-step-ahead CV over the real 24-session
      * history (report: app/build/variance-budget-jointfit-report.txt). This is the primary structural
-     * fix: it absorbs the between-session (~43%) residual share the model previously lacked, and unlike
-     * obs-noise scaling it is a shared per-session nuisance that never discounts individual
-     * observations — so it is safe for failure-dominated lifts. At obsNoiseScale=1.0 the day-effect
-     * optimum is σ_day≈0.08 (held-out −203.9 vs default −277.5, +73.6 nats). Pinned 2026-07-11.
+     * fix: it absorbs the between-session (~43%) residual share the model previously lacked.
+     *
+     * ADOPTED AT 0.02 (conservative point on the σ_day trade-off curve). The day-effect softens the
+     * belief's reaction to a session's shared good/bad-day component; at obsNoiseScale=1.0 the pure-CV
+     * optimum is ~0.08 (held-out −203.9), but the day-effect's per-set variance-inflation also discounts
+     * the single clean RIR_0_1 success that pins the demonstrated prod-BSS at 20 lb, drifting it up
+     * (σ_day 0.04→25 lb, 0.06-0.08→30 lb; all still below the 35 lb failed weight). σ_day=0.02 keeps
+     * BSS at the demonstrated 20 lb AND still captures held-out −233.8 (+43.7 of the +73.6 max win,
+     * ~60%). User-adjudicated 2026-07-11 to prioritize the hard-won demonstrated pin over the marginal
+     * aggregate-CV tail. (Full curve: .superpowers/sdd/bss-tradeoff-report.md.)
      */
-    val sessionDayEffectSd: Float = 0.08f,
+    val sessionDayEffectSd: Float = 0.02f,
 )
 
 /** τ for an exercise's equipment class; unknown/other-loaded → the loosest class. */
