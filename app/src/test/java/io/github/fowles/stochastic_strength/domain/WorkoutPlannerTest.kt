@@ -545,6 +545,48 @@ class WorkoutPlannerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────
+    // computeWarmupSets — non-barbell equipment (percentage ramp)
+    // ──────────────────────────────────────────────────────────────────────
+
+    private fun dumbbell(id: Long = 50L) =
+        exercise(id, name = "Dumbbell Row", muscle = MuscleGroup.BACK, equipment = Equipment.DUMBBELL)
+
+    @Test
+    fun `computeWarmupSets 50lb dumbbell is a single light stop, not the 45lb bar`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(50f), dumbbell())
+        assertEquals(listOf(30), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(3), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets 100lb dumbbell steps down by 20 with proximity reps`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(100f), dumbbell())
+        assertEquals(listOf(40, 60, 80), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(5, 3, 2), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets 40lb dumbbell yields one stop at the floor`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(40f), dumbbell())
+        assertEquals(listOf(20), warmups.map { it.roundedLbs() })
+        assertEquals(listOf(3), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets 30lb dumbbell is too light for any warmup`() {
+        val warmups = lbsPlanner().computeWarmupSets(lbsToKg(30f), dumbbell())
+        assertTrue(warmups.isEmpty())
+    }
+
+    @Test
+    fun `computeWarmupSets machine uses percentage ramp in KG with 10kg min jump`() {
+        val machine = exercise(60L, name = "Pec Deck", muscle = MuscleGroup.CHEST, equipment = Equipment.MACHINE)
+        val warmups = planner().computeWarmupSets(40f, machine)
+        assertEquals(listOf(20, 30), warmups.map { it.weight.roundToInt() })
+        assertEquals(listOf(3, 2), warmups.map { it.reps })
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
     // Recently-failed muscle group exclusion
     // ──────────────────────────────────────────────────────────────────────
 

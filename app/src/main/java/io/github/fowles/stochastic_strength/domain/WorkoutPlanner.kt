@@ -129,6 +129,12 @@ class WorkoutPlanner(
     }
 
     fun computeWarmupSets(weightKg: Float, exercise: Exercise? = null): List<WarmupSet> {
+        // Non-barbell lifts have no bar and no plate math — ramp as a percentage
+        // of the working weight instead of the barbell plates-and-quarters model.
+        if (exercise != null && exercise.equipment != Equipment.BARBELL) {
+            return percentageRampWarmups(weightKg)
+        }
+
         val barKg = WeightFormatter.roundForWarmup(20f, weightUnit)
 
         // Step = bar weight. Applied to multiples and rounded, this naturally produces
@@ -187,6 +193,34 @@ class WorkoutPlanner(
         return stops.mapIndexed { i, w ->
             val reps = when {
                 feelerAdded && i == stops.lastIndex -> 1
+                w < weightKg * 0.5f -> 5
+                w < weightKg * 0.7f -> 3
+                else -> 2
+            }
+            WarmupSet(w, reps)
+        }
+    }
+
+    // Percentage ramp for non-barbell lifts: step DOWN from the working weight by
+    // max(minJump, 20% of W), collecting stops down to a 40% floor. No feeler —
+    // the down-built ramp already ends close to the working weight.
+    private fun percentageRampWarmups(weightKg: Float): List<WarmupSet> {
+        if (weightKg <= 0f) return emptyList()
+
+        val minJump = if (weightUnit == WeightUnit.LBS) WeightUnit.LBS.toKg(20f) else 10f
+        val step = maxOf(minJump, weightKg * 0.20f)
+        val floor = weightKg * 0.40f
+
+        val stops = generateSequence(weightKg - step) { it - step }
+            .takeWhile { it >= floor - 0.001f }
+            .toList()
+            .asReversed()
+            .map { WeightFormatter.round(it, weightUnit) }
+            .filter { it > 0f && it < weightKg }
+            .distinct()
+
+        return stops.map { w ->
+            val reps = when {
                 w < weightKg * 0.5f -> 5
                 w < weightKg * 0.7f -> 3
                 else -> 2
