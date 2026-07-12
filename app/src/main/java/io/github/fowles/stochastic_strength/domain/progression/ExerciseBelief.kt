@@ -140,36 +140,31 @@ data class EstimatorConfig(
      * (TOO_HARD) observations are always kept SHARP (unscaled) because they are hard capacity bounds,
      * not noisy point estimates (see [SetObservation.from]).
      *
-     * ADOPTED AT 1.0 (no obs-noise scaling) — the day-effect ([sessionDayEffectSd]) carries the
-     * variance-budget fix. Rationale (variance-budget study 2026-07-11, failures-sharp joint fit over
-     * the real 24-session history; report: app/build/variance-budget-jointfit-report.txt): once
-     * failure bounds are kept sharp, obs-noise scaling is a MARGINAL knob — day-effect alone
-     * (obsNoiseScale=1.0, σ_day=0.08) scores held-out −203.9 (+73.6 vs default −277.5, ~95% of the
-     * total win); pushing obsNoiseScale to the joint optimum (2.0) buys only ~3.6 more nats AND
-     * discounts the clean RIR_0_1 success that pins the demonstrated prod-BSS at 20 lb, floating it up
-     * to the failed weight (35 lb). So the aggregate-CV gain from obs-noise scaling is not worth the
-     * safety/accuracy cost; kept at 1.0. The knob (and the failures-sharp cut) remain for future use.
+     * ADOPTED AT 1.0 (no obs-noise scaling; a no-op). Dormant machinery from the variance-budget study
+     * 2026-07-11: once failure bounds are kept sharp, obs-noise scaling is only a marginal aggregate-CV
+     * knob and it discounts the clean RIR_0_1 success that pins the demonstrated prod-BSS at 20 lb,
+     * over-prescribing failure-dominated lifts. Left at 1.0 (off); the knob + failures-sharp cut remain
+     * for future use. See [sessionDayEffectSd] for the overall phase outcome.
      */
     val obsNoiseScale: Float = 1.0f,
     /**
      * σ_day: std of the shared per-session "good-day/bad-day" random intercept d ~ N(0, σ_day²),
      * estimated from a session's own sets and integrated out of the belief folds (transient, never
-     * durable).
+     * durable). At 0.0 the day-effect is OFF and the fold is bit-identical to the pre-phase model.
      *
-     * Source: variance-budget study 2026-07-11, held-out one-step-ahead CV over the real 24-session
-     * history (report: app/build/variance-budget-jointfit-report.txt). This is the primary structural
-     * fix: it absorbs the between-session (~43%) residual share the model previously lacked.
-     *
-     * ADOPTED AT 0.02 (conservative point on the σ_day trade-off curve). The day-effect softens the
-     * belief's reaction to a session's shared good/bad-day component; at obsNoiseScale=1.0 the pure-CV
-     * optimum is ~0.08 (held-out −203.9), but the day-effect's per-set variance-inflation also discounts
-     * the single clean RIR_0_1 success that pins the demonstrated prod-BSS at 20 lb, drifting it up
-     * (σ_day 0.04→25 lb, 0.06-0.08→30 lb; all still below the 35 lb failed weight). σ_day=0.02 keeps
-     * BSS at the demonstrated 20 lb AND still captures held-out −233.8 (+43.7 of the +73.6 max win,
-     * ~60%). User-adjudicated 2026-07-11 to prioritize the hard-won demonstrated pin over the marginal
-     * aggregate-CV tail. (Full curve: .superpowers/sdd/bss-tradeoff-report.md.)
+     * ADOPTED AT 0.0 (dormant). The variance-budget study 2026-07-11 (held-out one-step CV over the real
+     * 24-session history; report: app/build/variance-budget-jointfit-report.txt) showed the day-effect
+     * is a genuine structural improvement in aggregate held-out prediction (σ_day=0.08 → −203.9 vs
+     * default −277.5, +73.6 nats). BUT its per-set variance-inflation also discounts the single clean
+     * RIR_0_1 success that pins the user-demonstrated prod-BSS at 20 lb: EVERY positive σ_day lifts that
+     * prescription (0.02→25 lb, 0.06–0.08→30 lb — all still safely below the 35 lb the user failed, but
+     * off the demonstrated 20). No σ_day preserves the 20 lb pin. User-adjudicated 2026-07-11 to ship the
+     * machinery + analysis but adopt NO behavioral change, protecting the hard-won demonstrated pin over
+     * the aggregate-CV win. Raising σ_day in future should be paired with a mechanism that protects clean
+     * corrective successes (or the failure-ceiling round-down fix in CLAUDE_TODO). Two-pass fold +
+     * [SessionDayEffect] stay wired and are exercised by StepperDayEffectTest at explicit σ_day > 0.
      */
-    val sessionDayEffectSd: Float = 0.02f,
+    val sessionDayEffectSd: Float = 0.0f,
 )
 
 /** τ for an exercise's equipment class; unknown/other-loaded → the loosest class. */

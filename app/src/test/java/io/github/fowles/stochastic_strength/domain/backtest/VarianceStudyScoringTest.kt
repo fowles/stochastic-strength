@@ -20,21 +20,16 @@ class VarianceStudyScoringTest {
         assertFalse(v2.interior)
     }
 
-    // Anchor: production's scoredReplayTotal is stable across runs. At sessionDayEffectSd=0 this would
-    // equal captureStream+BaselineScorer (no day variance contribution). With sessionDayEffectSd=0.02
-    // the production path marginalizes session day variance (MAP estimate, then cleanVar+day.variance
-    // in the score) while BaselineScorer uses cleanVar+noiseSd² only — they legitimately diverge.
-    // This test therefore pins the production total directly; the parity at sigmaDay=0 is covered by
-    // dayEffectAtZeroSigmaEqualsBaseline (which checks DayEffectScorer(0)==BaselineScorer).
-    // Re-pinned 2026-07-12: obsNoiseScale=1.0 + sessionDayEffectSd=0.02 (final day-effect-only adoption).
+    // Anchor: our independent capture+baseline scoring reproduces production's scored replay total.
     @Test fun baselineScoringMatchesProductionScoredReplayTotal() {
         val data = BacktestHarness.load()
         assumeTrue("no personal history.json fixture; skipping", data != null)
         data!!
         val cfg = io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig()
+        val stream = captureStream(data.history, cfg, data::newSnapshot)
+        val ours = heldOutScore(stream, BaselineScorer, minFold = 0)     // score ALL sessions
         val prod = RecalibrationHarness.scoredReplayTotal(data.history, cfg, data::newSnapshot)
-        // Pinned 2026-07-12 (obsNoiseScale=1.0, sessionDayEffectSd=0.02).
-        assertEquals(-322.1649716142565, prod, 1.0)
+        assertEquals(prod, ours, 1e-3)
     }
 
     @Test fun dayEffectAtZeroSigmaEqualsBaseline() {

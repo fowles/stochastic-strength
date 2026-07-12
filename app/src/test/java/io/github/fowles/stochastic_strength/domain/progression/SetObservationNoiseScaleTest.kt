@@ -19,11 +19,12 @@ class SetObservationNoiseScaleTest {
     }
 
     @Test fun adoptedDefaultsPinned() {
-        // Variance-budget study 2026-07-11 adopted the day-effect ONLY; obs-noise scaling stays at
-        // 1.0 (its aggregate-CV gain was marginal and it discounted the clean success pinning prod-BSS
-        // at 20 lb). Fails loudly if either default is re-changed without re-running the ceremony.
+        // Variance-budget study 2026-07-11 outcome: ship the machinery, adopt NO behavioral change —
+        // both knobs stay at their no-op values (obsNoiseScale=1.0, sessionDayEffectSd=0.0) because any
+        // positive day-effect lifts the demonstrated prod-BSS 20 lb pin. Fails loudly if either default
+        // is re-changed without re-running the human-gated adoption ceremony.
         assertEquals(1.0f, EstimatorConfig().obsNoiseScale, 0f)
-        assertEquals(0.02f, EstimatorConfig().sessionDayEffectSd, 0f)
+        assertEquals(0.0f, EstimatorConfig().sessionDayEffectSd, 0f)
     }
 
     /** TOO_HARD (bucket, no actualReps): noise is a hard capacity bound — obsNoiseScale must not soften it. */

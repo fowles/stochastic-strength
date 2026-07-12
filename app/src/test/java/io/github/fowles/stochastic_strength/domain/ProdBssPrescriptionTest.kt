@@ -118,13 +118,12 @@ class ProdBssPrescriptionTest {
         val prescribedKg = WeightFormatter.round(sessionWeightKg, WeightUnit.LBS)
 
         // Pre-policy belief-only figure (projector effective e1rm → session weight, no z/δ/fatigue).
-        // RE-MEASURED 2026-07-12 after final day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.02):
-        // BSS pre-policy session weight is 30 lb (13.608 kg). With obsNoiseScale=1.0 the failures are
-        // sharp; with sessionDayEffectSd=0.02 (small day-effect) the belief's sigma2 is only slightly
-        // widened vs no-day-effect, yielding a lower pooled estimate than the σ_day=0.08 config (35 lb).
-        // See policyPathSafetyBounds for the policy-path result and the safety assertion.
-        assertEquals("BSS projector-only (pre-policy) prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.02)",
-            WeightUnit.LBS.toKg(30f), prescribedKg, 1e-3f)
+        // Re-measured 2026-07-09 after adaptive attention + the projector evidence gate: BSS effective
+        // e1rm ≈ 18.7 kg (own belief, fully adopting the set-3 RIR_0_1 evidence; no sibling re-nudge
+        // because n_eff now reads the adaptation-immune evidenceVar) → 25 lb on the pre-policy grid.
+        // The z·σ + fatigue discount then brings the actual prescription to 20 lb (policyPathSafetyBounds).
+        assertEquals("BSS projector-only (pre-policy) prescription pinned at 25 lb",
+            WeightUnit.LBS.toKg(25f), prescribedKg, 1e-3f)
     }
 
     @Test
@@ -161,18 +160,21 @@ class ProdBssPrescriptionTest {
         val bss = Exercise(id = 55L, name = "Bulgarian Split Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.DUMBBELL)
         val weightKg = policy.prescribe(bss, 10)!!
 
-        // RE-PINNED 2026-07-12 for final day-effect-only adoption (obsNoiseScale=1.0, sessionDayEffectSd=0.02).
-        // With σ_day=0.02 (small day-effect only), sigma2 widens very slightly; the policy prescription
-        // is 25 lb (11.339824 kg), well below the lightest failed weight (35 lb = 15.876 kg).
-        //
-        // Note: the original pre-phase demonstrated pin was 20 lb; σ_day=0.02 gives 25 lb because the
-        // small day-effect term slightly widens sigma2, raising the pooled estimate slightly above the
-        // no-day-effect equilibrium. The safety property HOLDS: 25 lb < 35 lb (lightest failed weight).
-        // The pre-policy figure (reportBssPrescription) is 30 lb at this config.
-        assertTrue("BSS policy prescription must stay below the lightest failed weight (35 lb = 15.876 kg)", weightKg < 15.875f)
-        assertEquals(
-            "BSS policy prescription (obsNoiseScale=1.0, sessionDayEffectSd=0.02) — 25 lb (day-effect-only σ_day=0.02)",
-            WeightUnit.LBS.toKg(25f), weightKg, 1e-3f
-        )
+        // PINNED to the user's directly-demonstrated set-3 capacity: 20 lb (session 18 set 3 was
+        // 20 lb × 10 at RIR_0_1 — the ONLY clean 10-rep RIR_0_1 set in the history; every ≥35 lb
+        // attempt at 10 reps was TOO_HARD). Restored 2026-07-09 (was 30 lb, a fatigue-blind fresh-1RM
+        // reading the static filter couldn't walk back). Three changes get here HONESTLY — no snap-down:
+        //   1. Adaptive attention: the consistent down-run of failures ending in the clean RIR_0_1 set
+        //      re-opens σ so the belief adopts the set-3 evidence (own → ~18.7 kg, inside its fresh
+        //      interval [17.9, 19.5]) instead of compromising at ~24 kg.
+        //   2. Projector evidence gate: n_eff reads the adaptation-immune evidenceVar, so BSS's confident
+        //      siblings no longer pull the inflated-σ belief back up (effective e1rm == own, 18.7 kg).
+        //   3. Policy factor exp(−z·σ + δ + ln(1−2φ)) discounts 18.7 kg → set-3 target → 9.07 kg = 20 lb.
+        // The belief only rises again on NEW successful data. Spec safety property still holds
+        // (20 < 35 < 55 lb — strictly below every failed weight).
+        assertTrue("BSS policy prescription must stay below the lightest failed weight (35 lb = 15.876 kg)",
+            weightKg < 15.875f)
+        assertEquals("BSS policy prescription pinned at demonstrated 20 lb (got ${weightKg / WeightUnit.LBS.toKg(1f)} lbs)",
+            WeightUnit.LBS.toKg(20f), weightKg, 1e-3f)
     }
 }
