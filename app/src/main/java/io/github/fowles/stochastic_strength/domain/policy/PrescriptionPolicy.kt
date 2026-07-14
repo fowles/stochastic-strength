@@ -1,10 +1,18 @@
 package io.github.fowles.stochastic_strength.domain.policy
 
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
+import io.github.fowles.stochastic_strength.domain.ProgressionEngine
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
+
+/** One clamped prescription. [capBound]/[hurtMultiplier] feed the clamp-bind health report. */
+data class Prescription(val weightKg: Float, val capBound: Boolean, val hurtMultiplier: Float)
 
 /**
  * Prescription-time policy clamps (spec Phase 1). Constitution rule 6: every rule here is a plain
@@ -67,5 +75,34 @@ object PrescriptionPolicy {
             m *= 1f - HURT_DEPTH * 0.5f.pow(age.toFloat() / HURT_HALF_LIFE_MS)
         }
         return m.coerceAtLeast(HURT_FLOOR)
+    }
+
+    /**
+     * prescribe(rawTarget, PolicyFacts) → weight (spec Phase 1). Order: HURT backoff multiplies the
+     * raw target, then the demonstrated-capacity cap ceilings it, then grid rounding. When the cap
+     * binds, the weight is computed with the RAW rep-max inverse and floor-rounded at the grid —
+     * pre-rounding to the 0.5 kg internal grid could nudge the weight back up to exactly the failed
+     * weight, and nearest-rounding at the prescription grid could round above the cap.
+     */
+    fun prescribe(
+        rawE1rm: Float,
+        sessionReps: Int,
+        exerciseId: Long,
+        muscle: MuscleGroup,
+        facts: PolicyFacts,
+        now: Long,
+        weightUnit: WeightUnit,
+        engine: ProgressionEngine,
+    ): Prescription {
+        val mult = hurtMultiplier(facts.hurtEventsByMuscle[muscle].orEmpty(), now)
+        val backed = rawE1rm * mult
+        val fact = facts.capByExercise[exerciseId]
+        val capLn = fact?.capLn?.takeIf { now - fact.demonstratedAt <= CAP_EXPIRY_MS }
+        if (capLn != null && ln(backed) > capLn) {
+            val capWeight = DefaultProgressionEngine.rawFromOneRepMax(exp(capLn), sessionReps)
+            return Prescription(WeightFormatter.roundDown(capWeight, weightUnit), capBound = true, hurtMultiplier = mult)
+        }
+        val weight = engine.fromOneRepMax(backed, sessionReps)
+        return Prescription(WeightFormatter.round(weight, weightUnit), capBound = false, hurtMultiplier = mult)
     }
 }

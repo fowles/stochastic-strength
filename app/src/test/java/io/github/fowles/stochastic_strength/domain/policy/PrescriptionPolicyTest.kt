@@ -1,12 +1,17 @@
 package io.github.fowles.stochastic_strength.domain.policy
 
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.exp
 import kotlin.math.ln
 
 class PrescriptionPolicyTest {
@@ -83,5 +88,80 @@ class PrescriptionPolicyTest {
         val m = PrescriptionPolicy.hurtMultiplier(List(7) { 0L }, 0L)  // 0.85^7 ≈ 0.32 → floored
         assertEquals(0.6f, m, 1e-6f)
         assertTrue(PrescriptionPolicy.hurtMultiplier(List(2) { 0L }, 0L) > 0.6f)
+    }
+
+    // --- prescribe ---
+
+    private val DAY = 24L * 60 * 60 * 1000
+
+    private fun prescribe(
+        rawE1rm: Float,
+        facts: PolicyFacts,
+        reps: Int = 10,
+        now: Long = 30 * DAY,
+        unit: WeightUnit = WeightUnit.KG,
+    ) = PrescriptionPolicy.prescribe(
+        rawE1rm = rawE1rm, sessionReps = reps, exerciseId = 1L, muscle = MuscleGroup.QUADS,
+        facts = facts, now = now, weightUnit = unit, engine = DefaultProgressionEngine,
+    )
+
+    private fun capFacts(capLn: Float?, at: Long) =
+        PolicyFacts(capByExercise = mapOf(1L to ExerciseCapFact(capLn, at)))
+
+    @Test
+    fun noFactsReproducesTheLegacyRoundedPrescription() {
+        val raw = DefaultProgressionEngine.rawToOneRepMax(100f, 10f)
+        val p = prescribe(raw, PolicyFacts.EMPTY)
+        assertEquals(WeightFormatter.round(DefaultProgressionEngine.fromOneRepMax(raw, 10), WeightUnit.KG), p.weightKg, 1e-4f)
+        assertFalse(p.capBound)
+        assertEquals(1f, p.hurtMultiplier, 0f)
+    }
+
+    @Test
+    fun bindingCapFloorsAtTheGridAndClosesTheFailThenNarrowSuccessHole() {
+        // "fail 35 → narrowly succeed at 20 → engine says 35 again": most recent session was the
+        // narrow success, so the cap is 1RM(20, 12) and the prescription creeps instead of jumping.
+        val capLn = PrescriptionPolicy.capLnFor(listOf(set(SetFeedback.RIR_0_1, w = 20f)))
+        val raw = DefaultProgressionEngine.rawToOneRepMax(35f, 10f)
+        val p = prescribe(raw, capFacts(capLn, at = 29 * DAY))
+        assertTrue(p.capBound)
+        assertTrue("crept prescription, not a jump back to 35", p.weightKg < 25f)
+        assertTrue("cap is above the demonstrated 20", p.weightKg >= 20f)
+    }
+
+    @Test
+    fun prescriptionAfterAFailureIsStrictlyBelowTheFailedWeight() {
+        // Light-weight edge: failed 10 kg × 10 doing 9 — even one rep short must prescribe < 10 kg.
+        val capLn = PrescriptionPolicy.capLnFor(listOf(set(SetFeedback.TOO_HARD, w = 10f, a = 9)))
+        val p = prescribe(DefaultProgressionEngine.rawToOneRepMax(10f, 10f), capFacts(capLn, at = 29 * DAY))
+        assertTrue(p.capBound)
+        assertTrue(p.weightKg < 10f)
+    }
+
+    @Test
+    fun expiredCapDoesNotBind() {
+        val capLn = PrescriptionPolicy.capLnFor(listOf(set(SetFeedback.TOO_HARD, w = 20f, a = 2)))
+        val raw = DefaultProgressionEngine.rawToOneRepMax(35f, 10f)
+        val p = prescribe(raw, capFacts(capLn, at = 1 * DAY), now = 30 * DAY)  // 29 days later
+        assertFalse(p.capBound)
+    }
+
+    @Test
+    fun rawBelowTheCapPassesThroughUnbound() {
+        val capLn = PrescriptionPolicy.capLnFor(listOf(set(SetFeedback.RIR_0_1, w = 20f)))
+        val raw = exp(capLn!!) * 0.9f
+        val p = prescribe(raw, capFacts(capLn, at = 29 * DAY))
+        assertFalse(p.capBound)
+    }
+
+    @Test
+    fun hurtBackoffScalesThePrescriptionAndCapAppliesOnTop() {
+        val now = 30 * DAY
+        val facts = PolicyFacts(hurtEventsByMuscle = mapOf(MuscleGroup.QUADS to listOf(now)))
+        val raw = DefaultProgressionEngine.rawToOneRepMax(100f, 10f)
+        val backed = prescribe(raw, facts, now = now)
+        val unbacked = prescribe(raw, PolicyFacts.EMPTY, now = now)
+        assertEquals(0.85f, backed.hurtMultiplier, 1e-4f)
+        assertTrue(backed.weightKg < unbacked.weightKg)
     }
 }
