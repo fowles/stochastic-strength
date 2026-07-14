@@ -37,7 +37,7 @@
   - `BacktestData.loadOrNull(): BacktestData?`, `BacktestData.from(backup: WorkoutBackup): BacktestData`, `BacktestData.historyFile(): File`
   - `BacktestFixtures.backup(exercises, sessions, sets, strengthOverrides = emptyList()): WorkoutBackup`
 
-- [ ] **Step 1: Add the test-only org.json dependency**
+- [x] **Step 1: Add the test-only org.json dependency**
 
 In `gradle/libs.versions.toml`, under `[libraries]` (next to the `junit` line):
 
@@ -53,7 +53,7 @@ testImplementation(libs.json)
 
 (Android ships `org.json` at runtime but stubs it for JVM unit tests; this dependency makes `BackupJsonParser` work under `testDebugUnitTest`.)
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 `app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/BacktestDataTest.kt`:
 
@@ -176,12 +176,12 @@ object BacktestFixtures {
 }
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestDataTest"`
 Expected: FAIL — `BacktestData` unresolved.
 
-- [ ] **Step 4: Implement BacktestData**
+- [x] **Step 4: Implement BacktestData**
 
 `app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/BacktestData.kt`:
 
@@ -238,12 +238,12 @@ class BacktestData(val backup: WorkoutBackup, val weightUnit: WeightUnit) {
 }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestDataTest"`
 Expected: PASS (4 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj describe -m "test(backtest): BacktestData loader + fixtures over the backup format" && jj new
@@ -274,7 +274,7 @@ Bounds table (from the spec — copy exactly):
 | RIR_5_PLUS | [ln 1RM(w, r+5), ∞) |
 | HURT / null feedback / w ≤ 0 | null (not scored) |
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -349,12 +349,12 @@ class SetIntervalsTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.SetIntervalsTest"`
 Expected: FAIL — `SetIntervals` unresolved.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `SetIntervals.kt`:
 
@@ -404,12 +404,12 @@ object SetIntervals {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.SetIntervalsTest"`
 Expected: PASS (7 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj describe -m "test(backtest): model-free ln(1RM) set intervals + distance metric" && jj new
@@ -429,7 +429,7 @@ jj describe -m "test(backtest): model-free ln(1RM) set intervals + distance metr
   - `MainStackReplay.run(data: BacktestData, observer: SessionObserver)` where `fun interface SessionObserver { fun onSession(sessionId: Long, asOf: Long, sets: List<WorkoutSet>, predictions: Map<Long, Float>, snapshot: ReplaySnapshot) }`
   - `predictions` = every loaded exercise's projected effective 1RM (kg) computed **after applying that session's override rows but before folding its sets** — the held-out prediction for that session, at `now = session.endTime`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -508,12 +508,12 @@ class MainStackReplayTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.MainStackReplayTest"`
 Expected: FAIL — `MainStackReplay` unresolved.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `MainStackReplay.kt`:
 
@@ -572,12 +572,12 @@ object MainStackReplay {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.MainStackReplayTest"`
 Expected: PASS (2 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj describe -m "test(backtest): DB-free replay of main's stack with pre-fold held-out predictions" && jj new
@@ -598,7 +598,7 @@ jj describe -m "test(backtest): DB-free replay of main's stack with pre-fold hel
   - `data class ScoreReport(val totalDistance: Double, val scoredSets: Int, val skippedSets: Int, val perSession: List<SessionScore>)` — `skippedSets` counts sets with an interval but no prediction (cold exercise); interval-less sets (HURT/no feedback/bodyweight) are not counted at all.
   - `HeldOutScorer.score(data: BacktestData): ScoreReport`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -682,12 +682,12 @@ class HeldOutScorerTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.HeldOutScorerTest"`
 Expected: FAIL — `HeldOutScorer` unresolved.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `HeldOutScorer.kt`:
 
@@ -736,12 +736,12 @@ object HeldOutScorer {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.HeldOutScorerTest"`
 Expected: PASS (3 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj describe -m "test(backtest): forward-chaining held-out scorer over set intervals" && jj new
@@ -764,7 +764,7 @@ jj describe -m "test(backtest): forward-chaining held-out scorer over set interv
 
 Cap rule (from the spec — copy exactly): within a 28-day window, an exercise is capped by its **most recent session**: any TOO_HARD set → cap = min over failed sets' interval upper bounds; otherwise cap = max over the session's upper bounds, and if any loaded set is unbounded above (RIR_5_PLUS) there is no cap. This is a *diagnostic only* in Phase 0 (main has no policy layer); its violation count is baseline color and the seed of the Phase-1 invariant tests.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -871,12 +871,12 @@ class CapViolationDiagnosticTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.CapViolationDiagnosticTest"`
 Expected: FAIL — `CapViolationDiagnostic` unresolved.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `CapViolationDiagnostic.kt`:
 
@@ -940,12 +940,12 @@ object CapViolationDiagnostic {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.CapViolationDiagnosticTest"`
 Expected: PASS (6 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj describe -m "test(backtest): demonstrated-capacity-cap violation diagnostic" && jj new
@@ -962,12 +962,12 @@ jj describe -m "test(backtest): demonstrated-capacity-cap violation diagnostic" 
 **Interfaces:**
 - Consumes: `BacktestData.loadOrNull()/baselineFile()` (Task 1), `HeldOutScorer.score` (Task 4), `CapViolationDiagnostic.violations` (Task 5), org.json.
 
-- [ ] **Step 1: Confirm the baseline file will stay untracked**
+- [x] **Step 1: Confirm the baseline file will stay untracked**
 
 Run: `git check-ignore app/src/test/resources/backtest/phase0_baseline.json && echo IGNORED`
 Expected: `IGNORED`. If not, add `app/src/test/resources/backtest/` to `.gitignore` first and include that change in this task's commit.
 
-- [ ] **Step 2: Write the report test**
+- [x] **Step 2: Write the report test**
 
 This test is the deliverable (a runnable report), so there is no red-green cycle — it must skip cleanly without the local history file and pass with it.
 
@@ -1029,21 +1029,21 @@ class BaselineReportTest {
 }
 ```
 
-- [ ] **Step 3: Run the report against the real history**
+- [x] **Step 3: Run the report against the real history**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BaselineReportTest" --info 2>&1 | grep -A 40 "Phase 0 baseline"`
 Expected: PASS, with the printed report (24 sessions of data; scored sets should be in the low hundreds given 360 sets minus HURT/cold/bodyweight).
 
-- [ ] **Step 4: Record the numbers**
+- [x] **Step 4: Record the numbers**
 
 Paste the printed report into the "Baseline results" section at the bottom of this plan file. These numbers are the Phase-2 ship-gate reference (spec: "new stack ≥ main's baseline").
 
-- [ ] **Step 5: Run the full unit suite for regressions**
+- [x] **Step 5: Run the full unit suite for regressions**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: all green (new backtest tests skip the report if the local file is missing; everything pre-existing untouched).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj describe -m "test(backtest): phase-0 baseline report of main's estimator on real history" && jj new
