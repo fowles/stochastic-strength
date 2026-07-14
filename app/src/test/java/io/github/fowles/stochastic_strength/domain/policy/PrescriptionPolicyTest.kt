@@ -164,4 +164,15 @@ class PrescriptionPolicyTest {
         assertEquals(0.85f, backed.hurtMultiplier, 1e-4f)
         assertTrue(backed.weightKg < unbacked.weightKg)
     }
+
+    @Test
+    fun nearCapEstimateCannotRoundBackUpToTheFailedWeight() {
+        // Real-history hole (exercise 30): failed 15 lb x 10 doing 9; a raw estimate just
+        // BELOW the cap used nearest-rounding and climbed back to exactly 15 lb.
+        val failedKg = 6.803894f  // 15 lb
+        val capLn = PrescriptionPolicy.capLnFor(listOf(set(SetFeedback.TOO_HARD, w = failedKg, a = 9)))
+        val raw = exp(capLn!!) * 0.995f  // just under the cap: old code took the uncapped path
+        val p = prescribe(raw, capFacts(capLn, at = 29 * DAY), unit = WeightUnit.LBS)
+        assertTrue("prescribed ${p.weightKg} must be strictly below the failed $failedKg", p.weightKg < failedKg)
+    }
 }
