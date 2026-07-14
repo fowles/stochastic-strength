@@ -27,6 +27,7 @@ import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressi
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
+import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -79,6 +80,10 @@ class WorkoutRepository(
         val effectiveCoefficients = effectiveCoefficientSource()
         val exercisesById = available.associateBy { it.id }
         val pacingEstimator = ExercisePacingEstimator.build(recentSessions, recentSets, exercisesById)
+        val policyFacts = PolicyFacts.build(
+            sets = history.values.flatten(),
+            exerciseMuscle = available.associate { it.id to it.primaryMuscle },
+        )
         return WorkoutPlanner(
             availableExercises = available,
             prescribedE1rm = prescribedE1rm,
@@ -89,6 +94,7 @@ class WorkoutRepository(
             progressionEngine = progressionEngine,
             pacingEstimator = pacingEstimator,
             exerciseE1rmOverrides = exerciseOverrides,
+            policyFacts = policyFacts,
         )
     }
 
