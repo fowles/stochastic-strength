@@ -53,15 +53,17 @@ class SessionProgressionStepperTest {
     }
 
     @Test
-    fun hurtBacksOffEveryLoadedExerciseInTheMuscle() {
+    fun hurtSetsLeaveEstimatesUntouched() {
+        // HURT is a policy concern (PrescriptionPolicy.hurtMultiplier); the estimator must not
+        // mutate any estimate for a HURT set.
         val snap = snapshot()
-        val before1 = snap.currentEstimates.getValue(1L).lnE
-        stepper.step(
+        val before = snap.currentEstimates.toMap()
+        val result = stepper.step(
             sets = listOf(set(2L, weight = 60f, reps = 5, feedback = SetFeedback.HURT)),
             snapshot = snap,
             asOf = 2_000L,
         )
-        // HURT is muscle-level: exercise 1 is backed off even though only 2 was performed.
-        assertEquals(before1 + ln(0.85f), snap.currentEstimates.getValue(1L).lnE, 1e-4f)
+        assertEquals(before, snap.currentEstimates.toMap())
+        assertTrue(result.steps.isEmpty())
     }
 }

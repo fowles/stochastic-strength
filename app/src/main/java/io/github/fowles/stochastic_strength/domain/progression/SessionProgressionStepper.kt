@@ -1,15 +1,14 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
-import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
 
 /**
- * Pure per-session core of progression: HURT (muscle-level) → per-exercise fold → projection of
- * each affected muscle. Mutates [ReplaySnapshot.currentEstimates] in place and returns the affected
- * muscles' projections. Persistence of the projections is the caller's concern.
+ * Pure per-session core of progression: per-exercise fold → projection of each affected muscle.
+ * Mutates [ReplaySnapshot.currentEstimates] in place and returns the affected muscles' projections.
+ * Persistence of the projections is the caller's concern.
  */
 class SessionProgressionStepper(
     private val updater: ExerciseEstimateUpdater = ExerciseEstimateUpdater(),
@@ -21,17 +20,6 @@ class SessionProgressionStepper(
     fun step(sets: List<WorkoutSet>, snapshot: ReplaySnapshot, asOf: Long): StepResult {
         if (sets.isEmpty()) return StepResult(emptyList())
 
-        // HURT first (muscle-level): for any hurt muscle, hurt every loaded exercise estimate in it.
-        val hurtMuscles = sets.filter { it.feedback == SetFeedback.HURT }
-            .mapNotNull { snapshot.exerciseMuscle[it.exerciseId] }.toSet()
-        for (m in hurtMuscles) {
-            for (id in snapshot.muscleExerciseIds[m].orEmpty()) {
-                snapshot.currentEstimates[id]?.let {
-                    snapshot.currentEstimates[id] = updater.hurt(it, asOf)
-                }
-            }
-        }
-
         // Per-exercise fold from the session aggregate.
         val affectedMuscles = mutableSetOf<MuscleGroup>()
         sets.groupBy { it.exerciseId }.forEach { (id, exSets) ->
@@ -41,7 +29,6 @@ class SessionProgressionStepper(
             snapshot.currentEstimates[id] = updater.fold(prior, agg.est1RM, agg.bracketConfidence, asOf)
             snapshot.exerciseMuscle[id]?.let { affectedMuscles.add(it) }
         }
-        affectedMuscles.addAll(hurtMuscles)
 
         val steps = affectedMuscles.mapNotNull { m ->
             val exerciseIds = snapshot.muscleExerciseIds[m] ?: return@mapNotNull null
