@@ -1070,7 +1070,8 @@ jj commit -m "test: retire ProdBss 20lb pin as clamp-behavior invariants; phase-
 
 ## Results (fill in at execution)
 
-- Clamp-bind report (Task 8): prescriptions checked ___, cap binds ___ (___%), hurt binds ___, violations 0.
+- Clamp-bind report (Task 8): prescriptions checked 1560, cap binds 49 (3.1%), hurt binds 0, violations 0.
+- The invariant caught a real hole on real history: exercise 30 had a raw estimate just under the demonstrated-capacity cap (in log space) that nearest-grid-rounded back up to exactly the failed weight (15 lb / 6.803894 kg); fixed by binding the cap on the final rounded weight instead of the pre-rounding log estimate.
 - Phase-0 baseline after HURT removal (Task 7): unchanged — total 26.7593 / mean 0.12563 / 49 (confirm).
 - Final suites: JVM ___/0, instrumented ___/___.
 
