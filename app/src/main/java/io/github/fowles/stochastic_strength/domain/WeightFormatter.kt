@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 object WeightFormatter {
@@ -38,6 +39,20 @@ object WeightFormatter {
             val lbs = unit.fromKg(kg)
             val roundedLbs = (lbs / 5f).roundToInt() * 5f
             unit.toKg(roundedLbs)
+        }
+    }
+
+    /**
+     * Rounds DOWN to the prescription grid (2.5 kg / 5 lb). Used when a policy cap binds so grid
+     * rounding can never push a prescription back above a demonstrated cap (the round-up-at-grid
+     * edge bug). Epsilon absorbs unit-conversion float noise at exact grid multiples.
+     */
+    fun roundDown(kg: Float, unit: WeightUnit): Float {
+        return if (unit == WeightUnit.KG) {
+            floor(kg / 2.5f + 1e-4f) * 2.5f
+        } else {
+            val lbs = unit.fromKg(kg)
+            unit.toKg(floor(lbs / 5f + 1e-4f) * 5f)
         }
     }
 
