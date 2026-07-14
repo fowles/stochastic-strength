@@ -1053,7 +1053,63 @@ jj describe -m "test(backtest): phase-0 baseline report of main's estimator on r
 
 ## Baseline results (filled in by Task 6)
 
-_TO BE FILLED BY TASK 6 — paste the printed report here._
+```
+=== Phase 0 baseline: main's estimator on real history ===
+sessions scored : 24
+sets scored     : 213 (skipped: 9)
+total distance  : 26.7593 ln-units
+mean per set    : 0.12563 ln-units
+cap violations  : 49
+  session 18 exercise 21: predicted 33.3 kg > cap 31.6 kg
+  session 18 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 19 exercise 21: predicted 33.3 kg > cap 31.6 kg
+  session 19 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 21 exercise 21: predicted 33.4 kg > cap 31.6 kg
+  session 21 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 22 exercise 21: predicted 34.1 kg > cap 31.6 kg
+  session 22 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 23 exercise 21: predicted 34.1 kg > cap 31.6 kg
+  session 23 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 24 exercise 21: predicted 34.2 kg > cap 31.6 kg
+  session 24 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 25 exercise 21: predicted 34.2 kg > cap 31.6 kg
+  session 25 exercise 26: predicted 22.7 kg > cap 21.2 kg
+  session 25 exercise 34: predicted 24.1 kg > cap 24.1 kg
+  session 25 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 26 exercise 21: predicted 34.3 kg > cap 31.6 kg
+  session 26 exercise 26: predicted 22.7 kg > cap 21.2 kg
+  session 26 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 27 exercise 21: predicted 34.4 kg > cap 31.6 kg
+  session 27 exercise 26: predicted 22.7 kg > cap 21.2 kg
+  session 27 exercise 33: predicted 35.7 kg > cap 31.6 kg
+  session 27 exercise 34: predicted 25.4 kg > cap 24.1 kg
+  session 27 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 28 exercise 21: predicted 34.4 kg > cap 31.6 kg
+  session 28 exercise 26: predicted 22.7 kg > cap 21.2 kg
+  session 28 exercise 33: predicted 35.7 kg > cap 31.6 kg
+  session 28 exercise 34: predicted 25.4 kg > cap 24.1 kg
+  session 28 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 29 exercise 21: predicted 34.5 kg > cap 31.6 kg
+  session 29 exercise 23: predicted 44.2 kg > cap 38.4 kg
+  session 29 exercise 26: predicted 22.0 kg > cap 21.2 kg
+  session 29 exercise 33: predicted 35.7 kg > cap 31.6 kg
+  session 29 exercise 34: predicted 25.5 kg > cap 24.1 kg
+  session 29 exercise 46: predicted 14.7 kg > cap 14.6 kg
+  session 29 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 30 exercise 21: predicted 34.5 kg > cap 31.6 kg
+  session 30 exercise 23: predicted 44.2 kg > cap 38.4 kg
+  session 30 exercise 26: predicted 22.0 kg > cap 21.2 kg
+  session 30 exercise 33: predicted 32.0 kg > cap 27.6 kg
+  session 30 exercise 34: predicted 25.1 kg > cap 24.1 kg
+  session 30 exercise 46: predicted 14.7 kg > cap 14.6 kg
+  session 30 exercise 77: predicted 15.8 kg > cap 13.6 kg
+  session 31 exercise 21: predicted 34.6 kg > cap 31.6 kg
+  session 31 exercise 23: predicted 44.2 kg > cap 38.4 kg
+  session 31 exercise 26: predicted 21.9 kg > cap 21.2 kg
+  session 31 exercise 33: predicted 32.0 kg > cap 27.6 kg
+  session 31 exercise 46: predicted 14.7 kg > cap 14.6 kg
+  session 31 exercise 77: predicted 15.8 kg > cap 13.6 kg
+```
 
 ## Out of scope for this plan (later phases per the spec)
 
