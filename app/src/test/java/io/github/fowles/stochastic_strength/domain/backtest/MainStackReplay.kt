@@ -19,6 +19,8 @@ import kotlin.math.ln
 object MainStackReplay {
 
     fun interface SessionObserver {
+        /** [snapshot] is the LIVE mutable replay state, already folded past this session (post-step);
+         *  the prediction-time (pre-fold) view is [predictions]. Read synchronously, never retain. */
         fun onSession(sessionId: Long, asOf: Long, sets: List<WorkoutSet>, predictions: Map<Long, Float>, snapshot: ReplaySnapshot)
     }
 

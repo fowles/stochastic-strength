@@ -75,5 +75,6 @@ class HeldOutScorerTest {
         val report = HeldOutScorer.score(data)
         assertEquals(2, report.scoredSets)
         assertEquals(report.perSession.sumOf { it.distance }, report.totalDistance, 1e-9)
+        assertEquals(report.perSession.sumOf { it.scoredSets }, report.scoredSets)
     }
 }
