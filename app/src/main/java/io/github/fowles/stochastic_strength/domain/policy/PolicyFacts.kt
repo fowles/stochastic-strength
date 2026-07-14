@@ -33,7 +33,11 @@ data class PolicyFacts(
                     val sessions = exSets.groupBy { it.sessionId }.filterValues { s ->
                         s.any { it.feedback != null && it.feedback != SetFeedback.HURT }
                     }
-                    val latest = sessions.values.maxByOrNull { s -> s.maxOf { it.completedAt!! } }
+                    // Timestamp ties break by sessionId — the higher id is the newer session,
+                    // matching the replay's (endTime, id) ordering
+                    val latest = sessions.entries
+                        .maxWithOrNull(compareBy({ (_, s) -> s.maxOf { it.completedAt!! } }, { it.key }))
+                        ?.value
                         ?: return@mapNotNull null
                     exerciseId to ExerciseCapFact(
                         capLn = PrescriptionPolicy.capLnFor(latest),

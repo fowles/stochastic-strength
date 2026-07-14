@@ -89,4 +89,17 @@ class PolicyFactsTest {
         assertTrue(facts.capByExercise.isEmpty())
         assertTrue(facts.hurtEventsByMuscle.isEmpty())
     }
+
+    @Test
+    fun timestampTieBreaksByHigherSessionId() {
+        // Two sessions share the same completedAt; the higher sessionId is the newer session.
+        val facts = PolicyFacts.build(
+            listOf(
+                set(sessionId = 2, feedback = SetFeedback.RIR_5_PLUS, at = 100L),   // uncapped
+                set(sessionId = 1, feedback = SetFeedback.TOO_HARD, w = 35f, a = 2, at = 100L),
+            ),
+            muscles,
+        )
+        assertNull(facts.capByExercise.getValue(1L).capLn)  // session 2 wins the tie
+    }
 }
