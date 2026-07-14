@@ -1,6 +1,6 @@
 # Phase 1: Policy Layer (Log-Fact Clamps) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a pure prescription-time policy layer (demonstrated-capacity cap, HURT backoff, rest cooldown) computed from raw set-log facts, wired into the live planner and verified by clamp-behavior invariants on real history — retiring the magic-number ProdBss 20 lb pin.
 
@@ -36,7 +36,7 @@ The policy cap is defined in terms of the model-free set intervals, and the Phas
 **Interfaces:**
 - Produces: `io.github.fowles.stochastic_strength.domain.policy.LnInterval(lowerLn: Float?, upperLn: Float?)` with `distanceTo(pointLn: Float): Float`; `io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(set: WorkoutSet): LnInterval?` — exact same bodies as today's test-tree versions.
 
-- [ ] **Step 1: Move the file.** Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/policy/SetIntervals.kt` with the current content of the test-tree `SetIntervals.kt`, changing only the package line:
+- [x] **Step 1: Move the file.** Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/policy/SetIntervals.kt` with the current content of the test-tree `SetIntervals.kt`, changing only the package line:
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.policy
@@ -44,14 +44,14 @@ package io.github.fowles.stochastic_strength.domain.policy
 
 (Everything else — `LnInterval`, `SetIntervals`, doc comments — byte-identical.) Delete the test-tree original.
 
-- [ ] **Step 2: Update references.** In `HeldOutScorer.kt`, `CapViolationDiagnostic.kt`, and `HeldOutScorerTest.kt` add `import io.github.fowles.stochastic_strength.domain.policy.SetIntervals` (and `...policy.LnInterval` where `LnInterval` is named — grep each file). Move `SetIntervalsTest.kt` to `app/src/test/java/io/github/fowles/stochastic_strength/domain/policy/` and change its package to `io.github.fowles.stochastic_strength.domain.policy`.
+- [x] **Step 2: Update references.** In `HeldOutScorer.kt`, `CapViolationDiagnostic.kt`, and `HeldOutScorerTest.kt` add `import io.github.fowles.stochastic_strength.domain.policy.SetIntervals` (and `...policy.LnInterval` where `LnInterval` is named — grep each file). Move `SetIntervalsTest.kt` to `app/src/test/java/io/github/fowles/stochastic_strength/domain/policy/` and change its package to `io.github.fowles.stochastic_strength.domain.policy`.
 
-- [ ] **Step 3: Run the backtest + moved tests**
+- [x] **Step 3: Run the backtest + moved tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.SetIntervalsTest" --tests "io.github.fowles.stochastic_strength.domain.backtest.*"`
 Expected: all PASS (BaselineReportTest may skip if history.json absent — it is present locally, so it runs and prints the unchanged baseline).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "refactor(policy): promote SetIntervals bounds table from backtest tree to prod"
@@ -68,7 +68,7 @@ jj commit -m "refactor(policy): promote SetIntervals bounds table from backtest 
 **Interfaces:**
 - Produces: `WeightFormatter.roundDown(kg: Float, unit: WeightUnit): Float` — floors to the prescription grid (2.5 kg / 5 lb) with a small epsilon so float noise at an exact grid multiple doesn't drop a full increment.
 
-- [ ] **Step 1: Write the failing tests** (append to `WeightFormatterTest`):
+- [x] **Step 1: Write the failing tests** (append to `WeightFormatterTest`):
 
 ```kotlin
 @Test
@@ -88,12 +88,12 @@ fun roundDownIsStableAtExactGridMultiples() {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WeightFormatterTest"`
 Expected: FAIL — unresolved reference `roundDown`.
 
-- [ ] **Step 3: Implement** (in `WeightFormatter`, next to `round`; add `import kotlin.math.floor`):
+- [x] **Step 3: Implement** (in `WeightFormatter`, next to `round`; add `import kotlin.math.floor`):
 
 ```kotlin
 /**
@@ -111,12 +111,12 @@ fun roundDown(kg: Float, unit: WeightUnit): Float {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WeightFormatterTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(policy): WeightFormatter.roundDown grid floor for binding caps"
@@ -134,7 +134,7 @@ jj commit -m "feat(policy): WeightFormatter.roundDown grid floor for binding cap
 - Produces: `PrescriptionPolicy.CAP_EXPIRY_MS: Long`, `HURT_DEPTH: Float`, `HURT_HALF_LIFE_MS: Long`, `HURT_FLOOR: Float`, `COOLDOWN_MS: Long`; `PrescriptionPolicy.capLnFor(sessionSets: List<WorkoutSet>): Float?`; `PrescriptionPolicy.hurtMultiplier(hurtEventTimes: List<Long>, now: Long): Float`.
 - Note: `CapViolationDiagnostic.capLnFor` (phase-0 artifact, interval **upper** bound for failures) is deliberately NOT unified with this: the policy cap uses the failure's implied 1RM = `1RM(w, a+½)` (spec Phase 1 / phase-0 table midpoint), which is stricter. The diagnostic stays frozen for baseline comparability.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.policy
@@ -226,12 +226,12 @@ class PrescriptionPolicyTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicyTest"`
 Expected: FAIL — unresolved reference `PrescriptionPolicy`.
 
-- [ ] **Step 3: Implement:**
+- [x] **Step 3: Implement:**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.policy
@@ -307,12 +307,12 @@ object PrescriptionPolicy {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicyTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(policy): PrescriptionPolicy semantic constants, demonstrated-capacity cap, HURT backoff"
@@ -330,7 +330,7 @@ jj commit -m "feat(policy): PrescriptionPolicy semantic constants, demonstrated-
 - Consumes: `PrescriptionPolicy.capLnFor` (Task 3).
 - Produces: `ExerciseCapFact(capLn: Float?, demonstratedAt: Long)`; `PolicyFacts(capByExercise: Map<Long, ExerciseCapFact>, hurtEventsByMuscle: Map<MuscleGroup, List<Long>>)`; `PolicyFacts.EMPTY`; `PolicyFacts.build(sets: List<WorkoutSet>, exerciseMuscle: Map<Long, MuscleGroup>): PolicyFacts`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.policy
@@ -427,12 +427,12 @@ class PolicyFactsTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PolicyFactsTest"`
 Expected: FAIL — unresolved reference `PolicyFacts`.
 
-- [ ] **Step 3: Implement:**
+- [x] **Step 3: Implement:**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.policy
@@ -494,12 +494,12 @@ data class PolicyFacts(
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PolicyFactsTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(policy): PolicyFacts set-log restatement (caps per exercise, HURT events per muscle)"
@@ -526,7 +526,7 @@ fun prescribe(
 ): Prescription
 ```
 
-- [ ] **Step 1: Write the failing tests** (append to `PrescriptionPolicyTest`; add imports `io.github.fowles.stochastic_strength.data.model.MuscleGroup`, `io.github.fowles.stochastic_strength.data.model.WeightUnit`, `io.github.fowles.stochastic_strength.domain.WeightFormatter`, `org.junit.Assert.assertFalse`, `kotlin.math.exp`):
+- [x] **Step 1: Write the failing tests** (append to `PrescriptionPolicyTest`; add imports `io.github.fowles.stochastic_strength.data.model.MuscleGroup`, `io.github.fowles.stochastic_strength.data.model.WeightUnit`, `io.github.fowles.stochastic_strength.domain.WeightFormatter`, `org.junit.Assert.assertFalse`, `kotlin.math.exp`):
 
 ```kotlin
     // --- prescribe ---
@@ -605,12 +605,12 @@ fun prescribe(
     }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicyTest"`
 Expected: FAIL — unresolved reference `prescribe` / `Prescription`.
 
-- [ ] **Step 3: Implement** (append to `PrescriptionPolicy.kt`; add imports `io.github.fowles.stochastic_strength.data.model.MuscleGroup`, `io.github.fowles.stochastic_strength.data.model.WeightUnit`, `io.github.fowles.stochastic_strength.domain.ProgressionEngine`, `io.github.fowles.stochastic_strength.domain.WeightFormatter`, `kotlin.math.exp`):
+- [x] **Step 3: Implement** (append to `PrescriptionPolicy.kt`; add imports `io.github.fowles.stochastic_strength.data.model.MuscleGroup`, `io.github.fowles.stochastic_strength.data.model.WeightUnit`, `io.github.fowles.stochastic_strength.domain.ProgressionEngine`, `io.github.fowles.stochastic_strength.domain.WeightFormatter`, `kotlin.math.exp`):
 
 ```kotlin
 /** One clamped prescription. [capBound]/[hurtMultiplier] feed the clamp-bind health report. */
@@ -648,12 +648,12 @@ fun prescribe(
 
 (Add `prescribe` and `Prescription` inside/beside `object PrescriptionPolicy` — `Prescription` at file top level, `prescribe` as a member of the object.)
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicyTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(policy): prescribe() — HURT backoff + demonstrated-capacity cap with grid floor"
@@ -672,7 +672,7 @@ jj commit -m "feat(policy): prescribe() — HURT backoff + demonstrated-capacity
 - Consumes: `PolicyFacts` (Task 4), `PrescriptionPolicy.prescribe` + `COOLDOWN_MS` (Tasks 3/5).
 - Produces: `WorkoutPlanner` gains constructor param `private val policyFacts: PolicyFacts = PolicyFacts.EMPTY` (default keeps every existing construction site compiling).
 
-- [ ] **Step 1: Write the failing tests** (append to `WorkoutPlannerTest`; it already has `exercise(...)`/`planner(...)` helpers — add a policy-aware planner construction inline; imports: `io.github.fowles.stochastic_strength.domain.policy.PolicyFacts`, `io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy`):
+- [x] **Step 1: Write the failing tests** (append to `WorkoutPlannerTest`; it already has `exercise(...)`/`planner(...)` helpers — add a policy-aware planner construction inline; imports: `io.github.fowles.stochastic_strength.domain.policy.PolicyFacts`, `io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy`):
 
 ```kotlin
     @Test
@@ -726,12 +726,12 @@ jj commit -m "feat(policy): prescribe() — HURT backoff + demonstrated-capacity
     }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"`
 Expected: FAIL — no `policyFacts` parameter.
 
-- [ ] **Step 3: Implement in `WorkoutPlanner`:**
+- [x] **Step 3: Implement in `WorkoutPlanner`:**
 
 1. Add imports `io.github.fowles.stochastic_strength.domain.policy.PolicyFacts` and `io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy`.
 2. Add constructor param (after `exerciseE1rmOverrides`): `private val policyFacts: PolicyFacts = PolicyFacts.EMPTY,`
@@ -775,12 +775,12 @@ Expected: FAIL — no `policyFacts` parameter.
 
 and add `policyFacts = policyFacts,` to the `WorkoutPlanner(...)` construction. Import `io.github.fowles.stochastic_strength.domain.policy.PolicyFacts`.
 
-- [ ] **Step 4: Run planner + repository-adjacent tests**
+- [x] **Step 4: Run planner + repository-adjacent tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest" --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerOverrideTest"`
 Expected: PASS (existing tests construct planners without `policyFacts` → EMPTY default → behavior identical).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(policy): wire PrescriptionPolicy into WorkoutPlanner prescriptions"
@@ -801,7 +801,7 @@ Policy now owns HURT; keeping the estimator's muscle-wide ×0.85 would double-ap
 **Interfaces:**
 - Consumes: nothing new. Produces: `SessionProgressionStepper.step` no longer mutates estimates for HURT sets (they already carry no load signal in `SessionSignalExtractor`).
 
-- [ ] **Step 1: Write the replacement stepper test.** In `SessionProgressionStepperTest`, replace the whole `hurtBacksOffEveryLoadedExerciseInTheMuscle` test (lines ~55–66; it uses the file's existing `snapshot()`/`set(...)` helpers) with:
+- [x] **Step 1: Write the replacement stepper test.** In `SessionProgressionStepperTest`, replace the whole `hurtBacksOffEveryLoadedExerciseInTheMuscle` test (lines ~55–66; it uses the file's existing `snapshot()`/`set(...)` helpers) with:
 
 ```kotlin
     @Test
@@ -822,29 +822,29 @@ Policy now owns HURT; keeping the estimator's muscle-wide ×0.85 would double-ap
 
 In `ExerciseEstimateUpdaterTest`, delete `hurtBacksOffByConfiguredFactor` (lines ~60–66).
 
-- [ ] **Step 2: Run to verify the new test fails** (estimates still mutated by the hurt block):
+- [x] **Step 2: Run to verify the new test fails** (estimates still mutated by the hurt block):
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepperTest"`
 Expected: FAIL on `hurtSetsLeaveEstimatesUntouched`.
 
-- [ ] **Step 3: Delete the estimator HURT mechanism:**
+- [x] **Step 3: Delete the estimator HURT mechanism:**
 
 1. `ExerciseEstimateUpdater`: delete the `hurt(...)` function and its doc comment.
 2. `EstimatorConfig` (in `ExerciseEstimate.kt`): delete `val hurtFactor: Float = 0.85f,` and its doc line.
 3. `SessionProgressionStepper.step`: delete the "HURT first (muscle-level)" block (the `hurtMuscles` computation + loop) and the later `affectedMuscles.addAll(hurtMuscles)` line, and update the class doc comment (it starts "Pure per-session core of progression: HURT (muscle-level) → …") to drop HURT.
 4. Grep for stragglers: `grep -rn "hurtFactor\|updater.hurt\|\.hurt(" app/src/main app/src/test app/src/androidTest` — fix any remaining references (expected: none beyond the two test files).
 
-- [ ] **Step 4: Run the estimator test suite**
+- [x] **Step 4: Run the estimator test suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.*"`
 Expected: PASS (including `ExerciseEstimatorSimulationTest` — it has no HURT pins).
 
-- [ ] **Step 5: Verify the phase-0 baseline is unchanged**
+- [x] **Step 5: Verify the phase-0 baseline is unchanged**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BaselineReportTest" -i 2>&1 | grep -A6 "Phase 0 baseline"`
 Expected: total 26.7593 ln-units, mean 0.12563, 213 scored / 9 skipped, 49 cap violations — identical to the recorded baseline (zero HURT sets in history ⇒ provably no-op). If ANY number differs, STOP and investigate before committing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "refactor(estimator): remove HURT fold from estimator — policy owns HURT (baseline verified unchanged)"
@@ -862,7 +862,7 @@ Constitution rule 4: every backtest run reports clamp-bind rate. This test repla
 **Interfaces:**
 - Consumes: `MainStackReplay.run(data, observer)`, `BacktestData.loadOrNull()`, `PolicyFacts.build`, `PrescriptionPolicy.prescribe` / `CAP_EXPIRY_MS`.
 
-- [ ] **Step 1: Write the test:**
+- [x] **Step 1: Write the test:**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -955,12 +955,12 @@ class PolicyBacktestTest {
 }
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.PolicyBacktestTest" -i 2>&1 | grep -A20 "clamp-bind report"`
 Expected: PASS with 0 violations. Cap binds should be in the neighborhood of the phase-0 diagnostic's 49 (not identical: the policy cap is midpoint-strict, the diagnostic upper-bound). **Record the printed bind numbers in the Results section at the bottom of this plan.** Per constitution rule 4, a high bind rate is estimator-bug evidence — expected here and already on the books as the chronic exercises 21 & 77 finding; Phase 2 fixes the estimator.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj commit -m "test(backtest): phase-1 policy invariant + clamp-bind-rate report on real history"
@@ -977,7 +977,7 @@ jj commit -m "test(backtest): phase-1 policy invariant + clamp-bind-rate report 
 **Interfaces:**
 - Consumes: `PolicyFacts.build`, `PrescriptionPolicy.prescribe` (Tasks 4/5); the existing fixture data in the test file stays.
 
-- [ ] **Step 1: Rewrite the test class.** Keep the fixture data (`seedCoef`, `initials`, `endTimes`, `sets`, `EXPORTED_AT`) and the replay block exactly as they are; replace the class doc comment and the `reportBssPrescription` test with:
+- [x] **Step 1: Rewrite the test class.** Keep the fixture data (`seedCoef`, `initials`, `endTimes`, `sets`, `EXPORTED_AT`) and the replay block exactly as they are; replace the class doc comment and the `reportBssPrescription` test with:
 
 ```kotlin
 /**
@@ -1043,24 +1043,24 @@ class ProdBssPrescriptionTest {
 
 (Adjust imports at the top of the file: add `org.junit.Assert.assertTrue`, `io.github.fowles.stochastic_strength.domain.policy.PolicyFacts` / `PrescriptionPolicy` may be imported normally instead of fully qualified. Remove the now-unused `assertEquals` import and `WeightFormatter`/`WeightUnit.LBS.fromKg` conversion code if no longer referenced.)
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: PASS — both invariants hold (the end-to-end path lands at the demonstrated ~20 lb; the forced-regression path is capped to ~20 lb by the clamp).
 
-- [ ] **Step 3: Full JVM suite**
+- [x] **Step 3: Full JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: all green (≈275+ tests; 268 pre-existing + new policy tests, minus the two deleted hurt tests).
 
-- [ ] **Step 4: Instrumented suite** (emulator typically already running):
+- [x] **Step 4: Instrumented suite** (emulator typically already running):
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: 79/79 green. If no device is connected, report that to the user instead of skipping silently.
 
-- [ ] **Step 5: Record results.** Fill in the Results section below (clamp-bind numbers from Task 8, final test counts), and check off all boxes in this plan.
+- [x] **Step 5: Record results.** Fill in the Results section below (clamp-bind numbers from Task 8, final test counts), and check off all boxes in this plan.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "test: retire ProdBss 20lb pin as clamp-behavior invariants; phase-1 results recorded"
@@ -1073,7 +1073,7 @@ jj commit -m "test: retire ProdBss 20lb pin as clamp-behavior invariants; phase-
 - Clamp-bind report (Task 8): prescriptions checked 1560, cap binds 49 (3.1%), hurt binds 0, violations 0.
 - The invariant caught a real hole on real history: exercise 30 had a raw estimate just under the demonstrated-capacity cap (in log space) that nearest-grid-rounded back up to exactly the failed weight (15 lb / 6.803894 kg); fixed by binding the cap on the final rounded weight instead of the pre-rounding log estimate.
 - Phase-0 baseline after HURT removal (Task 7): unchanged — total 26.7593 / mean 0.12563 / 49 (confirmed).
-- Final suites: JVM 295/0, instrumented 83/83.
+- Final suites: JVM 297/0 (295 at Task 9 + 2 post-review tests: exact-28d expiry boundary pin, backoff-then-cap interaction), instrumented 83/83.
 
 ## Constant ledger delta (spec section: Constant ledger)
 
