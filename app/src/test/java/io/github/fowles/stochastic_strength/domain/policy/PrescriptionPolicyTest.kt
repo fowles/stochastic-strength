@@ -175,4 +175,33 @@ class PrescriptionPolicyTest {
         val p = prescribe(raw, capFacts(capLn, at = 29 * DAY), unit = WeightUnit.LBS)
         assertTrue("prescribed ${p.weightKg} must be strictly below the failed $failedKg", p.weightKg < failedKg)
     }
+
+    @Test
+    fun capBindsAtExactlyTheExpiryBoundaryAndNotOneMsLater() {
+        val capLn = PrescriptionPolicy.capLnFor(listOf(set(SetFeedback.TOO_HARD, w = 20f, a = 2)))
+        val raw = DefaultProgressionEngine.rawToOneRepMax(35f, 10f)
+        val at = 30 * DAY
+        // now - demonstratedAt == CAP_EXPIRY_MS → still binds (<= comparison)…
+        assertTrue(prescribe(raw, capFacts(capLn, at), now = at + PrescriptionPolicy.CAP_EXPIRY_MS).capBound)
+        // …one ms past the boundary → expired.
+        assertFalse(prescribe(raw, capFacts(capLn, at), now = at + PrescriptionPolicy.CAP_EXPIRY_MS + 1).capBound)
+    }
+
+    @Test
+    fun capAppliesOnTopOfHurtBackoff() {
+        // A binding cap must ceiling the BACKED-OFF target: with a fresh HURT and a low cap,
+        // the result is the capped weight, and both clamp indicators report.
+        val now = 30 * DAY
+        val capLn = PrescriptionPolicy.capLnFor(listOf(set(SetFeedback.TOO_HARD, w = 20f, a = 2)))
+        val facts = PolicyFacts(
+            capByExercise = mapOf(1L to ExerciseCapFact(capLn, now - DAY)),
+            hurtEventsByMuscle = mapOf(MuscleGroup.QUADS to listOf(now)),
+        )
+        val raw = DefaultProgressionEngine.rawToOneRepMax(100f, 10f)  // far above the cap even after ×0.85
+        val p = prescribe(raw, facts, now = now)
+        assertTrue(p.capBound)
+        assertEquals(0.85f, p.hurtMultiplier, 1e-4f)
+        // Same result as the cap alone: the cap is the binding constraint after backoff.
+        assertEquals(prescribe(raw, capFacts(capLn, now - DAY), now = now).weightKg, p.weightKg, 1e-4f)
+    }
 }

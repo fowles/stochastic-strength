@@ -10,7 +10,6 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
-import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
