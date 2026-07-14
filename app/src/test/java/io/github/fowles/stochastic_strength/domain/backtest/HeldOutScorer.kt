@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.domain.policy.SetIntervals
 import kotlin.math.ln
 
 data class SessionScore(val sessionId: Long, val distance: Double, val scoredSets: Int)

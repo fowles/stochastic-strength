@@ -9,6 +9,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.backtest.BacktestFixtures.DAY_MS
+import io.github.fowles.stochastic_strength.domain.policy.LnInterval
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import kotlin.math.ln

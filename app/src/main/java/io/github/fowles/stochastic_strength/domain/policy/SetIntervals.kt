@@ -1,4 +1,4 @@
-package io.github.fowles.stochastic_strength.domain.backtest
+package io.github.fowles.stochastic_strength.domain.policy
 
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
