@@ -93,10 +93,11 @@ class PolicyFactsTest {
     @Test
     fun timestampTieBreaksByHigherSessionId() {
         // Two sessions share the same completedAt; the higher sessionId is the newer session.
+        // Session 1 (TOO_HARD) is listed first, so a naive first-max-wins tie-break would fail this test.
         val facts = PolicyFacts.build(
             listOf(
-                set(sessionId = 2, feedback = SetFeedback.RIR_5_PLUS, at = 100L),   // uncapped
                 set(sessionId = 1, feedback = SetFeedback.TOO_HARD, w = 35f, a = 2, at = 100L),
+                set(sessionId = 2, feedback = SetFeedback.RIR_5_PLUS, at = 100L),   // uncapped, session 2 wins the tie
             ),
             muscles,
         )
