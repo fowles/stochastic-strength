@@ -493,7 +493,7 @@ Run the belief stack inside `ReplayEngine` alongside the old estimator: seed bel
 - Produces: `ReplaySnapshot.currentBeliefs: MutableMap<Long, Belief>`; `ReplayEngine.SessionObserver.onSession(sessionId, asOf, sets, snapshot, result, beliefResult: BeliefSessionStep.Result)`; `DerivedStateStore.Snapshot.exerciseBeliefs(): Map<Long, Belief>` + `MutableDerivedState.putExerciseBeliefs(Map<Long, Belief>)`.
 - Belief seeding contract (matches `BeliefStackReplay`): initial override rows (`sessionId == null`) → `Belief(ln(e1rm), sigmaSeed², asOf)`; per-session override rows → `Belief(ln(e1rm), sigmaOverride², asOf)` applied before that session's step.
 
-- [ ] **Step 1: Write the failing tests.** In `DerivedStateStoreTest.kt` add:
+- [x] **Step 1: Write the failing tests.** In `DerivedStateStoreTest.kt` add:
 
 ```kotlin
 @Test
@@ -507,12 +507,12 @@ fun beliefsSurviveRebuildAndDefaultEmpty() = runBlocking {
 
 In `ReplayEngineTest.kt` update the compile-shape guard to the six-arg observer (append `beliefResult = BeliefSessionStep.Result(emptyMap(), emptyList())` to the direct `onSession` call and a `_ ->` lambda slot).
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.derived.DerivedStateStoreTest" --tests "io.github.fowles.stochastic_strength.domain.progression.ReplayEngineTest"`
 Expected: FAIL to compile.
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
 `ReplaySnapshot.kt` — add alongside `currentEstimates`:
 
@@ -573,12 +573,12 @@ class ReplayEngine(
 
 `WorkoutRepository.replayDerivedState` — accept the extra observer arg (`_, beliefResult ->` unused for now is fine, name it) and after the replay add `scratch.putExerciseBeliefs(snapshot.currentBeliefs.toMap())`. `ExerciseProgressionSeriesBuilder`'s observer lambda gains the unused sixth parameter.
 
-- [ ] **Step 4: Run the JVM suite**
+- [x] **Step 4: Run the JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS — no behavior change anywhere (derived rows, planner, charts all still old-stack).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(belief): thread beliefs through the prod replay in parallel (dark; derived writes unchanged)"

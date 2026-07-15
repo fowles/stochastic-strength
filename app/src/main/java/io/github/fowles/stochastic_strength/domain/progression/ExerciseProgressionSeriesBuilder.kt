@@ -170,7 +170,7 @@ class ExerciseProgressionSeriesBuilder(
         val siblingObservations = mutableListOf<ProgressionPoint>()
         val frames = mutableListOf<ProgressionFrame>()
 
-        engine.run(db, snapshot) { _, asOf, sets, snap, result ->
+        engine.run(db, snapshot) { _, asOf, sets, snap, result, _ ->
             if (result.steps.any { it.muscle == muscle }) {
                 val sample = sampleSession(exerciseId, muscleIds, snap, sets, asOf, projector)
                 ownEstimate += sample.ownEstimate

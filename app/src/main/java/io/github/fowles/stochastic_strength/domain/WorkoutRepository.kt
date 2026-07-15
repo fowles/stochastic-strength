@@ -204,7 +204,7 @@ class WorkoutRepository(
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
             val config = EstimatorConfig()
 
-            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, result ->
+            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, result, _ ->
                 for (stepResult in result.steps) {
                     writeLevelUpdate(stepResult.muscle, stepResult.projection.level, sessionId, asOf, scratch)
                     val exerciseIds = snapshot.muscleExerciseIds[stepResult.muscle] ?: continue
@@ -220,6 +220,8 @@ class WorkoutRepository(
 
             // Store the final estimate map for the live planner (Task 8 reads it).
             scratch.putExerciseEstimates(snapshot.currentEstimates.toMap())
+            // Store the final belief map (parallel, dark — Phase-3 swap task reads it).
+            scratch.putExerciseBeliefs(snapshot.currentBeliefs.toMap())
 
             // Cold-start / untrained-muscle display fill: any muscle never touched by a replayed
             // session still gets a representative muscle_group_strength row (projected from its
