@@ -4,6 +4,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -102,5 +103,32 @@ class PolicyFactsTest {
             muscles,
         )
         assertNull(facts.capByExercise.getValue(1L).capLn)  // session 2 wins the tie
+    }
+
+    @Test
+    fun allEasyIsTrueOnlyWhenEveryFeedbackSetOfTheLatestSessionIsRir2Plus() {
+        // Session 1 (older): all easy. Session 2 (newer): contains an RIR_0_1 → allEasy = false.
+        val sets = listOf(
+            set(sessionId = 1, exerciseId = 7L, feedback = SetFeedback.RIR_2_4, at = 1_000L),
+            set(sessionId = 1, exerciseId = 7L, feedback = SetFeedback.RIR_5_PLUS, at = 2_000L),
+            set(sessionId = 2, exerciseId = 7L, feedback = SetFeedback.RIR_0_1, at = 9_000L),
+            set(sessionId = 2, exerciseId = 7L, feedback = SetFeedback.RIR_2_4, at = 9_500L),
+        )
+        val facts = PolicyFacts.build(sets, muscles + (7L to MuscleGroup.QUADS))
+        assertFalse(facts.capByExercise.getValue(7L).allEasy)
+
+        // Only the older session → allEasy = true.
+        val factsEasy = PolicyFacts.build(sets.filter { it.sessionId == 1L }, muscles + (7L to MuscleGroup.QUADS))
+        assertTrue(factsEasy.capByExercise.getValue(7L).allEasy)
+    }
+
+    @Test
+    fun aHurtSetVetoesAllEasy() {
+        val sets = listOf(
+            set(sessionId = 1, exerciseId = 7L, feedback = SetFeedback.RIR_2_4, at = 1_000L),
+            set(sessionId = 1, exerciseId = 7L, feedback = SetFeedback.HURT, at = 2_000L),
+        )
+        val facts = PolicyFacts.build(sets, muscles + (7L to MuscleGroup.QUADS))
+        assertFalse(facts.capByExercise.getValue(7L).allEasy)
     }
 }

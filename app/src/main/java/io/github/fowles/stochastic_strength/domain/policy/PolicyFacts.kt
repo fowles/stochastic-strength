@@ -8,7 +8,12 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
  * The cap demonstrated by an exercise's most recent feedback session (and only that session —
  * newer sessions supersede older ones entirely). [capLn] null = that session uncapped.
  */
-data class ExerciseCapFact(val capLn: Float?, val demonstratedAt: Long)
+data class ExerciseCapFact(
+    val capLn: Float?,
+    val demonstratedAt: Long,
+    /** True iff every feedback-bearing set of that session (HURT included) was RIR ≥ 2. */
+    val allEasy: Boolean = false,
+)
 
 /**
  * Raw set-log facts the policy layer needs at prescription time (constitution rule 6: plain
@@ -39,9 +44,13 @@ data class PolicyFacts(
                         .maxWithOrNull(compareBy({ (_, s) -> s.maxOf { it.completedAt!! } }, { it.key }))
                         ?.value
                         ?: return@mapNotNull null
+                    val feedbacks = latest.mapNotNull { it.feedback }
                     exerciseId to ExerciseCapFact(
                         capLn = PrescriptionPolicy.capLnFor(latest),
                         demonstratedAt = latest.maxOf { it.completedAt!! },
+                        allEasy = feedbacks.isNotEmpty() && feedbacks.all {
+                            it == SetFeedback.RIR_2_4 || it == SetFeedback.RIR_5_PLUS
+                        },
                     )
                 }
                 .toMap()

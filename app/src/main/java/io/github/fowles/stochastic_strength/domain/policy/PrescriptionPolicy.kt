@@ -86,6 +86,13 @@ object PrescriptionPolicy {
      * comparison happens AFTER grid rounding, in weight space — a raw estimate just under the cap in
      * log space can still nearest-round up to (or past) the capped weight, so the cap must bind on
      * the final rounded prescription, not the pre-rounding log estimate.
+     *
+     * [overloadNudge] (default off): when the exercise's most recent feedback session was entirely
+     * RIR ≥ 2 (`allEasy`) and still within the cap's expiry window, bump the rounded uncapped weight
+     * by one grid increment (semantic: the smallest available plate) before the cap comparison — the
+     * demonstrated-capacity cap still applies on top and can clamp the nudge away. Defaults false
+     * because main's live estimator already has its own up-drift (`wUp`); only the Phase-3 belief
+     * stack swap (whose in-band feedback legitimately leaves mu unmoved) needs this nudge.
      */
     fun prescribe(
         rawE1rm: Float,
@@ -96,12 +103,16 @@ object PrescriptionPolicy {
         now: Long,
         weightUnit: WeightUnit,
         engine: ProgressionEngine,
+        overloadNudge: Boolean = false,
     ): Prescription {
         val mult = hurtMultiplier(facts.hurtEventsByMuscle[muscle].orEmpty(), now)
         val backed = rawE1rm * mult
         val fact = facts.capByExercise[exerciseId]
-        val capLn = fact?.capLn?.takeIf { now - fact.demonstratedAt <= CAP_EXPIRY_MS }
-        val uncapped = WeightFormatter.round(engine.fromOneRepMax(backed, sessionReps), weightUnit)
+        val withinWindow = fact != null && now - fact.demonstratedAt <= CAP_EXPIRY_MS
+        val capLn = fact?.capLn?.takeIf { withinWindow }
+        // `fact?.allEasy == true` (not `fact.allEasy`): no smart cast through the withinWindow Boolean.
+        val nudge = if (overloadNudge && withinWindow && fact?.allEasy == true) WeightFormatter.minIncrement(weightUnit) else 0f
+        val uncapped = WeightFormatter.round(engine.fromOneRepMax(backed, sessionReps), weightUnit) + nudge
         if (capLn == null) return Prescription(uncapped, capBound = false, hurtMultiplier = mult)
         // The cap is a ceiling on the FINAL prescription: nearest-grid rounding of a
         // just-under-cap estimate must not climb back to a weight the cap excludes, so the
