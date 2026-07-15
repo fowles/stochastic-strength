@@ -6,6 +6,9 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 object WeightFormatter {
+    /** Absorbs float noise at exact grid multiples (unit conversion, rep-max inverse). */
+    const val GRID_EPSILON = 1e-4f
+
     fun formatQuantity(reps: Int, isTimed: Boolean): String =
         if (isTimed) "${reps}s" else "$reps reps"
 
@@ -49,10 +52,10 @@ object WeightFormatter {
      */
     fun roundDown(kg: Float, unit: WeightUnit): Float {
         return if (unit == WeightUnit.KG) {
-            floor(kg / 2.5f + 1e-4f) * 2.5f
+            floor(kg / 2.5f + GRID_EPSILON) * 2.5f
         } else {
             val lbs = unit.fromKg(kg)
-            unit.toKg(floor(lbs / 5f + 1e-4f) * 5f)
+            unit.toKg(floor(lbs / 5f + GRID_EPSILON) * 5f)
         }
     }
 

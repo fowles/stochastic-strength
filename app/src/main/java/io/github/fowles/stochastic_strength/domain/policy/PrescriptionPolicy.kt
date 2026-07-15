@@ -108,8 +108,8 @@ object PrescriptionPolicy {
         // comparison happens after rounding, in weight space. The cap weight itself comes from
         // the RAW rep-max inverse (the engine's 0.5 kg internal rounding could nudge it up),
         // and a binding cap floor-rounds at the grid.
-        val capWeight = DefaultProgressionEngine.rawFromOneRepMax(exp(capLn), sessionReps)
-        if (uncapped <= capWeight + 1e-4f) return Prescription(uncapped, capBound = false, hurtMultiplier = mult)
+        val capWeight = engine.rawFromOneRepMax(exp(capLn), sessionReps)
+        if (uncapped <= capWeight + WeightFormatter.GRID_EPSILON) return Prescription(uncapped, capBound = false, hurtMultiplier = mult)
         return Prescription(WeightFormatter.roundDown(capWeight, weightUnit), capBound = true, hurtMultiplier = mult)
     }
 }
