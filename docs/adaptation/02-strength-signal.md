@@ -20,7 +20,7 @@ rep-max formula and the reported bucket — no fatigue correction, no belief con
 
 | Feedback | Implied ln(1RM) interval at weight `w`, target reps `r` |
 | --- | --- |
-| **Too hard**, actual reps `a` known | `[1RM(w, a+0.5), 1RM(w, a+1)]` — narrow band around the failure |
+| **Too hard**, actual reps `a` known | `[1RM(w, a), 1RM(w, a+1)]` — narrow band around the failure |
 | **Too hard**, no rep count | `(−∞, 1RM(w, r)]` — you're somewhere at or below the target-rep max |
 | **RIR 0–1** ("almost nothing left") | `[1RM(w, r), 1RM(w, r+2)]` |
 | **RIR 2–4** ("a couple left") | `[1RM(w, r+2), 1RM(w, r+5)]` |
