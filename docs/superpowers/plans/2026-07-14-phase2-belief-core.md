@@ -37,7 +37,7 @@ Phase-1 left two cleanups: `PrescriptionPolicy.prescribe` takes an `engine: Prog
 **Interfaces:**
 - Produces: `ProgressionEngine.rawToOneRepMax(weight: Float, reps: Float): Float` and `ProgressionEngine.rawFromOneRepMax(oneRepMax: Float, reps: Int): Float` (un-rounded, fractional reps allowed on the forward direction); `WeightFormatter.GRID_EPSILON: Float = 1e-4f`. Later tasks call these through the interface.
 
-- [ ] **Step 1: Write the failing test** — append to `DefaultProgressionEngineTest.kt`:
+- [x] **Step 1: Write the failing test** — append to `DefaultProgressionEngineTest.kt`:
 
 ```kotlin
 @Test
@@ -53,12 +53,12 @@ fun rawConversionsAreExposedOnTheInterface() {
 
 (Add `import org.junit.Assert.assertTrue` if missing.)
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.DefaultProgressionEngineTest"`
 Expected: compile error — `rawToOneRepMax` is not a member of `ProgressionEngine`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `ProgressionEngine.kt`:
 
@@ -90,12 +90,12 @@ const val GRID_EPSILON = 1e-4f
 
 `PrescriptionPolicy.kt` (prescribe): replace `DefaultProgressionEngine.rawFromOneRepMax(exp(capLn), sessionReps)` with `engine.rawFromOneRepMax(exp(capLn), sessionReps)` and `capWeight + 1e-4f` with `capWeight + WeightFormatter.GRID_EPSILON`. Remove the now-unused `DefaultProgressionEngine` import **only if** it is otherwise unused (`capLnFor` still uses it — it will remain).
 
-- [ ] **Step 4: Run the affected suites**
+- [x] **Step 4: Run the affected suites**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.DefaultProgressionEngineTest" --tests "io.github.fowles.stochastic_strength.domain.policy.*" --tests "io.github.fowles.stochastic_strength.domain.WeightFormatterTest" --tests "io.github.fowles.stochastic_strength.domain.WeightFormatterMinIncrementTest"`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "refactor: promote raw rep-max onto ProgressionEngine; shared grid epsilon (phase-1 carry-forwards)"
@@ -113,7 +113,7 @@ jj commit -m "refactor: promote raw rep-max onto ProgressionEngine; shared grid 
 **Interfaces:**
 - Produces: `data class Belief(mu: Float, sigma2: Float, updatedAt: Long)`; `data class BeliefConfig(...)` (fields below, exact names); `class BeliefFold(config: BeliefConfig)` with `fun aged(b: Belief, now: Long): Belief`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -151,12 +151,12 @@ class BeliefFoldTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefFoldTest"`
 Expected: FAIL to compile (`Belief` unresolved).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `Belief.kt`:
 
@@ -218,12 +218,12 @@ class BeliefFold(private val config: BeliefConfig) {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefFoldTest"`
 Expected: 2 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(belief): Belief state + labeled BeliefConfig ledger + aging"
@@ -243,7 +243,7 @@ The fold consumes the Phase-0/1 interval table (`SetIntervals.impliedLn1RmInterv
 - Consumes: `LnInterval(lowerLn: Float?, upperLn: Float?)` and `SetIntervals.impliedLn1RmInterval(set: WorkoutSet): LnInterval?` from `domain.policy`; `WorkoutSet.feedback: SetFeedback?`.
 - Produces (on `BeliefFold`): `fun fatigueShift(rank: Int): Float`; `fun obsSigma(feedback: SetFeedback): Float`; `fun fold(b: Belief, interval: LnInterval, shift: Float, obsSigma: Float, at: Long): Belief`; `fun foldSession(prior: Belief, exSets: List<WorkoutSet>, asOf: Long): Belief`.
 
-- [ ] **Step 1: Write the failing tests** — append to `BeliefFoldTest.kt` (add imports `io.github.fowles.stochastic_strength.data.model.SetFeedback`, `io.github.fowles.stochastic_strength.data.model.WorkoutSet`, `io.github.fowles.stochastic_strength.domain.policy.LnInterval`, `kotlin.math.ln`):
+- [x] **Step 1: Write the failing tests** — append to `BeliefFoldTest.kt` (add imports `io.github.fowles.stochastic_strength.data.model.SetFeedback`, `io.github.fowles.stochastic_strength.data.model.WorkoutSet`, `io.github.fowles.stochastic_strength.domain.policy.LnInterval`, `kotlin.math.ln`):
 
 ```kotlin
 @Test
@@ -309,12 +309,12 @@ fun foldSessionRanksAllRowsButFoldsOnlyScoreableOnes() {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefFoldTest"`
 Expected: FAIL to compile (`fatigueShift` unresolved).
 
-- [ ] **Step 3: Implement** — extend `BeliefFold`:
+- [x] **Step 3: Implement** — extend `BeliefFold`:
 
 ```kotlin
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -370,12 +370,12 @@ import kotlin.math.ln
     }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefFoldTest"`
 Expected: 8 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(belief): fatigue shift + boundary-pull Gaussian fold + per-session fold"
@@ -393,7 +393,7 @@ jj commit -m "feat(belief): fatigue shift + boundary-pull Gaussian fold + per-se
 - Consumes: `Belief`, `BeliefConfig`, `BeliefFold.aged`.
 - Produces: `data class EffectiveBelief(mu: Float, sigma2: Float)`; `data class MusclePoolResult(levelLn: Float?, effective: Map<Long, EffectiveBelief>)`; `class BeliefPooling(config: BeliefConfig)` with `fun effective(beliefs: Map<Long, Belief>, seedCoef: Map<Long, Float>, muscleExerciseIds: List<Long>, now: Long): MusclePoolResult`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -488,12 +488,12 @@ class BeliefPoolingTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefPoolingTest"`
 Expected: FAIL to compile (`BeliefPooling` unresolved).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -572,12 +572,12 @@ class BeliefPooling(private val config: BeliefConfig) {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefPoolingTest"`
 Expected: 6 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(belief): precision-weighted pooling with leave-one-out effective beliefs"
@@ -595,7 +595,7 @@ jj commit -m "feat(belief): precision-weighted pooling with leave-one-out effect
 - Consumes: `EffectiveBelief`.
 - Produces: `object BeliefPrescriber { const val Z: Float; fun targetE1rm(eff: EffectiveBelief): Float }`. Phase 3 wires this in front of `PrescriptionPolicy.prescribe`; the belief backtest (Task 11) uses it the same way.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -624,12 +624,12 @@ class BeliefPrescriberTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriberTest"`
 Expected: FAIL to compile.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -649,12 +649,12 @@ object BeliefPrescriber {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriberTest"`
 Expected: 2 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(belief): percentile-z prescriber (semantic 30th percentile)"
@@ -675,7 +675,7 @@ The nudge is plain log-fact arithmetic ("last session was all RIR ≥ 2 → add 
 **Interfaces:**
 - Produces: `ExerciseCapFact` gains `val allEasy: Boolean = false` (true iff every feedback-bearing set of the most recent feedback session — HURT included in the check — is RIR_2_4 or RIR_5_PLUS). `PrescriptionPolicy.prescribe(...)` gains a trailing parameter `overloadNudge: Boolean = false`; when true and the exercise's fact has `allEasy` within `CAP_EXPIRY_MS`, the rounded uncapped weight is bumped by `WeightFormatter.minIncrement(weightUnit)` **before** the cap comparison (the demonstrated-capacity cap applies on top, per spec).
 
-- [ ] **Step 1: Write the failing tests.** Read both existing test files first and follow their local fixture helpers/style. Add tests asserting:
+- [x] **Step 1: Write the failing tests.** Read both existing test files first and follow their local fixture helpers/style. Add tests asserting:
 
 To `PolicyFactsTest.kt` (adapt set-building to the file's existing helpers):
 
@@ -749,12 +749,12 @@ fun overloadNudgeExpiresWithTheCapWindowAndNeverPiercesACap() {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.PolicyFactsTest" --tests "io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicyTest"`
 Expected: FAIL to compile (`allEasy` unresolved).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `PolicyFacts.kt` — extend the fact and its construction:
 
@@ -811,12 +811,12 @@ fun prescribe(
 }
 ```
 
-- [ ] **Step 4: Run the whole policy + backtest suites** (proves default-off keeps Phase-1 behavior bit-identical, including `PolicyBacktestTest` if history is present):
+- [x] **Step 4: Run the whole policy + backtest suites** (proves default-off keeps Phase-1 behavior bit-identical, including `PolicyBacktestTest` if history is present):
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.policy.*" --tests "io.github.fowles.stochastic_strength.domain.backtest.*" --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(policy): allEasy log-fact + default-off overload nudge (one grid increment, cap applies on top)"
@@ -851,7 +851,7 @@ object BeliefStackReplay {
 }
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -953,12 +953,12 @@ class BeliefStackReplayTest {
 
 (Add `import io.github.fowles.stochastic_strength.domain.belief.EffectiveBelief` to the test's imports.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefStackReplayTest"`
 Expected: FAIL to compile (`BeliefStackReplay` unresolved).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -1039,12 +1039,12 @@ object BeliefStackReplay {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefStackReplayTest"`
 Expected: 2 PASS. If the hand-computed expectations mismatch, debug the TEST's hand-replay first (the replay must mirror `foldSession`/`effective` exactly — a mismatch usually means the test replays in a different order than the SUT).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "test(backtest): BeliefStackReplay — forward-chained belief-stack replay with per-set predictions"
@@ -1063,7 +1063,7 @@ jj commit -m "test(backtest): BeliefStackReplay — forward-chained belief-stack
 - Consumes: `BeliefStackReplay`, `SetIntervals`, `ScoreReport`/`SessionScore` (from `HeldOutScorer.kt`), `BacktestData.baselineFile()`.
 - Produces: `object BeliefHeldOutScorer { data class BeliefScoreReport(val report: ScoreReport, val coveredSets: Int); fun score(data: BacktestData, config: BeliefConfig): BeliefScoreReport }`. Distance uses the UNSHIFTED interval vs the fatigue-adjusted per-set point — identical metric semantics to `HeldOutScorer`, so the totals are directly comparable. `coveredSets` (distance == 0) is the supplementary coverage report (not an authority).
 
-- [ ] **Step 1: Write the failing unit test** (`BeliefHeldOutScorerTest.kt`) — reuse the single-exercise fixture from Task 7's first test and assert:
+- [x] **Step 1: Write the failing unit test** (`BeliefHeldOutScorerTest.kt`) — reuse the single-exercise fixture from Task 7's first test and assert:
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -1133,12 +1133,12 @@ class BeliefHeldOutScorerTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefHeldOutScorerTest"`
 Expected: FAIL to compile.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -1181,7 +1181,7 @@ object BeliefHeldOutScorer {
 }
 ```
 
-- [ ] **Step 4: Write the real-history report test** (`BeliefScoreTest.kt`) — report only in this task; Task 10 adds the gate assertion after fitting:
+- [x] **Step 4: Write the real-history report test** (`BeliefScoreTest.kt`) — report only in this task; Task 10 adds the gate assertion after fitting:
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -1226,12 +1226,12 @@ class BeliefScoreTest {
 }
 ```
 
-- [ ] **Step 5: Run everything from this task** (the report test skips without history; on this machine history exists — read the printed numbers and copy them into the Results appendix of this plan):
+- [x] **Step 5: Run everything from this task** (the report test skips without history; on this machine history exists — read the printed numbers and copy them into the Results appendix of this plan):
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefHeldOutScorerTest" --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefScoreTest"`
 Expected: PASS; report printed in the test output (`app/build/test-results/` or console with `--info`).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "test(backtest): belief-stack held-out scorer + provisional real-history report"
@@ -1261,7 +1261,7 @@ object BeliefFitHarness {
 }
 ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -1291,12 +1291,12 @@ class BeliefFitHarnessTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefFitHarnessTest"`
 Expected: FAIL to compile.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -1360,12 +1360,12 @@ object BeliefFitHarness {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefFitHarnessTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "test(backtest): coordinate-descent fit harness with per-axis sensitivity curves"
@@ -1383,7 +1383,7 @@ This is the constitution's admission ceremony. The implementer runs the fit, rec
 - Modify: `app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/BeliefScoreTest.kt` (add gate assertion)
 - Modify: `docs/superpowers/plans/2026-07-14-phase2-belief-core.md` (Results appendix)
 
-- [ ] **Step 1: Write the fit-runner test** (report-style, skips without history):
+- [x] **Step 1: Write the fit-runner test** (report-style, skips without history):
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.backtest
@@ -1425,20 +1425,20 @@ class BeliefFitTest {
 }
 ```
 
-- [ ] **Step 2: Run the fit** (single test; expect a few minutes — ~90 scored replays of 24 sessions):
+- [x] **Step 2: Run the fit** (single test; expect a few minutes — ~90 scored replays of 24 sessions):
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefFitTest" --info | grep -A 40 "Phase 2 fit"`
 Expected: printed best config, best score, five sensitivity curves, coverage.
 
-- [ ] **Step 3: Judge each constant against the constitution** (rule 2), per axis:
+- [x] **Step 3: Judge each constant against the constitution** (rule 2), per axis:
   - **Interior optimum** (best value strictly inside the grid, curve clearly bowl-shaped) → label stays `fitted`; adopt the value.
   - **Optimum on a grid edge** → widen that axis's grid in `BeliefFitHarness.AXES` (extend one decade in that direction), rerun Step 2 once. Still edge-pinned → report to the user at the checkpoint; do not silently adopt.
   - **Flat curve** (spread over the whole axis < ~1% of the best score) → adopt the middle-of-flat-range value and relabel that constant `flat` (frozen, never revisited) in `BeliefConfig`'s kdoc.
   - **sigmaObsRir vs sigmaObsFail:** if their curves are flat against each other (either equals the other's optimum within the flat threshold), collapse to ONE `sigmaObs` constant (spec allows 1–2): merge the fields, update `BeliefFold.obsSigma`, re-run the fit once to confirm.
 
-- [ ] **Step 4: Adopt** — edit `BeliefConfig` defaults to the fitted values; update each kdoc label (`fitted` values get "fitted 2026-07-XX, curve in phase-2 plan appendix"; any `flat` relabels). Do NOT touch `sigmaSeed`/`sigmaOverride` (semantic) or the guards (flat).
+- [x] **Step 4: Adopt** — edit `BeliefConfig` defaults to the fitted values; update each kdoc label (`fitted` values get "fitted 2026-07-XX, curve in phase-2 plan appendix"; any `flat` relabels). Do NOT touch `sigmaSeed`/`sigmaOverride` (semantic) or the guards (flat).
 
-- [ ] **Step 5: Add the phase gate** to `BeliefScoreTest.reportBeliefStackHeldOutScore` (after the report `println`):
+- [x] **Step 5: Add the phase gate** to `BeliefScoreTest.reportBeliefStackHeldOutScore` (after the report `println`):
 
 ```kotlin
 // PHASE-2 SHIP GATE: beat main's Phase-0 baseline on the same metric. The belief stack may
@@ -1451,16 +1451,16 @@ if (baseline != null) {
 }
 ```
 
-- [ ] **Step 6: Record results in this plan** — fill in the "Results appendix" section at the bottom: best config, best score vs 26.7593, all sensitivity curves verbatim, coverage, per-constant label decisions.
+- [x] **Step 6: Record results in this plan** — fill in the "Results appendix" section at the bottom: best config, best score vs 26.7593, all sensitivity curves verbatim, coverage, per-constant label decisions.
 
-- [ ] **Step 7: Re-run the backtest suite**
+- [x] **Step 7: Re-run the backtest suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.*" --tests "io.github.fowles.stochastic_strength.domain.belief.*"`
 Expected: all PASS, including the new gate. If the gate FAILS (belief ≥ baseline), STOP — report the numbers to the user; per the constitution there is no tolerance band and no constant may be hand-adjusted to force it.
 
-- [ ] **Step 8: CHECKPOINT — present to the user before committing:** fitted values + labels, sensitivity curves, gate margin, coverage, any edge-pinned or collapsed constants. Wait for approval.
+- [x] **Step 8: CHECKPOINT — present to the user before committing:** fitted values + labels, sensitivity curves, gate margin, coverage, any edge-pinned or collapsed constants. Wait for approval.
 
-- [ ] **Step 9: Commit (after approval)**
+- [x] **Step 9: Commit (after approval)**
 
 ```bash
 jj commit -m "feat(belief): adopt harness-fitted constants (sensitivity curves in plan); phase-2 gate green vs 26.7593 baseline"
@@ -1512,24 +1512,24 @@ jj commit -m "test(backtest): belief-stack clamp-bind report + failure invariant
 
 ### Task 12: Full verification + docs
 
-- [ ] **Step 1: Full JVM suite**
+- [x] **Step 1: Full JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: all PASS (Phase-1 count was 297 + this phase's additions; zero failures). `ExerciseEstimatorSimulationTest` and all old-estimator pins must be untouched and green.
 
-- [ ] **Step 2: Instrumented suite** (emulator is typically running — attempt directly):
+- [x] **Step 2: Instrumented suite** (emulator is typically running — attempt directly):
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: 83/83 PASS (no instrumented surface changed this phase; this is the regression check).
 
-- [ ] **Step 3: Lint**
+- [x] **Step 3: Lint**
 
 Run: `./gradlew :app:lint`
 Expected: no new errors.
 
-- [ ] **Step 4:** Mark every checkbox in this plan done; confirm the Results appendix is filled (Task 8 provisional score, Task 10 fit + gate, Task 11 bind report).
+- [x] **Step 4:** Mark every checkbox in this plan done; confirm the Results appendix is filled (Task 8 provisional score, Task 10 fit + gate, Task 11 bind report).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "docs: phase-2 belief-core plan complete (fit results + gate + bind report recorded)"
@@ -1630,6 +1630,8 @@ cap binds             : 125 (7.4%)
 hurt binds            : 0
 per-exercise cap binds: ex 20=17, ex 100=14, ex 21=14, ex 75=14, ex 77=14, ex 30=14, ex 55=12, ex 26=9, ex 33=7, ex 23=5, ex 24=5
 post-policy failure-invariant violations: 0
+
+> **Controller ablation (2026-07-15):** re-running this report with `overloadNudge = false` yields IDENTICAL numbers (125 binds, 7.4%, same per-exercise counts) — the binds are driven entirely by the z-target `exp(mu_eff − 0.5244·σ_eff)` exceeding the demonstrated caps, not by the nudge. Working hypothesis for Phase 3: fatigue-shifted TOO_HARD folds legitimately place fresh-capacity mu ~φ·(k−1) above the unshifted cap, and z at the σ-floor (~1%) doesn't cover the gap; bind magnitude is likely one small clamp step (designed creep), but rule 4 review should measure it.
 ```
 Same updated history.json re-run of main's Phase-1 test (`PolicyBacktestTest`) for a same-data comparison: 1690 prescriptions, 58 cap binds (3.4%), 0 hurt binds, 0 violations — so the 3.1%/1560 figure in memory is on the OLD history; 3.4%/1690 is the correct apples-to-apples Phase-1 baseline on the CURRENT history.json.
 
