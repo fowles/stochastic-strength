@@ -1478,7 +1478,7 @@ Constitution rules 3/4: replay the policy layer over the BELIEF stack's prescrip
 **Interfaces:**
 - Consumes: `BeliefStackReplay` (the `effective` observer arg), `BeliefPrescriber.targetE1rm`, `PolicyFacts.build`, `PrescriptionPolicy.prescribe(..., overloadNudge = true)`.
 
-- [ ] **Step 1: Write the test** — mirror `PolicyBacktestTest.kt`'s structure exactly (same `seen`/`lastFailure` bookkeeping, same invariant), with these differences: predictions come from `BeliefStackReplay.run(data, BeliefConfig()) { sessionId, asOf, _, effective, _ -> ... }`; the raw prescription input is `BeliefPrescriber.targetE1rm(eff)` per exercise; `prescribe(..., overloadNudge = true)`; count `nudges` (`prescriptions where the easy-fact bump applied` is not directly observable — count `capBinds`, `hurtBinds` as before) and accumulate per-exercise cap-bind counts. Print:
+- [x] **Step 1: Write the test** — mirror `PolicyBacktestTest.kt`'s structure exactly (same `seen`/`lastFailure` bookkeeping, same invariant), with these differences: predictions come from `BeliefStackReplay.run(data, BeliefConfig()) { sessionId, asOf, _, effective, _ -> ... }`; the raw prescription input is `BeliefPrescriber.targetE1rm(eff)` per exercise; `prescribe(..., overloadNudge = true)`; count `nudges` (`prescriptions where the easy-fact bump applied` is not directly observable — count `capBinds`, `hurtBinds` as before) and accumulate per-exercise cap-bind counts. Print:
 
 ```kotlin
 val report = buildString {
@@ -1497,12 +1497,12 @@ assertTrue(report, violations.isEmpty())
 
 The invariant assertion (violations must be empty) is hard; the bind rate is a report. Note in the test kdoc: Phase-1 rate over main was 3.1% with exercises 21/77/30 chronic — if the belief stack does not visibly reduce those, flag it at review (rule 4: frequent binds = estimator bug).
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefPolicyBacktestTest" --info | grep -A 20 "Phase 2 clamp-bind"`
 Expected: PASS (0 violations); record the bind rate + per-exercise binds in the Results appendix.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj commit -m "test(backtest): belief-stack clamp-bind report + failure invariant on real history"
@@ -1622,4 +1622,15 @@ Label decisions on updated history (identical optimum to the old fit — phi=0.0
 - **tau = 0.2 — `fitted`.** Interior bowl (0.12→24.567 > 0.2→24.327 < 0.3→24.501).
 - No `flat` relabels; no axis needed further widening. BeliefConfig defaults are unchanged; only the sigmaObs doc-comment label was updated from "provisional low edge" to "saturated (confirmed by downward widening)".
 
-- Task 11 bind report — rate, per-exercise, vs Phase-1's 3.1% and chronic 21/77/30: _(Task 11 Step 2 pastes the printed report here)_
+- Task 11 bind report — rate, per-exercise, vs Phase-1's 3.1% and chronic 21/77/30:
+```
+=== Phase 2 clamp-bind report (policy over BELIEF prescriptions, nudge ON) ===
+prescriptions checked : 1690
+cap binds             : 125 (7.4%)
+hurt binds            : 0
+per-exercise cap binds: ex 20=17, ex 100=14, ex 21=14, ex 75=14, ex 77=14, ex 30=14, ex 55=12, ex 26=9, ex 33=7, ex 23=5, ex 24=5
+post-policy failure-invariant violations: 0
+```
+Same updated history.json re-run of main's Phase-1 test (`PolicyBacktestTest`) for a same-data comparison: 1690 prescriptions, 58 cap binds (3.4%), 0 hurt binds, 0 violations — so the 3.1%/1560 figure in memory is on the OLD history; 3.4%/1690 is the correct apples-to-apples Phase-1 baseline on the CURRENT history.json.
+
+Belief stack binds MORE than main on the same history (7.4% vs 3.4%) — not the hoped-for reduction. The three chronic exercises 21/77/30 (main's estimator-bug binders) each bind 14 times under the belief stack too — unchanged from "chronic," not fixed. A new exercise, 20, is now the single worst binder (17), ahead of 21/77/30. Per rule 4 (frequent binds = estimator bug, not a policy tuning target): this is a genuine flag for Phase 3 review, not a regression to silently accept — the belief stack's z=0.5244 raw target plus `overloadNudge=true` is pushing more prescriptions into the demonstrated-capacity ceiling than main's raw projector does, on the same real sessions. The invariant holds (0 violations) so nothing is unsafe, but the bind-rate direction is the opposite of what the phase hoped to demonstrate; worth investigating before Phase 3 wires this stack live (candidates: z is prescribing too aggressively close to the belief mean, or `overloadNudge` is contributing disproportionately — this test does not isolate the nudge's individual contribution).
