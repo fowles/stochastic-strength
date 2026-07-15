@@ -601,14 +601,14 @@ Derived rows (muscle level, coefficients) now come from `BeliefSessionStep.Resul
 - Consumes: `BeliefSessionStep.Result.steps` (Task 2), `DerivedStateStore.exerciseBeliefs()` (Task 3), `BeliefPooling`/`BeliefPrescriber` (Phase 2), `Prescription.uncappedWeightKg` (Task 1, unused here but present).
 - Produces: `WorkoutRepository` private `val beliefConfig = BeliefConfig()` + `val beliefPooling = BeliefPooling(beliefConfig)` — Task 6's trace accessor reuses these.
 
-- [ ] **Step 1: Rewrite `ProdBssPrescriptionTest` as the failing test.** Keep the fixture data (seed coefs, initials, the session history with the 24.95/15.88 kg failures) and both invariant assertions, but drive it through the belief stack: seed `Belief(ln(e1rm), sigmaSeed², 0)` from the initials, apply each session via `BeliefSessionStep.step(...)`, then for the final prescription use `BeliefPooling(...).effective(...)` at `EXPORTED_AT` → `BeliefPrescriber.targetE1rm` → `PrescriptionPolicy.prescribe(..., overloadNudge = true)` with `PolicyFacts` built from all fixture sets. Assertions unchanged in spirit: the prescribed BSS weight is strictly below both failed weights at their rep targets. Delete the old-stack imports (`ExerciseEstimate`, `MuscleStrengthProjector`, `SessionProgressionStepper`).
+- [x] **Step 1: Rewrite `ProdBssPrescriptionTest` as the failing test.** Keep the fixture data (seed coefs, initials, the session history with the 24.95/15.88 kg failures) and both invariant assertions, but drive it through the belief stack: seed `Belief(ln(e1rm), sigmaSeed², 0)` from the initials, apply each session via `BeliefSessionStep.step(...)`, then for the final prescription use `BeliefPooling(...).effective(...)` at `EXPORTED_AT` → `BeliefPrescriber.targetE1rm` → `PrescriptionPolicy.prescribe(..., overloadNudge = true)` with `PolicyFacts` built from all fixture sets. Assertions unchanged in spirit: the prescribed BSS weight is strictly below both failed weights at their rep targets. Delete the old-stack imports (`ExerciseEstimate`, `MuscleStrengthProjector`, `SessionProgressionStepper`).
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: PASS already if the wiring code below existed — it doesn't yet, so the test compiles against Phase-2 pieces and should PASS on its own (it exercises domain classes directly, not the repository). That is fine: this test pins the invariant across the swap; the repository flip is verified by the instrumented tests in Step 5.
 
-- [ ] **Step 3: Flip the repository.** In `WorkoutRepository`:
+- [x] **Step 3: Flip the repository.** In `WorkoutRepository`:
 
 (a) fields:
 
@@ -661,9 +661,9 @@ val prescribedE1rm = muscleIds.flatMap { (_, ids) ->
 
 (f) `WorkoutPlanner.weightForExercise` — flip the nudge at the single `PrescriptionPolicy.prescribe` call site: add `overloadNudge = true` with the comment `// Phase-3 swap: the belief stack's in-band feedback legitimately leaves mu unmoved, so the smallest-plate nudge covers the steady-state stall (spec Phase 2).`
 
-- [ ] **Step 4: Rewrite `ReplayProjectionTest`** — it pins the replay's derived writes; re-derive its expectations from the belief stack (level = `exp(levelLn)`, coef = effective/level). Follow the existing test's scenario structure; compute expected numbers with the same `BeliefFold`/`BeliefPooling` calls in the test (self-consistent, not magic constants), asserting the repository's `DerivedStateStore` rows match a hand-driven `BeliefSessionStep` over the same sessions.
+- [x] **Step 4: Rewrite `ReplayProjectionTest`** — it pins the replay's derived writes; re-derive its expectations from the belief stack (level = `exp(levelLn)`, coef = effective/level). Follow the existing test's scenario structure; compute expected numbers with the same `BeliefFold`/`BeliefPooling` calls in the test (self-consistent, not magic constants), asserting the repository's `DerivedStateStore` rows match a hand-driven `BeliefSessionStep` over the same sessions.
 
-- [ ] **Step 5: Run the JVM suite, then instrumented**
+- [x] **Step 5: Run the JVM suite, then instrumented**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS except possibly old-stack pins that read derived rows — fix any such test by re-deriving its expectation through the belief stack (do NOT weaken assertions; if a test's premise died with the old stack, note it for Task 7's deletion list instead).
@@ -671,7 +671,7 @@ Expected: PASS except possibly old-stack pins that read derived rows — fix any
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: failures ONLY in tests asserting old-stack derived numbers (`ReplayDerivedStateTest`, `FatigueNoDownwardBiasReplayTest`, possibly `WorkoutRepositoryTest`/`WorkoutSessionControllerTest`). Update each to belief-stack expectations the same way: behavioral assertions (e.g. "baseline never drops below seed after clean sessions") stay as-is and must PASS — they are invariants, not pins; only numeric pins move. If a behavioral invariant FAILS under the belief stack, STOP and surface it — that is a real regression, not a test to update.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat(belief): SWAP — derived state + planner prescriptions from the belief stack, nudge ON (PolicyFacts stay plan-time-built: replay misses abandoned-session caps)"

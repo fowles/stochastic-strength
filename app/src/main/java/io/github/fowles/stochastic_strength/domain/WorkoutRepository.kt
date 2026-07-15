@@ -17,11 +17,12 @@ import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
-import io.github.fowles.stochastic_strength.domain.progression.EstimatorConfig
-import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
+import kotlin.math.exp
 
 class WorkoutRepository(
     private val db: AppDatabase,
@@ -41,6 +43,8 @@ class WorkoutRepository(
     private val replayMutex = Mutex()
     private val stepper = SessionProgressionStepper()
     private val replayEngine = ReplayEngine(stepper)
+    private val beliefConfig = BeliefConfig()
+    private val beliefPooling = BeliefPooling(beliefConfig)
 
     private suspend fun excludedExerciseIds(locationId: Long?): Set<Long> =
         if (locationId != null) db.locationExcludedExerciseDao().getExcludedIds(locationId).toSet()
@@ -59,14 +63,14 @@ class WorkoutRepository(
     ): WorkoutPlanner {
         val excluded = excludedExerciseIds(locationId)
         val available = db.exerciseDao().getActive().filter { it.id !in excluded }
-        val estimates = derivedState.snapshot().exerciseEstimates()
         val seedCoef = available.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
         val muscleIds = available.filter { (seedCoef[it.id] ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
         val now = System.currentTimeMillis()
-        val projector = MuscleStrengthProjector()
+        val beliefs = derivedState.snapshot().exerciseBeliefs()
         val prescribedE1rm = muscleIds.flatMap { (_, ids) ->
-            projector.project(estimates, seedCoef, ids, now).effectiveE1rm.entries.map { it.key to it.value }
+            beliefPooling.effective(beliefs, seedCoef, ids, now).effective.entries
+                .map { it.key to BeliefPrescriber.targetE1rm(it.value) }
         }.toMap()
         val history = if (available.isNotEmpty())
             db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
@@ -202,15 +206,14 @@ class WorkoutRepository(
     suspend fun replayDerivedState() = replayMutex.withLock {
         derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
-            val config = EstimatorConfig()
 
-            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, result, _ ->
-                for (stepResult in result.steps) {
-                    writeLevelUpdate(stepResult.muscle, stepResult.projection.level, sessionId, asOf, scratch)
+            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, _, beliefResult ->
+                for (stepResult in beliefResult.steps) {
+                    writeLevelUpdate(stepResult.muscle, stepResult.level, sessionId, asOf, scratch)
                     val exerciseIds = snapshot.muscleExerciseIds[stepResult.muscle] ?: continue
                     writeDerivedCoefficients(
                         muscleExerciseIds = exerciseIds,
-                        derivedCoef = stepResult.projection.derivedCoef,
+                        derivedCoef = stepResult.derivedCoef,
                         snapshot = snapshot,
                         asOf = asOf,
                         scratch = scratch,
@@ -218,30 +221,27 @@ class WorkoutRepository(
                 }
             }
 
-            // Store the final estimate map for the live planner (Task 8 reads it).
+            // Store the final estimate map for the debug/chart readers (Task 5 flips these).
             scratch.putExerciseEstimates(snapshot.currentEstimates.toMap())
-            // Store the final belief map (parallel, dark — Phase-3 swap task reads it).
+            // Store the final belief map — the live planner reads this (buildPlanner).
             scratch.putExerciseBeliefs(snapshot.currentBeliefs.toMap())
 
             // Cold-start / untrained-muscle display fill: any muscle never touched by a replayed
-            // session still gets a representative muscle_group_strength row (projected from its
-            // seeded/overridden estimates) so the History strength grid matches the old per-muscle
+            // session still gets a representative muscle_group_strength row (pooled from its
+            // seeded/overridden beliefs) so the History strength grid matches the old per-muscle
             // onboarding behavior instead of showing an empty grid. Session-filled muscles are
             // guarded out, so this changes nothing for trained muscles and keeps replay idempotent.
             // No baseline_history row is written (there is no session boundary here).
-            val displayProjector = MuscleStrengthProjector(config)
-            val displayNow = snapshot.currentEstimates.values.maxOfOrNull { it.updatedAt } ?: 0L
+            val displayNow = snapshot.currentBeliefs.values.maxOfOrNull { it.updatedAt } ?: 0L
             for ((muscle, exerciseIds) in snapshot.muscleExerciseIds) {
                 if (scratch.muscleGroupStrength(muscle) != null) continue
-                val projection = displayProjector.project(
-                    estimates = snapshot.currentEstimates,
-                    seedCoef = snapshot.seedCoefficients,
-                    muscleExerciseIds = exerciseIds,
-                    now = displayNow,
-                )
-                if (projection.level > 0f) {
+                val levelLn = beliefPooling.effective(
+                    snapshot.currentBeliefs, snapshot.seedCoefficients, exerciseIds, displayNow,
+                ).levelLn ?: continue
+                val level = exp(levelLn)
+                if (level > 0f) {
                     scratch.upsertMuscleGroupStrength(
-                        MuscleGroupStrength(muscleGroup = muscle, baselineWeight = projection.level)
+                        MuscleGroupStrength(muscleGroup = muscle, baselineWeight = level)
                     )
                 }
             }

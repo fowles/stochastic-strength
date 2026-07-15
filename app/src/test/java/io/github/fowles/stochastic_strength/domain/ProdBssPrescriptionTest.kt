@@ -4,13 +4,16 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.belief.Belief
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
+import io.github.fowles.stochastic_strength.domain.belief.BeliefSessionStep
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
-import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
-import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.ln
 
 /**
  * Clamp-behavior invariant from the prod backup pulled 2026-06-24 (the Bulgarian-Split-Squat
@@ -84,25 +87,38 @@ class ProdBssPrescriptionTest {
         PrescriptionPolicy.prescribe(
             rawE1rm = rawE1rm, sessionReps = 10, exerciseId = 55L, muscle = MuscleGroup.QUADS,
             facts = bssFacts(), now = EXPORTED_AT, weightUnit = WeightUnit.LBS,
-            engine = DefaultProgressionEngine,
+            engine = DefaultProgressionEngine, overloadNudge = true,
         ).weightKg
 
     @Test
     fun bssPrescriptionStaysStrictlyBelowTheMostRecentFailedWeight() {
-        // Full replay of the prod history through main's estimator (unchanged fixture replay):
+        // Full replay of the prod history through the belief stack (Phase-3 swap):
         val exerciseMuscle = seedCoef.keys.associateWith { MuscleGroup.QUADS }
-        val snapshot = ReplaySnapshot(exerciseMuscle = exerciseMuscle, seedCoefficients = seedCoef)
-        for ((id, e1rm) in initials) snapshot.currentEstimates[id] = ExerciseEstimate.seed(e1rm, at = 0)
-        val stepper = SessionProgressionStepper()
-        for (sessionId in listOf(12L, 14L, 15L, 16L, 18L)) {
-            stepper.step(sets.filter { it.sessionId == sessionId }, snapshot, endTimes[sessionId]!!)
+        val muscleExerciseIds = mapOf(MuscleGroup.QUADS to seedCoef.keys.toList())
+        val beliefConfig = BeliefConfig()
+        val sigmaSeed2 = beliefConfig.sigmaSeed * beliefConfig.sigmaSeed
+        val beliefs: MutableMap<Long, Belief> = initials.mapValuesTo(mutableMapOf()) { (_, e1rm) ->
+            Belief(ln(e1rm), sigmaSeed2, 0L)
         }
-        val proj = MuscleStrengthProjector().project(
-            estimates = snapshot.currentEstimates, seedCoef = seedCoef,
-            muscleExerciseIds = seedCoef.keys.toList(), now = EXPORTED_AT,
-        )
+        val step = BeliefSessionStep(beliefConfig)
+        for (sessionId in listOf(12L, 14L, 15L, 16L, 18L)) {
+            step.step(
+                beliefs = beliefs,
+                sets = sets.filter { it.sessionId == sessionId },
+                seedCoef = seedCoef,
+                exerciseMuscle = exerciseMuscle,
+                muscleExerciseIds = muscleExerciseIds,
+                asOf = endTimes[sessionId]!!,
+            )
+        }
 
-        val prescribed = policyWeightKg(proj.effectiveE1rm.getValue(55L))
+        val pooling = BeliefPooling(beliefConfig)
+        val effective = pooling.effective(
+            beliefs = beliefs, seedCoef = seedCoef, muscleExerciseIds = seedCoef.keys.toList(), now = EXPORTED_AT,
+        ).effective
+        val rawE1rm = BeliefPrescriber.targetE1rm(effective.getValue(55L))
+
+        val prescribed = policyWeightKg(rawE1rm)
         assertTrue(
             "policy prescription $prescribed kg must be strictly below the failed $LIGHTEST_FAILED_KG kg",
             prescribed < LIGHTEST_FAILED_KG,

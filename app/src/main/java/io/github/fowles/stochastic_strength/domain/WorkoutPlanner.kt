@@ -296,6 +296,9 @@ class WorkoutPlanner(
             now = nowMs,
             weightUnit = weightUnit,
             engine = progressionEngine,
+            // Phase-3 swap: the belief stack's in-band feedback legitimately leaves mu unmoved, so
+            // the smallest-plate nudge covers the steady-state stall (spec Phase 2).
+            overloadNudge = true,
         ).weightKg
     }
 
