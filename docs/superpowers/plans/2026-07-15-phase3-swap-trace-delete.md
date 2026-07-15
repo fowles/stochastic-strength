@@ -210,7 +210,7 @@ class BeliefSessionStep(private val config: BeliefConfig) {
 }
 ```
 
-- [ ] **Step 1: Write the failing tests** — `BeliefSessionStepTest.kt`. Key behaviors, all hand-computable (reuse the numeric style of `BeliefFoldTest`/`BeliefPoolingTest`):
+- [x] **Step 1: Write the failing tests** — `BeliefSessionStepTest.kt`. Key behaviors, all hand-computable (reuse the numeric style of `BeliefFoldTest`/`BeliefPoolingTest`):
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -326,12 +326,12 @@ class BeliefSessionStepTest {
 
 (Adjust the `WorkoutSet` constructor call to the real entity's parameter list — copy from `BeliefFoldTest`'s existing helper.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefSessionStepTest"`
 Expected: FAIL — `BeliefSessionStep` unresolved.
 
-- [ ] **Step 3: Implement `BeliefSessionStep.kt`** — lift the loop body of `BeliefStackReplay.run` verbatim (same order of operations):
+- [x] **Step 3: Implement `BeliefSessionStep.kt`** — lift the loop body of `BeliefStackReplay.run` verbatim (same order of operations):
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -401,12 +401,12 @@ class BeliefSessionStep(private val config: BeliefConfig) {
 }
 ```
 
-- [ ] **Step 4: Run the new tests**
+- [x] **Step 4: Run the new tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.BeliefSessionStepTest"`
 Expected: PASS.
 
-- [ ] **Step 5: Rewire `BeliefStackReplay` to delegate** — replace its inner loop with a call to the step (predictions still come from the PRE-fold effective, unchanged semantics):
+- [x] **Step 5: Rewire `BeliefStackReplay` to delegate** — replace its inner loop with a call to the step (predictions still come from the PRE-fold effective, unchanged semantics):
 
 ```kotlin
 object BeliefStackReplay {
@@ -464,12 +464,12 @@ object BeliefStackReplay {
 
 Note: the step needs `exerciseMuscle`. If `BacktestData` doesn't already expose an id→muscle map, derive it in place from `data.backup.exercises.associate { it.id to it.primaryMuscle }` (check `BacktestData`/`newSnapshot()` — `ReplaySnapshot.exerciseMuscle` may already be on the snapshot; use whichever exists, don't add duplicate state). Update the class kdoc: drop "KEEP IN SYNC with MainStackReplay" in favor of "delegates to BeliefSessionStep — the same code the production replay runs".
 
-- [ ] **Step 6: Verify the score is bit-identical (the refactor gate)**
+- [x] **Step 6: Verify the score is bit-identical (the refactor gate)**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefScoreTest" --info | grep -B2 -A8 "belief stack held-out"`
 Expected: PASS with **exactly** total 24.3274 / 237 scored / 9 skipped (unchanged from Phase 2). Also run `BeliefStackReplayTest`, `BeliefHeldOutScorerTest`, `BeliefPolicyBacktestTest` — all PASS with unchanged numbers (125 binds).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "refactor(belief): extract BeliefSessionStep; backtest replay delegates to the prod step (score bit-identical)"
