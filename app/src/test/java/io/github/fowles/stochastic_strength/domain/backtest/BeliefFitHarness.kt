@@ -1,0 +1,59 @@
+package io.github.fowles.stochastic_strength.domain.backtest
+
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
+
+/**
+ * Coordinate-descent fitting of the belief stack's `fitted` constants against the ONE authority
+ * (held-out score on real history — constitution rule 1). Sensitivity curves are 1-D sweeps at the
+ * final optimum, recorded in the plan when a constant is admitted (rule 2). The fitness function
+ * never sees policy clamps (rule 3).
+ */
+object BeliefFitHarness {
+
+    data class Axis(
+        val name: String,
+        val values: List<Float>,
+        val get: (BeliefConfig) -> Float,
+        val with: (BeliefConfig, Float) -> BeliefConfig,
+    )
+
+    /** Wide log-spaced grids; an optimum on a grid EDGE means "widen the grid", not "adopt". */
+    val AXES = listOf(
+        Axis("phi", listOf(0f, 0.01f, 0.02f, 0.03f, 0.05f, 0.08f), { it.phi }, { c, v -> c.copy(phi = v) }),
+        Axis("qPerDay", listOf(1e-5f, 3e-5f, 1e-4f, 3e-4f, 1e-3f, 3e-3f), { it.qPerDay }, { c, v -> c.copy(qPerDay = v) }),
+        Axis("sigmaObsRir", listOf(0.02f, 0.04f, 0.07f, 0.10f, 0.15f, 0.25f), { it.sigmaObsRir }, { c, v -> c.copy(sigmaObsRir = v) }),
+        Axis("sigmaObsFail", listOf(0.02f, 0.04f, 0.07f, 0.10f, 0.15f, 0.25f), { it.sigmaObsFail }, { c, v -> c.copy(sigmaObsFail = v) }),
+        Axis("tau", listOf(0.05f, 0.08f, 0.12f, 0.20f, 0.30f, 0.50f), { it.tau }, { c, v -> c.copy(tau = v) }),
+    )
+
+    data class FitResult(
+        val best: BeliefConfig,
+        val bestScore: Double,
+        val curves: Map<String, List<Pair<Float, Double>>>,
+    )
+
+    fun fit(
+        start: BeliefConfig,
+        axes: List<Axis> = AXES,
+        passes: Int = 3,
+        score: (BeliefConfig) -> Double,
+    ): FitResult {
+        var best = start
+        var bestScore = score(best)
+        repeat(passes) {
+            for (axis in axes) {
+                for (v in axis.values) {
+                    if (v == axis.get(best)) continue
+                    val s = score(axis.with(best, v))
+                    if (s < bestScore - 1e-12) { best = axis.with(best, v); bestScore = s }
+                }
+            }
+        }
+        val curves = axes.associate { axis ->
+            axis.name to axis.values.map { v ->
+                v to if (v == axis.get(best)) bestScore else score(axis.with(best, v))
+            }
+        }
+        return FitResult(best, bestScore, curves)
+    }
+}
