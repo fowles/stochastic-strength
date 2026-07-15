@@ -92,8 +92,8 @@ class BeliefFoldTest {
         val asOf = 24L * 60 * 60 * 1000
         // Hand-fold with the same components: aging first, then set 1 (rank 1) and set 3 (rank 3).
         var expected = fold.aged(prior, asOf)
-        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[0])!!, fold.fatigueShift(1), fold.obsSigma(SetFeedback.RIR_0_1), asOf)
-        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[2])!!, fold.fatigueShift(3), fold.obsSigma(SetFeedback.TOO_HARD), asOf)
+        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[0])!!, fold.fatigueShift(1), config.sigmaObs, asOf)
+        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[2])!!, fold.fatigueShift(3), config.sigmaObs, asOf)
         assertEquals(expected, fold.foldSession(prior, sets, asOf))
     }
 }

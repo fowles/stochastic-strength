@@ -23,6 +23,7 @@ object BeliefHeldOutScorer {
             for (p in predictions) {
                 val interval = SetIntervals.impliedLn1RmInterval(p.set) ?: continue
                 val pred = p.predictedLn
+                // skipped = the set implied an interval but no prediction existed (cold exercise before its first fold, zero-coef).
                 if (pred == null) { skipped++; continue }
                 val dist = interval.distanceTo(pred).toDouble()
                 if (dist == 0.0) covered++

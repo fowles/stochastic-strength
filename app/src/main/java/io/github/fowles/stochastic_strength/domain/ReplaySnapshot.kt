@@ -3,7 +3,6 @@ package io.github.fowles.stochastic_strength.domain
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.domain.belief.Belief
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
 
 /**
  * Holds the evolving derived state for one full replay of [WorkoutRepository.replayDerivedState].
@@ -14,9 +13,6 @@ class ReplaySnapshot(
     val exerciseMuscle: Map<Long, MuscleGroup>,
     val seedCoefficients: Map<Long, Float>,
 ) {
-    /** Per-exercise strength estimates, updated as each session is folded in. */
-    val currentEstimates: MutableMap<Long, ExerciseEstimate> = mutableMapOf()
-
     /** Per-exercise beliefs (the Phase-2 stack), updated as each session is folded in. */
     val currentBeliefs: MutableMap<Long, Belief> = mutableMapOf()
 

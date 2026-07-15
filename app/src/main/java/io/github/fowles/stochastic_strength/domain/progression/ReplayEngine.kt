@@ -9,15 +9,13 @@ import io.github.fowles.stochastic_strength.domain.belief.BeliefSessionStep
 import kotlin.math.ln
 
 /**
- * Replays every completed session in order through [SessionProgressionStepper], seeding initial
- * estimates and applying per-session strength-override rows exactly as the production replay does.
- * In parallel, it seeds and folds the Phase-2 belief stack ([BeliefSessionStep]) so it stays warm
- * for the eventual Phase-3 swap — this is dark, the belief result does not affect derived writes.
- * After each session it invokes [SessionObserver]; the caller decides what to do with the result
- * (write derived rows, or record chart samples). The replay is muscle-agnostic; consumers filter.
+ * Replays every completed session in order, seeding initial beliefs and applying per-session
+ * strength-override rows exactly as the production replay does, folding the belief stack
+ * ([BeliefSessionStep]) as it goes. After each session it invokes [SessionObserver]; the caller
+ * decides what to do with the result (write derived rows, or record chart samples). The replay is
+ * muscle-agnostic; consumers filter.
  */
 class ReplayEngine(
-    private val stepper: SessionProgressionStepper = SessionProgressionStepper(),
     private val beliefConfig: BeliefConfig = BeliefConfig(),
 ) {
     private val beliefStep = BeliefSessionStep(beliefConfig)
@@ -28,7 +26,6 @@ class ReplayEngine(
             asOf: Long,
             sets: List<WorkoutSet>,
             snapshot: ReplaySnapshot,
-            result: SessionProgressionStepper.StepResult,
             beliefResult: BeliefSessionStep.Result,
         )
     }
@@ -40,7 +37,6 @@ class ReplayEngine(
         // Init from per-exercise strength overrides (sessionId = null rows).
         val initials = db.exerciseStrengthOverrideDao().getInitials()
         for (init in initials) {
-            snapshot.currentEstimates[init.exerciseId] = ExerciseEstimate.seed(init.e1rm, at = init.asOf)
             snapshot.currentBeliefs[init.exerciseId] = Belief(ln(init.e1rm), sigmaSeed2, init.asOf)
         }
 
@@ -53,17 +49,11 @@ class ReplayEngine(
 
         for (session in sessions) {
             exerciseOverridesBySession[session.id]?.forEach { o ->
-                snapshot.currentEstimates[o.exerciseId] = ExerciseEstimate(
-                    lnE = ln(o.e1rm),
-                    confidence = 1.0f,
-                    updatedAt = o.asOf,
-                )
                 snapshot.currentBeliefs[o.exerciseId] = Belief(ln(o.e1rm), sigmaOverride2, o.asOf)
             }
 
             val sets = db.workoutSetDao().getSetsForSession(session.id)
             if (sets.isEmpty()) continue
-            val result = stepper.step(sets, snapshot, session.endTime!!)
             val beliefResult = beliefStep.step(
                 beliefs = snapshot.currentBeliefs,
                 sets = sets,
@@ -72,7 +62,7 @@ class ReplayEngine(
                 muscleExerciseIds = snapshot.muscleExerciseIds,
                 asOf = session.endTime!!,
             )
-            observer.onSession(session.id, session.endTime!!, sets, snapshot, result, beliefResult)
+            observer.onSession(session.id, session.endTime!!, sets, snapshot, beliefResult)
         }
     }
 }

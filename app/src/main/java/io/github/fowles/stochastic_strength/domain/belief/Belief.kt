@@ -4,7 +4,7 @@ import kotlin.math.exp
 
 /**
  * One exercise's belief about ln(fresh 1RM, kg) — the whole estimator state (spec Phase 2).
- * [sigma2] is the variance in ln-units². Replaces ExerciseEstimate at the Phase-3 swap.
+ * [sigma2] is the variance in ln-units².
  */
 data class Belief(val mu: Float, val sigma2: Float, val updatedAt: Long) {
     val e1rm: Float get() = exp(mu)

@@ -1,6 +1,5 @@
 package io.github.fowles.stochastic_strength.domain.belief
 
-import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.policy.LnInterval
 import io.github.fowles.stochastic_strength.domain.policy.SetIntervals
@@ -24,9 +23,6 @@ class BeliefFold(private val config: BeliefConfig) {
      */
     fun fatigueShift(rank: Int): Float =
         -ln(1f - (config.phi * (rank - 1)).coerceAtMost(0.9f))
-
-    /** One observation sigma for every load fold (Task 10 collapsed the RIR/FAIL pair — identical optima). */
-    fun obsSigma(feedback: SetFeedback): Float = config.sigmaObs
 
     /**
      * Boundary-pull Gaussian fold (spec Phase 2). If mu lies inside the shifted interval the set
@@ -57,7 +53,7 @@ class BeliefFold(private val config: BeliefConfig) {
         var b = aged(prior, asOf)
         exSets.sortedBy { it.id }.forEachIndexed { idx, set ->
             val interval = SetIntervals.impliedLn1RmInterval(set) ?: return@forEachIndexed
-            b = fold(b, interval, fatigueShift(idx + 1), obsSigma(set.feedback!!), asOf)
+            b = fold(b, interval, fatigueShift(idx + 1), config.sigmaObs, asOf)
         }
         return b
     }

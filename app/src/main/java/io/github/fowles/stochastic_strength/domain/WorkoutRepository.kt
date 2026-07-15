@@ -28,7 +28,6 @@ import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
-import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import kotlinx.coroutines.flow.Flow
@@ -43,8 +42,7 @@ class WorkoutRepository(
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
 ) {
     private val replayMutex = Mutex()
-    private val stepper = SessionProgressionStepper()
-    private val replayEngine = ReplayEngine(stepper)
+    private val replayEngine = ReplayEngine()
     private val beliefConfig = BeliefConfig()
     private val beliefPooling = BeliefPooling(beliefConfig)
 
@@ -209,7 +207,7 @@ class WorkoutRepository(
         derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)
 
-            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, _, beliefResult ->
+            replayEngine.run(db, snapshot) { sessionId, asOf, _, _, beliefResult ->
                 for (stepResult in beliefResult.steps) {
                     writeLevelUpdate(stepResult.muscle, stepResult.level, sessionId, asOf, scratch)
                     val exerciseIds = snapshot.muscleExerciseIds[stepResult.muscle] ?: continue
@@ -223,8 +221,6 @@ class WorkoutRepository(
                 }
             }
 
-            // Store the final estimate map for the debug/chart readers (Task 5 flips these).
-            scratch.putExerciseEstimates(snapshot.currentEstimates.toMap())
             // Store the final belief map — the live planner reads this (buildPlanner).
             scratch.putExerciseBeliefs(snapshot.currentBeliefs.toMap())
 

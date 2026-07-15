@@ -24,7 +24,7 @@ data class Prescription(
  * Prescription-time policy clamps (spec Phase 1). Constitution rule 6: every rule here is a plain
  * arithmetic restatement of set-log facts — no estimator state, no uncertainty, no learned
  * constants. Constitution rule 3: the constants are semantic gym-language choices, never tuned,
- * and invisible to the backtest fitness function (HeldOutScorer scores the raw estimator).
+ * and invisible to the backtest fitness function (BeliefHeldOutScorer scores the raw estimator).
  */
 object PrescriptionPolicy {
 

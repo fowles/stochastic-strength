@@ -993,19 +993,19 @@ private const val RESERVE_RIR_5_PLUS = 6f
 - `test/domain/backtest/HeldOutScorer.kt` → rename content: keep ONLY `SessionScore` + `ScoreReport` in a new `ScoreReport.kt`; delete the `HeldOutScorer` object.
 - `test/domain/backtest/BeliefHeldOutScorer.kt`: carry-forward — add the missing skip-condition comment on the `pred == null` branch: `// skipped = the set implied an interval but no prediction existed (cold exercise before its first fold, zero-coef).`
 
-- [ ] **Step 1: Delete + modify per the list above.** Use `grep -rn "ExerciseEstimate\|SessionSignalExtractor\|MuscleStrengthProjector\|EstimatorConfig\|SessionProgressionStepper\|MainStackReplay\|HeldOutScorer\b" app/src` after the edit — the only hits must be `BeliefHeldOutScorer` internals and historical docs (`docs/superpowers/`), which are historical documents and stay untouched.
+- [x] **Step 1: Delete + modify per the list above.** Use `grep -rn "ExerciseEstimate\|SessionSignalExtractor\|MuscleStrengthProjector\|EstimatorConfig\|SessionProgressionStepper\|MainStackReplay\|HeldOutScorer\b" app/src` after the edit — the only hits must be `BeliefHeldOutScorer` internals and historical docs (`docs/superpowers/`), which are historical documents and stay untouched.
 
-- [ ] **Step 2: Full JVM suite**
+- [x] **Step 2: Full JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS, and `BeliefScoreTest` still reports 24.3274 (nothing math-bearing was touched).
 
-- [ ] **Step 3: Lint for dead code/imports**
+- [x] **Step 3: Lint for dead code/imports**
 
 Run: `./gradlew :app:lint`
 Expected: no new errors (warnings triaged: fix unused-import/unused-parameter ones in touched files).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "chore(belief): delete the old estimator (estimate/updater/projector/extractor/stepper, simulation pins, main-stack backtest) + phase-2 carry-forwards"

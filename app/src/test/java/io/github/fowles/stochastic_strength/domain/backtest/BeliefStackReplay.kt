@@ -10,10 +10,10 @@ import kotlin.math.ln
 
 /**
  * Forward-chained replay of the BELIEF stack over parsed backup data (spec Phase 2). Mirrors
- * MainStackReplay's session semantics exactly (override rows seed/reset beliefs; session-k
- * overrides apply before session k; sessions sorted by (endTime, id); empty-set sessions skip) —
- * delegates to BeliefSessionStep, the same code the production replay runs. Predictions are per
- * SET (fatigue-aware), captured pre-fold.
+ * production [io.github.fowles.stochastic_strength.domain.progression.ReplayEngine]'s session
+ * semantics exactly (override rows seed/reset beliefs; session-k overrides apply before session k;
+ * sessions sorted by (endTime, id); empty-set sessions skip) — delegates to BeliefSessionStep, the
+ * same code the production replay runs. Predictions are per SET (fatigue-aware), captured pre-fold.
  *
  * Cold exercises (no belief yet) fold their first session against the sibling prediction as the
  * prior — the pool is the prior, no extra constant (spec: cold exercises lean on siblings).
