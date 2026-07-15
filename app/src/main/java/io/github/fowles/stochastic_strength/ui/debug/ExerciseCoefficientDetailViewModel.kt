@@ -11,6 +11,7 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.ObservedSet
 import io.github.fowles.stochastic_strength.domain.progression.ProgressionFrame
@@ -79,6 +80,7 @@ data class ExerciseCoefficientDetailState(
     val defaultEpochDay: Long? = null,
     val weightUnit: WeightUnit = WeightUnit.KG,
     val chartYRange: ClosedFloatingPointRange<Double>? = null,
+    val trace: PrescriptionTrace? = null,
 )
 
 class ExerciseCoefficientDetailViewModel(
@@ -100,6 +102,7 @@ class ExerciseCoefficientDetailViewModel(
             val profile = app.database.userProfileDao().getProfile()
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
 
+            val trace = repository.getPrescriptionTrace(exerciseId)
             val data = repository.getExerciseProgressionData(exerciseId)
             val series = data.series
             val (framesByEpochDay, defaultEpochDay) =
@@ -124,6 +127,7 @@ class ExerciseCoefficientDetailViewModel(
                 defaultEpochDay = defaultEpochDay,
                 weightUnit = weightUnit,
                 chartYRange = sharedProgressionYRange(data),
+                trace = trace,
             )
         }
     }

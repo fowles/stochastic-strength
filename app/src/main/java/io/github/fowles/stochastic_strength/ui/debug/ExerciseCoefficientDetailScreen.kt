@@ -28,7 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.SectionHeader
@@ -104,7 +106,38 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
                     }
                 }
             }
+
+            item { SectionHeader("Why this weight", verticalPadding = 4.dp) }
+
+            item {
+                val trace = state.trace
+                if (trace == null) {
+                    Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                        Text("No effective belief yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    PrescriptionTraceSection(trace, state.weightUnit)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun PrescriptionTraceSection(trace: PrescriptionTrace, weightUnit: WeightUnit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        trace.lines.forEach { line ->
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                Text(line.label, style = MaterialTheme.typography.labelMedium)
+                Text(line.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Text(
+            "Final weight: ${WeightFormatter.format(trace.finalWeightKg, weightUnit)}",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 

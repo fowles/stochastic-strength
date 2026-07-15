@@ -20,6 +20,8 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
+import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace
+import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTraceBuilder
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
@@ -393,4 +395,51 @@ class WorkoutRepository(
         )
     }
 
+    /**
+     * The "why this weight" trace for one exercise (Task 6, spec Phase 3). Facts are built exactly
+     * as [buildPlanner] builds them — same available-exercise set, same history query, same muscle
+     * map — so the trace explains the weight the live planner would actually prescribe. Null when
+     * the exercise doesn't exist or has no effective belief (unloadable/cold muscle).
+     */
+    suspend fun getPrescriptionTrace(exerciseId: Long): PrescriptionTrace? {
+        val exercise = db.exerciseDao().getById(exerciseId) ?: return null
+        val available = db.exerciseDao().getActive()
+        val seedCoef = available.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
+        val muscleIds = available.filter { (seedCoef[it.id] ?: 0f) > 0f }
+            .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }[exercise.primaryMuscle]
+            ?: emptyList()
+        val now = System.currentTimeMillis()
+        val history = if (available.isNotEmpty())
+            db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
+        else emptyList()
+        val facts = PolicyFacts.build(
+            sets = history,
+            exerciseMuscle = available.associate { it.id to it.primaryMuscle },
+        )
+        val allSets = db.workoutSetDao().getAllForExercise(exerciseId)
+        val capFact = facts.capByExercise[exerciseId]
+        val capSessionSets = capFact?.let { f ->
+            allSets.filter { it.completedAt != null }
+                .groupBy { it.sessionId }
+                .values
+                .firstOrNull { s -> s.maxOf { it.completedAt!! } == f.demonstratedAt }
+        }.orEmpty()
+        val reps = allSets.filter { it.completedAt != null }.maxByOrNull { it.completedAt!! }?.targetReps ?: 10
+        val unit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+        val beliefs = derivedState.snapshot().exerciseBeliefs()
+        return PrescriptionTraceBuilder.build(
+            exerciseId = exerciseId,
+            muscle = exercise.primaryMuscle,
+            beliefs = beliefs,
+            seedCoef = seedCoef,
+            muscleExerciseIds = muscleIds,
+            facts = facts,
+            capSessionSets = capSessionSets,
+            sessionReps = reps,
+            now = now,
+            weightUnit = unit,
+            config = beliefConfig,
+            engine = progressionEngine,
+        )
+    }
 }

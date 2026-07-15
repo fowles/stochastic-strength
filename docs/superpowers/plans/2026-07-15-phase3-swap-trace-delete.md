@@ -873,7 +873,7 @@ object PrescriptionTraceBuilder {
 
 - Consumes: `Prescription.uncappedWeightKg` (Task 1) to phrase the cap line; `BeliefPooling` internals via public API only.
 
-- [ ] **Step 1: Write the failing test** — `PrescriptionTraceTest.kt`. Scenario: two QUADS exercises, target coef 0.3 with own belief ln(30) σ²=0.01, sibling coef 1.0 belief ln(100) σ²=0.01; a cap fact from a failed session; assert:
+- [x] **Step 1: Write the failing test** — `PrescriptionTraceTest.kt`. Scenario: two QUADS exercises, target coef 0.3 with own belief ln(30) σ²=0.01, sibling coef 1.0 belief ln(100) σ²=0.01; a cap fact from a failed session; assert:
 
 ```kotlin
 @Test
@@ -904,7 +904,7 @@ fun traceIsNullForAnExerciseWithNoEffectiveBelief() { /* zero coef → null */ }
 fun uncappedTraceSaysNoCap() { /* facts EMPTY → "Capacity cap" detail contains "no cap" */ }
 ```
 
-- [ ] **Step 2: Run to verify failure**, then implement. Line construction (each `detail` a plain sentence; weights formatted with `WeightFormatter.format(v, weightUnit)`; σ shown as ±% via `(exp(sqrt(sigma2)) − 1) × 100`):
+- [x] **Step 2: Run to verify failure**, then implement. Line construction (each `detail` a plain sentence; weights formatted with `WeightFormatter.format(v, weightUnit)`; σ shown as ±% via `(exp(sqrt(sigma2)) − 1) × 100`):
   1. **Own belief** — aged `Belief`: `"~X (±Y%), last updated <date>"`, or `"none — cold exercise, leaning on siblings"`.
   2. **Sibling pull** — LOO prediction `exp(ln coef + L₋ᵢ)` and blend weight `pSib/(pOwn+pSib)` as a percent: `"siblings imply ~X; blended at Z%"` (recompute `pOwn`/`pSib` exactly as `BeliefPooling.effective` does: `pOwn = 1/σ²_own,aged`, `pSib = 1/(1/looW + τ²)`); or `"no siblings with evidence"`.
   3. **Effective belief** — `"~X (±Y%)"` from the pooled `EffectiveBelief`.
@@ -915,7 +915,7 @@ fun uncappedTraceSaysNoCap() { /* facts EMPTY → "Capacity cap" detail contains
   8. **Rounding** — `"final: X"` (the prescription's `weightKg`).
   `finalWeightKg` = the same prescription's `weightKg` — the trace never re-implements policy math, it CALLS it (one source of truth).
 
-- [ ] **Step 3: Repository accessor** — in `WorkoutRepository`:
+- [x] **Step 3: Repository accessor** — in `WorkoutRepository`:
 
 ```kotlin
 suspend fun getPrescriptionTrace(exerciseId: Long): PrescriptionTrace? {
@@ -943,14 +943,14 @@ suspend fun getPrescriptionTrace(exerciseId: Long): PrescriptionTrace? {
 
 (Implementer: match the facts build to `buildPlanner`'s exactly — same muscle map construction — so the trace explains the weight the planner would actually pick.)
 
-- [ ] **Step 4: Debug UI** — in `ExerciseCoefficientDetailViewModel`, add `trace: PrescriptionTrace?` to the state, loaded alongside the progression data. In `ExerciseCoefficientDetailScreen`, render below the cross-tuning section: `SectionHeader("Why this weight")`, then one row per `TraceLine` (label in `labelMedium`, detail in `bodySmall`), final weight emphasized. Follow the screen's existing section composable patterns.
+- [x] **Step 4: Debug UI** — in `ExerciseCoefficientDetailViewModel`, add `trace: PrescriptionTrace?` to the state, loaded alongside the progression data. In `ExerciseCoefficientDetailScreen`, render below the cross-tuning section: `SectionHeader("Why this weight")`, then one row per `TraceLine` (label in `labelMedium`, detail in `bodySmall`), final weight emphasized. Follow the screen's existing section composable patterns.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.PrescriptionTraceTest" --tests "io.github.fowles.stochastic_strength.ui.debug.ExerciseCoefficientDetailViewModelTest"`
 Expected: PASS. Then the full JVM suite: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat(debug): 'why this weight' prescription trace — one cited gym sentence per stage"
