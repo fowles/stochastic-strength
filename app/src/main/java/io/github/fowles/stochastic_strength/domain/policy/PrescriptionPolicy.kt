@@ -11,8 +11,14 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
 
-/** One clamped prescription. [capBound]/[hurtMultiplier] feed the clamp-bind health report. */
-data class Prescription(val weightKg: Float, val capBound: Boolean, val hurtMultiplier: Float)
+/** One clamped prescription. [capBound]/[hurtMultiplier]/[uncappedWeightKg] feed the clamp-bind health report. */
+data class Prescription(
+    val weightKg: Float,
+    val capBound: Boolean,
+    val hurtMultiplier: Float,
+    /** The rounded (and nudged) weight the engine wanted BEFORE the cap — == [weightKg] unless the cap bound. */
+    val uncappedWeightKg: Float,
+)
 
 /**
  * Prescription-time policy clamps (spec Phase 1). Constitution rule 6: every rule here is a plain
@@ -113,14 +119,14 @@ object PrescriptionPolicy {
         // `fact?.allEasy == true` (not `fact.allEasy`): no smart cast through the withinWindow Boolean.
         val nudge = if (overloadNudge && withinWindow && fact?.allEasy == true) WeightFormatter.minIncrement(weightUnit) else 0f
         val uncapped = WeightFormatter.round(engine.fromOneRepMax(backed, sessionReps), weightUnit) + nudge
-        if (capLn == null) return Prescription(uncapped, capBound = false, hurtMultiplier = mult)
+        if (capLn == null) return Prescription(uncapped, capBound = false, hurtMultiplier = mult, uncappedWeightKg = uncapped)
         // The cap is a ceiling on the FINAL prescription: nearest-grid rounding of a
         // just-under-cap estimate must not climb back to a weight the cap excludes, so the
         // comparison happens after rounding, in weight space. The cap weight itself comes from
         // the RAW rep-max inverse (the engine's 0.5 kg internal rounding could nudge it up),
         // and a binding cap floor-rounds at the grid.
         val capWeight = engine.rawFromOneRepMax(exp(capLn), sessionReps)
-        if (uncapped <= capWeight + WeightFormatter.GRID_EPSILON) return Prescription(uncapped, capBound = false, hurtMultiplier = mult)
-        return Prescription(WeightFormatter.roundDown(capWeight, weightUnit), capBound = true, hurtMultiplier = mult)
+        if (uncapped <= capWeight + WeightFormatter.GRID_EPSILON) return Prescription(uncapped, capBound = false, hurtMultiplier = mult, uncappedWeightKg = uncapped)
+        return Prescription(WeightFormatter.roundDown(capWeight, weightUnit), capBound = true, hurtMultiplier = mult, uncappedWeightKg = uncapped)
     }
 }

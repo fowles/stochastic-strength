@@ -251,4 +251,24 @@ class PrescriptionPolicyTest {
         assertEquals(withoutNudge.weightKg, withNudge.weightKg, 1e-4f)
         assertTrue(withNudge.capBound)
     }
+
+    @Test
+    fun prescriptionReportsUncappedWeightWhenCapBinds() {
+        // Cap demonstrated well below the raw target: raw 100 kg e1rm at 5 reps vs a cap of ln(80).
+        val facts = PolicyFacts(
+            capByExercise = mapOf(7L to ExerciseCapFact(capLn = ln(80f), demonstratedAt = 1_000L)),
+        )
+        val p = PrescriptionPolicy.prescribe(
+            rawE1rm = 100f, sessionReps = 5, exerciseId = 7L, muscle = MuscleGroup.QUADS,
+            facts = facts, now = 2_000L, weightUnit = WeightUnit.KG, engine = DefaultProgressionEngine,
+        )
+        assertTrue(p.capBound)
+        // The uncapped weight is what the engine would have prescribed with no cap.
+        val free = PrescriptionPolicy.prescribe(
+            rawE1rm = 100f, sessionReps = 5, exerciseId = 99L, muscle = MuscleGroup.QUADS,
+            facts = PolicyFacts.EMPTY, now = 2_000L, weightUnit = WeightUnit.KG, engine = DefaultProgressionEngine,
+        )
+        assertEquals(free.weightKg, p.uncappedWeightKg, 1e-4f)
+        assertEquals(free.weightKg, free.uncappedWeightKg, 1e-4f)
+    }
 }

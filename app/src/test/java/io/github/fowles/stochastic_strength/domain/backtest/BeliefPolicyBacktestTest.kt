@@ -40,6 +40,7 @@ class BeliefPolicyBacktestTest {
         var capBinds = 0
         var hurtBinds = 0
         val bindsByExercise = mutableMapOf<Long, Int>()
+        val bindOvershoots = mutableListOf<Float>()  // kg the engine wanted above the capped weight
         val violations = mutableListOf<String>()
 
         BeliefStackReplay.run(data, BeliefConfig()) { sessionId, asOf, _, effective, _ ->
@@ -58,6 +59,7 @@ class BeliefPolicyBacktestTest {
                 if (p.capBound) {
                     capBinds++
                     bindsByExercise[exerciseId] = (bindsByExercise[exerciseId] ?: 0) + 1
+                    bindOvershoots += p.uncappedWeightKg - p.weightKg
                 }
                 if (p.hurtMultiplier < 1f) hurtBinds++
 
@@ -98,6 +100,13 @@ class BeliefPolicyBacktestTest {
             appendLine("hurt binds            : $hurtBinds")
             appendLine("per-exercise cap binds: " + bindsByExercise.entries.sortedByDescending { it.value }
                 .joinToString { "ex ${it.key}=${it.value}" })
+            val inc = io.github.fowles.stochastic_strength.domain.WeightFormatter.minIncrement(data.weightUnit)
+            val inIncrements = bindOvershoots.map { it / inc }
+            appendLine("bind magnitude (grid increments of %.2f kg):".format(inc))
+            appendLine("  ≤1: ${inIncrements.count { it <= 1f + 1e-3f }}  " +
+                "≤2: ${inIncrements.count { it <= 2f + 1e-3f }}  " +
+                ">2: ${inIncrements.count { it > 2f + 1e-3f }}")
+            appendLine("  mean %.2f  max %.2f".format(inIncrements.average(), inIncrements.max()))
             appendLine("post-policy failure-invariant violations: ${violations.size}")
             violations.forEach { appendLine("  $it") }
         }
