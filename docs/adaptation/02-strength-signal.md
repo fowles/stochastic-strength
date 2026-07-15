@@ -1,72 +1,69 @@
-# Strength signal — feedback to one implied 1RM per exercise
+# Strength signal — a set becomes an implied ln(1RM) interval
 
-Source: `domain/SessionSignalExtractor.kt`
-Consumed by: the per-exercise [estimate fold](03-exercise-estimates.md), via
-`WorkoutRepository.applySessionProgression`
+Source: `domain/policy/SetIntervals.kt`, fatigue shift in `domain/belief/BeliefFold.kt`
+Consumed by: the per-exercise [belief fold](03-exercise-estimates.md), via
+`BeliefSessionStep.step`
 
-Before anything can adapt, a session's raw set logs have to become a single number per
-exercise: "given how those sets actually went, what does your one-rep max for this lift
-look like right now?" That is the job of `SessionSignalExtractor.aggregateSession` — it
-turns one exercise's sets into a `SessionAggregate` (an implied 1RM plus a confidence,
-and occasionally a *bracket confidence* flag). This signal layer is shared by every
-exercise; the progression system never reads raw feedback directly.
+Before anything can adapt, one logged set has to become a piece of evidence: "given how
+that set actually went, what does it say about your fresh one-rep max for this lift right
+now?" Unlike the old design, there is no per-session aggregation step — **every set is its
+own piece of feedback**, folded into the belief individually and in set-id order.
+`SetIntervals.impliedLn1RmInterval` is the shared translation, used identically by the
+belief fold and by the held-out backtest metric that scores it, so a stack can't game its
+own score with its own modeling assumptions.
 
-## Each set becomes a signed rep deviation
+## Each set implies an interval, not a point
 
-The planner prescribes the weight you should be able to do for exactly `targetReps`
-reps, so the feedback is read as a deviation from that target — how many reps you had in
-reserve (positive) or fell short by (negative):
+The planner prescribes the weight you should be able to do for exactly `targetReps` reps.
+Feedback is read as a bound (or a pair of bounds) on ln(1RM), using only the load-aware
+rep-max formula and the reported bucket — no fatigue correction, no belief concepts yet:
 
-| Feedback | Reserve / shortfall | Confidence | Failure? |
-| --- | --- | --- | --- |
-| **RIR 5+** ("lots left") | +6 reps | 0.40 | no |
-| **RIR 2–4** ("a couple left") | +3 reps | 0.70 | no |
-| **RIR 0–1** ("almost nothing left") | +0.5 reps | 0.85 | no |
-| **Too hard** (with measured reps) | actual − target (signed) | 0.95 | yes |
-| **Too hard** (no rep count) | −target/2 (a guess) | 0.95 | yes |
-| **Hurt** | — discarded — | — | — |
+| Feedback | Implied ln(1RM) interval at weight `w`, target reps `r` |
+| --- | --- |
+| **Too hard**, actual reps `a` known | `[1RM(w, a+0.5), 1RM(w, a+1)]` — narrow band around the failure |
+| **Too hard**, no rep count | `(−∞, 1RM(w, r)]` — you're somewhere at or below the target-rep max |
+| **RIR 0–1** ("almost nothing left") | `[1RM(w, r), 1RM(w, r+2)]` |
+| **RIR 2–4** ("a couple left") | `[1RM(w, r+2), 1RM(w, r+5)]` |
+| **RIR 5+** ("lots left") | `[1RM(w, r+5), ∞)` — unbounded above |
+| **Hurt** / no feedback | no interval — carries no load information |
 
-Note that hitting the target effort exactly (**RIR 0–1**) still reads as a small *up*
-signal (+0.5 reps). That is deliberate: it is the mechanism behind gentle progressive
-overload — a clean target-effort set nudges the estimate up by about half a rep's worth,
-not zero. (See [per-exercise estimates](03-exercise-estimates.md).)
+A belief that already sits inside the interval is **confirmed** by the set (unchanged
+mean, tighter variance); a belief outside the interval gets pulled toward the boundary it
+violates. See [the fold](03-exercise-estimates.md) for the mechanics. This is symmetric:
+a strong, RIR-5+ set pulls the belief up exactly as hard as a failure pulls it down — there
+is no down-snap or off-day damping in the estimator itself. (Weight *creeping back up* to a
+just-failed number is prevented separately, by the policy cap — see
+[muscle pooling](04-muscle-pooling.md).)
 
-## Aggregating a session's sets
+## The fatigue shift — later sets in a session mean less fresh capacity
 
-Only the **full-weight** sets carry the capacity signal (the heaviest weight used that
-exercise; lighter drop sets are handled by the bracket path below). Across those sets:
+A session's sets are not independent readings of the same fresh 1RM: set 3 of 3 is
+performed more fatigued than set 1. Each exercise's rows are ranked 1-based by set id
+within the session — **every row counts toward the rank, including HURT and
+feedback-less rows** — and set *k*'s implied interval is shifted **up** before folding by
 
-- They are combined with a **recency EMA** (`RECENCY_BETA = 0.88`) ordered by set number,
-  so the **last, most-fatigued set dominates** — the estimate tracks last-set capacity
-  rather than a flattering multi-set average.
-- **Any full-weight failure caps the session at zero deviation.** A session that
-  contains a missed rep at the top weight can never *grow* the estimate, only hold or
-  shrink it.
+```
+shift(k) = −ln(1 − phi·(k−1))
+```
 
-The resulting rep deviation is added to `targetReps` and run through
-`DefaultProgressionEngine.rawToOneRepMax(weight, effectiveReps)` to get `est1RM`. Session
-confidence is the max confidence of the contributing sets.
-
-## The bracket path — when a top-weight failure forced a drop
-
-If you failed at the top weight **and** then completed lighter sets, `aggregateSession`
-switches to `bracketAggregate`, which estimates capacity from the heaviest *completed*
-set (capacity you actually demonstrated), capped from above by the failed weight's
-target-rep 1RM (a failed weight proves you are below it). This case carries a high
-`bracketConfidence` (0.95) — a demonstrated drop-cascade is strong evidence — which the
-fold uses to snap the estimate down harder (see [#3](03-exercise-estimates.md)). If every
-set failed, it estimates from the lightest failed set's achieved reps.
+so a later, more-fatigued set is read as implying a *higher* fresh capacity than its raw
+numbers alone would suggest (a heavier "true" 1RM is consistent with managing that weight
+after prior fatigue). `phi` is the one fatigue constant — `fitted` on real history (see
+`BeliefConfig.phi`, curve recorded in the phase-2 plan appendix). The shift is capped so it
+stays finite (`phi·(k−1)` clamped below 0.9 before the log).
 
 ## What carries no signal
 
-- **Pain (HURT)** is removed here — it carries no load information. It is handled
-  separately and muscle-wide by the estimate fold.
-- **Reduced-weight drop sets** outside the bracket case contribute nothing; the failure
-  that triggered the drop is itself a full-weight `TOO_HARD` set and is already captured.
-- **Unloadable exercises** (zero/null seed coefficient — bodyweight, bands, wall-sits)
-  are skipped by the caller before this layer runs.
+- **Pain (HURT)** implies no interval — `SetIntervals.impliedLn1RmInterval` returns `null`.
+  It is handled separately and muscle-wide by the policy layer's HURT backoff, not by the
+  belief itself.
+- **Unloadable exercises** (zero/null seed coefficient — bodyweight, bands, wall-sits) are
+  skipped by the caller (`BeliefSessionStep`) before this layer runs.
+- A set with no weight (`targetWeight <= 0`) implies no interval either.
 
 ## Output
 
-One `SessionAggregate(est1RM, sessionConfidence, bracketConfidence)` per exercise, or
-`null` if the session produced no usable full-weight signal.
+`LnInterval(lowerLn, upperLn)` — either bound may be `null` (unbounded on that side) — plus
+the fatigue-shifted rank used to fold it. There is no separate aggregate step: each
+interval is folded into the belief directly, one set at a time, in the order the sets were
+logged.

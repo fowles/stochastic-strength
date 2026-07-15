@@ -1019,7 +1019,7 @@ jj commit -m "chore(belief): delete the old estimator (estimate/updater/projecto
 - Modify: `docs/adaptation/02-strength-signal.md`, `03-exercise-estimates.md`, `04-muscle-pooling.md`, `README.md` (living docs → belief model)
 - Modify: this plan (Results appendix)
 
-- [ ] **Step 1: Gate + reports.** Run and capture:
+- [x] **Step 1: Gate + reports.** Run and capture:
 
 ```
 ./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefScoreTest" --info | grep -A 10 "held-out"
@@ -1028,11 +1028,11 @@ jj commit -m "chore(belief): delete the old estimator (estimate/updater/projecto
 
 Expected: gate PASS (24.3274 < 28.4451, unchanged), 0 invariant violations, bind report (with Task-1 magnitudes) recorded in the appendix.
 
-- [ ] **Step 2: Constant census.** Grep every numeric constant in `domain/belief/`, `domain/policy/`, and confirm each carries a ledger label matching the spec (~7 estimator: σ_seed, σ_override, φ, q, σ_obs, floor/cap; policy semantics: cap expiry 28d, HURT 0.15/14d/0.6, cooldown 2d, z, nudge = one increment). Any constant without a label: label it from the Phase-2 record or delete it (constitution rule 2). Record the census table in the appendix.
+- [x] **Step 2: Constant census.** Grep every numeric constant in `domain/belief/`, `domain/policy/`, and confirm each carries a ledger label matching the spec (~7 estimator: σ_seed, σ_override, φ, q, σ_obs, floor/cap; policy semantics: cap expiry 28d, HURT 0.15/14d/0.6, cooldown 2d, z, nudge = one increment). Any constant without a label: label it from the Phase-2 record or delete it (constitution rule 2). Record the census table in the appendix.
 
-- [ ] **Step 3: Docs.** Rewrite `docs/adaptation/02-strength-signal.md` (set → implied ln-1RM interval, fatigue shift), `03-exercise-estimates.md` (Belief μ/σ², boundary-pull fold, aging, override seeding), `04-muscle-pooling.md` (precision-weighted level, LOO blend, z-prescription, policy caps + nudge), and the README's flow diagram to the belief model. Keep the docs' existing voice and length; these are living docs (the superpowers specs/plans are historical and stay).
+- [x] **Step 3: Docs.** Rewrite `docs/adaptation/02-strength-signal.md` (set → implied ln-1RM interval, fatigue shift), `03-exercise-estimates.md` (Belief μ/σ², boundary-pull fold, aging, override seeding), `04-muscle-pooling.md` (precision-weighted level, LOO blend, z-prescription, policy caps + nudge), and the README's flow diagram to the belief model. Keep the docs' existing voice and length; these are living docs (the superpowers specs/plans are historical and stay).
 
-- [ ] **Step 4: Full suites.**
+- [x] **Step 4: Full suites.**
 
 ```
 ./gradlew :app:testDebugUnitTest
@@ -1041,7 +1041,7 @@ Expected: gate PASS (24.3274 < 28.4451, unchanged), 0 invariant violations, bind
 
 Expected: both fully green. Record counts in the appendix.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "docs: phase-3 complete — belief stack live; gate/bind/census recorded; adaptation docs on the belief model"
@@ -1073,7 +1073,67 @@ post-policy failure-invariant violations: 0
 
 **Review:** bind magnitude is designed creep against the ceiling (88.8% within 1 increment, 100% within 2 increments, max overshoot 2.00 increments = 4.54 kg). No estimator bug flagged; safe to proceed to Tasks 2–8.
 
-- Task 8 gate + final bind report + constant census + suite counts: _pending_
+- Task 8 gate + final bind report + constant census + suite counts:
+
+**Gate (unchanged, bit-identical since Task 2's refactor):**
+
+```
+=== Phase 2: belief stack held-out score (config = adopted defaults) ===
+sets scored     : 237 (skipped: 9)
+total distance  : 24.3274 ln-units
+mean per set    : 0.10265 ln-units
+coverage        : 64/237 sets inside their interval
+main baseline   : total 28.4451 / per-set 0.12002 (237 sets)
+```
+
+Gate PASS: 24.3274 < 28.4451 (recorded main baseline; the old harness that generated it no
+longer exists — this is the fixed number to beat per the constitution).
+
+**Final bind report (unchanged from Task 1):**
+
+```
+=== Phase 2 clamp-bind report (policy over BELIEF prescriptions, nudge ON) ===
+prescriptions checked : 1690
+cap binds             : 125 (7.4%)
+hurt binds            : 0
+per-exercise cap binds: ex 20=17, ex 100=14, ex 21=14, ex 75=14, ex 77=14, ex 30=14, ex 55=12, ex 26=9, ex 33=7, ex 23=5, ex 24=5
+bind magnitude (grid increments of 2.27 kg):
+  ≤1: 111  ≤2: 125  >2: 0
+  mean 1.11  max 2.00
+post-policy failure-invariant violations: 0
+```
+
+**Constant census** (`domain/belief/`, `domain/policy/` — every constant found by grep for
+`const val`/config defaults; all already carried the correct kdoc label from earlier
+tasks, no edits needed this ceremony):
+
+| Constant | File | Value | Label |
+|---|---|---|---|
+| `sigmaSeed` | `belief/Belief.kt` (`BeliefConfig`) | 0.15 | semantic |
+| `sigmaOverride` | `belief/Belief.kt` (`BeliefConfig`) | 0.10 | semantic |
+| `phi` | `belief/Belief.kt` (`BeliefConfig`) | 0.01 | fitted |
+| `qPerDay` | `belief/Belief.kt` (`BeliefConfig`) | 3e-6 | fitted |
+| `sigmaObs` | `belief/Belief.kt` (`BeliefConfig`) | 0.005 | edge-pinned / saturated |
+| `tau` | `belief/Belief.kt` (`BeliefConfig`) | 0.2 | fitted |
+| `sigma2Floor` | `belief/Belief.kt` (`BeliefConfig`) | 4e-4 | flat guard |
+| `sigma2Cap` | `belief/Belief.kt` (`BeliefConfig`) | 0.25 | flat guard |
+| `Z` | `belief/BeliefPrescriber.kt` | 0.5244 | semantic |
+| `CAP_EXPIRY_MS` | `policy/PrescriptionPolicy.kt` | 28 days | semantic |
+| `HURT_DEPTH` | `policy/PrescriptionPolicy.kt` | 0.15 | semantic |
+| `HURT_HALF_LIFE_MS` | `policy/PrescriptionPolicy.kt` | 14 days | semantic |
+| `HURT_FLOOR` | `policy/PrescriptionPolicy.kt` | 0.6 | semantic |
+| `COOLDOWN_MS` | `policy/PrescriptionPolicy.kt` | 2 days | semantic |
+| overload nudge | `policy/PrescriptionPolicy.kt` (`WeightFormatter.minIncrement`) | one grid increment | semantic |
+
+Census verdict: matches the ledger exactly (12 named constants + the nudge = one grid
+increment restated via `WeightFormatter`), every one already labeled correctly in kdoc.
+No unlabeled or misclassified constants found; nothing deleted, nothing added.
+
+**Suite counts:**
+
+- `./gradlew :app:testDebugUnitTest`: 291 tests, 0 failures, 0 errors, 0 skipped.
+- `./gradlew :app:connectedAndroidTest`: 83 tests, 0 failures, 0 errors, 0 skipped (emulator: Pixel_8_Pro (AVD) API 17).
+
 - Deferred on-device check: chart band/dot colors under dynamic color.
 
 ## Recorded baselines (for reference after the old harness is deleted)

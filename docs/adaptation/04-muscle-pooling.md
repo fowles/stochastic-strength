@@ -1,86 +1,140 @@
-# Read-time muscle pooling — how exercises cross-inform at prescription time
+# Read-time muscle pooling, prescription, and policy caps
 
-Source: `domain/progression/MuscleStrengthProjector.kt`
-(cross-tuning view: `domain/progression/CrossTuning.kt`)
-Design note: `docs/superpowers/specs/2026-06-23-seed-vote-projector-design.md`
+Source: `domain/belief/BeliefPooling.kt` (pooling), `domain/belief/BeliefPrescriber.kt`
+(risk-percentile target), `domain/policy/PrescriptionPolicy.kt` (caps + nudge)
+Cross-tuning view: `domain/progression/CrossTuning.kt`
+Trace: `domain/belief/PrescriptionTrace.kt` — the "why this weight" explanation, one gym
+sentence per stage below
 
-Folding is local: each [exercise estimate](03-exercise-estimates.md) moves on its own
-evidence only. That keeps failures from corrupting siblings, but on its own it would
-leave a cold or long-unseen exercise stuck at a stale guess. The fix is to let exercises
-borrow strength from each other **at read time**, without ever mutating the stored
-estimates. That is `MuscleStrengthProjector.project`, and it runs every time the app
-needs a weight (and after every session, to record the derived projections).
+Folding is local: each [exercise belief](03-exercise-estimates.md) moves on its own
+evidence only. That keeps failures from corrupting siblings, but on its own it would leave
+a cold or long-unseen exercise stuck at a stale guess. The fix is to let exercises borrow
+strength from each other **at read time**, without ever mutating stored beliefs. That is
+`BeliefPooling.effective`, and it runs every time the app needs a weight (and after every
+session, to record the derived projections).
 
-It does two things: compute a muscle **level**, then **shrink** each exercise toward what
-that level predicts.
+## Step 1 — precision-weighted muscle level
 
-## Step 1 — the muscle level (a seed-anchored vote)
-
-Each loaded exercise (positive seed coefficient) offers a seed-relative opinion of how
-strong the muscle is: `lnE − ln(seedCoef)`. If every exercise matched its seed exactly,
-these would all agree on `ln(baseline)`.
-
-The level is a **confidence-weighted average of those opinions, anchored to a fixed-weight
-seed prior**:
+Each loaded exercise (positive seed coefficient) with a belief votes a seed-relative
+opinion of how strong the muscle is: `mu_j − ln(seedCoef_j)`, weighted by its **precision**
+— the inverse of its (aged) variance plus a transfer-noise term:
 
 ```
-lnPrior = mean over loaded exercises of (lnE − ln(seedCoef))      // the cold-muscle anchor
-lnLevel = (levelPrior · lnPrior + Σ confᵢ · (lnEᵢ − ln(seedCoefᵢ))) / (levelPrior + Σ confᵢ)
+weight_j = 1 / (sigma2_j + tau^2)
+levelLn  = Σ(weight_j · vote_j) / Σ(weight_j)
 ```
 
-- Every exercise votes with its **full decayed confidence** — there is no confidence
-  threshold or cold/confident gate. Low-confidence exercises simply contribute little.
-- `levelPrior = 0.5` is the effective sample size of the seed anchor. A thinly-evidenced
-  muscle leans on the seed; a stale lone voter decays back toward it instead of defining
-  the level by itself. For a genuinely cold muscle, `lnLevel == lnPrior == ln(baseline)`,
-  so a fresh exercise is prescribed exactly its seed weight.
+`tau` is the one transfer-noise constant (`fitted` on real history, `BeliefConfig.tau` —
+replacing the old design's three simulator-tuned per-equipment values, which collapsed to
+one when actually checked against data). There is no separate seed-anchor constant: a cold
+exercise has no belief and so casts no vote, but as soon as it's seeded it sits at
+`sigmaSeed` and anchors the level like any other voter — tight evidence naturally
+outvotes wide evidence, with no threshold or gate involved.
 
-## Step 2 — shrink each exercise toward its prediction
+## Step 2 — leave-one-out sibling prediction, then a precision blend
 
-For each exercise, the level predicts a target via that exercise's seed coefficient, and
-the exercise's own estimate is blended toward it by confidence:
+For each exercise, the *other* exercises in the muscle predict its capacity — leave-one-out,
+so an exercise never borrows its own evidence back:
 
 ```
-lnPred = ln(seedCoef) + lnLevel
-lnUsed = (confSelf · lnE + priorStrength · lnPred) / (confSelf + priorStrength)
+sibling.mu     = ln(coef_i) + levelLn(excluding i)
+sibling.sigma2 = 1 / weight(excluding i) + tau^2
 ```
 
-`priorStrength = 1.0` is how many confidence units the sibling prediction is worth.
+The exercise's **effective belief** is the precision-weighted blend of its own aged belief
+with that sibling prediction:
 
-- A **confident** exercise (high `confSelf`) trusts its own estimate; the prediction
-  barely moves it.
-- A **cold or stale** exercise (low `confSelf`) leans on the prediction — its sibling
-  pool carries it until it earns its own evidence.
+```
+p_own = 1 / sigma2_own
+p_sib = 1 / sigma2_sibling
+mu_eff    = (p_own · mu_own + p_sib · mu_sibling) / (p_own + p_sib)
+sigma2_eff = 1 / (p_own + p_sib)
+```
 
-`exp(lnUsed)` is the exercise's **projected effective 1RM** (`effectiveE1rm`). The derived
-coefficient is just `effectiveE1rm / level`, kept so that `level × coef == effectiveE1rm`
-for display and history.
+- A **confident** exercise (small own `sigma2`) mathematically outvotes its siblings; the
+  prediction barely moves it.
+- A **cold or stale** exercise (large or absent own `sigma2`) leans on the prediction —
+  its sibling pool carries it until it earns its own evidence. An exercise with no belief
+  at all takes the sibling prediction outright.
 
-This shrink is **non-destructive**: it reads the estimate map but never writes it. The
+This blend is **non-destructive**: it reads the belief map but never writes it. The
 durable state stays purely per-exercise; pooling is a lens applied on the way out.
+`BeliefSessionStep` uses this same pooling both as the **cold prior** for an exercise's
+first fold and as the **derived projection** (muscle level + per-exercise effective 1RM)
+written to `MuscleGroupStrength`/`baseline_history`/`coefficient_history` — always a
+recomputed view, never a stored source of truth.
 
-## How the prescription uses it
+## Prescription — risk percentile, then policy
 
-`MuscleStrengthProjector.project(...).effectiveE1rm[exerciseId]` is passed to the planner
-as `prescribedE1rm`, which `DefaultProgressionEngine` scales to the session's chosen rep
-target via the load-aware 1RM formula. The per-muscle level is also written to
-`MuscleGroupStrength` + a `baseline_history` row, and the derived coefficients to
-`coefficient_history` — all projections in the in-memory `DerivedStateStore`, rebuilt by
-replay, never a stored source of truth.
+`BeliefPrescriber.targetE1rm` turns an effective belief into a raw target at roughly the
+30th percentile of believed capacity:
+
+```
+target = exp(mu_eff − Z · sqrt(sigma2_eff))
+```
+
+`Z = 0.5244` is `semantic` — a plain risk-percentile choice (`Φ(Z) = 0.70`), not tuned
+against data. Cold starts are automatically humble (large `sigma2_eff` pulls the target
+well below `mu_eff`); as evidence accumulates and `sigma2_eff` shrinks, the target rises
+toward `mu_eff`. This raw target is then scaled to the session's chosen rep target by the
+same load-aware 1RM formula used everywhere else, and handed to the policy layer.
+
+## Policy: demonstrated-capacity cap, HURT backoff, and the overload nudge
+
+`PrescriptionPolicy.prescribe` is a pure function over plain set-log facts
+(`PolicyFacts`, rebuilt from the sets alone — no belief state) — the constitution's
+boundary criterion: plain arithmetic, no inference, no learned constants.
+
+- **Demonstrated-capacity cap.** Within a 28-day expiry window (`semantic`,
+  `CAP_EXPIRY_MS`), an exercise's prescription is capped by what its **most recent
+  session** demonstrated — a failure caps at the failed weight's implied 1RM; a clean
+  session caps at its highest demonstrated upper bound; an all-RIR-5+ session is
+  uncapped. A newer session's cap always supersedes an older one entirely, so weight
+  creeps back up in proportion to what you've actually shown, rather than jumping straight
+  back to a number you just failed.
+- **HURT backoff.** A HURT set multiplies its muscle's prescriptions down by 15%
+  (`semantic`, `HURT_DEPTH`), fading with a 14-day half-life (`HURT_HALF_LIFE_MS`), floored
+  so stacked backoffs never drop a prescription below 60% of raw (`HURT_FLOOR`).
+- **Overload nudge.** If an exercise's most recent session was entirely RIR ≥ 2 (no
+  failures, nothing tight) and still within the cap window, the prescription is bumped up
+  by one grid increment before the cap comparison — the smallest available plate
+  (`semantic`). This is what makes steady-state progress possible: in-band feedback
+  legitimately leaves `mu` unmoved (the belief is confirmed, not pushed), so without the
+  nudge a clean session would never raise the weight. The demonstrated-capacity cap still
+  applies on top and can clamp the nudge away.
+- **Rest cooldown.** A muscle hard-stressed within 2 days (`semantic`, `COOLDOWN_MS`) is
+  excluded at planning time, as before.
+
+All five policy constants are `semantic` — plain gym-language choices, never touched by
+the backtest fitness function, which scores the raw belief estimate pre-clamp. Every
+backtest run reports a **clamp-bind rate**: how often the cap actually binds, and by how
+much. A clamp that binds frequently or by a large margin is treated as an estimator health
+signal (see the plan's Results appendix for the current numbers), not something to tune
+away here.
+
+## The "why this weight" trace
+
+`PrescriptionTraceBuilder.build` explains one prescription end to end, one line per stage
+— own belief, sibling pull, effective belief, risk percentile, HURT backoff, overload
+nudge, capacity cap, rounding — each citing the sets or belief numbers behind it. It never
+re-implements the math: it calls `BeliefPrescriber.targetE1rm` and
+`PrescriptionPolicy.prescribe` directly and reports what they did, so the trace can never
+drift from what the app actually prescribes. It powers the debug exercise-detail screen's
+"Why this weight" section.
 
 ## The cross-tuning view (debug)
 
-`computeCrossTuning` is a read-only diagnostic built on the same projector. For each
-exercise it reports **agreement** — how far its own estimate sits from a *leave-one-out*
-sibling prediction (`project` run without that exercise) — and **contribution**, its
-share of the muscle's total decayed confidence. It powers the debug exercise-detail
-screen and changes no state.
+`computeCrossTuning` is a read-only diagnostic on the same pooling math. For each exercise
+it reports **agreement** — how far its own (aged) estimate sits from a leave-one-out
+sibling prediction — and **contribution** — its share of the muscle's total pooling
+precision (`weight_i / Σweight`). It changes no state.
 
 ## What replaced the old gauge problem
 
 The previous baseline×coefficient design had a *gauge*: you could scale a whole muscle's
 coefficients up and divide its baseline down for identical weights, so the scale could
-silently drift and a separate renormalization pass (`SeedNormalizer`) had to sweep it
-back. That ambiguity is **gone**: there is no stored coefficient to drift. The durable
-state is one estimate per exercise; the level and coefficients are derived freshly from a
-fixed seed anchor on every read, so there is nothing to renormalize.
+silently drift and a separate renormalization pass had to sweep it back. That ambiguity
+stays gone under the belief stack for the same reason it went away under the older
+per-exercise design: there is no stored coefficient. The durable state is one belief per
+exercise; the level and derived coefficients are recomputed freshly from a fixed seed
+anchor and precision weighting on every read, so there is nothing to renormalize.
