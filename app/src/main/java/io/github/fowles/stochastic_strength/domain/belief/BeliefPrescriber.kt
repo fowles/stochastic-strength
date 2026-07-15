@@ -1,0 +1,15 @@
+package io.github.fowles.stochastic_strength.domain.belief
+
+import kotlin.math.exp
+import kotlin.math.sqrt
+
+/**
+ * Raw prescription target from an effective belief (spec Phase 2). Policy caps and grid rounding
+ * apply downstream (PrescriptionPolicy.prescribe); the estimator itself is scored raw, pre-z.
+ */
+object BeliefPrescriber {
+    /** `semantic`: prescribe at roughly the 30th percentile of believed capacity (Φ(z) = 0.70). */
+    const val Z = 0.5244f
+
+    fun targetE1rm(eff: EffectiveBelief): Float = exp(eff.mu - Z * sqrt(eff.sigma2))
+}
