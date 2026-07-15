@@ -1548,6 +1548,14 @@ jj commit -m "docs: phase-2 belief-core plan complete (fit results + gate + bind
 
 ## Results appendix (filled during execution)
 
-- Task 8 provisional score (defaults before fitting): _(Task 8 Step 5 pastes the printed report here)_
+- Task 8 provisional score (defaults before fitting):
+```
+=== Phase 2: belief stack held-out score (config = adopted defaults) ===
+sets scored     : 213 (skipped: 9)
+total distance  : 27.2316 ln-units
+mean per set    : 0.12785 ln-units
+coverage        : 51/213 sets inside their interval
+main baseline   : total 26.7593 / per-set 0.12563 (213 sets)
+```
 - Task 10 fit — best config, best score vs baseline 26.7593, per-axis curves, coverage, label decisions: _(Task 10 Step 6 pastes the printed fit output and decisions here)_
 - Task 11 bind report — rate, per-exercise, vs Phase-1's 3.1% and chronic 21/77/30: _(Task 11 Step 2 pastes the printed report here)_
