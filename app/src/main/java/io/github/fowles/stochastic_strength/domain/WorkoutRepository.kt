@@ -370,7 +370,7 @@ class WorkoutRepository(
     fun getSeedCoefficient(exercise: Exercise): Float? =
         ExerciseCoefficients.get(exercise)
 
-    private val progressionSeriesBuilder = ExerciseProgressionSeriesBuilder()
+    private val progressionSeriesBuilder = ExerciseProgressionSeriesBuilder(config = beliefConfig)
 
     suspend fun getExerciseProgressionData(exerciseId: Long): ExerciseProgressionData =
         progressionSeriesBuilder.build(db, exerciseId)
@@ -381,14 +381,15 @@ class WorkoutRepository(
     ): List<CrossTuningRow> {
         val snapshot = ReplaySnapshot.loadStaticFromDb(db)
         val muscleIds = snapshot.muscleExerciseIds[muscle] ?: return emptyList()
-        val estimates = derivedState.snapshot().exerciseEstimates()
+        val beliefs = derivedState.snapshot().exerciseBeliefs()
         val namesById = db.exerciseDao().getAll().associate { it.id to it.name }
         return computeCrossTuning(
-            estimates = estimates,
+            beliefs = beliefs,
             seedCoef = snapshot.seedCoefficients,
             namesById = namesById,
             muscleExerciseIds = muscleIds,
             now = now,
+            config = beliefConfig,
         )
     }
 

@@ -3,8 +3,12 @@ package io.github.fowles.stochastic_strength.domain.progression
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
-import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
+import io.github.fowles.stochastic_strength.domain.belief.setObservationLn
 import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.sqrt
 
 data class ProgressionPoint(val timestampMs: Long, val value: Float)
 
@@ -12,11 +16,15 @@ data class ExerciseProgressionSeries(
     val ownEstimate: List<ProgressionPoint>,
     val siblingsEstimate: List<ProgressionPoint>,
     val merged: List<ProgressionPoint>,
+    val bandUpper: List<ProgressionPoint>,
+    val bandLower: List<ProgressionPoint>,
     val ownObservations: List<ProgressionPoint>,
     val siblingObservations: List<ProgressionPoint>,
 ) {
     companion object {
-        fun empty() = ExerciseProgressionSeries(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+        fun empty() = ExerciseProgressionSeries(
+            emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(),
+        )
     }
 }
 
@@ -40,19 +48,30 @@ data class ExerciseProgressionData(
     val frames: List<ProgressionFrame>,
 )
 
-/** One session's contribution to the five series. Pure; no DB. */
+/** One session's contribution to the series. Pure; no DB. */
 internal data class SessionSample(
     val ownEstimate: List<ProgressionPoint>,
     val siblingsEstimate: List<ProgressionPoint>,
     val merged: List<ProgressionPoint>,
+    val bandUpper: List<ProgressionPoint>,
+    val bandLower: List<ProgressionPoint>,
     val ownObservations: List<ProgressionPoint>,
     val siblingObservations: List<ProgressionPoint>,
 )
 
 /**
- * Computes one session's samples for [targetId], given the post-step [snapshot] (estimates already
+ * One exercise's session sets, ranked 1-based by set id (all rows count, matching the fold's rank
+ * rule), reduced to its per-set observation dots via [setObservationLn].
+ */
+private fun perSetDots(sets: List<WorkoutSet>, asOf: Long, config: BeliefConfig): List<ProgressionPoint> =
+    sets.sortedBy { it.id }.mapIndexedNotNull { idx, set ->
+        setObservationLn(set, rank = idx + 1, config)?.let { ProgressionPoint(asOf, exp(it)) }
+    }
+
+/**
+ * Computes one session's samples for [targetId], given the post-step [snapshot] (beliefs already
  * folded for [asOf]) and the session's [sets]. Lines are sampled only when the target's muscle was
- * touched; dots come straight from the session's observed aggregates.
+ * touched; dots are per-set implied observations from [setObservationLn].
  */
 internal fun sampleSession(
     targetId: Long,
@@ -60,45 +79,47 @@ internal fun sampleSession(
     snapshot: ReplaySnapshot,
     sets: List<WorkoutSet>,
     asOf: Long,
-    projector: MuscleStrengthProjector,
+    config: BeliefConfig,
 ): SessionSample {
-    val targetSeed = snapshot.seedCoefficients[targetId] ?: 0f
+    val pooling = BeliefPooling(config)
+    val targetCoef = snapshot.seedCoefficients[targetId] ?: 0f
 
-    // Lines: own estimate, leave-one-out siblings prediction, engine merged effectiveE1rm.
-    val ownEstimate = snapshot.currentEstimates[targetId]?.let {
-        listOf(ProgressionPoint(asOf, exp(it.lnE)))
+    // Lines: own post-fold belief, leave-one-out siblings prediction, pooled effective mu/sigma.
+    val ownEstimate = snapshot.currentBeliefs[targetId]?.let {
+        listOf(ProgressionPoint(asOf, exp(it.mu)))
     } ?: emptyList()
 
-    val fullProjection = projector.project(snapshot.currentEstimates, snapshot.seedCoefficients, muscleIds, asOf)
-    val merged = fullProjection.effectiveE1rm[targetId]?.let { listOf(ProgressionPoint(asOf, it)) } ?: emptyList()
+    val fullPooling = pooling.effective(snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds, asOf)
+    val effective = fullPooling.effective[targetId]
+    val merged = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu))) } ?: emptyList()
+    val bandUpper = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu + sqrt(it.sigma2)))) } ?: emptyList()
+    val bandLower = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu - sqrt(it.sigma2)))) } ?: emptyList()
 
-    val leaveOneOut = projector.project(
-        snapshot.currentEstimates, snapshot.seedCoefficients, muscleIds.filter { it != targetId }, asOf,
-    )
-    val siblingsEstimate = if (targetSeed > 0f && leaveOneOut.level > 0f) {
-        listOf(ProgressionPoint(asOf, leaveOneOut.level * targetSeed))
+    val looLevelLn = pooling.effective(
+        snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds.filter { it != targetId }, asOf,
+    ).levelLn
+    val siblingsEstimate = if (targetCoef > 0f && looLevelLn != null) {
+        listOf(ProgressionPoint(asOf, exp(ln(targetCoef) + looLevelLn)))
     } else {
         emptyList()
     }
 
-    // Dots: own + sibling observed aggregates, siblings rescaled into target space.
+    // Dots: own + sibling per-set observations, siblings rescaled into target space.
     val byExercise = sets.groupBy { it.exerciseId }
-    val ownObservations = byExercise[targetId]?.let { exSets ->
-        SessionSignalExtractor.aggregateSession(exSets)?.let { listOf(ProgressionPoint(asOf, it.est1RM)) }
-    }.orEmpty()
+    val ownObservations = byExercise[targetId]?.let { perSetDots(it, asOf, config) }.orEmpty()
 
     val muscleIdSet = muscleIds.toHashSet()
-    val siblingObservations = byExercise.entries.mapNotNull { (id, exSets) ->
-        if (id == targetId) return@mapNotNull null
+    val siblingObservations = byExercise.entries.flatMap { (id, exSets) ->
+        if (id == targetId) return@flatMap emptyList()
         // Only same-muscle siblings inform the target; a leg lift on a biceps day is not a sibling.
-        if (id !in muscleIdSet) return@mapNotNull null
-        val sibSeed = snapshot.seedCoefficients[id] ?: return@mapNotNull null
-        if (sibSeed <= 0f || targetSeed <= 0f) return@mapNotNull null
-        val agg = SessionSignalExtractor.aggregateSession(exSets) ?: return@mapNotNull null
-        ProgressionPoint(asOf, agg.est1RM * (targetSeed / sibSeed))
+        if (id !in muscleIdSet) return@flatMap emptyList()
+        val sibCoef = snapshot.seedCoefficients[id] ?: return@flatMap emptyList()
+        if (sibCoef <= 0f || targetCoef <= 0f) return@flatMap emptyList()
+        val scale = targetCoef / sibCoef
+        perSetDots(exSets, asOf, config).map { it.copy(value = it.value * scale) }
     }
 
-    return SessionSample(ownEstimate, siblingsEstimate, merged, ownObservations, siblingObservations)
+    return SessionSample(ownEstimate, siblingsEstimate, merged, bandUpper, bandLower, ownObservations, siblingObservations)
 }
 
 /**
@@ -113,16 +134,16 @@ internal fun buildFrame(
     sets: List<WorkoutSet>,
     asOf: Long,
     namesById: Map<Long, String>,
-    projector: MuscleStrengthProjector,
+    config: BeliefConfig,
 ): ProgressionFrame {
-    val sample = sampleSession(targetId, muscleIds, snapshot, sets, asOf, projector)
+    val sample = sampleSession(targetId, muscleIds, snapshot, sets, asOf, config)
     val crossTuning = computeCrossTuning(
-        estimates = snapshot.currentEstimates,
+        beliefs = snapshot.currentBeliefs,
         seedCoef = snapshot.seedCoefficients,
         namesById = namesById,
         muscleExerciseIds = muscleIds,
         now = asOf,
-        projector = projector,
+        config = config,
     )
     val setsByExercise = sets.groupBy { it.exerciseId }
     val orderedIds = listOf(targetId) + muscleIds.filter { it != targetId }
@@ -145,12 +166,12 @@ internal fun buildFrame(
 }
 
 /**
- * Recomputes the five progression series for one exercise by replaying its muscle through the same
- * engine the production replay uses. On-demand; touches no durable derived state.
+ * Recomputes the exercise progression series for one exercise by replaying its muscle through the
+ * same engine the production replay uses. On-demand; touches no durable derived state.
  */
 class ExerciseProgressionSeriesBuilder(
     private val engine: ReplayEngine = ReplayEngine(),
-    private val projector: MuscleStrengthProjector = MuscleStrengthProjector(),
+    private val config: BeliefConfig = BeliefConfig(),
 ) {
     suspend fun build(db: AppDatabase, exerciseId: Long): ExerciseProgressionData {
         val snapshot = ReplaySnapshot.loadStaticFromDb(db)
@@ -166,19 +187,23 @@ class ExerciseProgressionSeriesBuilder(
         val ownEstimate = mutableListOf<ProgressionPoint>()
         val siblingsEstimate = mutableListOf<ProgressionPoint>()
         val merged = mutableListOf<ProgressionPoint>()
+        val bandUpper = mutableListOf<ProgressionPoint>()
+        val bandLower = mutableListOf<ProgressionPoint>()
         val ownObservations = mutableListOf<ProgressionPoint>()
         val siblingObservations = mutableListOf<ProgressionPoint>()
         val frames = mutableListOf<ProgressionFrame>()
 
-        engine.run(db, snapshot) { _, asOf, sets, snap, result, _ ->
-            if (result.steps.any { it.muscle == muscle }) {
-                val sample = sampleSession(exerciseId, muscleIds, snap, sets, asOf, projector)
+        engine.run(db, snapshot) { _, asOf, sets, snap, _, beliefResult ->
+            if (beliefResult.steps.any { it.muscle == muscle }) {
+                val sample = sampleSession(exerciseId, muscleIds, snap, sets, asOf, config)
                 ownEstimate += sample.ownEstimate
                 siblingsEstimate += sample.siblingsEstimate
                 merged += sample.merged
+                bandUpper += sample.bandUpper
+                bandLower += sample.bandLower
                 ownObservations += sample.ownObservations
                 siblingObservations += sample.siblingObservations
-                frames += buildFrame(exerciseId, muscleIds, snap, sets, asOf, namesById, projector)
+                frames += buildFrame(exerciseId, muscleIds, snap, sets, asOf, namesById, config)
             }
         }
 
@@ -187,6 +212,8 @@ class ExerciseProgressionSeriesBuilder(
                 ownEstimate = ownEstimate,
                 siblingsEstimate = siblingsEstimate,
                 merged = merged,
+                bandUpper = bandUpper,
+                bandLower = bandLower,
                 ownObservations = ownObservations,
                 siblingObservations = siblingObservations,
             ),

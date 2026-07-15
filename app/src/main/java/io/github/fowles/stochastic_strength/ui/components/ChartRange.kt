@@ -55,9 +55,10 @@ fun fixedChartRangeProvider(range: ClosedFloatingPointRange<Double>): CartesianL
 
 /**
  * The Y range shared by the exercise-detail and debug progression charts, derived from the data both
- * compute identically: the observed dots (own + siblings, rescaled) plus the merged trend line. The
- * volatile own/siblings *estimate* lines are deliberately excluded so a cold-start dip toward zero
- * can't blow out the axis on the user-facing chart. Returns null when there is nothing to plot.
+ * compute identically: the observed dots (own + siblings, rescaled) plus the merged trend line and
+ * its ±σ band (so the band never clips). The volatile own/siblings *estimate* lines are deliberately
+ * excluded so a cold-start dip toward zero can't blow out the axis on the user-facing chart. Returns
+ * null when there is nothing to plot.
  */
 fun sharedProgressionYRange(data: ExerciseProgressionData): ClosedFloatingPointRange<Double>? {
     val series = data.series
@@ -65,6 +66,8 @@ fun sharedProgressionYRange(data: ExerciseProgressionData): ClosedFloatingPointR
         series.ownObservations.forEach { add(it.value.toDouble()) }
         series.siblingObservations.forEach { add(it.value.toDouble()) }
         series.merged.forEach { add(it.value.toDouble()) }
+        series.bandUpper.forEach { add(it.value.toDouble()) }
+        series.bandLower.forEach { add(it.value.toDouble()) }
     }
     if (values.isEmpty()) return null
     return paddedChartYRange(values.min(), values.max())

@@ -706,7 +706,7 @@ fun setObservationLn(set: WorkoutSet, rank: Int, config: BeliefConfig): Float?
 - Produces `computeCrossTuning(beliefs: Map<Long, Belief>, seedCoef, namesById, muscleExerciseIds, now, config): List<CrossTuningRow>` — `CrossTuningRow` shape unchanged (agreement = own aged e1rm / LOO prediction − 1; contribution = pooling precision share `w_i/Σw`, `w_i = 1/(agedσ_i² + τ²)`).
 - Consumes: `ReplayEngine.SessionObserver`'s `beliefResult` (Task 3), `snapshot.currentBeliefs`.
 
-- [ ] **Step 1: Write `SetObservationTest`** (failing):
+- [x] **Step 1: Write `SetObservationTest`** (failing):
 
 ```kotlin
 class SetObservationTest {
@@ -745,7 +745,7 @@ class SetObservationTest {
 
 (reuse the `WorkoutSet` helper pattern from `BeliefFoldTest`.)
 
-- [ ] **Step 2: Run to verify failure**, then implement `SetObservation.kt`:
+- [x] **Step 2: Run to verify failure**, then implement `SetObservation.kt`:
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain.belief
@@ -765,7 +765,7 @@ fun setObservationLn(set: WorkoutSet, rank: Int, config: BeliefConfig): Float? {
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.SetObservationTest"` — PASS.
 
-- [ ] **Step 3: Rewrite `CrossTuning.kt` on beliefs (TDD: update `CrossTuningTest` first).** Test expectations: with beliefs {1: ln100 σ²=0.01 coef 1, 2: ln30 σ²=0.01 coef 0.3}, exercise 2's LOO prediction = 0.3·100 = 30 → agreement 0; make one belief tighter and assert the contribution share follows `w_i = 1/(σ_i²+τ²)`. Implementation:
+- [x] **Step 3: Rewrite `CrossTuning.kt` on beliefs (TDD: update `CrossTuningTest` first).** Test expectations: with beliefs {1: ln100 σ²=0.01 coef 1, 2: ln30 σ²=0.01 coef 0.3}, exercise 2's LOO prediction = 0.3·100 = 30 → agreement 0; make one belief tighter and assert the contribution share follows `w_i = 1/(σ_i²+τ²)`. Implementation:
 
 ```kotlin
 fun computeCrossTuning(
@@ -805,7 +805,7 @@ fun computeCrossTuning(
 
 `WorkoutRepository.getCrossTuning` switches to `derivedState.snapshot().exerciseBeliefs()`.
 
-- [ ] **Step 4: Rewrite `ExerciseProgressionSeriesBuilder.kt` (TDD via its test).** Semantics per session (target's muscle touched only), all from the observer's post-step state:
+- [x] **Step 4: Rewrite `ExerciseProgressionSeriesBuilder.kt` (TDD via its test).** Semantics per session (target's muscle touched only), all from the observer's post-step state:
   - `ownEstimate`: `exp(snapshot.currentBeliefs[targetId].mu)` (post-fold).
   - `siblingsEstimate`: `exp(ln(targetCoef) + looLevelLn)` where `looLevelLn = BeliefPooling.effective(currentBeliefs, seedCoef, muscleIds.filter { it != targetId }, asOf).levelLn`.
   - `merged`: `exp(mu_eff)` from `BeliefPooling.effective(..., muscleIds, asOf).effective[targetId]`.
@@ -817,18 +817,18 @@ fun computeCrossTuning(
   - Frame gating "muscle touched": use `beliefResult.steps.any { it.muscle == muscle }` from the six-arg observer.
   Update `ExerciseProgressionSeriesBuilderTest` expectations by computing them through `BeliefFold`/`BeliefPooling` in the test (mirror the existing test's structure; it already builds tiny synthetic histories).
 
-- [ ] **Step 5: UI band + shared range + user-chart dots.**
+- [x] **Step 5: UI band + shared range + user-chart dots.**
   - `ExerciseProgressionChart.kt`: add `ProgressionColorRole.BAND`; in `progressionColors()` map it to `MaterialTheme.colorScheme.error.copy(alpha = 0.35f)` (the merged line's color, faded). Band series use style `LINE`.
   - `ExerciseCoefficientDetailViewModel`: append two series `ProgressionChartSeries("+σ", pts(series.bandUpper), LINE, BAND)` and `("−σ", pts(series.bandLower), LINE, BAND)`; `headerMerged` becomes `"$merged ±σ"` only if trivially available — keep headers as-is otherwise (band is visible on the chart; don't over-format).
   - `ChartRange.kt` / `sharedProgressionYRange`: include `bandUpper`/`bandLower` values so the band never clips; update `ChartRangeTest`.
   - `ExerciseDetailViewModel`: replace `observedSessionPoints`' aggregate with per-set points — for each `ObservedSession`, sets sorted by id, `exp(setObservationLn(set, rank, config)) * scale`; keep one `ChartPoint` per set. Update `ExerciseDetailViewModelTest` (chart parity: the same helper feeds both charts, which is the point).
 
-- [ ] **Step 6: Run the JVM suite**
+- [x] **Step 6: Run the JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat(charts): belief mu/sigma lines + uncertainty band, per-set observation dots, precision-share cross-tuning"

@@ -19,6 +19,8 @@ class ChartRangeTest {
                 ownEstimate = listOf(pt(5f)),       // a cold-start dip — must NOT pull the range down
                 siblingsEstimate = listOf(pt(300f)), // a spike — must NOT push the range up
                 merged = listOf(pt(90f), pt(100f)),
+                bandUpper = listOf(pt(90f), pt(100f)),
+                bandLower = listOf(pt(90f), pt(100f)),
                 ownObservations = listOf(pt(95f)),
                 siblingObservations = listOf(pt(85f), pt(105f)),
             ),
@@ -28,6 +30,25 @@ class ChartRangeTest {
         // Range is padded over {85, 105, 95, 90, 100} -> min 85, max 105; spread padding 0.15*20=3.
         assertEquals(82.0, range.start, eps)
         assertEquals(108.0, range.endInclusive, eps)
+    }
+
+    @Test fun sharedRangeExtendsToCoverTheBand() {
+        val data = ExerciseProgressionData(
+            series = ExerciseProgressionSeries(
+                ownEstimate = emptyList(),
+                siblingsEstimate = emptyList(),
+                merged = listOf(pt(100f)),
+                bandUpper = listOf(pt(120f)),  // wider than the dots/merged -> must extend the range
+                bandLower = listOf(pt(80f)),
+                ownObservations = listOf(pt(95f), pt(105f)),
+                siblingObservations = emptyList(),
+            ),
+            frames = emptyList(),
+        )
+        val range = sharedProgressionYRange(data)!!
+        // Values {95,105,100,120,80} -> min 80, max 120; spread padding 0.15*40=6.
+        assertEquals(74.0, range.start, eps)
+        assertEquals(126.0, range.endInclusive, eps)
     }
 
     @Test fun sharedRangeIsNullWhenNothingToPlot() {

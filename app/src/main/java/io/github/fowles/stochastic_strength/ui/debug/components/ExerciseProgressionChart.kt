@@ -50,7 +50,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 enum class ProgressionSeriesStyle { LINE, FILLED_DOTS, HOLLOW_DOTS }
-enum class ProgressionColorRole { OWN, SIBLINGS, MERGED, OWN_OBS, SIBLING_OBS }
+enum class ProgressionColorRole { OWN, SIBLINGS, MERGED, OWN_OBS, SIBLING_OBS, BAND }
 
 private class ValueHolder(var value: Long? = null)
 
@@ -209,5 +209,6 @@ internal fun progressionColors(): Map<ProgressionColorRole, Color> {
         ProgressionColorRole.MERGED to MaterialTheme.colorScheme.error,
         ProgressionColorRole.OWN_OBS to own,
         ProgressionColorRole.SIBLING_OBS to SiblingColor,
+        ProgressionColorRole.BAND to MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
     )
 }

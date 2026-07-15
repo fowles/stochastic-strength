@@ -110,6 +110,8 @@ class ExerciseCoefficientDetailViewModel(
                 ProgressionChartSeries("Own estimate", pts(series.ownEstimate), ProgressionSeriesStyle.LINE, ProgressionColorRole.OWN),
                 ProgressionChartSeries("Siblings", pts(series.siblingsEstimate), ProgressionSeriesStyle.LINE, ProgressionColorRole.SIBLINGS),
                 ProgressionChartSeries("Merged", pts(series.merged), ProgressionSeriesStyle.LINE, ProgressionColorRole.MERGED),
+                ProgressionChartSeries("+σ", pts(series.bandUpper), ProgressionSeriesStyle.LINE, ProgressionColorRole.BAND),
+                ProgressionChartSeries("−σ", pts(series.bandLower), ProgressionSeriesStyle.LINE, ProgressionColorRole.BAND),
                 ProgressionChartSeries("Sessions", pts(series.ownObservations), ProgressionSeriesStyle.FILLED_DOTS, ProgressionColorRole.OWN_OBS),
                 ProgressionChartSeries("Siblings (scaled)", pts(series.siblingObservations), ProgressionSeriesStyle.HOLLOW_DOTS, ProgressionColorRole.SIBLING_OBS),
             )
