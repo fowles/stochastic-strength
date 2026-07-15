@@ -20,16 +20,21 @@ data class BeliefConfig(
     val sigmaSeed: Float = 0.15f,
     /** `semantic`: a deliberate user edit / detraining row is trusted a bit more, ±10%. */
     val sigmaOverride: Float = 0.10f,
-    /** `fitted`: fractional fresh-capacity loss per prior set of the same exercise (Task 10). */
-    val phi: Float = 0.03f,
-    /** `fitted`: sigma2 growth per idle day (Task 10). */
-    val qPerDay: Float = 3e-4f,
-    /** `fitted`: observation sigma for RIR-bucket folds (Task 10). */
-    val sigmaObsRir: Float = 0.10f,
-    /** `fitted`: observation sigma for TOO_HARD folds (Task 10). */
-    val sigmaObsFail: Float = 0.07f,
-    /** `fitted`: transfer noise between same-muscle exercises in pooling (Task 10). */
-    val tau: Float = 0.15f,
+    /** `fitted` 2026-07-15, curve in phase-2 plan appendix: fractional fresh-capacity loss per prior set. */
+    val phi: Float = 0.01f,
+    /** `fitted` 2026-07-15, curve in phase-2 plan appendix: sigma2 growth per idle day. */
+    val qPerDay: Float = 3e-6f,
+    /**
+     * `edge-pinned`/`saturated` (re-confirmed 2026-07-15 on updated history): single observation
+     * sigma for all load folds. Task 10 collapsed the RIR/FAIL pair (identical optima 0.005) into
+     * one constant. Re-baseline widened the grid downward to 0.001/0.002 — all three lowest values
+     * (0.001→24.3352, 0.002→24.3336, 0.005→24.3274) score within ~0.03% of best, so the low edge is a
+     * saturated asymptote, not a genuine bowl. 0.005 kept as the least-extreme saturated value; curve
+     * in the phase-2 plan appendix.
+     */
+    val sigmaObs: Float = 0.005f,
+    /** `fitted` 2026-07-15, curve in phase-2 plan appendix: transfer noise between same-muscle exercises in pooling. */
+    val tau: Float = 0.2f,
     /** `flat` guard: sigma never collapses below ±2%. */
     val sigma2Floor: Float = 4e-4f,
     /** `flat` guard: sigma never exceeds ±50% (aging saturates). */

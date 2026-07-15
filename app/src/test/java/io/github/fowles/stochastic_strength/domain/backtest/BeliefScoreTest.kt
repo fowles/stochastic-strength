@@ -36,5 +36,14 @@ class BeliefScoreTest {
             sb.appendLine("main baseline   : total ${"%.4f".format(baseline.getDouble("totalDistance"))} / per-set ${"%.5f".format(baseline.getDouble("meanDistancePerSet"))} (${baseline.getInt("scoredSets")} sets)")
         }
         println(sb)
+
+        // PHASE-2 SHIP GATE: beat main's Phase-0 baseline on the same metric. The belief stack may
+        // score MORE sets (cold-start via siblings), which only adds distance — conservative gate.
+        if (baseline != null) {
+            assertTrue(
+                "belief stack (${r.totalDistance}) must beat main's baseline (${baseline.getDouble("totalDistance")})",
+                r.totalDistance < baseline.getDouble("totalDistance"),
+            )
+        }
     }
 }

@@ -1557,5 +1557,69 @@ mean per set    : 0.12785 ln-units
 coverage        : 51/213 sets inside their interval
 main baseline   : total 26.7593 / per-set 0.12563 (213 sets)
 ```
-- Task 10 fit — best config, best score vs baseline 26.7593, per-axis curves, coverage, label decisions: _(Task 10 Step 6 pastes the printed fit output and decisions here)_
+- Task 10 fit — best config, best score vs baseline 26.7593, per-axis curves, coverage, label decisions:
+
+Final fit output (after two grid widenings + sigmaObs collapse; authority = held-out total):
+```
+=== Phase 2 fit: belief constants on real history (authority: held-out total) ===
+best score : 23.4247 ln-units
+best config: phi=0.01 qPerDay=3.0E-6 sigmaObs=0.005 tau=0.2
+curve phi : 0.0→23.4577  0.01→23.4247  0.02→23.5270  0.03→23.7401  0.05→24.5582  0.08→26.6305
+curve qPerDay : 1.0E-6→23.5555  3.0E-6→23.4247  1.0E-5→23.6266  3.0E-5→23.6761  1.0E-4→23.7444  3.0E-4→23.9212  0.001→24.4239  0.003→25.4593
+curve sigmaObs : 0.005→23.4247  0.01→23.5716  0.02→24.2583  0.04→25.5483  0.07→26.0362  0.1→26.2824  0.15→26.8337  0.25→28.2135
+curve tau : 0.05→24.5496  0.08→24.0431  0.12→23.6902  0.2→23.4247  0.3→23.5901  0.5→23.8928  0.8→24.0837  1.2→24.1635
+coverage at best: 56/213 (skipped 9)
+```
+
+**Gate: 23.4247 < 26.7593 baseline → PASS (margin 3.3346 ln-units, ~12.5%).**
+
+Grid widenings (recorded per Rule 2):
+- Run 1 (original AXES) → best 23.9328, config phi=0.0 / qPerDay=3e-4 / sigmaObsRir=0.02 / sigmaObsFail=0.25 / tau=0.5. Edge-pinned: phi (low, hard 0-boundary), sigmaObsRir (low), sigmaObsFail (high), tau (high).
+- Widening 1: sigmaObsRir → add 0.005/0.01 low; sigmaObsFail → add 0.40/0.60 high; tau → add 0.80/1.20 high. Rerun → best 23.6405, config phi=0.01 / qPerDay=1e-5 / sigmaObsRir=0.005 / sigmaObsFail=0.02 / tau=0.3. The coupled refit flipped qPerDay to the low edge (1e-5) and sigmaObsFail to the low edge (0.02).
+- Widening 2: qPerDay → add 1e-6/3e-6 low; sigmaObsFail → add 0.005/0.01 low. Rerun → best 23.4247, config phi=0.01 / qPerDay=3e-6 / sigmaObsRir=0.005 / sigmaObsFail=0.005 / tau=0.2. sigmaObsRir and sigmaObsFail now share the SAME optimum (0.005) and are identical at each other's optima → collapse condition met.
+- **sigmaObs collapse:** merged sigmaObsRir + sigmaObsFail into one `sigmaObs` (BeliefFold.obsSigma now returns config.sigmaObs; Belief.kt fields merged; harness AXES + 4 tests updated). Refit confirmed identical best 23.4247 with the single axis — collapse is behavior-preserving.
+
+Per-constant label decisions:
+- **phi = 0.01 — `fitted`.** Interior bowl (0.0→23.458 > 0.01→23.425 < 0.02→23.527). Small positive per-set fatigue shift wins over both zero and larger.
+- **qPerDay = 3e-6 — `fitted`.** Interior bowl (1e-6→23.556 > 3e-6→23.425 < 1e-5→23.627), reached after widening low one decade.
+- **sigmaObs = 0.005 — `edge-pinned` (REPORTED at checkpoint, not silently adopted).** Collapsed constant. Curve is sharp and monotonic increasing (0.005→23.425 … 0.25→28.214, spread 4.8 ln-units — NOT flat), pinning at the low grid edge even after two widenings. Rule 2 forbids silent adoption; value adopted provisionally pending user decision. Interpretation: the held-out metric rewards a near-deterministic fold (tiny obs noise → beliefs snap to each demonstrated interval), which is aggressive; the user may prefer a floor (e.g. 0.02–0.05) for stability even at a small held-out cost (0.005→0.02 costs +0.83 ln-units, still well under baseline at 24.26).
+- **tau = 0.2 — `fitted`.** Interior bowl (0.12→23.690 > 0.2→23.425 < 0.3→23.590), reached after widening high.
+
+No `flat` relabels: every curve's spread exceeds ~1% of best (~0.234). sigmaObsFail's pre-collapse curve came closest (spread 0.557) but stayed above threshold.
+
+### Re-baselined on updated history (2026-07-15)
+
+> **history.json was replaced** (2026-07-15, newer export with additional workouts). ALL Task-8/Task-10 numbers above (baseline 26.7593, fit 23.4247, 213 scored) refer to the OLD history and are now stale. The block below is the authoritative re-run on the updated history; the estimator/harness code is unchanged (only the sigmaObs grid was widened downward by 0.001/0.002 to re-test the low-edge pin).
+
+New Phase-0 baseline (main's unmodified estimator on updated history):
+```
+=== Phase 0 baseline: main's estimator on real history ===
+sessions scored : 26
+sets scored     : 237 (skipped: 9)
+total distance  : 28.4451 ln-units
+mean per set    : 0.12002 ln-units
+cap violations  : 56
+```
+
+New Phase-2 fit (verbatim; sigmaObs axis widened downward to 0.001/0.002):
+```
+=== Phase 2 fit: belief constants on real history (authority: held-out total) ===
+best score : 24.3274 ln-units
+best config: phi=0.01 qPerDay=3.0E-6 sigmaObs=0.005 tau=0.2
+curve phi : 0.0→24.4373  0.01→24.3274  0.02→24.3596  0.03→24.5136  0.05→25.2811  0.08→27.4904
+curve qPerDay : 1.0E-6→24.4592  3.0E-6→24.3274  1.0E-5→24.5266  3.0E-5→24.5710  1.0E-4→24.6265  3.0E-4→24.7952  0.001→25.3902  0.003→26.6471
+curve sigmaObs : 0.001→24.3352  0.002→24.3336  0.005→24.3274  0.01→24.3658  0.02→24.9201  0.04→26.2481  0.07→26.7716  0.1→26.9955  0.15→27.5547  0.25→29.2511
+curve tau : 0.05→25.2876  0.08→24.8724  0.12→24.5667  0.2→24.3274  0.3→24.5012  0.5→24.8080  0.8→25.0002  1.2→25.0805
+coverage at best: 64/237 (skipped 9)
+```
+
+**Gate: 24.3274 < 28.4451 baseline → PASS (margin 4.1177 ln-units, ~14.5%). Per-set 0.10265 vs 0.12002.** No hand-adjustment.
+
+Label decisions on updated history (identical optimum to the old fit — phi=0.01 / qPerDay=3e-6 / sigmaObs=0.005 / tau=0.2, values unchanged):
+- **phi = 0.01 — `fitted`.** Interior bowl (0.0→24.437 > 0.01→24.327 < 0.02→24.360).
+- **qPerDay = 3e-6 — `fitted`.** Interior bowl (1e-6→24.459 > 3e-6→24.327 < 1e-5→24.527).
+- **sigmaObs = 0.005 — `edge-pinned`/`saturated` (CONFIRMED).** The downward-widened grid settles the old open question: the three lowest values 0.001→24.3352, 0.002→24.3336, 0.005→24.3274 all lie within ~0.008 ln-units (~0.03% of best) of each other — a saturated asymptote, NOT a genuine interior bowl. Above 0.005 the curve climbs sharply and monotonically. 0.005 kept as the least-extreme saturated value. No further widening warranted (going lower cannot help — the metric has flattened).
+- **tau = 0.2 — `fitted`.** Interior bowl (0.12→24.567 > 0.2→24.327 < 0.3→24.501).
+- No `flat` relabels; no axis needed further widening. BeliefConfig defaults are unchanged; only the sigmaObs doc-comment label was updated from "provisional low edge" to "saturated (confirmed by downward widening)".
+
 - Task 11 bind report — rate, per-exercise, vs Phase-1's 3.1% and chronic 21/77/30: _(Task 11 Step 2 pastes the printed report here)_

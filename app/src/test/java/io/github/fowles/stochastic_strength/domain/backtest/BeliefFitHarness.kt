@@ -20,10 +20,9 @@ object BeliefFitHarness {
     /** Wide log-spaced grids; an optimum on a grid EDGE means "widen the grid", not "adopt". */
     val AXES = listOf(
         Axis("phi", listOf(0f, 0.01f, 0.02f, 0.03f, 0.05f, 0.08f), { it.phi }, { c, v -> c.copy(phi = v) }),
-        Axis("qPerDay", listOf(1e-5f, 3e-5f, 1e-4f, 3e-4f, 1e-3f, 3e-3f), { it.qPerDay }, { c, v -> c.copy(qPerDay = v) }),
-        Axis("sigmaObsRir", listOf(0.02f, 0.04f, 0.07f, 0.10f, 0.15f, 0.25f), { it.sigmaObsRir }, { c, v -> c.copy(sigmaObsRir = v) }),
-        Axis("sigmaObsFail", listOf(0.02f, 0.04f, 0.07f, 0.10f, 0.15f, 0.25f), { it.sigmaObsFail }, { c, v -> c.copy(sigmaObsFail = v) }),
-        Axis("tau", listOf(0.05f, 0.08f, 0.12f, 0.20f, 0.30f, 0.50f), { it.tau }, { c, v -> c.copy(tau = v) }),
+        Axis("qPerDay", listOf(1e-6f, 3e-6f, 1e-5f, 3e-5f, 1e-4f, 3e-4f, 1e-3f, 3e-3f), { it.qPerDay }, { c, v -> c.copy(qPerDay = v) }),
+        Axis("sigmaObs", listOf(0.001f, 0.002f, 0.005f, 0.01f, 0.02f, 0.04f, 0.07f, 0.10f, 0.15f, 0.25f), { it.sigmaObs }, { c, v -> c.copy(sigmaObs = v) }),
+        Axis("tau", listOf(0.05f, 0.08f, 0.12f, 0.20f, 0.30f, 0.50f, 0.80f, 1.20f), { it.tau }, { c, v -> c.copy(tau = v) }),
     )
 
     data class FitResult(

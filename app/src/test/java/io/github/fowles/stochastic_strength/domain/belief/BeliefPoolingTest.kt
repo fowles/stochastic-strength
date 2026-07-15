@@ -10,7 +10,7 @@ class BeliefPoolingTest {
     private val config = BeliefConfig(
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
         phi = 0.05f, qPerDay = 0f,           // qPerDay=0: aging is a no-op so numbers are exact
-        sigmaObsRir = 0.10f, sigmaObsFail = 0.10f,
+        sigmaObs = 0.10f,
         tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )
     private val pooling = BeliefPooling(config)

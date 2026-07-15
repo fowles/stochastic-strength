@@ -25,9 +25,8 @@ class BeliefFold(private val config: BeliefConfig) {
     fun fatigueShift(rank: Int): Float =
         -ln(1f - (config.phi * (rank - 1)).coerceAtMost(0.9f))
 
-    /** Observation sigma per bucket type: failures carry their own noise constant. */
-    fun obsSigma(feedback: SetFeedback): Float =
-        if (feedback == SetFeedback.TOO_HARD) config.sigmaObsFail else config.sigmaObsRir
+    /** One observation sigma for every load fold (Task 10 collapsed the RIR/FAIL pair — identical optima). */
+    fun obsSigma(feedback: SetFeedback): Float = config.sigmaObs
 
     /**
      * Boundary-pull Gaussian fold (spec Phase 2). If mu lies inside the shifted interval the set
