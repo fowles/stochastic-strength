@@ -1,12 +1,20 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
+import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
+import io.github.fowles.stochastic_strength.domain.belief.Belief
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace
+import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTraceBuilder
 import io.github.fowles.stochastic_strength.domain.belief.setObservationsE1rm
+import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import kotlin.math.exp
 import kotlin.math.sqrt
 
@@ -158,6 +166,51 @@ internal fun buildFrame(
         crossTuning = crossTuning,
         observations = observations,
         trace = trace,
+    )
+}
+
+/**
+ * The "why this weight" trace for one exercise's decision made at [now], given the belief snapshot
+ * that produced it ([beliefs]) and the completed sets known at that moment ([priorSets] — the sets
+ * from sessions BEFORE this decision). Facts are rebuilt over [PrescriptionPolicy.FACTS_WINDOW_MS]
+ * exactly like the live planner's context, so the trace matches the production pipeline. Pure; no DB.
+ */
+internal fun buildSessionTrace(
+    targetId: Long,
+    muscle: MuscleGroup,
+    beliefs: Map<Long, Belief>,
+    seedCoef: Map<Long, Float>,
+    muscleExerciseIds: List<Long>,
+    exerciseMuscle: Map<Long, MuscleGroup>,
+    priorSets: List<WorkoutSet>,
+    sessionReps: Int,
+    now: Long,
+    weightUnit: WeightUnit,
+    config: BeliefConfig,
+    engine: ProgressionEngine = DefaultProgressionEngine,
+): PrescriptionTrace? {
+    val windowStart = now - PrescriptionPolicy.FACTS_WINDOW_MS
+    val factsSets = priorSets.filter { it.completedAt != null && it.completedAt!! >= windowStart }
+    val facts = PolicyFacts.build(sets = factsSets, exerciseMuscle = exerciseMuscle)
+    val capFact = facts.capByExercise[targetId]
+    val capSessionSets = capFact?.let { f ->
+        factsSets.groupBy { it.sessionId }
+            .values
+            .firstOrNull { s -> s.maxOf { it.completedAt!! } == f.demonstratedAt }
+    }.orEmpty()
+    return PrescriptionTraceBuilder.build(
+        exerciseId = targetId,
+        muscle = muscle,
+        beliefs = beliefs,
+        seedCoef = seedCoef,
+        muscleExerciseIds = muscleExerciseIds,
+        facts = facts,
+        capSessionSets = capSessionSets,
+        sessionReps = sessionReps,
+        now = now,
+        weightUnit = weightUnit,
+        config = config,
+        engine = engine,
     )
 }
 
