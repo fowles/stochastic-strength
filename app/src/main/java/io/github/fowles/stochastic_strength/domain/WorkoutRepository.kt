@@ -30,6 +30,7 @@ import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressi
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -56,20 +57,47 @@ class WorkoutRepository(
         return UserCoefficientSource(latest)
     }
 
-    suspend fun buildPlanner(
-        locationId: Long?,
-        weightUnit: WeightUnit,
-        exerciseOverrides: Map<Long, Float> = emptyMap(),
-    ): WorkoutPlanner {
+    /**
+     * The shared prescription inputs, derived one way for every entry point (the live planner and
+     * the "why this weight" trace must describe the same pipeline). [PolicyFacts] read the set log
+     * over a TIME window ([PrescriptionPolicy.FACTS_WINDOW_MS]) — a row-count limit can silently
+     * drop a demonstrated-capacity cap that is still inside its expiry.
+     */
+    private class PrescriptionContext(
+        val available: List<Exercise>,
+        val seedCoef: Map<Long, Float>,
+        val muscleExerciseIds: Map<MuscleGroup, List<Long>>,
+        val policyFacts: PolicyFacts,
+    )
+
+    private suspend fun prescriptionContext(locationId: Long?, now: Long): PrescriptionContext {
         val excluded = excludedExerciseIds(locationId)
         val available = db.exerciseDao().getActive().filter { it.id !in excluded }
         val seedCoef = available.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
         val muscleIds = available.filter { (seedCoef[it.id] ?: 0f) > 0f }
             .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }
+        val factsSets = if (available.isNotEmpty())
+            db.workoutSetDao().getCompletedSetsForExercisesSince(
+                available.map { it.id }, now - PrescriptionPolicy.FACTS_WINDOW_MS)
+        else emptyList()
+        val policyFacts = PolicyFacts.build(
+            sets = factsSets,
+            exerciseMuscle = available.associate { it.id to it.primaryMuscle },
+        )
+        return PrescriptionContext(available, seedCoef, muscleIds, policyFacts)
+    }
+
+    suspend fun buildPlanner(
+        locationId: Long?,
+        weightUnit: WeightUnit,
+        exerciseOverrides: Map<Long, Float> = emptyMap(),
+    ): WorkoutPlanner {
         val now = System.currentTimeMillis()
+        val ctx = prescriptionContext(locationId, now)
+        val available = ctx.available
         val beliefs = derivedState.snapshot().exerciseBeliefs()
-        val prescribedE1rm = muscleIds.flatMap { (_, ids) ->
-            beliefPooling.effective(beliefs, seedCoef, ids, now).effective.entries
+        val prescribedE1rm = ctx.muscleExerciseIds.flatMap { (_, ids) ->
+            beliefPooling.effective(beliefs, ctx.seedCoef, ids, now).effective.entries
                 .map { it.key to BeliefPrescriber.targetE1rm(it.value) }
         }.toMap()
         val history = if (available.isNotEmpty())
@@ -84,10 +112,6 @@ class WorkoutRepository(
         val effectiveCoefficients = effectiveCoefficientSource()
         val exercisesById = available.associateBy { it.id }
         val pacingEstimator = ExercisePacingEstimator.build(recentSessions, recentSets, exercisesById)
-        val policyFacts = PolicyFacts.build(
-            sets = history.values.flatten(),
-            exerciseMuscle = available.associate { it.id to it.primaryMuscle },
-        )
         return WorkoutPlanner(
             availableExercises = available,
             prescribedE1rm = prescribedE1rm,
@@ -98,7 +122,7 @@ class WorkoutRepository(
             progressionEngine = progressionEngine,
             pacingEstimator = pacingEstimator,
             exerciseE1rmOverrides = exerciseOverrides,
-            policyFacts = policyFacts,
+            policyFacts = ctx.policyFacts,
         )
     }
 
@@ -392,26 +416,19 @@ class WorkoutRepository(
     }
 
     /**
-     * The "why this weight" trace for one exercise (Task 6, spec Phase 3). Facts are built exactly
-     * as [buildPlanner] builds them — same available-exercise set, same history query, same muscle
-     * map — so the trace explains the weight the live planner would actually prescribe. Null when
-     * the exercise doesn't exist or has no effective belief (unloadable/cold muscle).
+     * The "why this weight" trace for one exercise (Task 6, spec Phase 3). Inputs come from the
+     * same [prescriptionContext] the live planner uses; with [locationId] (default null) the trace
+     * matches a planner built at an unknown location — pass the resolved location to match a
+     * location-filtered plan exactly. [sessionReps] is inferred from the exercise's last completed
+     * set (the plan's chosen rep target isn't known here). Null when the exercise doesn't exist or
+     * has no effective belief (unloadable/cold muscle).
      */
-    suspend fun getPrescriptionTrace(exerciseId: Long): PrescriptionTrace? {
+    suspend fun getPrescriptionTrace(exerciseId: Long, locationId: Long? = null): PrescriptionTrace? {
         val exercise = db.exerciseDao().getById(exerciseId) ?: return null
-        val available = db.exerciseDao().getActive()
-        val seedCoef = available.associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
-        val muscleIds = available.filter { (seedCoef[it.id] ?: 0f) > 0f }
-            .groupBy { it.primaryMuscle }.mapValues { e -> e.value.map { it.id } }[exercise.primaryMuscle]
-            ?: emptyList()
         val now = System.currentTimeMillis()
-        val history = if (available.isNotEmpty())
-            db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
-        else emptyList()
-        val facts = PolicyFacts.build(
-            sets = history,
-            exerciseMuscle = available.associate { it.id to it.primaryMuscle },
-        )
+        val ctx = prescriptionContext(locationId, now)
+        val muscleIds = ctx.muscleExerciseIds[exercise.primaryMuscle] ?: emptyList()
+        val facts = ctx.policyFacts
         val allSets = db.workoutSetDao().getAllForExercise(exerciseId)
         val capFact = facts.capByExercise[exerciseId]
         val capSessionSets = capFact?.let { f ->
@@ -427,7 +444,7 @@ class WorkoutRepository(
             exerciseId = exerciseId,
             muscle = exercise.primaryMuscle,
             beliefs = beliefs,
-            seedCoef = seedCoef,
+            seedCoef = ctx.seedCoef,
             muscleExerciseIds = muscleIds,
             facts = facts,
             capSessionSets = capSessionSets,

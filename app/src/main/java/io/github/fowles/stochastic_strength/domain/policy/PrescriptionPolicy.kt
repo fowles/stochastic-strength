@@ -54,6 +54,13 @@ object PrescriptionPolicy {
     const val COOLDOWN_MS = 2L * 24 * 60 * 60 * 1000
 
     /**
+     * How far back the set log must be read when building [PolicyFacts]: caps need exactly
+     * [CAP_EXPIRY_MS] (older demonstrations are expired anyway), and a HURT backoff beyond
+     * 4 half-lives contributes under 1% — the window covers both exactly/negligibly.
+     */
+    const val FACTS_WINDOW_MS = 4 * HURT_HALF_LIFE_MS // 56 days ≥ CAP_EXPIRY_MS
+
+    /**
      * The demonstrated-capacity cap implied by ONE session's sets for ONE exercise, in ln(1RM).
      * Null = uncapped (no scoreable feedback, or a clean session containing an unbounded
      * RIR_5_PLUS set). A failed session caps at the failure's implied 1RM — 1RM(w, a+½), the
