@@ -22,6 +22,7 @@ import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionColor
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionSeriesStyle
 import io.github.fowles.stochastic_strength.ui.components.sharedProgressionYRange
 import io.github.fowles.stochastic_strength.ui.debug.components.timestampToLocalEpochDay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -102,8 +103,11 @@ class ExerciseCoefficientDetailViewModel(
             val profile = app.database.userProfileDao().getProfile()
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
 
-            val trace = repository.getPrescriptionTrace(exerciseId)
-            val data = repository.getExerciseProgressionData(exerciseId)
+            // Independent heavy reads (facts assembly vs full-history replay): load concurrently.
+            val traceDeferred = async { repository.getPrescriptionTrace(exerciseId) }
+            val dataDeferred = async { repository.getExerciseProgressionData(exerciseId) }
+            val trace = traceDeferred.await()
+            val data = dataDeferred.await()
             val series = data.series
             val (framesByEpochDay, defaultEpochDay) =
                 buildFrameViews(data.frames, weightUnit, ZoneId.systemDefault())
