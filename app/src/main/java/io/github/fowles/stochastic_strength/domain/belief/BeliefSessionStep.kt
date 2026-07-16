@@ -7,7 +7,9 @@ import kotlin.math.exp
 /**
  * One session's belief step, shared by the production replay and the backtest replay (spec Phase 3
  * "replay drives the new fold"). Order of operations is the Phase-2 contract and must not change:
- * (1) pre-fold pooling over ALL muscles at asOf — the held-out state and the cold prior;
+ * (1) pre-fold pooling for the muscles this session touches, at asOf — the held-out state for the
+ *     session's own sets and the cold prior (pooling is a pure read, so consumers needing other
+ *     muscles' effective beliefs pool them directly);
  * (2) per-exercise foldSession, existing belief or the sibling prediction as the cold prior;
  * (3) post-fold pooling for the touched muscles — the derived-state projection.
  */
@@ -26,7 +28,7 @@ class BeliefSessionStep(private val config: BeliefConfig) {
     )
 
     data class Result(
-        /** Pre-fold effective beliefs for ALL muscles at asOf — the held-out state; also the cold prior. */
+        /** Pre-fold effective beliefs for the touched muscles at asOf — the held-out state; also the cold prior. */
         val preFoldEffective: Map<Long, EffectiveBelief>,
         /** Post-fold projections for the muscles this session touched. */
         val steps: List<MuscleStep>,
@@ -40,13 +42,23 @@ class BeliefSessionStep(private val config: BeliefConfig) {
         muscleExerciseIds: Map<MuscleGroup, List<Long>>,
         asOf: Long,
     ): Result {
+        val setsByExercise = sets.groupBy { it.exerciseId }
+        // Pre-fold pool only the muscles this session's sets touch — all the fold's cold priors and
+        // the scorer's held-out predictions live there; pooling other muscles is dead work in a
+        // replay that reruns every session after every write.
+        val sessionMuscles = setsByExercise.keys.mapNotNullTo(mutableSetOf()) { id ->
+            if ((seedCoef[id] ?: 0f) > 0f) exerciseMuscle[id] else null
+        }
         val preFold = mutableMapOf<Long, EffectiveBelief>()
-        for ((_, ids) in muscleExerciseIds) {
+        for (muscle in sessionMuscles) {
+            val ids = muscleExerciseIds[muscle] ?: continue
             preFold.putAll(pooling.effective(beliefs, seedCoef, ids, asOf).effective)
         }
 
+        // Post-fold steps only for muscles where a fold actually ran (a session against a muscle
+        // with no beliefs at all has no prior and projects nothing).
         val touched = mutableSetOf<MuscleGroup>()
-        sets.groupBy { it.exerciseId }.forEach { (id, exSets) ->
+        setsByExercise.forEach { (id, exSets) ->
             if ((seedCoef[id] ?: 0f) <= 0f) return@forEach
             val prior = beliefs[id]
                 ?: preFold[id]?.let { Belief(it.mu, it.sigma2, asOf) }

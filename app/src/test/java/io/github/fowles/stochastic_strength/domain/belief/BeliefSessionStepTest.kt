@@ -55,7 +55,7 @@ class BeliefSessionStepTest {
     }
 
     @Test
-    fun untouchedMusclesGetNoPostFoldStepButDoGetPreFoldEffective() {
+    fun untouchedMusclesGetNeitherAPostFoldStepNorPreFoldEffective() {
         val beliefs = mutableMapOf(
             1L to Belief(ln(100f), 0.01f, 1_000L), // QUADS, trained this session
             9L to Belief(ln(50f), 0.01f, 1_000L),  // BICEPS, not in this session
@@ -69,7 +69,10 @@ class BeliefSessionStepTest {
             asOf = 1_000L,
         )
         assertEquals(listOf(MuscleGroup.QUADS), result.steps.map { it.muscle })
-        assertTrue(9L in result.preFoldEffective)
+        // Pre-fold pooling is scoped to the session's muscles; untouched muscles are not pooled
+        // (consumers needing them pool directly — pooling is a pure read).
+        assertTrue(1L in result.preFoldEffective)
+        assertTrue(9L !in result.preFoldEffective)
     }
 
     @Test

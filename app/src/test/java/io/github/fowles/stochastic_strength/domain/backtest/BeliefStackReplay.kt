@@ -4,6 +4,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.belief.Belief
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefFold
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.BeliefSessionStep
 import io.github.fowles.stochastic_strength.domain.belief.EffectiveBelief
 import kotlin.math.ln
@@ -34,6 +35,7 @@ object BeliefStackReplay {
 
     fun run(data: BacktestData, config: BeliefConfig, observer: SessionObserver) {
         val fold = BeliefFold(config)
+        val pooling = BeliefPooling(config)
         val sessionStep = BeliefSessionStep(config)
         val snapshot = data.newSnapshot()
         val beliefs = mutableMapOf<Long, Belief>()
@@ -51,6 +53,14 @@ object BeliefStackReplay {
             if (sets.isEmpty()) continue
             val asOf = session.endTime!!
 
+            // All-muscle pre-fold effective beliefs for the observer (the policy backtest
+            // prescribes for the whole library each session). The prod step scopes its pre-fold
+            // pooling to the session's muscles, so the sweep lives here, in the test tree.
+            val allEffective = mutableMapOf<Long, EffectiveBelief>()
+            for ((_, ids) in snapshot.muscleExerciseIds) {
+                allEffective.putAll(pooling.effective(beliefs, snapshot.seedCoefficients, ids, asOf).effective)
+            }
+
             val result = sessionStep.step(
                 beliefs = beliefs,
                 sets = sets,
@@ -65,7 +75,7 @@ object BeliefStackReplay {
                     SetPrediction(s, idx + 1, eff?.let { it.mu - fold.fatigueShift(idx + 1) })
                 }
             }
-            observer.onSession(session.id, asOf, predictions, result.preFoldEffective, beliefs)
+            observer.onSession(session.id, asOf, predictions, allEffective, beliefs)
         }
     }
 }
