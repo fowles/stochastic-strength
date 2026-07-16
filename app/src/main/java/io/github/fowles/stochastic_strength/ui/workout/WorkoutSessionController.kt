@@ -419,6 +419,17 @@ class WorkoutSessionController(
         }
     }
 
+    /**
+     * Fill in a location's human-readable name once background reverse-geocoding returns. No-op
+     * unless we're still on the plan preview (the only place the label shows); the label is purely
+     * cosmetic, so a late answer just updates it in place.
+     */
+    fun updateLocationName(name: String) {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        if (preview.locationName == name) return
+        setState(preview.copy(locationName = name))
+    }
+
     fun onLocationRefreshed() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         val locationId = sessionLocationId ?: return

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.location.Geocoder
 import android.os.VibrationEffect
 import android.os.VibratorManager
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
@@ -62,16 +64,27 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             preferredExerciseCount = profile?.preferredExerciseCount ?: WorkoutGenerator.DEFAULT_EXERCISE_COUNT
             preferredRepMin = profile?.preferredRepMin ?: DEFAULT_REP_MIN
             preferredRepMax = profile?.preferredRepMax ?: DEFAULT_REP_MAX
-            val locationId = resolveLocation()
-            val locationName = locationId?.let { app.database.knownLocationDao().getById(it)?.name }
+            val resolved = resolveLocation()
             controller.initializeSession(
-                locationId = locationId,
-                locationName = locationName,
+                locationId = resolved.locationId,
+                locationName = resolved.locationName,
                 preferredExerciseCount = preferredExerciseCount,
                 preferredRepMin = preferredRepMin,
                 preferredRepMax = preferredRepMax,
                 weightUnit = _weightUnit.value,
             )
+            // Reverse geocoding is a (slow, sometimes-stalling) network call and only supplies the
+            // location's display name — it never affects equipment filtering, which keys off the
+            // locationId resolved above. So never block workout start on it: fill the name in later.
+            resolved.pendingGeocode?.let { pending ->
+                launch {
+                    val name = reverseGeocode(pending.lat, pending.lng)
+                    if (name != pending.placeholder) {
+                        app.database.knownLocationDao().updateName(pending.locationId, name)
+                        controller.updateLocationName(name)
+                    }
+                }
+            }
         }
         viewModelScope.launch {
             app.workoutSessionBus.commandFlow.collect { command ->
@@ -163,41 +176,64 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun onStravaAuthUrlLaunched() = stravaController.onAuthUrlLaunched()
     fun onStravaMessageShown() = stravaController.onMessageShown()
 
-    private suspend fun resolveLocation(): Long? = when (val loc = locationService.resolveLocation(app.database)) {
-        is LocationResult.Known -> loc.locationId
-        is LocationResult.Unknown -> createLocation(loc.latitude to loc.longitude)
-        LocationResult.Unavailable -> null
-    }
+    /** locationId + best-known name, plus a background-geocode request for freshly-seen locations. */
+    private data class ResolvedLocation(
+        val locationId: Long?,
+        val locationName: String?,
+        val pendingGeocode: PendingGeocode? = null,
+    )
 
-    private suspend fun createLocation(coords: Pair<Double, Double>): Long =
-        app.database.knownLocationDao().insert(
-            KnownLocation(
-                name = reverseGeocode(coords.first, coords.second),
-                latitude = coords.first,
-                longitude = coords.second,
-            )
-        )
+    private data class PendingGeocode(
+        val locationId: Long,
+        val lat: Double,
+        val lng: Double,
+        /** Coordinate placeholder written at insert time; a geocode equal to it is a no-op. */
+        val placeholder: String,
+    )
+
+    private suspend fun resolveLocation(): ResolvedLocation =
+        when (val loc = locationService.resolveLocation(app.database)) {
+            is LocationResult.Known ->
+                ResolvedLocation(loc.locationId, app.database.knownLocationDao().getById(loc.locationId)?.name)
+            is LocationResult.Unknown -> {
+                // Insert immediately with a coordinate placeholder so the locationId (and thus
+                // equipment filtering) is available without waiting on the network geocoder.
+                val placeholder = "%.4f, %.4f".format(loc.latitude, loc.longitude)
+                val id = app.database.knownLocationDao().insert(
+                    KnownLocation(name = placeholder, latitude = loc.latitude, longitude = loc.longitude)
+                )
+                ResolvedLocation(id, placeholder, PendingGeocode(id, loc.latitude, loc.longitude, placeholder))
+            }
+            LocationResult.Unavailable -> ResolvedLocation(null, null)
+        }
 
     private suspend fun reverseGeocode(lat: Double, lng: Double): String {
         val fallback = "%.4f, %.4f".format(lat, lng)
         if (!Geocoder.isPresent()) return fallback
-        return suspendCancellableCoroutine { cont ->
-            try {
-                Geocoder(app).getFromLocation(lat, lng, 1) { addresses ->
-                    val addr = addresses.firstOrNull()
-                    val name = when {
-                        addr?.thoroughfare != null ->
-                            listOfNotNull(addr.subThoroughfare, addr.thoroughfare, addr.locality)
-                                .joinToString(" ")
-                        addr?.locality != null ->
-                            listOfNotNull(addr.locality, addr.adminArea).joinToString(", ")
-                        else -> fallback
+        // The async Geocoder listener never fires on emulators / devices without a geocoder
+        // backend, which would hang workout start forever. Time out and fall back to coordinates.
+        return withTimeoutOrNull(GEOCODE_TIMEOUT_MS) {
+            suspendCancellableCoroutine { cont ->
+                try {
+                    Geocoder(app).getFromLocation(lat, lng, 1) { addresses ->
+                        val addr = addresses.firstOrNull()
+                        val name = when {
+                            addr?.thoroughfare != null ->
+                                listOfNotNull(addr.subThoroughfare, addr.thoroughfare, addr.locality)
+                                    .joinToString(" ")
+                            addr?.locality != null ->
+                                listOfNotNull(addr.locality, addr.adminArea).joinToString(", ")
+                            else -> fallback
+                        }
+                        cont.resume(name)
                     }
-                    cont.resume(name)
+                } catch (_: Exception) {
+                    cont.resume(fallback)
                 }
-            } catch (_: Exception) {
-                cont.resume(fallback)
             }
+        } ?: run {
+            Log.w(TAG, "reverseGeocode timed out after ${GEOCODE_TIMEOUT_MS}ms; using coordinates")
+            fallback
         }
     }
 
@@ -213,6 +249,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     companion object {
+        private const val TAG = "WorkoutViewModel"
+        // Runs in the background off the workout-start path, so we can wait longer for a slow
+        // geocoder answer; the bound only exists to avoid leaking a permanently-stalled request.
+        private const val GEOCODE_TIMEOUT_MS = 15_000L
         const val DEFAULT_REP_MIN = 5
         const val DEFAULT_REP_MAX = 10
     }

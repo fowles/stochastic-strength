@@ -1,9 +1,11 @@
 package io.github.fowles.stochastic_strength.location
 
 import android.content.Context
+import android.util.Log
 import com.google.android.gms.location.LocationServices
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlin.math.*
 
@@ -18,7 +20,13 @@ class LocationService(context: Context) {
     }
 
     suspend fun resolveLocation(db: AppDatabase): LocationResult {
-        val coords = getCurrentCoords() ?: return LocationResult.Unavailable
+        // The play-services lastLocation Task can hang indefinitely (never calling either listener)
+        // on some emulators / devices with no cached fix. Never let location block workout start.
+        val coords = withTimeoutOrNull(LOCATION_TIMEOUT_MS) { getCurrentCoords() }
+        if (coords == null) {
+            Log.w(TAG, "Location unavailable (null or timed out after ${LOCATION_TIMEOUT_MS}ms)")
+            return LocationResult.Unavailable
+        }
         val (lat, lon) = coords
         val match = db.knownLocationDao().getAll()
             .firstOrNull { haversineMeters(lat, lon, it.latitude, it.longitude) <= 100.0 }
@@ -35,4 +43,9 @@ class LocationService(context: Context) {
     }
 
     private fun Double.toRadians() = this * PI / 180
+
+    companion object {
+        private const val TAG = "LocationService"
+        private const val LOCATION_TIMEOUT_MS = 5_000L
+    }
 }

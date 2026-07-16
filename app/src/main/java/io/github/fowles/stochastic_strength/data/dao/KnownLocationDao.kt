@@ -24,6 +24,9 @@ interface KnownLocationDao {
     @Update
     suspend fun update(location: KnownLocation)
 
+    @Query("UPDATE known_locations SET name = :name WHERE id = :id")
+    suspend fun updateName(id: Long, name: String)
+
     @Query("DELETE FROM known_locations WHERE id = :id")
     suspend fun deleteById(id: Long)
 
