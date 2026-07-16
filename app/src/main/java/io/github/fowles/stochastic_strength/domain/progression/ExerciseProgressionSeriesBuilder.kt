@@ -1,8 +1,10 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.ProgressionEngine
@@ -55,6 +57,7 @@ data class ProgressionFrame(
 data class ExerciseProgressionData(
     val series: ExerciseProgressionSeries,
     val frames: List<ProgressionFrame>,
+    val predictedFrame: ProgressionFrame? = null,
 )
 
 /** One session's contribution to the series. Pure; no DB. */
@@ -223,7 +226,9 @@ class ExerciseProgressionSeriesBuilder(
     // Built from the SAME config: the engine's folds and this builder's dots/lines must never
     // read different constants (the passed-config-ignored seam bit phase 4 once already).
     private val engine: ReplayEngine = ReplayEngine(config),
+    private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
 ) {
+    /** DB adapter: loads the static inputs, then delegates to the DB-free [buildCore]. */
     suspend fun build(db: AppDatabase, exerciseId: Long): ExerciseProgressionData {
         val snapshot = ReplaySnapshot.loadStaticFromDb(db)
         val muscle = snapshot.exerciseMuscle[exerciseId]
@@ -234,7 +239,41 @@ class ExerciseProgressionSeriesBuilder(
             return ExerciseProgressionData(ExerciseProgressionSeries.empty(), emptyList())
         }
         val namesById = db.exerciseDao().getAll().associate { it.id to it.name }
+        val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+        return buildCore(
+            exerciseId = exerciseId,
+            snapshot = snapshot,
+            muscle = muscle,
+            muscleIds = muscleIds,
+            namesById = namesById,
+            weightUnit = weightUnit,
+            initialOverrides = db.exerciseStrengthOverrideDao().getInitials(),
+            sessionOverrides = db.exerciseStrengthOverrideDao().getNonInitials()
+                .groupBy { it.sessionId!! },
+            sessions = db.workoutSessionDao().getAll(),
+            setsForSession = { db.workoutSetDao().getSetsForSession(it) },
+            now = System.currentTimeMillis(),
+        )
+    }
 
+    /**
+     * DB-free core: replays the muscle, sampling each frame from the PRE-FOLD state (the decision
+     * entering that session) with its per-decision trace, then appends one synthetic PREDICTED frame
+     * at [now] from the live post-final-fold state. Mirrors the run/runCore split in [ReplayEngine].
+     */
+    internal suspend fun buildCore(
+        exerciseId: Long,
+        snapshot: ReplaySnapshot,
+        muscle: MuscleGroup,
+        muscleIds: List<Long>,
+        namesById: Map<Long, String>,
+        weightUnit: WeightUnit,
+        initialOverrides: List<ExerciseStrengthOverride>,
+        sessionOverrides: Map<Long, List<ExerciseStrengthOverride>>,
+        sessions: List<WorkoutSession>,
+        setsForSession: suspend (Long) -> List<WorkoutSet>,
+        now: Long,
+    ): ExerciseProgressionData {
         val ownEstimate = mutableListOf<ProgressionPoint>()
         val siblingsEstimate = mutableListOf<ProgressionPoint>()
         val merged = mutableListOf<ProgressionPoint>()
@@ -244,19 +283,70 @@ class ExerciseProgressionSeriesBuilder(
         val siblingObservations = mutableListOf<ProgressionPoint>()
         val frames = mutableListOf<ProgressionFrame>()
 
-        engine.run(db, snapshot) { _, asOf, sets, snap, beliefResult ->
-            if (beliefResult.steps.any { it.muscle == muscle }) {
-                val sample = sampleSession(exerciseId, muscleIds, snap, sets, asOf, config)
-                ownEstimate += sample.ownEstimate
-                siblingsEstimate += sample.siblingsEstimate
-                merged += sample.merged
-                bandUpper += sample.bandUpper
-                bandLower += sample.bandLower
-                ownObservations += sample.ownObservations
-                siblingObservations += sample.siblingObservations
-                frames += buildFrame(exerciseId, muscleIds, snap, sets, asOf, namesById, config, sample)
-            }
-        }
+        // Pre-fold beliefs for the CURRENT session, captured by the beforeSession hook right before
+        // the fold mutates them. Copied because the fold mutates snapshot.currentBeliefs in place.
+        var preFold: Map<Long, Belief> = emptyMap()
+        // Completed sets from sessions strictly before the current one (the facts a decision saw).
+        val priorSets = mutableListOf<WorkoutSet>()
+
+        fun preFoldSnapshot(beliefs: Map<Long, Belief>): ReplaySnapshot =
+            ReplaySnapshot(snapshot.exerciseMuscle, snapshot.seedCoefficients)
+                .also { it.currentBeliefs.putAll(beliefs) }
+
+        fun targetReps(sets: List<WorkoutSet>): Int =
+            sets.filter { it.exerciseId == exerciseId }.minByOrNull { it.setNumber }?.targetReps ?: 10
+
+        engine.runCore(
+            snapshot = snapshot,
+            initialOverrides = initialOverrides,
+            sessionOverrides = sessionOverrides,
+            sessions = sessions,
+            setsForSession = setsForSession,
+            beforeSession = { beliefs, _ -> preFold = HashMap(beliefs) },
+            observer = { _, asOf, sets, snap, beliefResult ->
+                if (beliefResult.steps.any { it.muscle == muscle }) {
+                    val preSnap = preFoldSnapshot(preFold)
+                    val sample = sampleSession(exerciseId, muscleIds, preSnap, sets, asOf, config)
+                    ownEstimate += sample.ownEstimate
+                    siblingsEstimate += sample.siblingsEstimate
+                    merged += sample.merged
+                    bandUpper += sample.bandUpper
+                    bandLower += sample.bandLower
+                    ownObservations += sample.ownObservations
+                    siblingObservations += sample.siblingObservations
+                    val trace = buildSessionTrace(
+                        targetId = exerciseId, muscle = muscle, beliefs = preFold,
+                        seedCoef = snap.seedCoefficients, muscleExerciseIds = muscleIds,
+                        exerciseMuscle = snap.exerciseMuscle, priorSets = priorSets,
+                        sessionReps = targetReps(sets), now = asOf, weightUnit = weightUnit,
+                        config = config, engine = progressionEngine,
+                    )
+                    frames += buildFrame(exerciseId, muscleIds, preSnap, sets, asOf, namesById, config, sample, trace)
+                }
+                priorSets += sets.filter { it.completedAt != null }
+            },
+        )
+
+        // Synthetic PREDICTED frame: the live forward-looking decision at `now`, from the
+        // post-final-fold state (snapshot.currentBeliefs after the last fold).
+        val predictedFrame: ProgressionFrame? = if (frames.isNotEmpty()) {
+            val liveSample = sampleSession(exerciseId, muscleIds, snapshot, emptyList(), now, config)
+            ownEstimate += liveSample.ownEstimate
+            siblingsEstimate += liveSample.siblingsEstimate
+            merged += liveSample.merged
+            bandUpper += liveSample.bandUpper
+            bandLower += liveSample.bandLower
+            val liveReps = priorSets.filter { it.exerciseId == exerciseId }
+                .maxByOrNull { it.completedAt ?: 0L }?.targetReps ?: 10
+            val liveTrace = buildSessionTrace(
+                targetId = exerciseId, muscle = muscle, beliefs = snapshot.currentBeliefs,
+                seedCoef = snapshot.seedCoefficients, muscleExerciseIds = muscleIds,
+                exerciseMuscle = snapshot.exerciseMuscle, priorSets = priorSets,
+                sessionReps = liveReps, now = now, weightUnit = weightUnit,
+                config = config, engine = progressionEngine,
+            )
+            buildFrame(exerciseId, muscleIds, snapshot, emptyList(), now, namesById, config, liveSample, liveTrace)
+        } else null
 
         return ExerciseProgressionData(
             series = ExerciseProgressionSeries(
@@ -269,6 +359,7 @@ class ExerciseProgressionSeriesBuilder(
                 siblingObservations = siblingObservations,
             ),
             frames = frames,
+            predictedFrame = predictedFrame,
         )
     }
 }
