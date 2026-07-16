@@ -1,12 +1,15 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
+import io.github.fowles.stochastic_strength.domain.policy.ExerciseCapFact
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume
 import org.junit.Test
@@ -36,6 +39,16 @@ class BeliefPolicyBacktestTest {
         // Most recent feedback session's failed sets per exercise, and when.
         val lastFailure = mutableMapOf<Long, Pair<List<WorkoutSet>, Long>>()
 
+        // PolicyFacts folded incrementally per session (a full PolicyFacts.build over the
+        // cumulative log is O(sessions²)); the end-of-replay guard below asserts equivalence with
+        // build() so the two can't drift.
+        val capByExercise = mutableMapOf<Long, ExerciseCapFact>()
+        val hurtEventsByMuscle = mutableMapOf<MuscleGroup, MutableList<Long>>()
+        fun currentFacts() = PolicyFacts(
+            capByExercise = capByExercise.toMap(),
+            hurtEventsByMuscle = hurtEventsByMuscle.mapValues { it.value.toList() },
+        )
+
         var prescriptions = 0
         var capBinds = 0
         var hurtBinds = 0
@@ -44,7 +57,7 @@ class BeliefPolicyBacktestTest {
         val violations = mutableListOf<String>()
 
         BeliefStackReplay.run(data, BeliefConfig()) { sessionId, asOf, _, effective, _ ->
-            val facts = PolicyFacts.build(seen, muscleMap)
+            val facts = currentFacts()
             for ((exerciseId, eff) in effective) {
                 val muscle = muscleMap[exerciseId] ?: continue
                 val raw = BeliefPrescriber.targetE1rm(eff)
@@ -81,6 +94,27 @@ class BeliefPolicyBacktestTest {
             }
             // Update trackers AFTER checking (facts must describe only prior sessions).
             val sets = data.setsBySession[sessionId].orEmpty()
+            val completed = sets.filter { it.completedAt != null }
+            completed.groupBy { it.exerciseId }.forEach { (id, exSets) ->
+                // Newer sessions supersede entirely; sessions arrive in replay (endTime, id)
+                // order, matching PolicyFacts.build's (max completedAt, sessionId) pick.
+                val feedbacks = exSets.mapNotNull { it.feedback }
+                if (exSets.any { it.feedback != null && it.feedback != SetFeedback.HURT }) {
+                    capByExercise[id] = ExerciseCapFact(
+                        capLn = PrescriptionPolicy.capLnFor(exSets),
+                        demonstratedAt = exSets.maxOf { it.completedAt!! },
+                        allEasy = feedbacks.isNotEmpty() && feedbacks.all {
+                            it == SetFeedback.RIR_2_4 || it == SetFeedback.RIR_5_PLUS
+                        },
+                    )
+                }
+            }
+            // One HURT backoff event per (session, muscle).
+            completed.filter { it.feedback == SetFeedback.HURT }
+                .mapNotNull { s -> muscleMap[s.exerciseId]?.let { m -> m to s.completedAt!! } }
+                .groupBy({ it.first }, { it.second })
+                .forEach { (m, times) -> hurtEventsByMuscle.getOrPut(m) { mutableListOf() } += times.max() }
+
             sets.groupBy { it.exerciseId }.forEach { (id, exSets) ->
                 val scoreable = exSets.filter { it.feedback != null && it.feedback != SetFeedback.HURT }
                 if (scoreable.isNotEmpty()) {
@@ -89,6 +123,14 @@ class BeliefPolicyBacktestTest {
             }
             seen += sets
         }
+
+        // Drift guard: the incremental fold must equal a from-scratch build over the whole log.
+        val rebuilt = PolicyFacts.build(seen, muscleMap)
+        assertEquals(rebuilt.capByExercise, currentFacts().capByExercise)
+        assertEquals(
+            rebuilt.hurtEventsByMuscle.mapValues { it.value.sorted() },
+            currentFacts().hurtEventsByMuscle.mapValues { it.value.sorted() },
+        )
 
         assertTrue(prescriptions > 0)
         val report = buildString {
