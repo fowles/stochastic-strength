@@ -7,7 +7,6 @@ import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.setObservationLn
 import kotlin.math.exp
-import kotlin.math.ln
 import kotlin.math.sqrt
 
 data class ProgressionPoint(val timestampMs: Long, val value: Float)
@@ -95,14 +94,11 @@ internal fun sampleSession(
     val bandUpper = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu + sqrt(it.sigma2)))) } ?: emptyList()
     val bandLower = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu - sqrt(it.sigma2)))) } ?: emptyList()
 
-    val looLevelLn = pooling.effective(
-        snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds.filter { it != targetId }, asOf,
-    ).levelLn
-    val siblingsEstimate = if (targetCoef > 0f && looLevelLn != null) {
-        listOf(ProgressionPoint(asOf, exp(ln(targetCoef) + looLevelLn)))
-    } else {
-        emptyList()
-    }
+    // The leave-one-out sibling prediction comes straight off the pooling breakdown — the same
+    // number the blend used, no second pool.
+    val siblingsEstimate = effective?.sibling?.let {
+        listOf(ProgressionPoint(asOf, exp(it.mu)))
+    } ?: emptyList()
 
     // Dots: own + sibling per-set observations, siblings rescaled into target space.
     val byExercise = sets.groupBy { it.exerciseId }
@@ -123,9 +119,10 @@ internal fun sampleSession(
 }
 
 /**
- * One session's [ProgressionFrame] at [asOf]: the three line values, the cross-tuning rows as they
- * stood then, and per-exercise displayable set observations (target first, then siblings in
- * [muscleIds] order; exercises with no displayable set are omitted). Pure; no DB.
+ * One session's [ProgressionFrame] at [asOf]: the three line values (from the [sample] already
+ * computed for this session), the cross-tuning rows as they stood then, and per-exercise
+ * displayable set observations (target first, then siblings in [muscleIds] order; exercises with
+ * no displayable set are omitted). Pure; no DB.
  */
 internal fun buildFrame(
     targetId: Long,
@@ -135,8 +132,8 @@ internal fun buildFrame(
     asOf: Long,
     namesById: Map<Long, String>,
     config: BeliefConfig,
+    sample: SessionSample,
 ): ProgressionFrame {
-    val sample = sampleSession(targetId, muscleIds, snapshot, sets, asOf, config)
     val crossTuning = computeCrossTuning(
         beliefs = snapshot.currentBeliefs,
         seedCoef = snapshot.seedCoefficients,
@@ -170,8 +167,10 @@ internal fun buildFrame(
  * same engine the production replay uses. On-demand; touches no durable derived state.
  */
 class ExerciseProgressionSeriesBuilder(
-    private val engine: ReplayEngine = ReplayEngine(),
     private val config: BeliefConfig = BeliefConfig(),
+    // Built from the SAME config: the engine's folds and this builder's dots/lines must never
+    // read different constants (the passed-config-ignored seam bit phase 4 once already).
+    private val engine: ReplayEngine = ReplayEngine(config),
 ) {
     suspend fun build(db: AppDatabase, exerciseId: Long): ExerciseProgressionData {
         val snapshot = ReplaySnapshot.loadStaticFromDb(db)
@@ -203,7 +202,7 @@ class ExerciseProgressionSeriesBuilder(
                 bandLower += sample.bandLower
                 ownObservations += sample.ownObservations
                 siblingObservations += sample.siblingObservations
-                frames += buildFrame(exerciseId, muscleIds, snap, sets, asOf, namesById, config)
+                frames += buildFrame(exerciseId, muscleIds, snap, sets, asOf, namesById, config, sample)
             }
         }
 

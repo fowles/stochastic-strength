@@ -187,13 +187,13 @@ class ExerciseProgressionSeriesBuilderTest {
         // Both exercises trained: target ex1 at 100x5 (RIR_2_4), sibling ex2 at 60x5.
         val sets = listOf(set(exerciseId = 1L, weight = 100f, reps = 5), set(exerciseId = 2L, weight = 60f, reps = 5))
 
+        val sample = sampleSession(1L, listOf(1L, 2L), snap, sets, asOf, config)
         val frame = buildFrame(
             targetId = 1L, muscleIds = listOf(1L, 2L), snapshot = snap,
-            sets = sets, asOf = asOf, namesById = names, config = config,
+            sets = sets, asOf = asOf, namesById = names, config = config, sample = sample,
         )
 
         // Line values match sampleSession.
-        val sample = sampleSession(1L, listOf(1L, 2L), snap, sets, asOf, config)
         assertEquals(sample.ownEstimate.first().value, frame.own!!, 1e-3f)
         assertEquals(sample.merged.first().value, frame.merged!!, 1e-3f)
 
@@ -212,7 +212,8 @@ class ExerciseProgressionSeriesBuilderTest {
         val names = mapOf(1L to "Bench", 2L to "Incline")
         // Only sibling ex2 trained this session.
         val sets = listOf(set(exerciseId = 2L, weight = 60f, reps = 5))
-        val frame = buildFrame(1L, listOf(1L, 2L), snap, sets, 1_000L, names, config)
+        val sample = sampleSession(1L, listOf(1L, 2L), snap, sets, 1_000L, config)
+        val frame = buildFrame(1L, listOf(1L, 2L), snap, sets, 1_000L, names, config, sample)
         assertEquals(listOf(2L), frame.observations.map { it.exerciseId })
     }
 
