@@ -22,7 +22,6 @@ import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionColor
 import io.github.fowles.stochastic_strength.ui.debug.components.ProgressionSeriesStyle
 import io.github.fowles.stochastic_strength.ui.components.sharedProgressionYRange
 import io.github.fowles.stochastic_strength.ui.debug.components.timestampToLocalEpochDay
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +35,7 @@ data class FrameView(
     val headerMerged: String,
     val crossTuning: List<CrossTuningRow>,
     val tooltip: CharSequence,
+    val trace: PrescriptionTrace?,
 )
 
 internal fun formatObservedSet(s: ObservedSet, unit: WeightUnit): String {
@@ -53,23 +53,27 @@ private fun headerValue(v: Float?, unit: WeightUnit): String =
 
 internal fun buildFrameViews(
     frames: List<ProgressionFrame>,
+    predictedFrame: ProgressionFrame?,
     unit: WeightUnit,
     zone: ZoneId,
 ): Pair<Map<Long, FrameView>, Long?> {
-    if (frames.isEmpty()) return emptyMap<Long, FrameView>() to null
+    val all = frames + listOfNotNull(predictedFrame)
+    if (all.isEmpty()) return emptyMap<Long, FrameView>() to null
     val byEpochDay = LinkedHashMap<Long, FrameView>()
-    for (f in frames) {
+    for (f in all) {
         val epochDay = timestampToLocalEpochDay(f.timestampMs, zone)
-        byEpochDay[epochDay] = FrameView(   // later same-day frame overwrites; nearest/last wins
+        byEpochDay[epochDay] = FrameView(   // later same-day frame overwrites; predicted (last) wins its day
             timestampMs = f.timestampMs,
             headerOwn = headerValue(f.own, unit),
             headerSiblings = headerValue(f.siblings, unit),
             headerMerged = headerValue(f.merged, unit),
             crossTuning = f.crossTuning,
             tooltip = formatTooltip(f.observations, unit),
+            trace = f.trace,
         )
     }
-    val defaultEpochDay = timestampToLocalEpochDay(frames.maxBy { it.timestampMs }.timestampMs, zone)
+    val defaultFrame = predictedFrame ?: frames.maxBy { it.timestampMs }
+    val defaultEpochDay = timestampToLocalEpochDay(defaultFrame.timestampMs, zone)
     return byEpochDay to defaultEpochDay
 }
 
@@ -81,7 +85,6 @@ data class ExerciseCoefficientDetailState(
     val defaultEpochDay: Long? = null,
     val weightUnit: WeightUnit = WeightUnit.KG,
     val chartYRange: ClosedFloatingPointRange<Double>? = null,
-    val trace: PrescriptionTrace? = null,
 )
 
 class ExerciseCoefficientDetailViewModel(
@@ -103,16 +106,15 @@ class ExerciseCoefficientDetailViewModel(
             val profile = app.database.userProfileDao().getProfile()
             val weightUnit = profile?.weightUnit ?: WeightUnit.KG
 
-            // Independent heavy reads (facts assembly vs full-history replay): load concurrently.
-            val traceDeferred = async { repository.getPrescriptionTrace(exerciseId) }
-            val dataDeferred = async { repository.getExerciseProgressionData(exerciseId) }
-            val trace = traceDeferred.await()
-            val data = dataDeferred.await()
+            val data = repository.getExerciseProgressionData(exerciseId)
             val series = data.series
             val (framesByEpochDay, defaultEpochDay) =
-                buildFrameViews(data.frames, weightUnit, ZoneId.systemDefault())
+                buildFrameViews(data.frames, data.predictedFrame, weightUnit, ZoneId.systemDefault())
             fun pts(list: List<io.github.fowles.stochastic_strength.domain.progression.ProgressionPoint>) =
                 list.map { DebugChartPoint(it.timestampMs, it.value) }
+            val predictedPoint = data.predictedFrame?.let { pf ->
+                (pf.merged ?: pf.own)?.let { listOf(DebugChartPoint(pf.timestampMs, it)) }
+            }.orEmpty()
             val progressionSeries = listOf(
                 ProgressionChartSeries("Own estimate", pts(series.ownEstimate), ProgressionSeriesStyle.LINE, ProgressionColorRole.OWN),
                 ProgressionChartSeries("Siblings", pts(series.siblingsEstimate), ProgressionSeriesStyle.LINE, ProgressionColorRole.SIBLINGS),
@@ -121,6 +123,7 @@ class ExerciseCoefficientDetailViewModel(
                 ProgressionChartSeries("−σ", pts(series.bandLower), ProgressionSeriesStyle.LINE, ProgressionColorRole.BAND),
                 ProgressionChartSeries("Sessions", pts(series.ownObservations), ProgressionSeriesStyle.FILLED_DOTS, ProgressionColorRole.OWN_OBS),
                 ProgressionChartSeries("Siblings (scaled)", pts(series.siblingObservations), ProgressionSeriesStyle.HOLLOW_DOTS, ProgressionColorRole.SIBLING_OBS),
+                ProgressionChartSeries("Predicted today", predictedPoint, ProgressionSeriesStyle.PREDICTED_DOT, ProgressionColorRole.PREDICTED),
             )
 
             _state.value = ExerciseCoefficientDetailState(
@@ -131,7 +134,6 @@ class ExerciseCoefficientDetailViewModel(
                 defaultEpochDay = defaultEpochDay,
                 weightUnit = weightUnit,
                 chartYRange = sharedProgressionYRange(data),
-                trace = trace,
             )
         }
     }

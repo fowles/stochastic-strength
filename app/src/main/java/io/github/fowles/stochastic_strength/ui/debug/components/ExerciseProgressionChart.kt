@@ -49,8 +49,8 @@ import java.time.ZoneId
 import java.util.Locale
 import java.util.TimeZone
 
-enum class ProgressionSeriesStyle { LINE, FILLED_DOTS, HOLLOW_DOTS }
-enum class ProgressionColorRole { OWN, SIBLINGS, MERGED, OWN_OBS, SIBLING_OBS, BAND }
+enum class ProgressionSeriesStyle { LINE, FILLED_DOTS, HOLLOW_DOTS, PREDICTED_DOT }
+enum class ProgressionColorRole { OWN, SIBLINGS, MERGED, OWN_OBS, SIBLING_OBS, BAND, PREDICTED }
 
 private class ValueHolder(var value: Long? = null)
 
@@ -147,6 +147,20 @@ internal fun ExerciseProgressionChart(
                     ),
                 ),
             )
+            ProgressionSeriesStyle.PREDICTED_DOT -> LineCartesianLayer.rememberLine(
+                fill = transparent,
+                pointProvider = LineCartesianLayer.PointProvider.single(
+                    LineCartesianLayer.point(
+                        rememberShapeComponent(
+                            fill = fill(Color.Transparent),
+                            shape = CorneredShape.Pill,
+                            strokeFill = fill(color),
+                            strokeThickness = 2.5.dp,
+                        ),
+                        size = 12.dp,
+                    ),
+                ),
+            )
         }
     }
     val lineProvider = remember(lines) { LineCartesianLayer.LineProvider.series(lines) }
@@ -210,5 +224,6 @@ internal fun progressionColors(): Map<ProgressionColorRole, Color> {
         ProgressionColorRole.OWN_OBS to own,
         ProgressionColorRole.SIBLING_OBS to SiblingColor,
         ProgressionColorRole.BAND to MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
+        ProgressionColorRole.PREDICTED to MaterialTheme.colorScheme.tertiary,
     )
 }

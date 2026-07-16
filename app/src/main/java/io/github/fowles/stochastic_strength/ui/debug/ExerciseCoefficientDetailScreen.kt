@@ -56,9 +56,10 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             return@Scaffold
         }
 
-        // The chart's pinned tooltip waits for the first tap: selectedEpochDay stays null (no marker)
-        // until the user selects a session, then persists across recomposition. The cross-tuning
-        // section, however, defaults to the most recent session and follows the selection thereafter.
+        // One selection drives all three sections. Until the user taps, selectedEpochDay is null and
+        // everything shows the synthetic "predicted today" point (state.defaultEpochDay); tapping a
+        // session dot time-travels the trace, cross-tuning, and headers to that session's PRE-FOLD
+        // decision state. Selection persists across recomposition.
         var selectedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
         val crossTuningFrame = (selectedEpochDay ?: state.defaultEpochDay)
             ?.let { state.framesByEpochDay[it] }
@@ -110,7 +111,7 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             item { SectionHeader("Why this weight", verticalPadding = 4.dp) }
 
             item {
-                val trace = state.trace
+                val trace = crossTuningFrame?.trace
                 if (trace == null) {
                     Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
                         Text("No effective belief yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
