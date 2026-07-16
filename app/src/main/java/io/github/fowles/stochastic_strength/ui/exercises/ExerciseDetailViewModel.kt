@@ -16,9 +16,8 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
-import io.github.fowles.stochastic_strength.domain.belief.setObservationLn
+import io.github.fowles.stochastic_strength.domain.belief.setObservationsE1rm
 import io.github.fowles.stochastic_strength.ui.components.sharedProgressionYRange
-import kotlin.math.exp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -73,10 +72,9 @@ internal fun buildPrescribedPoints(
 internal data class ObservedSession(val day: Long, val scale: Float, val sets: List<WorkoutSet>)
 
 /**
- * One observed estimated-1RM dot **per set**, computed with the same fatigue-corrected implied
- * observation the belief fold consumes: [setObservationLn], rank = 1-based index over the
- * exercise's session sets sorted by id (all rows count, matching the fold's rank rule), scaled into
- * the target exercise's space.
+ * One observed estimated-1RM dot **per set**, from the shared [setObservationsE1rm] rule (the same
+ * fatigue-corrected implied observation the belief fold consumes), scaled into the target
+ * exercise's space.
  *
  * Emitting one dot per set — rather than collapsing a session into one aggregate point — mirrors the
  * debug progression chart's observed dots exactly ("every set is its own piece of feedback"), so the
@@ -88,10 +86,8 @@ internal fun observedSessionPoints(
     config: BeliefConfig = BeliefConfig(),
 ): List<ChartPoint> =
     sessions.flatMap { s ->
-        s.sets.sortedBy { it.id }.mapIndexedNotNull { idx, set ->
-            setObservationLn(set, rank = idx + 1, config)?.let {
-                ChartPoint(dateMs = s.day * 86_400_000L, weightKg = exp(it) * s.scale)
-            }
+        setObservationsE1rm(s.sets, config).map {
+            ChartPoint(dateMs = s.day * 86_400_000L, weightKg = it * s.scale)
         }
     }.sortedBy { it.dateMs }
 

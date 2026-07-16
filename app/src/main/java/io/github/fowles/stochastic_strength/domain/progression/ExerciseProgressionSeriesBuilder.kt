@@ -5,7 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
-import io.github.fowles.stochastic_strength.domain.belief.setObservationLn
+import io.github.fowles.stochastic_strength.domain.belief.setObservationsE1rm
 import kotlin.math.exp
 import kotlin.math.sqrt
 
@@ -58,19 +58,14 @@ internal data class SessionSample(
     val siblingObservations: List<ProgressionPoint>,
 )
 
-/**
- * One exercise's session sets, ranked 1-based by set id (all rows count, matching the fold's rank
- * rule), reduced to its per-set observation dots via [setObservationLn].
- */
+/** One exercise's session sets reduced to dots via the shared [setObservationsE1rm] rule. */
 private fun perSetDots(sets: List<WorkoutSet>, asOf: Long, config: BeliefConfig): List<ProgressionPoint> =
-    sets.sortedBy { it.id }.mapIndexedNotNull { idx, set ->
-        setObservationLn(set, rank = idx + 1, config)?.let { ProgressionPoint(asOf, exp(it)) }
-    }
+    setObservationsE1rm(sets, config).map { ProgressionPoint(asOf, it) }
 
 /**
  * Computes one session's samples for [targetId], given the post-step [snapshot] (beliefs already
  * folded for [asOf]) and the session's [sets]. Lines are sampled only when the target's muscle was
- * touched; dots are per-set implied observations from [setObservationLn].
+ * touched; dots are per-set implied observations from [setObservationsE1rm].
  */
 internal fun sampleSession(
     targetId: Long,
