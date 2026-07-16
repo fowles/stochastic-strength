@@ -34,7 +34,12 @@ class ReplayEngine(
         )
     }
 
-    suspend fun run(db: AppDatabase, snapshot: ReplaySnapshot, observer: SessionObserver) {
+    suspend fun run(
+        db: AppDatabase,
+        snapshot: ReplaySnapshot,
+        beforeSession: ((beliefs: Map<Long, Belief>, asOf: Long) -> Unit)? = null,
+        observer: SessionObserver,
+    ) {
         runCore(
             snapshot = snapshot,
             initialOverrides = db.exerciseStrengthOverrideDao().getInitials(),
@@ -43,6 +48,7 @@ class ReplayEngine(
             sessions = db.workoutSessionDao().getAll(),
             setsForSession = { db.workoutSetDao().getSetsForSession(it) },
             observer = observer,
+            beforeSession = beforeSession,
         )
     }
 
