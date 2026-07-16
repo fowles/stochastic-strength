@@ -17,7 +17,7 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
+import io.github.fowles.stochastic_strength.domain.belief.Belief
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -82,9 +82,10 @@ class WorkoutSessionControllerTest {
     }
 
     /**
-     * Seed the derived state the way the live planner reads it under the per-exercise contract:
-     * a confident per-exercise estimate (≈100 kg 1RM) per active exercise drives the prescribed
-     * weight, plus the muscle_group_strength display projection the detraining prompt reads.
+     * Seed the derived state the way the live planner reads it under the belief-stack contract:
+     * a confident per-exercise belief (≈100 kg 1RM, tight sigma) per active exercise drives the
+     * prescribed weight, plus the muscle_group_strength display projection the detraining prompt
+     * reads.
      */
     private suspend fun seedDerivedStrength(database: AppDatabase, repo: WorkoutRepository) {
         val active = database.exerciseDao().getActive()
@@ -92,8 +93,8 @@ class WorkoutSessionControllerTest {
         repo.derivedState.rebuild { mut ->
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
-            mut.putExerciseEstimates(
-                active.associate { it.id to ExerciseEstimate(lnE = kotlin.math.ln(100f), confidence = 4f, updatedAt = now) }
+            mut.putExerciseBeliefs(
+                active.associate { it.id to Belief(mu = kotlin.math.ln(100f), sigma2 = 4e-4f, updatedAt = now) }
             )
         }
     }

@@ -5,6 +5,8 @@ import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
+import io.github.fowles.stochastic_strength.domain.belief.Belief
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -142,6 +144,14 @@ class DerivedStateStoreTest {
                 .firstOrNull { it.exerciseId == 1L }?.coefficient
         }
         assertEquals(1.2f, midRebuildLatest)
+    }
+
+    @Test
+    fun beliefsSurviveRebuildAndDefaultEmpty() = runBlocking {
+        val store = DerivedStateStore()
+        assertTrue(store.snapshot().exerciseBeliefs().isEmpty())
+        store.rebuild { it.putExerciseBeliefs(mapOf(3L to Belief(4.6f, 0.01f, 99L))) }
+        assertEquals(4.6f, store.snapshot().exerciseBeliefs().getValue(3L).mu, 1e-6f)
     }
 
     private fun baselineRow(muscle: MuscleGroup, ts: Long) = BaselineHistory(

@@ -23,16 +23,22 @@ class ExerciseCoefficientDetailViewModelTest {
         assertEquals("Deadlift\n~11@125 lbs\n~11@125 lbs\n9@125 lbs", tip)
     }
 
-    @Test fun buildFrameViewsKeysByEpochDayAndDefaultsToLatest() {
+    @Test fun buildFrameViewsKeysByEpochDayAndDefaultsToPredicted() {
         val zone = ZoneId.of("UTC")
         val dayMs = 86_400_000L
+        val trace10 = io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace(emptyList(), 10f)
+        val trace20 = io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace(emptyList(), 20f)
+        val tracePredicted = io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace(emptyList(), 30f)
         val frames = listOf(
-            ProgressionFrame(timestampMs = dayMs * 10, own = 100f, siblings = 90f, merged = 95f, crossTuning = emptyList(), observations = emptyList()),
-            ProgressionFrame(timestampMs = dayMs * 20, own = 110f, siblings = 92f, merged = 99f, crossTuning = emptyList(), observations = emptyList()),
+            ProgressionFrame(timestampMs = dayMs * 10, own = 100f, siblings = 90f, merged = 95f, crossTuning = emptyList(), observations = emptyList(), trace = trace10),
+            ProgressionFrame(timestampMs = dayMs * 20, own = 110f, siblings = 92f, merged = 99f, crossTuning = emptyList(), observations = emptyList(), trace = trace20),
         )
-        val (map, default) = buildFrameViews(frames, WeightUnit.KG, zone)
-        assertEquals(2, map.size)
-        assertEquals(20L, default)            // latest frame's epoch-day
+        val predicted = ProgressionFrame(timestampMs = dayMs * 30, own = 120f, siblings = 95f, merged = 105f, crossTuning = emptyList(), observations = emptyList(), trace = tracePredicted)
+        val (map, default) = buildFrameViews(frames, predicted, WeightUnit.KG, zone)
+        assertEquals(3, map.size)
+        assertEquals(30L, default)            // predicted frame's epoch-day is the default
         assertEquals("110.0 kg", map.getValue(20L).headerOwn)
+        assertEquals(30f, map.getValue(30L).trace!!.finalWeightKg, 0f)
+        assertEquals(10f, map.getValue(10L).trace!!.finalWeightKg, 0f)
     }
 }

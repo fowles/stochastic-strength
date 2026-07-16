@@ -28,4 +28,14 @@ class DefaultProgressionEngineTest {
         assertEquals(100f, DefaultProgressionEngine.rawToOneRepMax(100f, 0.5f), 1e-6f)
         assertEquals(100f, DefaultProgressionEngine.rawToOneRepMax(100f, 1f), 1e-6f)
     }
+
+    @Test
+    fun rawConversionsAreExposedOnTheInterface() {
+        val engine: ProgressionEngine = DefaultProgressionEngine
+        // Un-rounded round trip: raw inverse of raw forward recovers the weight (no 0.5 kg grid).
+        val oneRm = engine.rawToOneRepMax(101.3f, 5f)
+        assertEquals(101.3f, engine.rawFromOneRepMax(oneRm, 5), 0.05f)
+        // Fractional reps are meaningful (used by the interval bounds table).
+        assertTrue(engine.rawToOneRepMax(100f, 5.5f) > engine.rawToOneRepMax(100f, 5f))
+    }
 }

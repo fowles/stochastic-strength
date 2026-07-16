@@ -2,60 +2,83 @@
 
 The app personalizes itself over time. Two independent systems run on your logged
 history: a **time estimator** that predicts how long a session will take, and a
-**per-exercise progression system** that keeps each prescribed weight tracking your
-real strength instead of a fixed plan.
+**belief-based progression system** that keeps each prescribed weight tracking your real
+strength instead of a fixed plan.
 
 | # | Engine | What it adapts | Source |
 |---|--------|----------------|--------|
 | 1 | [Time estimation](01-time-estimation.md) | How long each planned exercise (and the session) will take | `domain/ExercisePacingEstimator.kt`, `domain/DurationCalculator.kt` |
-| 2 | [Strength signal](02-strength-signal.md) | Turns a session's set feedback into one implied 1RM per exercise | `domain/SessionSignalExtractor.kt` |
-| 3 | [Per-exercise estimates](03-exercise-estimates.md) | The durable progression state — one log-space 1RM estimate per exercise | `domain/progression/ExerciseEstimate.kt`, `ExerciseEstimateUpdater.kt` |
-| 4 | [Read-time muscle pooling](04-muscle-pooling.md) | How a muscle's exercises cross-inform at prescription time (level + shrink) | `domain/progression/MuscleStrengthProjector.kt` |
+| 2 | [Strength signal](02-strength-signal.md) | Turns one logged set into an implied ln(1RM) interval plus a fatigue shift | `domain/policy/SetIntervals.kt`, `domain/belief/BeliefFold.kt` |
+| 3 | [Per-exercise beliefs](03-exercise-estimates.md) | The durable progression state — one `Belief(mu, sigma2)` per exercise, folded set by set | `domain/belief/Belief.kt`, `BeliefFold.kt`, `BeliefSessionStep.kt` |
+| 4 | [Muscle pooling + prescription + policy](04-muscle-pooling.md) | How a muscle's exercises cross-inform at read time, the risk-percentile prescription target, and the safety caps around it | `domain/belief/BeliefPooling.kt`, `BeliefPrescriber.kt`, `domain/policy/PrescriptionPolicy.kt` |
 
 ## The shape of the progression system
 
-The older design carried two coupled numbers per muscle — a **baseline** and a set of
-per-exercise **coefficients** — and adjusted them together with one gauge-conserving
-controller. That has been replaced. The current system is **per-exercise and in log
-space**:
+The progression system is **per-exercise, per-set, and in log space**:
 
-- **The only durable state is one `ExerciseEstimate` per loaded exercise** — `lnE`
-  (ln of estimated 1RM, in kg) plus a recency-decayed `confidence`. There is no stored
-  baseline and no stored coefficient; the per-muscle display level and the derived
-  coefficients are *projections* recomputed on demand, held in the in-memory
-  `DerivedStateStore`, never persisted as truth.
-- **Writing is local; cross-informing is read-time.** Folding a session updates only
-  the exercises you trained ([#3](03-exercise-estimates.md)). A failure on one lift can
-  never, by construction, move a sibling's stored estimate. Exercises only learn from
-  each other when a weight is *read* ([#4](04-muscle-pooling.md)), where a confident
-  sibling pool can shrink a cold or stale estimate toward what the muscle implies.
+- **The only durable state is one `Belief` per loaded exercise** — `mu` (ln of believed
+  fresh 1RM, kg) plus `sigma2` (variance in ln-units², which *is* the confidence: tight
+  means well-evidenced, wide means uncertain). There is no stored baseline and no stored
+  coefficient; the per-muscle display level and the derived coefficients are *projections*
+  recomputed on demand, held in the in-memory `DerivedStateStore`, never persisted as
+  truth.
+- **Every set is its own piece of feedback.** There is no per-session aggregation: each
+  set folds into its exercise's belief individually, in set-id order, with a fatigue shift
+  that accounts for its position in the session.
+- **Folding is local; cross-informing is read-time.** Folding a set updates only the
+  exercise you trained ([#3](03-exercise-estimates.md)). A failure on one lift can never,
+  by construction, move a sibling's stored belief. Exercises only learn from each other
+  when a weight is *read* ([#4](04-muscle-pooling.md)), where precision-weighted pooling
+  can shrink a cold or stale belief toward what the muscle implies.
+- **Estimation and safety are separate layers.** The belief stack is scored, and folds,
+  with no notion of caps or floors — it is free to move up or down symmetrically on the
+  evidence. Safety (never re-prescribing a just-failed weight, backing off after pain,
+  rest cooldowns) is a separate policy layer of plain arithmetic over the raw set log,
+  applied after the belief produces its raw target.
 
 ## How a session becomes next session's weight
 
-1. **Signal** ([#2](02-strength-signal.md)). Each exercise's sets — based on how they
-   felt (reps-in-reserve, too-hard with/without a measured rep count, pain) — collapse
-   to a single implied 1RM for that exercise this session.
-2. **Fold** ([#3](03-exercise-estimates.md)). That observation is folded into the
-   exercise's stored estimate as a log-space EMA. Up-signals get a small weight (gentle
-   progressive overload); down-signals get a larger one (a just-failed weight is not
-   re-prescribed). Pain backs the estimate off multiplicatively. Confidence accumulates
-   and decays with a ~21-day half-life.
-3. **Project** ([#4](04-muscle-pooling.md)). When a weight is needed, the muscle's
-   confident exercises vote a **level**, each exercise is predicted from that level via
-   its seed coefficient, and its own estimate is shrunk toward that prediction by
-   confidence. The result is the exercise's projected effective 1RM, which the planner
-   scales to the session's rep target.
+1. **Signal** ([#2](02-strength-signal.md)). Each set — based on how it felt (reps in
+   reserve, too-hard with/without a measured rep count, pain) — becomes an implied
+   ln(1RM) interval (or no interval, for pain), fatigue-shifted for how deep into the
+   session it fell.
+2. **Fold** ([#3](03-exercise-estimates.md)). Each set's interval is folded into the
+   exercise's belief as a boundary-pull Gaussian update: confirmed sets sharpen
+   confidence without moving the mean; violated sets pull the mean toward the boundary,
+   symmetrically up or down. Variance grows with idle time between sessions.
+3. **Pool** ([#4](04-muscle-pooling.md)). When a weight is needed, the muscle's exercises
+   vote a precision-weighted **level**, each exercise is predicted from that level via its
+   seed coefficient (leave-one-out), and its own belief is blended toward that prediction
+   by precision. The result is the exercise's **effective belief**, which the risk-
+   percentile prescriber turns into a raw target.
+4. **Cap** ([#4](04-muscle-pooling.md)). The raw target passes through the policy layer:
+   a demonstrated-capacity cap (never re-prescribe above what the most recent session
+   proved), a HURT backoff, and an overload nudge for clean sessions — all plain
+   restatements of the set log, none of them tuned.
 
 ## Replay is the source of truth
 
-The estimate map is rebuilt from scratch every time history changes:
-`WorkoutRepository.replayDerivedState()` replays every completed session in order
-through `applySessionProgression` (idempotent), then re-projects. Manual baseline edits
-and detraining reductions are written as per-exercise `ExerciseStrengthOverride` rows
-and folded in during the same replay.
+The belief map is rebuilt from scratch every time history changes:
+`WorkoutRepository.replayDerivedState()` replays every completed session in order through
+`BeliefSessionStep.step` (idempotent), then re-derives the muscle-level projections.
+Manual baseline edits and detraining reductions are written as per-exercise
+`ExerciseStrengthOverride` rows, which seed or reset a belief directly and are folded in
+during the same replay.
+
+## Why this weight
+
+Every prescription can be explained: `PrescriptionTraceBuilder` walks the same pipeline —
+own belief, sibling pull, effective belief, risk percentile, HURT backoff, overload nudge,
+capacity cap, rounding — one plain gym sentence per stage, citing the sets or numbers
+behind it, on the debug exercise-detail screen.
 
 ## Design background
 
-- Per-exercise estimate progression: `docs/superpowers/specs/2026-06-21-per-exercise-estimate-progression-design.md`
-- Read-time seed-vote pooling: `docs/superpowers/specs/2026-06-23-seed-vote-projector-design.md`
-- The earlier common/differential controller it replaced: `docs/superpowers/specs/2026-06-18-common-differential-pi-controller-design.md` (historical)
+- Belief-core design and the constant ledger (fitted/flat/semantic labeling discipline):
+  `docs/superpowers/specs/2026-07-14-estimator-rebuild-design.md`
+- The earlier per-exercise estimate + seed-vote projector design it replaced:
+  `docs/superpowers/specs/2026-06-21-per-exercise-estimate-progression-design.md`,
+  `docs/superpowers/specs/2026-06-23-seed-vote-projector-design.md` (historical)
+- The common/differential PI controller before that:
+  `docs/superpowers/specs/2026-06-18-common-differential-pi-controller-design.md`
+  (historical)

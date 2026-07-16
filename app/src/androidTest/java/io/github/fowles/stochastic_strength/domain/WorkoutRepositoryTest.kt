@@ -131,7 +131,7 @@ class WorkoutRepositoryTest {
         assertTrue("combined good feedback should increase CHEST level", logs[0].newBaseline > 100f)
 
         // Both exercises actually contributed: each per-exercise estimate moved up from its seed.
-        val estimates = repository.derivedState.snapshot().exerciseEstimates()
+        val estimates = repository.derivedState.snapshot().exerciseBeliefs()
         assertTrue("bench estimate should rise above its 100 seed",
             (estimates[ex1.id]?.e1rm ?: 0f) > 100f)
         assertTrue("machine-press estimate should rise above its 90 seed",
@@ -169,7 +169,7 @@ class WorkoutRepositoryTest {
             sessionId = null, exerciseId = benchId, e1rm = 100f, asOf = 0L,
         ))
         repository.replayDerivedState()
-        val before = repository.derivedState.snapshot().exerciseEstimates()[benchId]!!.e1rm
+        val before = repository.derivedState.snapshot().exerciseBeliefs()[benchId]!!.e1rm
         assertEquals(100f, before, 0.01f)
 
         // Detrain the exercise to 80% of its current estimate, applied at a completed session.
@@ -185,7 +185,7 @@ class WorkoutRepositoryTest {
         assertEquals(before * 0.8f, detrain.e1rm, 0.01f)
 
         // …and applyDetrainingReduction re-ran replay, so the live estimate is now the reduced value.
-        val after = repository.derivedState.snapshot().exerciseEstimates()[benchId]!!.e1rm
+        val after = repository.derivedState.snapshot().exerciseBeliefs()[benchId]!!.e1rm
         assertEquals(before * 0.8f, after, 0.01f)
     }
 
@@ -206,7 +206,7 @@ class WorkoutRepositoryTest {
         repository.applyDetrainingReduction(sessionId, mapOf(benchId to 50f))
         repository.applyManualExerciseOverrides(sessionId, mapOf(benchId to 70f))
 
-        val estimate = repository.derivedState.snapshot().exerciseEstimates()[benchId]!!.e1rm
+        val estimate = repository.derivedState.snapshot().exerciseBeliefs()[benchId]!!.e1rm
         assertEquals(70f, estimate, 0.01f)
     }
 
@@ -228,7 +228,7 @@ class WorkoutRepositoryTest {
 
         // replay seeds the live planner's estimate map from those initials (the replay starting
         // point). This is what the per-exercise contract reads for the weight calc.
-        val estimates = repository.derivedState.snapshot().exerciseEstimates()
+        val estimates = repository.derivedState.snapshot().exerciseBeliefs()
         for (initial in initials) {
             assertEquals(
                 "estimate for exercise ${initial.exerciseId} must seed from its initial e1rm",

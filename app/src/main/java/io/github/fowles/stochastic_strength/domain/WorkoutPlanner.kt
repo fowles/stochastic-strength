@@ -9,9 +9,9 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
+import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import kotlin.random.Random
-
-private const val TWO_DAYS_MS = 2L * 24 * 60 * 60 * 1000
 
 enum class ReplacementTier { WEIGHTED_MUSCLE, MUSCLE, ANY }
 
@@ -27,10 +27,11 @@ class WorkoutPlanner(
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
     private val exerciseE1rmOverrides: Map<Long, Float> = emptyMap(),
+    private val policyFacts: PolicyFacts = PolicyFacts.EMPTY,
 ) {
     // Muscle groups where a weighted exercise hit RIR 0-1 within the past two days.
     private val recentlyFailedMuscles: Set<MuscleGroup> by lazy {
-        val cutoff = nowMs - TWO_DAYS_MS
+        val cutoff = nowMs - PrescriptionPolicy.COOLDOWN_MS
         val muscleById = availableExercises
             .filter { it.equipment != Equipment.BODYWEIGHT }
             .associate { it.id to it.primaryMuscle }
@@ -277,9 +278,25 @@ class WorkoutPlanner(
     private fun weightForExercise(exercise: Exercise, sessionReps: Int): Float {
         val coeff = coefficientSource.get(exercise) ?: return 0f
         if (coeff <= 0f) return 0f // unloadable (bodyweight/banded): no prescription
-        val e1rm = exerciseE1rmOverrides[exercise.id] ?: prescribedE1rm[exercise.id] ?: return 0f
+        // A manual e1rm override is the user's explicit decision — policy clamps machine
+        // prescriptions only, so overrides take the plain legacy path.
+        val manual = exerciseE1rmOverrides[exercise.id]
+        if (manual != null) {
+            if (manual <= 0f) return 0f
+            return WeightFormatter.round(progressionEngine.fromOneRepMax(manual, sessionReps), weightUnit)
+        }
+        val e1rm = prescribedE1rm[exercise.id] ?: return 0f
         if (e1rm <= 0f) return 0f
-        return WeightFormatter.round(progressionEngine.fromOneRepMax(e1rm, sessionReps), weightUnit)
+        return PrescriptionPolicy.prescribe(
+            rawE1rm = e1rm,
+            sessionReps = sessionReps,
+            exerciseId = exercise.id,
+            muscle = exercise.primaryMuscle,
+            facts = policyFacts,
+            now = nowMs,
+            weightUnit = weightUnit,
+            engine = progressionEngine,
+        ).weightKg
     }
 
     internal fun weightForExerciseTest(exercise: Exercise, sessionReps: Int) =

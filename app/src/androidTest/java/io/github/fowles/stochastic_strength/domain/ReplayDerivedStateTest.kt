@@ -56,14 +56,14 @@ class ReplayDerivedStateTest {
         val baselines1 = snap1.allBaselineHistory().map { it.toComparable() }
         val coefs1 = snap1.allCoefficientHistory().map { it.toComparable() }
         val strengths1 = snap1.allMuscleGroupStrengths().map { it.muscleGroup to it.baselineWeight }
-        val estimates1 = snap1.exerciseEstimates().mapValues { it.value.e1rm }
+        val estimates1 = snap1.exerciseBeliefs().mapValues { it.value.e1rm }
 
         repository.replayDerivedState()
         val snap2 = repository.derivedState.snapshot()
         val baselines2 = snap2.allBaselineHistory().map { it.toComparable() }
         val coefs2 = snap2.allCoefficientHistory().map { it.toComparable() }
         val strengths2 = snap2.allMuscleGroupStrengths().map { it.muscleGroup to it.baselineWeight }
-        val estimates2 = snap2.exerciseEstimates().mapValues { it.value.e1rm }
+        val estimates2 = snap2.exerciseBeliefs().mapValues { it.value.e1rm }
 
         assertEquals(baselines1, baselines2)
         assertEquals(coefs1, coefs2)
@@ -75,9 +75,12 @@ class ReplayDerivedStateTest {
 
     /**
      * A non-initial per-exercise override row at a session boundary re-bases that exercise's
-     * estimate to the override value (a confident estimate) before that session's progression
-     * is folded in. Here we seed the override well ABOVE the natural trajectory and confirm the
-     * estimate going into session 2 reflects it.
+     * belief to the override value (a confident belief, sigmaOverride) before that session's
+     * progression is folded in. Here we seed the override well ABOVE the natural trajectory and
+     * confirm the belief going into session 2 reflects it: the belief stack's single-observation
+     * boundary-pull fold (Phase-2) snaps a confident-but-wrong belief hard toward the session's
+     * demonstrated interval in one fold (gain ~= sigmaOverride2 / (sigmaOverride2 + sigmaObs2)),
+     * so "dominates" means strictly above the no-override trajectory, not "stays near 999".
      */
     @Test
     fun replay_appliesManualOverridesAtSessionBoundary() = runBlocking {
@@ -92,18 +95,20 @@ class ReplayDerivedStateTest {
 
         repository.replayDerivedState()
 
-        // The override re-based the estimate to ~999 at session 2; the session's RIR_2_4 set at
-        // 82.5 kg is far below that, so it folds the estimate DOWN from 999 but the result stays
-        // dramatically above the no-override trajectory (which sits near 100–110 kg).
-        val benchEstimate = repository.derivedState.snapshot().exerciseEstimates()[BENCH_EXERCISE_ID]!!.e1rm
+        // The override re-based the belief to ~999 at session 2; the session's RIR_2_4 set at
+        // 82.5 kg folds it down from 999, but the confident override still dominates the ordinary
+        // no-override trajectory (~106 kg without the override — see the sibling no-override test
+        // below) because the fold only ever pulls to the demonstrated interval's boundary, not
+        // below it.
+        val benchEstimate = repository.derivedState.snapshot().exerciseBeliefs()[BENCH_EXERCISE_ID]!!.e1rm
         assertTrue(
             "override at session boundary must dominate the estimate; got $benchEstimate",
-            benchEstimate > 150f,
+            benchEstimate > 108f,
         )
-        // The CHEST display projection at session 2 must likewise sit far above the seed.
+        // The CHEST display projection at session 2 must likewise sit above the no-override level.
         val chestLevel = repository.derivedState.snapshot().allMuscleGroupStrengths()
             .first { it.muscleGroup == MuscleGroup.CHEST }.baselineWeight
-        assertTrue("CHEST level must reflect the override; got $chestLevel", chestLevel > 150f)
+        assertTrue("CHEST level must reflect the override; got $chestLevel", chestLevel > 108f)
     }
 
     /**
@@ -195,7 +200,7 @@ class ReplayDerivedStateTest {
             )
         }
         // Final per-exercise estimate must be strictly above the seed.
-        val finalEstimate = repository.derivedState.snapshot().exerciseEstimates()[BENCH_EXERCISE_ID]!!.e1rm
+        val finalEstimate = repository.derivedState.snapshot().exerciseBeliefs()[BENCH_EXERCISE_ID]!!.e1rm
         assertTrue(
             "expected final estimate > seed $initialEstimate, got $finalEstimate",
             finalEstimate > initialEstimate,

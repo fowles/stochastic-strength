@@ -38,6 +38,19 @@ interface WorkoutSetDao {
     """)
     suspend fun getRecentSetsForExercises(exerciseIds: List<Long>, limit: Int): List<WorkoutSet>
 
+    /**
+     * Every completed set since [sinceMs], for policy facts: the window is bounded by TIME, not a
+     * row count, because a row-count limit can silently drop a demonstrated-capacity cap that is
+     * still inside its expiry window (the exact failed weight would be re-prescribed).
+     */
+    @Query("""
+        SELECT * FROM workout_sets
+        WHERE exerciseId IN (:exerciseIds)
+          AND completedAt IS NOT NULL
+          AND completedAt >= :sinceMs
+    """)
+    suspend fun getCompletedSetsForExercisesSince(exerciseIds: List<Long>, sinceMs: Long): List<WorkoutSet>
+
     @Query("""
         SELECT * FROM workout_sets
         WHERE sessionId IN (:sessionIds)

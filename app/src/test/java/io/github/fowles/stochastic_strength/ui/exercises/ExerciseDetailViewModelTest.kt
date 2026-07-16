@@ -6,11 +6,13 @@ import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
+import io.github.fowles.stochastic_strength.domain.belief.setObservationLn
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZoneOffset
+import kotlin.math.exp
 
 class ExerciseDetailViewModelTest {
 
@@ -86,6 +88,8 @@ class ExerciseDetailViewModelTest {
         assertTrue(points.isEmpty())
     }
 
+    private val config = BeliefConfig()
+
     private fun workSet(
         session: Long,
         setNumber: Int,
@@ -93,7 +97,9 @@ class ExerciseDetailViewModelTest {
         targetReps: Int,
         feedback: SetFeedback?,
         actualReps: Int? = null,
+        id: Long = 0L,
     ) = WorkoutSet(
+        id = id,
         sessionId = session,
         exerciseId = 1L,
         setNumber = setNumber,
@@ -105,53 +111,57 @@ class ExerciseDetailViewModelTest {
     )
 
     @Test
-    fun `observed dot equals the engine's session aggregate, not a raw mean`() {
-        // Two top-weight sets with different feedback: a naive toOneRepMax mean would weight them
-        // equally, but the engine aggregate is a recency EMA over the feedback-implied reps.
+    fun `observed dots are per-set implied observations, not a session aggregate`() {
+        // Two top-weight sets with different feedback: each set gets its own fatigue-corrected dot
+        // (setObservationLn), ranked by set id.
         val sets = listOf(
-            workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS),
-            workSet(session = 1, setNumber = 2, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1),
+            workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_5_PLUS, id = 1L),
+            workSet(session = 1, setNumber = 2, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1, id = 2L),
         )
-        val expected = SessionSignalExtractor.aggregateSession(sets)!!.est1RM
-        val points = observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 1f, sets = sets)))
-        assertEquals(1, points.size)
+        val expected1 = exp(setObservationLn(sets[0], rank = 1, config)!!)
+        val expected2 = exp(setObservationLn(sets[1], rank = 2, config)!!)
+        val points = observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 1f, sets = sets)), config)
+        assertEquals(2, points.size)
         assertEquals(7 * dayMs, points[0].dateMs)
-        assertEquals(expected, points[0].weightKg, 0.0001f)
+        assertEquals(7 * dayMs, points[1].dateMs)
+        assertEquals(expected1, points[0].weightKg, 0.0001f)
+        assertEquals(expected2, points[1].weightKg, 0.0001f)
     }
 
     @Test
-    fun `observed dot omits sessions with no load-bearing signal`() {
+    fun `observed dot omits sets with no load-bearing signal`() {
         val sets = listOf(workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.HURT))
-        assertTrue(observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 1f, sets = sets))).isEmpty())
+        assertTrue(observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 1f, sets = sets)), config).isEmpty())
     }
 
     @Test
-    fun `observed dot scales the aggregate into the target exercise's space`() {
-        val sets = listOf(workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
-        val expected = SessionSignalExtractor.aggregateSession(sets)!!.est1RM
-        val points = observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 0.5f, sets = sets)))
+    fun `observed dot scales the per-set observation into the target exercise's space`() {
+        val sets = listOf(workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1, id = 1L))
+        val expected = exp(setObservationLn(sets[0], rank = 1, config)!!)
+        val points = observedSessionPoints(listOf(ObservedSession(day = 7L, scale = 0.5f, sets = sets)), config)
         assertEquals(expected * 0.5f, points[0].weightKg, 0.0001f)
     }
 
     @Test
-    fun `emits one dot per session, never averaging sessions that share a day`() {
+    fun `emits dots for every session on a shared day, never averaging`() {
         // Two siblings trained the same day with very different scale factors: the debug chart shows
-        // two dots, so this view must too (the old per-day mean collapsed them into one).
-        val s1 = listOf(workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
-        val s2 = listOf(workSet(session = 2, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
-        val agg = SessionSignalExtractor.aggregateSession(s1)!!.est1RM
+        // dots for both, so this view must too (the old per-day mean collapsed them into one).
+        val s1 = listOf(workSet(session = 1, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1, id = 1L))
+        val s2 = listOf(workSet(session = 2, setNumber = 1, weight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1, id = 2L))
+        val obs = exp(setObservationLn(s1[0], rank = 1, config)!!)
         val points = observedSessionPoints(
             listOf(
                 ObservedSession(day = 7L, scale = 0.77f, sets = s1),
                 ObservedSession(day = 7L, scale = 3.33f, sets = s2),
-            )
+            ),
+            config,
         )
         assertEquals(2, points.size)
         assertEquals(7 * dayMs, points[0].dateMs)
         assertEquals(7 * dayMs, points[1].dateMs)
         val values = points.map { it.weightKg }.sorted()
-        assertEquals(agg * 0.77f, values[0], 0.0001f)
-        assertEquals(agg * 3.33f, values[1], 0.0001f)
+        assertEquals(obs * 0.77f, values[0], 0.0001f)
+        assertEquals(obs * 3.33f, values[1], 0.0001f)
     }
 
     @Test

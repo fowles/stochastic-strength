@@ -1,5 +1,7 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
+import io.github.fowles.stochastic_strength.domain.belief.Belief
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -7,38 +9,49 @@ import kotlin.math.ln
 
 class CrossTuningTest {
 
-    private fun est(e1rm: Float, conf: Float) = ExerciseEstimate(lnE = ln(e1rm), confidence = conf, updatedAt = 0L)
+    private val config = BeliefConfig()
+
+    private fun belief(e1rm: Float, sigma2: Float) = Belief(mu = ln(e1rm), sigma2 = sigma2, updatedAt = 0L)
 
     @Test
-    fun agreementIsPositiveWhenExerciseExceedsConsensus() {
-        // Exercise 1 is stronger than its seed ratio vs sibling 2 implies → positive agreement.
-        val estimates = mapOf(1L to est(120f, conf = 6f), 2L to est(60f, conf = 6f))
-        val seed = mapOf(1L to 1.0f, 2L to 0.6f)
+    fun agreementIsZeroWhenExerciseMatchesLeaveOneOutPrediction() {
+        // Exercise 2's own e1rm (30) exactly matches sibling 1's implied prediction (coef 0.3 * 100 = 30).
+        val beliefs = mapOf(1L to belief(100f, 0.01f), 2L to belief(30f, 0.01f))
+        val seed = mapOf(1L to 1.0f, 2L to 0.3f)
         val rows = computeCrossTuning(
-            estimates = estimates,
+            beliefs = beliefs,
             seedCoef = seed,
             namesById = mapOf(1L to "A", 2L to "B"),
             muscleExerciseIds = listOf(1L, 2L),
             now = 0L,
+            config = config,
         )
-        val a = rows.first { it.exerciseId == 1L }
-        // Sibling 2 (60 at seed 0.6) implies level ~100 → prediction for 1 ~100; own is 120 → +~0.2.
-        assertTrue("agreement positive when above consensus", a.agreement > 0.1f)
+        val b = rows.first { it.exerciseId == 2L }
+        assertEquals(0f, b.agreement, 1e-3f)
     }
 
     @Test
-    fun contributionsSumToOneAndColdExerciseIsNearZero() {
-        val estimates = mapOf(1L to est(100f, conf = 6f), 2L to est(60f, conf = 0f))
-        val seed = mapOf(1L to 1.0f, 2L to 0.6f)
+    fun contributionShareFollowsPrecisionWeighting() {
+        // Exercise 1 has tighter variance (more precise) than exercise 2 -> larger contribution share.
+        val beliefs = mapOf(1L to belief(100f, 0.01f), 2L to belief(30f, 0.04f))
+        val seed = mapOf(1L to 1.0f, 2L to 0.3f)
+        val tau2 = config.tau * config.tau
         val rows = computeCrossTuning(
-            estimates = estimates,
+            beliefs = beliefs,
             seedCoef = seed,
             namesById = mapOf(1L to "A", 2L to "B"),
             muscleExerciseIds = listOf(1L, 2L),
             now = 0L,
+            config = config,
         )
-        val sum = rows.sumOf { it.contribution.toDouble() }.toFloat()
-        assertEquals(1f, sum, 1e-3f)
-        assertTrue(rows.first { it.exerciseId == 2L }.contribution < 0.05f)
+        val w1 = 1f / (0.01f + tau2)
+        val w2 = 1f / (0.04f + tau2)
+        val totalW = w1 + w2
+        val row1 = rows.first { it.exerciseId == 1L }
+        val row2 = rows.first { it.exerciseId == 2L }
+        assertEquals(w1 / totalW, row1.contribution, 1e-4f)
+        assertEquals(w2 / totalW, row2.contribution, 1e-4f)
+        assertTrue(row1.contribution > row2.contribution)
+        assertEquals(1f, (row1.contribution + row2.contribution), 1e-4f)
     }
 }

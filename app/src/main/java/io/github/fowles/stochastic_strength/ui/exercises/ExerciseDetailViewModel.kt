@@ -15,7 +15,8 @@ import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
-import io.github.fowles.stochastic_strength.domain.SessionSignalExtractor
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
+import io.github.fowles.stochastic_strength.domain.belief.setObservationsE1rm
 import io.github.fowles.stochastic_strength.ui.components.sharedProgressionYRange
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,20 +72,22 @@ internal fun buildPrescribedPoints(
 internal data class ObservedSession(val day: Long, val scale: Float, val sets: List<WorkoutSet>)
 
 /**
- * One observed estimated-1RM dot **per session**, computed with the same canonical aggregate the
- * progression engine folds into the estimate: [SessionSignalExtractor.aggregateSession] (a recency
- * EMA over the full-weight sets, feedback-aware and failure-capped), scaled into the target
+ * One observed estimated-1RM dot **per set**, from the shared [setObservationsE1rm] rule (the same
+ * fatigue-corrected implied observation the belief fold consumes), scaled into the target
  * exercise's space.
  *
- * Emitting one dot per session — rather than averaging all of a day's sessions into one point —
- * mirrors the debug progression chart's observed dots exactly, so the two views agree even on a day
- * where several sibling exercises (with very different scale factors) were trained. A session whose
- * sets yield no load-bearing signal produces no dot.
+ * Emitting one dot per set — rather than collapsing a session into one aggregate point — mirrors the
+ * debug progression chart's observed dots exactly ("every set is its own piece of feedback"), so the
+ * two views agree even on a day where several sibling exercises (with very different scale factors)
+ * were trained. A set with no feedback/interval produces no dot.
  */
-internal fun observedSessionPoints(sessions: List<ObservedSession>): List<ChartPoint> =
-    sessions.mapNotNull { s ->
-        SessionSignalExtractor.aggregateSession(s.sets)?.let {
-            ChartPoint(dateMs = s.day * 86_400_000L, weightKg = it.est1RM * s.scale)
+internal fun observedSessionPoints(
+    sessions: List<ObservedSession>,
+    config: BeliefConfig = BeliefConfig(),
+): List<ChartPoint> =
+    sessions.flatMap { s ->
+        setObservationsE1rm(s.sets, config).map {
+            ChartPoint(dateMs = s.day * 86_400_000L, weightKg = it * s.scale)
         }
     }.sortedBy { it.dateMs }
 

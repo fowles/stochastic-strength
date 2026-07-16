@@ -36,4 +36,20 @@ class WeightFormatterTest {
     @Test fun lbs_135_stays135()   = assertEquals(135f, warmupLbs(135f), 0.6f)
     @Test fun lbs_95_stays95()     = assertEquals(95f,  warmupLbs(95f),  0.6f)
     @Test fun lbs_54_snapsTo55()   = assertEquals(55f,  warmupLbs(54f),  0.6f)
+
+    @Test
+    fun roundDownFloorsToGrid() {
+        assertEquals(22.5f, WeightFormatter.roundDown(24.9f, WeightUnit.KG), 1e-4f)
+        assertEquals(25f, WeightFormatter.roundDown(25.0f, WeightUnit.KG), 1e-4f)
+        val lbs101 = WeightUnit.LBS.toKg(101f)
+        assertEquals(100f, WeightUnit.LBS.fromKg(WeightFormatter.roundDown(lbs101, WeightUnit.LBS)), 1e-3f)
+    }
+
+    @Test
+    fun roundDownIsStableAtExactGridMultiples() {
+        // kg→lb→kg round-trips introduce ~1e-7 relative noise; an exact 100 lb must stay 100 lb.
+        val exact100lb = WeightUnit.LBS.toKg(WeightUnit.LBS.fromKg(WeightUnit.LBS.toKg(100f)))
+        assertEquals(100f, WeightUnit.LBS.fromKg(WeightFormatter.roundDown(exact100lb, WeightUnit.LBS)), 1e-3f)
+        assertEquals(20f, WeightUnit.LBS.fromKg(WeightFormatter.roundDown(9.071858f, WeightUnit.LBS)), 1e-3f)
+    }
 }

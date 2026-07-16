@@ -9,6 +9,7 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
+import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -830,5 +831,55 @@ class WorkoutPlannerTest {
             "estimates should differ across rep targets",
             a.estimatedSeconds != b.estimatedSeconds,
         )
+    }
+
+    @Test
+    fun machinePrescriptionIsCappedByDemonstratedCapacity() {
+        val now = System.currentTimeMillis()
+        val ex = exercise(1L, muscle = MuscleGroup.QUADS, equipment = Equipment.MACHINE)
+        // Most recent session on this exercise: failed 35 kg × 10 at 2 reps.
+        val failedSet = WorkoutSet(
+            sessionId = 1L, exerciseId = 1L, setNumber = 1, targetWeight = 35f, targetReps = 10,
+            actualReps = 2, feedback = SetFeedback.TOO_HARD, completedAt = now - 86_400_000L,
+        )
+        val facts = PolicyFacts.build(listOf(failedSet), mapOf(1L to MuscleGroup.QUADS))
+        val p = WorkoutPlanner(
+            availableExercises = listOf(ex),
+            prescribedE1rm = mapOf(1L to 60f),  // entrenched raw estimate, way above the failure
+            recentHistory = emptyMap(),
+            weightUnit = WeightUnit.KG,
+            locationId = null,
+            nowMs = now,
+            // ExerciseCoefficients is name-keyed; synthetic "Ex1" needs an explicit coefficient.
+            coefficientSource = UserCoefficientSource(mapOf(1L to 1f)),
+            policyFacts = facts,
+        )
+        val w = p.weightForExerciseTest(ex, sessionReps = 10)
+        assertTrue("must be strictly below the failed 35 kg, was $w", w < 35f)
+        assertTrue(w > 0f)
+    }
+
+    @Test
+    fun manualOverrideBypassesPolicy() {
+        val now = System.currentTimeMillis()
+        val ex = exercise(1L, muscle = MuscleGroup.QUADS, equipment = Equipment.MACHINE)
+        val failedSet = WorkoutSet(
+            sessionId = 1L, exerciseId = 1L, setNumber = 1, targetWeight = 35f, targetReps = 10,
+            actualReps = 2, feedback = SetFeedback.TOO_HARD, completedAt = now - 86_400_000L,
+        )
+        val facts = PolicyFacts.build(listOf(failedSet), mapOf(1L to MuscleGroup.QUADS))
+        val p = WorkoutPlanner(
+            availableExercises = listOf(ex),
+            prescribedE1rm = mapOf(1L to 60f),
+            recentHistory = emptyMap(),
+            weightUnit = WeightUnit.KG,
+            locationId = null,
+            nowMs = now,
+            coefficientSource = UserCoefficientSource(mapOf(1L to 1f)),
+            policyFacts = facts,
+            exerciseE1rmOverrides = mapOf(1L to 60f),  // user explicitly chose this
+        )
+        val w = p.weightForExerciseTest(ex, sessionReps = 10)
+        assertTrue("manual override is the user's decision; policy must not cap it", w > 35f)
     }
 }

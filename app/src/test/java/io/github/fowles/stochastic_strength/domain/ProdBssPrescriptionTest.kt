@@ -4,22 +4,23 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
-import io.github.fowles.stochastic_strength.domain.progression.MuscleStrengthProjector
-import io.github.fowles.stochastic_strength.domain.progression.SessionProgressionStepper
-import org.junit.Assert.assertEquals
+import io.github.fowles.stochastic_strength.domain.belief.Belief
+import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
+import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
+import io.github.fowles.stochastic_strength.domain.belief.BeliefSessionStep
+import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
+import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.ln
 
 /**
- * End-to-end regression from the prod backup pulled 2026-06-24 (the Bulgarian-Split-Squat
- * over-prescription bug). Replays that user's QUADS history exactly as production does and pins the
- * projected BSS (exerciseId 55) prescription at 10 reps.
- *
- * The user's last BSS session demonstrated a 10-rep capacity of 9.07 kg (20 lb) at RIR_0_1 after
- * failing heavier weights. Before the fixes the app re-prescribed 25 lb — above demonstrated
- * capacity — because (a) the entrenched estimate failed to track down to the demonstrated ceiling
- * and (b) read-time pooling lifted it toward stronger same-session/older siblings. With both fixes
- * the prescription settles at the demonstrated 20 lb.
+ * Clamp-behavior invariant from the prod backup pulled 2026-06-24 (the Bulgarian-Split-Squat
+ * over-prescription bug). The spec retires the magic-number 20 lb pin; what must hold is the
+ * policy invariant: never prescribe at-or-above a weight failed in the exercise's most recent
+ * session (session 18 failed 24.95 kg and 15.88 kg at 10 reps) — regardless of what the raw
+ * estimator says. The estimator's raw quality is scored by the backtest harness, not here.
  */
 class ProdBssPrescriptionTest {
 
@@ -74,31 +75,65 @@ class ProdBssPrescriptionTest {
         WorkoutSet(sessionId = 18, exerciseId = 55, setNumber = 3, targetWeight = 9.071858406066895f, targetReps = 10, actualReps = 10, feedback = SetFeedback.RIR_0_1),
     )
 
-    @Test
-    fun reportBssPrescription() {
-        val exerciseMuscle = seedCoef.keys.associateWith { MuscleGroup.QUADS }
-        val snapshot = ReplaySnapshot(exerciseMuscle = exerciseMuscle, seedCoefficients = seedCoef)
-        for ((id, e1rm) in initials) snapshot.currentEstimates[id] = ExerciseEstimate.seed(e1rm, at = 0)
+    private val LIGHTEST_FAILED_KG = 15.875752449035645f  // session 18, set 2
 
-        val stepper = SessionProgressionStepper()
-        for (sessionId in listOf(12L, 14L, 15L, 16L, 18L)) {
-            stepper.step(sets.filter { it.sessionId == sessionId }, snapshot, endTimes[sessionId]!!)
-        }
-
-        val proj = MuscleStrengthProjector().project(
-            estimates = snapshot.currentEstimates,
-            seedCoef = seedCoef,
-            muscleExerciseIds = seedCoef.keys.toList(),
-            now = EXPORTED_AT,
+    private fun bssFacts(): PolicyFacts =
+        PolicyFacts.build(
+            sets = sets.map { it.copy(completedAt = endTimes[it.sessionId]) },
+            exerciseMuscle = seedCoef.keys.associateWith { MuscleGroup.QUADS },
         )
 
-        val effE1rm = proj.effectiveE1rm.getValue(55L)
-        val sessionWeightKg = DefaultProgressionEngine.fromOneRepMax(effE1rm, 10)
-        val prescribedLbs = WeightUnit.LBS.fromKg(WeightFormatter.round(sessionWeightKg, WeightUnit.LBS))
-            .toInt()
+    private fun policyWeightKg(rawE1rm: Float): Float =
+        PrescriptionPolicy.prescribe(
+            rawE1rm = rawE1rm, sessionReps = 10, exerciseId = 55L, muscle = MuscleGroup.QUADS,
+            facts = bssFacts(), now = EXPORTED_AT, weightUnit = WeightUnit.LBS,
+            engine = DefaultProgressionEngine,
+        ).weightKg
 
-        // Demonstrated 10-rep capacity was 9.07 kg (20 lb) at RIR_0_1; the prescription must not exceed
-        // it. Pre-fix this was 25 lb.
-        assertEquals("BSS @10 reps should be prescribed at the demonstrated 20 lb", 20, prescribedLbs)
+    @Test
+    fun bssPrescriptionStaysStrictlyBelowTheMostRecentFailedWeight() {
+        // Full replay of the prod history through the belief stack (Phase-3 swap):
+        val exerciseMuscle = seedCoef.keys.associateWith { MuscleGroup.QUADS }
+        val muscleExerciseIds = mapOf(MuscleGroup.QUADS to seedCoef.keys.toList())
+        val beliefConfig = BeliefConfig()
+        val sigmaSeed2 = beliefConfig.sigmaSeed * beliefConfig.sigmaSeed
+        val beliefs: MutableMap<Long, Belief> = initials.mapValuesTo(mutableMapOf()) { (_, e1rm) ->
+            Belief(ln(e1rm), sigmaSeed2, 0L)
+        }
+        val step = BeliefSessionStep(beliefConfig)
+        for (sessionId in listOf(12L, 14L, 15L, 16L, 18L)) {
+            step.step(
+                beliefs = beliefs,
+                sets = sets.filter { it.sessionId == sessionId },
+                seedCoef = seedCoef,
+                exerciseMuscle = exerciseMuscle,
+                muscleExerciseIds = muscleExerciseIds,
+                asOf = endTimes[sessionId]!!,
+            )
+        }
+
+        val pooling = BeliefPooling(beliefConfig)
+        val effective = pooling.effective(
+            beliefs = beliefs, seedCoef = seedCoef, muscleExerciseIds = seedCoef.keys.toList(), now = EXPORTED_AT,
+        ).effective
+        val rawE1rm = BeliefPrescriber.targetE1rm(effective.getValue(55L))
+
+        val prescribed = policyWeightKg(rawE1rm)
+        assertTrue(
+            "policy prescription $prescribed kg must be strictly below the failed $LIGHTEST_FAILED_KG kg",
+            prescribed < LIGHTEST_FAILED_KG,
+        )
+        assertTrue("must still prescribe something", prescribed > 0f)
+    }
+
+    @Test
+    fun seatbeltHoldsEvenIfTheEstimatorRegressesToItsEntrenchedSeed() {
+        // The scenario that produced three estimator mechanisms on the abandoned branch: an
+        // entrenched high estimate (the 38.1 kg seed). Policy alone must contain it.
+        val prescribed = policyWeightKg(38.101806640625f)
+        assertTrue(
+            "capped prescription $prescribed kg must be strictly below the failed $LIGHTEST_FAILED_KG kg",
+            prescribed < LIGHTEST_FAILED_KG,
+        )
     }
 }

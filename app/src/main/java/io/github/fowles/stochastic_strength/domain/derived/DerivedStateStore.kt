@@ -4,7 +4,7 @@ import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
-import io.github.fowles.stochastic_strength.domain.progression.ExerciseEstimate
+import io.github.fowles.stochastic_strength.domain.belief.Belief
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -43,9 +43,9 @@ class DerivedStateStore {
         private val muscleStrengths: Map<MuscleGroup, MuscleGroupStrength>,
         private val baselineHistory: List<BaselineHistory>,
         private val coefficientHistory: List<CoefficientHistory>,
-        private val exerciseEstimates: Map<Long, ExerciseEstimate>,
+        private val exerciseBeliefs: Map<Long, Belief>,
     ) {
-        fun exerciseEstimates(): Map<Long, ExerciseEstimate> = exerciseEstimates
+        fun exerciseBeliefs(): Map<Long, Belief> = exerciseBeliefs
         fun muscleGroupStrength(muscle: MuscleGroup): MuscleGroupStrength? = muscleStrengths[muscle]
 
         fun allMuscleGroupStrengths(): List<MuscleGroupStrength> = muscleStrengths.values.toList()
@@ -80,10 +80,10 @@ class MutableDerivedState internal constructor() {
     private val coefficientHistory = mutableListOf<CoefficientHistory>()
     private var nextBaselineId: Long = 1
     private var nextCoefficientId: Long = 1
-    private var exerciseEstimates: Map<Long, ExerciseEstimate> = emptyMap()
+    private var exerciseBeliefs: Map<Long, Belief> = emptyMap()
 
-    fun putExerciseEstimates(map: Map<Long, ExerciseEstimate>) {
-        exerciseEstimates = map
+    fun putExerciseBeliefs(map: Map<Long, Belief>) {
+        exerciseBeliefs = map
     }
 
     fun upsertMuscleGroupStrength(strength: MuscleGroupStrength) {
@@ -121,6 +121,6 @@ class MutableDerivedState internal constructor() {
         muscleStrengths = muscleStrengths.toMap(),
         baselineHistory = baselineHistory.toList(),
         coefficientHistory = coefficientHistory.toList(),
-        exerciseEstimates = exerciseEstimates,
+        exerciseBeliefs = exerciseBeliefs,
     )
 }
