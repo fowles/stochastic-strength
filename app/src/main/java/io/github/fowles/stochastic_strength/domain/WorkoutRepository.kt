@@ -20,8 +20,6 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
-import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace
-import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTraceBuilder
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
@@ -415,44 +413,4 @@ class WorkoutRepository(
         )
     }
 
-    /**
-     * The "why this weight" trace for one exercise (Task 6, spec Phase 3). Inputs come from the
-     * same [prescriptionContext] the live planner uses; with [locationId] (default null) the trace
-     * matches a planner built at an unknown location — pass the resolved location to match a
-     * location-filtered plan exactly. [sessionReps] is inferred from the exercise's last completed
-     * set (the plan's chosen rep target isn't known here). Null when the exercise doesn't exist or
-     * has no effective belief (unloadable/cold muscle).
-     */
-    suspend fun getPrescriptionTrace(exerciseId: Long, locationId: Long? = null): PrescriptionTrace? {
-        val exercise = db.exerciseDao().getById(exerciseId) ?: return null
-        val now = System.currentTimeMillis()
-        val ctx = prescriptionContext(locationId, now)
-        val muscleIds = ctx.muscleExerciseIds[exercise.primaryMuscle] ?: emptyList()
-        val facts = ctx.policyFacts
-        val allSets = db.workoutSetDao().getAllForExercise(exerciseId)
-        val capFact = facts.capByExercise[exerciseId]
-        val capSessionSets = capFact?.let { f ->
-            allSets.filter { it.completedAt != null }
-                .groupBy { it.sessionId }
-                .values
-                .firstOrNull { s -> s.maxOf { it.completedAt!! } == f.demonstratedAt }
-        }.orEmpty()
-        val reps = allSets.filter { it.completedAt != null }.maxByOrNull { it.completedAt!! }?.targetReps ?: 10
-        val unit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
-        val beliefs = derivedState.snapshot().exerciseBeliefs()
-        return PrescriptionTraceBuilder.build(
-            exerciseId = exerciseId,
-            muscle = exercise.primaryMuscle,
-            beliefs = beliefs,
-            seedCoef = ctx.seedCoef,
-            muscleExerciseIds = muscleIds,
-            facts = facts,
-            capSessionSets = capSessionSets,
-            sessionReps = reps,
-            now = now,
-            weightUnit = unit,
-            config = beliefConfig,
-            engine = progressionEngine,
-        )
-    }
 }
