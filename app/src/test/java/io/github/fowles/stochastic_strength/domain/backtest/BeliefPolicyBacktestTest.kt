@@ -53,7 +53,6 @@ class BeliefPolicyBacktestTest {
                 val p = PrescriptionPolicy.prescribe(
                     rawE1rm = raw, sessionReps = reps, exerciseId = exerciseId, muscle = muscle,
                     facts = facts, now = asOf, weightUnit = data.weightUnit, engine = DefaultProgressionEngine,
-                    overloadNudge = true,
                 )
                 prescriptions++
                 if (p.capBound) {
@@ -74,7 +73,6 @@ class BeliefPolicyBacktestTest {
                     val pf = PrescriptionPolicy.prescribe(
                         rawE1rm = raw, sessionReps = f.targetReps, exerciseId = exerciseId, muscle = muscle,
                         facts = facts, now = asOf, weightUnit = data.weightUnit, engine = DefaultProgressionEngine,
-                        overloadNudge = true,
                     )
                     if (pf.weightKg >= f.targetWeight - 1e-3f) {
                         violations += "session $sessionId ex $exerciseId: prescribed ${pf.weightKg} kg ≥ failed ${f.targetWeight} kg (@${f.targetReps} reps)"

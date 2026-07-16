@@ -87,7 +87,7 @@ class ProdBssPrescriptionTest {
         PrescriptionPolicy.prescribe(
             rawE1rm = rawE1rm, sessionReps = 10, exerciseId = 55L, muscle = MuscleGroup.QUADS,
             facts = bssFacts(), now = EXPORTED_AT, weightUnit = WeightUnit.LBS,
-            engine = DefaultProgressionEngine, overloadNudge = true,
+            engine = DefaultProgressionEngine,
         ).weightKg
 
     @Test

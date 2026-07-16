@@ -11,13 +11,21 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
 
-/** One clamped prescription. [capBound]/[hurtMultiplier]/[uncappedWeightKg] feed the clamp-bind health report. */
+/**
+ * One clamped prescription. Everything the policy decided is reported here so consumers (the
+ * clamp-bind health report, the "why this weight" trace) read what happened instead of
+ * re-deriving it.
+ */
 data class Prescription(
     val weightKg: Float,
     val capBound: Boolean,
     val hurtMultiplier: Float,
     /** The rounded (and nudged) weight the engine wanted BEFORE the cap — == [weightKg] unless the cap bound. */
     val uncappedWeightKg: Float,
+    /** The live cap expressed at the session's reps (raw rep-max inverse, un-rounded); null = no live cap. */
+    val capWeightKg: Float? = null,
+    /** The overload nudge added to the rounded uncapped weight; 0 when it didn't apply. */
+    val nudgeKg: Float = 0f,
 )
 
 /**
@@ -93,12 +101,12 @@ object PrescriptionPolicy {
      * log space can still nearest-round up to (or past) the capped weight, so the cap must bind on
      * the final rounded prescription, not the pre-rounding log estimate.
      *
-     * [overloadNudge] (default off): when the exercise's most recent feedback session was entirely
-     * RIR ≥ 2 (`allEasy`) and still within the cap's expiry window, bump the rounded uncapped weight
-     * by one grid increment (semantic: the smallest available plate) before the cap comparison — the
-     * demonstrated-capacity cap still applies on top and can clamp the nudge away. Defaults false
-     * because main's live estimator already has its own up-drift (`wUp`); only the Phase-3 belief
-     * stack swap (whose in-band feedback legitimately leaves mu unmoved) needs this nudge.
+     * Overload nudge: when the exercise's most recent feedback session was entirely RIR ≥ 2
+     * (`allEasy`) and still within the cap's expiry window, bump the rounded uncapped weight by one
+     * grid increment (semantic: the smallest available plate) before the cap comparison — the
+     * demonstrated-capacity cap still applies on top and can clamp the nudge away. The belief
+     * stack's in-band feedback legitimately leaves mu unmoved, so this is the steady-state
+     * progressive-overload rule (spec Phase 2).
      */
     fun prescribe(
         rawE1rm: Float,
@@ -109,7 +117,6 @@ object PrescriptionPolicy {
         now: Long,
         weightUnit: WeightUnit,
         engine: ProgressionEngine,
-        overloadNudge: Boolean = false,
     ): Prescription {
         val mult = hurtMultiplier(facts.hurtEventsByMuscle[muscle].orEmpty(), now)
         val backed = rawE1rm * mult
@@ -117,16 +124,24 @@ object PrescriptionPolicy {
         val withinWindow = fact != null && now - fact.demonstratedAt <= CAP_EXPIRY_MS
         val capLn = fact?.capLn?.takeIf { withinWindow }
         // `fact?.allEasy == true` (not `fact.allEasy`): no smart cast through the withinWindow Boolean.
-        val nudge = if (overloadNudge && withinWindow && fact?.allEasy == true) WeightFormatter.minIncrement(weightUnit) else 0f
+        val nudge = if (withinWindow && fact?.allEasy == true) WeightFormatter.minIncrement(weightUnit) else 0f
         val uncapped = WeightFormatter.round(engine.fromOneRepMax(backed, sessionReps), weightUnit) + nudge
-        if (capLn == null) return Prescription(uncapped, capBound = false, hurtMultiplier = mult, uncappedWeightKg = uncapped)
+        if (capLn == null) {
+            return Prescription(uncapped, capBound = false, hurtMultiplier = mult, uncappedWeightKg = uncapped, nudgeKg = nudge)
+        }
         // The cap is a ceiling on the FINAL prescription: nearest-grid rounding of a
         // just-under-cap estimate must not climb back to a weight the cap excludes, so the
         // comparison happens after rounding, in weight space. The cap weight itself comes from
         // the RAW rep-max inverse (the engine's 0.5 kg internal rounding could nudge it up),
         // and a binding cap floor-rounds at the grid.
         val capWeight = engine.rawFromOneRepMax(exp(capLn), sessionReps)
-        if (uncapped <= capWeight + WeightFormatter.GRID_EPSILON) return Prescription(uncapped, capBound = false, hurtMultiplier = mult, uncappedWeightKg = uncapped)
-        return Prescription(WeightFormatter.roundDown(capWeight, weightUnit), capBound = true, hurtMultiplier = mult, uncappedWeightKg = uncapped)
+        if (uncapped <= capWeight + WeightFormatter.GRID_EPSILON) {
+            return Prescription(uncapped, capBound = false, hurtMultiplier = mult, uncappedWeightKg = uncapped, capWeightKg = capWeight, nudgeKg = nudge)
+        }
+        return Prescription(
+            WeightFormatter.roundDown(capWeight, weightUnit),
+            capBound = true, hurtMultiplier = mult, uncappedWeightKg = uncapped,
+            capWeightKg = capWeight, nudgeKg = nudge,
+        )
     }
 }

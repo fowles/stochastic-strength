@@ -144,7 +144,6 @@ object PrescriptionTraceBuilder {
             now = now,
             weightUnit = weightUnit,
             engine = engine,
-            overloadNudge = true,
         )
 
         val capLine = when {

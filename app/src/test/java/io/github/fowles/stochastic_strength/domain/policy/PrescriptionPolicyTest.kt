@@ -205,21 +205,23 @@ class PrescriptionPolicyTest {
         assertEquals(prescribe(raw, capFacts(capLn, now - DAY), now = now).weightKg, p.weightKg, 1e-4f)
     }
 
-    // --- overloadNudge ---
+    // --- overload nudge ---
 
     @Test
-    fun overloadNudgeAddsOneIncrementOnlyWhenEnabledAndLastSessionWasAllEasy() {
-        val facts = PolicyFacts(capByExercise = mapOf(
+    fun overloadNudgeAddsOneIncrementWhenLastSessionWasAllEasy() {
+        val allEasy = PolicyFacts(capByExercise = mapOf(
             1L to ExerciseCapFact(capLn = null, demonstratedAt = 0L, allEasy = true),
         ))
+        val notEasy = PolicyFacts(capByExercise = mapOf(
+            1L to ExerciseCapFact(capLn = null, demonstratedAt = 0L, allEasy = false),
+        ))
         val raw = DefaultProgressionEngine.rawToOneRepMax(100f, 10f)
-        val base = prescribe(raw, facts, now = 1_000L)
-        val nudged = PrescriptionPolicy.prescribe(
-            rawE1rm = raw, sessionReps = 10, exerciseId = 1L, muscle = MuscleGroup.QUADS,
-            facts = facts, now = 1_000L, weightUnit = WeightUnit.KG, engine = DefaultProgressionEngine,
-            overloadNudge = true,
-        )
+        val base = prescribe(raw, notEasy, now = 1_000L)
+        val nudged = prescribe(raw, allEasy, now = 1_000L)
         assertEquals(base.weightKg + WeightFormatter.minIncrement(WeightUnit.KG), nudged.weightKg, 1e-4f)
+        // The prescription reports the applied nudge instead of consumers re-deriving the rule.
+        assertEquals(WeightFormatter.minIncrement(WeightUnit.KG), nudged.nudgeKg, 1e-4f)
+        assertEquals(0f, base.nudgeKg, 1e-4f)
     }
 
     @Test
@@ -229,27 +231,25 @@ class PrescriptionPolicyTest {
         ))
         val raw = DefaultProgressionEngine.rawToOneRepMax(100f, 10f)
         val expiredNow = PrescriptionPolicy.CAP_EXPIRY_MS + 1
-        val expired = PrescriptionPolicy.prescribe(
-            rawE1rm = raw, sessionReps = 10, exerciseId = 1L, muscle = MuscleGroup.QUADS,
-            facts = old, now = expiredNow, weightUnit = WeightUnit.KG, engine = DefaultProgressionEngine,
-            overloadNudge = true,
-        )
-        val base = prescribe(raw, old, now = expiredNow)
-        assertEquals(base.weightKg, expired.weightKg, 1e-4f)
+        val expired = prescribe(raw, old, now = expiredNow)
+        val noFacts = prescribe(raw, PolicyFacts.EMPTY, now = expiredNow)
+        assertEquals(noFacts.weightKg, expired.weightKg, 1e-4f)
+        assertEquals(0f, expired.nudgeKg, 1e-4f)
 
         // A capped exercise: nudge cannot climb past the cap (cap applies on top, spec Phase 2).
         val capLn = ln(DefaultProgressionEngine.rawToOneRepMax(80f, 5.5f))
         val capped = PolicyFacts(capByExercise = mapOf(
             1L to ExerciseCapFact(capLn = capLn, demonstratedAt = 0L, allEasy = true),
         ))
-        val withNudge = PrescriptionPolicy.prescribe(
-            rawE1rm = raw, sessionReps = 10, exerciseId = 1L, muscle = MuscleGroup.QUADS,
-            facts = capped, now = 1_000L, weightUnit = WeightUnit.KG, engine = DefaultProgressionEngine,
-            overloadNudge = true,
-        )
-        val withoutNudge = prescribe(raw, capped, now = 1_000L)
+        val notEasyCapped = PolicyFacts(capByExercise = mapOf(
+            1L to ExerciseCapFact(capLn = capLn, demonstratedAt = 0L, allEasy = false),
+        ))
+        val withNudge = prescribe(raw, capped, now = 1_000L)
+        val withoutNudge = prescribe(raw, notEasyCapped, now = 1_000L)
         assertEquals(withoutNudge.weightKg, withNudge.weightKg, 1e-4f)
         assertTrue(withNudge.capBound)
+        // The cap weight is reported for the trace.
+        assertEquals(DefaultProgressionEngine.rawFromOneRepMax(exp(capLn), 10), withNudge.capWeightKg!!, 1e-4f)
     }
 
     @Test

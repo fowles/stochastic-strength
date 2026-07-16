@@ -82,7 +82,7 @@ class PrescriptionTraceTest {
         val expected = PrescriptionPolicy.prescribe(
             rawE1rm = rawE1rm, sessionReps = 10, exerciseId = targetId,
             muscle = MuscleGroup.QUADS, facts = facts, now = now, weightUnit = WeightUnit.KG,
-            engine = DefaultProgressionEngine, overloadNudge = true,
+            engine = DefaultProgressionEngine,
         )
         assertEquals(expected.weightKg, trace.finalWeightKg, 1e-4f)
     }
