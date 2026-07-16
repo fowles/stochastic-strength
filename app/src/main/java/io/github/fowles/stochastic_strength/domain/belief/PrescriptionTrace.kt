@@ -13,7 +13,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.exp
-import kotlin.math.ln
 import kotlin.math.sqrt
 
 /** One plain-English gym sentence, plus the label naming the pipeline stage it explains. */
@@ -24,10 +23,10 @@ data class PrescriptionTrace(val lines: List<TraceLine>, val finalWeightKg: Floa
 
 /**
  * Explains a prescription line by line, one plain gym sentence per pipeline stage, each citing the
- * data behind it. NEVER re-implements policy/prescriber math — it calls `BeliefPrescriber.targetE1rm`
- * and `PrescriptionPolicy.prescribe` and reports what they did (one source of truth). The blend
- * weight in "Sibling pull" recomputes pOwn/pSib exactly as `BeliefPooling.effective` does, since that
- * class doesn't expose its intermediate per-voter weights.
+ * data behind it. NEVER re-implements pipeline math: the pooling lines read
+ * [BeliefPooling.effective]'s breakdown (own/sibling/blend share), and the policy lines read what
+ * [PrescriptionPolicy.prescribe] reports it did (hurt multiplier, nudge, cap weight) — one source
+ * of truth end to end.
  */
 object PrescriptionTraceBuilder {
     private val dateFormat get() = SimpleDateFormat("MMM d", Locale.US)
@@ -48,61 +47,29 @@ object PrescriptionTraceBuilder {
         config: BeliefConfig = BeliefConfig(),
         engine: ProgressionEngine = DefaultProgressionEngine,
     ): PrescriptionTrace? {
-        val fold = BeliefFold(config)
-        val tau2 = config.tau * config.tau
-
-        data class Voter(val id: Long, val vote: Float, val weight: Float)
-        val voters = muscleExerciseIds.mapNotNull { id ->
-            val coef = seedCoef[id] ?: return@mapNotNull null
-            if (coef <= 0f) return@mapNotNull null
-            val b = beliefs[id]?.let { fold.aged(it, now) } ?: return@mapNotNull null
-            Voter(id, b.mu - ln(coef), 1f / (b.sigma2 + tau2))
-        }
-        val sumW = voters.sumOf { it.weight.toDouble() }.toFloat()
-        val sumWV = voters.sumOf { (it.weight * it.vote).toDouble() }.toFloat()
-
-        val coef = seedCoef[exerciseId] ?: return null
-        if (coef <= 0f) return null
-        val own = beliefs[exerciseId]?.let { fold.aged(it, now) }
-        val voter = voters.firstOrNull { it.id == exerciseId }
-        val looW = sumW - (voter?.weight ?: 0f)
-        val looWV = sumWV - ((voter?.weight ?: 0f) * (voter?.vote ?: 0f))
-        val sibling: EffectiveBelief? = if (looW > 0f) {
-            EffectiveBelief(mu = ln(coef) + looWV / looW, sigma2 = 1f / looW + tau2)
-        } else null
-
-        var pOwn = 0f
-        var pSib = 0f
-        val effective: EffectiveBelief = when {
-            own != null && sibling != null -> {
-                pOwn = 1f / own.sigma2
-                pSib = 1f / sibling.sigma2
-                EffectiveBelief(
-                    mu = (pOwn * own.mu + pSib * sibling.mu) / (pOwn + pSib),
-                    sigma2 = 1f / (pOwn + pSib),
-                )
-            }
-            own != null -> EffectiveBelief(own.mu, own.sigma2)
-            sibling != null -> sibling
-            else -> return null
-        }
+        val pool = BeliefPooling(config).effective(beliefs, seedCoef, muscleExerciseIds, now)
+        val effective = pool.effective[exerciseId] ?: return null
+        val own = effective.own
+        val sibling = effective.sibling
 
         val ownLine = if (own != null) {
+            // The aged belief's updatedAt is `now`; the fold date the user cares about is the
+            // stored belief's.
+            val foldedAt = beliefs[exerciseId]?.updatedAt ?: now
             TraceLine(
                 "Own belief",
                 "~${WeightFormatter.format(own.e1rm, weightUnit)} (±${"%.0f".format(sigmaPercent(own.sigma2))}%), " +
-                    "last updated ${dateFormat.format(Date(own.updatedAt))}",
+                    "last updated ${dateFormat.format(Date(foldedAt))}",
             )
         } else {
             TraceLine("Own belief", "none — cold exercise, leaning on siblings")
         }
 
         val siblingLine = if (sibling != null) {
-            val blendPercent = if (own != null) (pSib / (pOwn + pSib)) * 100f else 100f
             TraceLine(
                 "Sibling pull",
                 "siblings imply ~${WeightFormatter.format(exp(sibling.mu), weightUnit)}; " +
-                    "blended at ${"%.0f".format(blendPercent)}%",
+                    "blended at ${"%.0f".format(effective.siblingShare * 100f)}%",
             )
         } else {
             TraceLine("Sibling pull", "no siblings with evidence")
@@ -116,24 +83,9 @@ object PrescriptionTraceBuilder {
         val rawE1rm = BeliefPrescriber.targetE1rm(effective)
         val riskLine = TraceLine(
             "Risk percentile",
-            "prescribing at the 30th percentile: ~${WeightFormatter.format(rawE1rm, weightUnit)}",
+            "prescribing at the ${BeliefPrescriber.PERCENTILE}th percentile: " +
+                "~${WeightFormatter.format(rawE1rm, weightUnit)}",
         )
-
-        val hurtEvents = facts.hurtEventsByMuscle[muscle].orEmpty()
-        val hurtMultiplier = PrescriptionPolicy.hurtMultiplier(hurtEvents, now)
-        val hurtLine = if (hurtEvents.isEmpty()) {
-            TraceLine("HURT backoff", "none")
-        } else {
-            TraceLine("HURT backoff", "×${"%.2f".format(hurtMultiplier)} after ${hurtEvents.size} recent HURT set(s)")
-        }
-
-        val capFact = facts.capByExercise[exerciseId]
-        val withinWindow = capFact != null && now - capFact.demonstratedAt <= PrescriptionPolicy.CAP_EXPIRY_MS
-        val nudgeLine = if (withinWindow && capFact?.allEasy == true) {
-            TraceLine("Overload nudge", "last session all easy → +one increment")
-        } else {
-            TraceLine("Overload nudge", "not applied")
-        }
 
         val prescription = PrescriptionPolicy.prescribe(
             rawE1rm = rawE1rm,
@@ -146,9 +98,24 @@ object PrescriptionTraceBuilder {
             engine = engine,
         )
 
+        val hurtEvents = facts.hurtEventsByMuscle[muscle].orEmpty()
+        val hurtLine = if (prescription.hurtMultiplier >= 1f) {
+            TraceLine("HURT backoff", "none")
+        } else {
+            TraceLine(
+                "HURT backoff",
+                "×${"%.2f".format(prescription.hurtMultiplier)} after ${hurtEvents.size} recent HURT set(s)",
+            )
+        }
+
+        val nudgeLine = if (prescription.nudgeKg > 0f) {
+            TraceLine("Overload nudge", "last session all easy → +one increment")
+        } else {
+            TraceLine("Overload nudge", "not applied")
+        }
+
         val capLine = when {
-            capFact == null -> TraceLine("Capacity cap", "no cap")
-            !withinWindow -> TraceLine("Capacity cap", "no cap")
+            prescription.capWeightKg == null -> TraceLine("Capacity cap", "no cap")
             prescription.capBound -> {
                 val cited = capSessionSets.joinToString("; ") { citeSet(it) }
                 val wanted = WeightFormatter.format(prescription.uncappedWeightKg, weightUnit)
@@ -158,10 +125,10 @@ object PrescriptionTraceBuilder {
                     "capped at $capped (wanted $wanted)" + if (cited.isNotEmpty()) ": $cited" else "",
                 )
             }
-            else -> {
-                val capWeight = WeightFormatter.format(prescription.uncappedWeightKg, weightUnit)
-                TraceLine("Capacity cap", "cap ~$capWeight, not binding")
-            }
+            else -> TraceLine(
+                "Capacity cap",
+                "cap ~${WeightFormatter.format(prescription.capWeightKg, weightUnit)}, not binding",
+            )
         }
 
         val roundingLine = TraceLine("Rounding", "final: ${WeightFormatter.format(prescription.weightKg, weightUnit)}")

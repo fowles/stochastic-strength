@@ -107,6 +107,68 @@ class PrescriptionTraceTest {
     }
 
     @Test
+    fun nonBindingCapLineShowsTheCapWeightNotTheWantedWeight() {
+        // Own belief low enough that the target sits far below the demonstrated cap.
+        val lowBeliefs = mapOf(
+            targetId to Belief(mu = ln(20f), sigma2 = 0.005f, updatedAt = now),
+        )
+        val trace = PrescriptionTraceBuilder.build(
+            exerciseId = targetId,
+            muscle = muscle,
+            beliefs = lowBeliefs,
+            seedCoef = mapOf(targetId to 0.3f),
+            muscleExerciseIds = listOf(targetId),
+            facts = facts,
+            capSessionSets = capSessionSets,
+            sessionReps = 10,
+            now = now,
+            weightUnit = WeightUnit.KG,
+            config = config,
+            engine = DefaultProgressionEngine,
+        )!!
+        val capLine = trace.lines.first { it.label == "Capacity cap" }
+        assertTrue(capLine.detail.contains("not binding"))
+        // The line must show the CAP weight (raw rep-max inverse of the demonstrated cap), not the
+        // uncapped wanted weight the old code printed.
+        val capWeight = DefaultProgressionEngine.rawFromOneRepMax(
+            kotlin.math.exp(PrescriptionPolicy.capLnFor(capSessionSets)!!), 10,
+        )
+        assertTrue(
+            "expected cap ~$capWeight in: ${capLine.detail}",
+            capLine.detail.contains(io.github.fowles.stochastic_strength.domain.WeightFormatter.format(capWeight, WeightUnit.KG)),
+        )
+    }
+
+    @Test
+    fun ownBeliefLineShowsTheStoredFoldDateNotToday() {
+        val foldedAt = now - 40L * 24 * 60 * 60 * 1000  // 40 days before `now`
+        val staleBeliefs = mapOf(
+            targetId to Belief(mu = ln(60f), sigma2 = 0.005f, updatedAt = foldedAt),
+        )
+        val trace = PrescriptionTraceBuilder.build(
+            exerciseId = targetId,
+            muscle = muscle,
+            beliefs = staleBeliefs,
+            seedCoef = mapOf(targetId to 0.3f),
+            muscleExerciseIds = listOf(targetId),
+            facts = PolicyFacts.EMPTY,
+            capSessionSets = emptyList(),
+            sessionReps = 10,
+            now = now,
+            weightUnit = WeightUnit.KG,
+            config = config,
+            engine = DefaultProgressionEngine,
+        )!!
+        val ownLine = trace.lines.first { it.label == "Own belief" }
+        val expected = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+            .format(java.util.Date(foldedAt))
+        val today = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+            .format(java.util.Date(now))
+        assertTrue("expected '$expected' in: ${ownLine.detail}", ownLine.detail.contains(expected))
+        assertTrue("must not show the aged-to date '$today'", !ownLine.detail.contains(today))
+    }
+
+    @Test
     fun uncappedTraceSaysNoCap() {
         val trace = PrescriptionTraceBuilder.build(
             exerciseId = targetId,
