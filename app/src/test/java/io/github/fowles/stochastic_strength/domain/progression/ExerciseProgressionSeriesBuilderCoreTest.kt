@@ -87,4 +87,34 @@ class ExerciseProgressionSeriesBuilderCoreTest {
         assertTrue(data.frames.all { it.trace != null })
         assertNotNull(data.predictedFrame!!.trace)
     }
+
+    @Test
+    fun noTouchedSessionsYieldsEmptyFramesAndNullPredicted() = runBlocking {
+        val snap = snapshotSeeded()
+        val initial = io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride(
+            exerciseId = 1L, e1rm = 100f, asOf = 0L, sessionId = null,
+        )
+        val now = 9_999_999L
+
+        val data = builder.buildCore(
+            exerciseId = 1L,
+            snapshot = snap,
+            muscle = MuscleGroup.CHEST,
+            muscleIds = listOf(1L),
+            namesById = mapOf(1L to "Bench"),
+            weightUnit = WeightUnit.KG,
+            initialOverrides = listOf(initial),
+            sessionOverrides = emptyMap(),
+            sessions = emptyList(),
+            setsForSession = { emptyList() },
+            now = now,
+        )
+
+        // With no sessions, the muscle is never touched, so no frames are built.
+        assertTrue(data.frames.isEmpty())
+        // The predicted frame is null when there are no frames to compute it from.
+        assertTrue(data.predictedFrame == null)
+        // The series estimate is empty when no sessions touched the muscle.
+        assertTrue(data.series.ownEstimate.isEmpty())
+    }
 }

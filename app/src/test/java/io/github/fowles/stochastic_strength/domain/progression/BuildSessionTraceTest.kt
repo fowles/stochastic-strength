@@ -68,4 +68,20 @@ class BuildSessionTraceTest {
         assertNotNull(trace)
         assertTrue(trace!!.lines.any { it.label == "Capacity cap" && it.detail == "no cap" })
     }
+
+    @Test
+    fun emptyPriorSetsProducesNoCap() {
+        val beliefs = mapOf(1L to Belief(mu = ln(60f), sigma2 = 0.005f, updatedAt = 0L))
+        val now = 100_000_000L
+        // With no prior sets, there are no failed sessions to form a capacity cap.
+        val priorSets = emptyList<WorkoutSet>()
+        val trace = buildSessionTrace(
+            targetId = 1L, muscle = MuscleGroup.CHEST, beliefs = beliefs,
+            seedCoef = mapOf(1L to 0.3f), muscleExerciseIds = listOf(1L),
+            exerciseMuscle = mapOf(1L to MuscleGroup.CHEST), priorSets = priorSets,
+            sessionReps = 10, now = now, weightUnit = WeightUnit.KG, config = config,
+        )
+        assertNotNull(trace)
+        assertTrue(trace!!.lines.any { it.label == "Capacity cap" && it.detail == "no cap" })
+    }
 }
