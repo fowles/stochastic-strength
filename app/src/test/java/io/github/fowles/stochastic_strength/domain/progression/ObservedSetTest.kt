@@ -13,10 +13,12 @@ class ObservedSetTest {
             targetWeight = 50f, targetReps = targetReps, actualReps = actualReps, feedback = feedback,
         )
 
-    @Test fun rirFeedbacksAddReserveAndAreEstimates() {
-        assertEquals(ObservedSet(reps = 9, isEstimate = true, weightKg = 50f), impliedObservedSet(set(SetFeedback.RIR_0_1)))   // 8 + 0.5 -> round 9 (HALF_UP? see note)
-        assertEquals(ObservedSet(reps = 11, isEstimate = true, weightKg = 50f), impliedObservedSet(set(SetFeedback.RIR_2_4))) // 8 + 3
-        assertEquals(ObservedSet(reps = 14, isEstimate = true, weightKg = 50f), impliedObservedSet(set(SetFeedback.RIR_5_PLUS))) // 8 + 6
+    @Test fun rirFeedbacksAddBucketDerivedReserveAndAreEstimates() {
+        // Offsets come from the SetIntervals buckets: midpoint of [0,2] = 1, midpoint of [2,5] =
+        // 3.5 (rounds up), lower bound of the unbounded 5+ bucket = 5.
+        assertEquals(ObservedSet(reps = 9, isEstimate = true, weightKg = 50f), impliedObservedSet(set(SetFeedback.RIR_0_1)))   // 8 + 1
+        assertEquals(ObservedSet(reps = 12, isEstimate = true, weightKg = 50f), impliedObservedSet(set(SetFeedback.RIR_2_4))) // 8 + 3.5 -> 12
+        assertEquals(ObservedSet(reps = 13, isEstimate = true, weightKg = 50f), impliedObservedSet(set(SetFeedback.RIR_5_PLUS))) // 8 + 5
     }
 
     @Test fun tooHardUsesActualRepsObservedNotEstimated() {

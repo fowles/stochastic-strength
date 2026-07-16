@@ -21,6 +21,14 @@ data class LnInterval(val lowerLn: Float?, val upperLn: Float?) {
  * scored against the same intervals and neither can game it via its own modeling assumptions.
  */
 object SetIntervals {
+    // Rep-reserve bounds per feedback bucket, as offsets on targetReps. The single source for
+    // both the ln-1RM intervals below and any display of "implied reps" (ObservedSet).
+    const val RIR_0_1_LOW = 0f
+    const val RIR_0_1_HIGH = 2f
+    const val RIR_2_4_LOW = 2f
+    const val RIR_2_4_HIGH = 5f
+    const val RIR_5_PLUS_LOW = 5f
+
     fun impliedLn1RmInterval(set: WorkoutSet): LnInterval? {
         val feedback = set.feedback ?: return null
         if (feedback == SetFeedback.HURT) return null
@@ -34,9 +42,9 @@ object SetIntervals {
                 if (a != null) LnInterval(capLn(a.toFloat()), capLn(a + 1f))
                 else LnInterval(null, capLn(r.toFloat()))
             }
-            SetFeedback.RIR_0_1 -> LnInterval(capLn(r.toFloat()), capLn(r + 2f))
-            SetFeedback.RIR_2_4 -> LnInterval(capLn(r + 2f), capLn(r + 5f))
-            SetFeedback.RIR_5_PLUS -> LnInterval(capLn(r + 5f), null)
+            SetFeedback.RIR_0_1 -> LnInterval(capLn(r + RIR_0_1_LOW), capLn(r + RIR_0_1_HIGH))
+            SetFeedback.RIR_2_4 -> LnInterval(capLn(r + RIR_2_4_LOW), capLn(r + RIR_2_4_HIGH))
+            SetFeedback.RIR_5_PLUS -> LnInterval(capLn(r + RIR_5_PLUS_LOW), null)
             SetFeedback.HURT -> null
         }
     }
