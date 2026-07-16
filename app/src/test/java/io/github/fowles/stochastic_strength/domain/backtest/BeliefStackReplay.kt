@@ -5,16 +5,16 @@ import io.github.fowles.stochastic_strength.domain.belief.Belief
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefFold
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
-import io.github.fowles.stochastic_strength.domain.belief.BeliefSessionStep
 import io.github.fowles.stochastic_strength.domain.belief.EffectiveBelief
-import kotlin.math.ln
+import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
+import kotlinx.coroutines.runBlocking
 
 /**
- * Forward-chained replay of the BELIEF stack over parsed backup data (spec Phase 2). Mirrors
- * production [io.github.fowles.stochastic_strength.domain.progression.ReplayEngine]'s session
- * semantics exactly (override rows seed/reset beliefs; session-k overrides apply before session k;
- * sessions sorted by (endTime, id); empty-set sessions skip) — delegates to BeliefSessionStep, the
- * same code the production replay runs. Predictions are per SET (fatigue-aware), captured pre-fold.
+ * Forward-chained replay of the BELIEF stack over parsed backup data (spec Phase 2). Delegates to
+ * the production [ReplayEngine.runCore], so seeding/ordering semantics (override rows seed/reset
+ * beliefs; session-k overrides apply before session k; sessions sorted by (endTime, id);
+ * empty-set sessions skip) are literally the production path, not a mirror of it. Predictions are
+ * per SET (fatigue-aware), captured pre-fold.
  *
  * Cold exercises (no belief yet) fold their first session against the sibling prediction as the
  * prior — the pool is the prior, no extra constant (spec: cold exercises lean on siblings).
@@ -36,46 +36,37 @@ object BeliefStackReplay {
     fun run(data: BacktestData, config: BeliefConfig, observer: SessionObserver) {
         val fold = BeliefFold(config)
         val pooling = BeliefPooling(config)
-        val sessionStep = BeliefSessionStep(config)
         val snapshot = data.newSnapshot()
-        val beliefs = mutableMapOf<Long, Belief>()
-        val sigmaSeed2 = config.sigmaSeed * config.sigmaSeed
-        val sigmaOverride2 = config.sigmaOverride * config.sigmaOverride
 
-        for (init in data.initialOverrides) {
-            beliefs[init.exerciseId] = Belief(ln(init.e1rm), sigmaSeed2, init.asOf)
-        }
-        for (session in data.sessions) {
-            data.sessionOverrides[session.id]?.forEach { o ->
-                beliefs[o.exerciseId] = Belief(ln(o.e1rm), sigmaOverride2, o.asOf)
-            }
-            val sets = data.setsBySession[session.id].orEmpty()
-            if (sets.isEmpty()) continue
-            val asOf = session.endTime!!
+        // All-muscle pre-fold effective beliefs for the observer (the policy backtest prescribes
+        // for the whole library each session). The prod step scopes its pre-fold pooling to the
+        // session's muscles, so the sweep lives here, refreshed by the pre-fold hook.
+        var allEffective: Map<Long, EffectiveBelief> = emptyMap()
 
-            // All-muscle pre-fold effective beliefs for the observer (the policy backtest
-            // prescribes for the whole library each session). The prod step scopes its pre-fold
-            // pooling to the session's muscles, so the sweep lives here, in the test tree.
-            val allEffective = mutableMapOf<Long, EffectiveBelief>()
-            for ((_, ids) in snapshot.muscleExerciseIds) {
-                allEffective.putAll(pooling.effective(beliefs, snapshot.seedCoefficients, ids, asOf).effective)
-            }
-
-            val result = sessionStep.step(
-                beliefs = beliefs,
-                sets = sets,
-                seedCoef = snapshot.seedCoefficients,
-                exerciseMuscle = snapshot.exerciseMuscle,
-                muscleExerciseIds = snapshot.muscleExerciseIds,
-                asOf = asOf,
+        runBlocking {
+            ReplayEngine(config).runCore(
+                snapshot = snapshot,
+                initialOverrides = data.initialOverrides,
+                sessionOverrides = data.sessionOverrides,
+                sessions = data.sessions,
+                setsForSession = { data.setsBySession[it].orEmpty() },
+                beforeSession = { beliefs, asOf ->
+                    val all = mutableMapOf<Long, EffectiveBelief>()
+                    for ((_, ids) in snapshot.muscleExerciseIds) {
+                        all.putAll(pooling.effective(beliefs, snapshot.seedCoefficients, ids, asOf).effective)
+                    }
+                    allEffective = all
+                },
+                observer = { sessionId, asOf, sets, snap, result ->
+                    val predictions = sets.groupBy { it.exerciseId }.flatMap { (id, exSets) ->
+                        val eff = result.preFoldEffective[id]
+                        exSets.sortedBy { it.id }.mapIndexed { idx, s ->
+                            SetPrediction(s, idx + 1, eff?.let { it.mu - fold.fatigueShift(idx + 1) })
+                        }
+                    }
+                    observer.onSession(sessionId, asOf, predictions, allEffective, snap.currentBeliefs)
+                },
             )
-            val predictions = sets.groupBy { it.exerciseId }.flatMap { (id, exSets) ->
-                val eff = result.preFoldEffective[id]
-                exSets.sortedBy { it.id }.mapIndexed { idx, s ->
-                    SetPrediction(s, idx + 1, eff?.let { it.mu - fold.fatigueShift(idx + 1) })
-                }
-            }
-            observer.onSession(session.id, asOf, predictions, allEffective, beliefs)
         }
     }
 }
