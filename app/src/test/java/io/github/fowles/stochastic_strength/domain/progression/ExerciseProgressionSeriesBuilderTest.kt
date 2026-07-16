@@ -240,4 +240,21 @@ class ExerciseProgressionSeriesBuilderTest {
         assertEquals(expectedRank1, sample.ownObservations[0].value, 1e-2f)
         assertEquals(expectedRank2, sample.ownObservations[1].value, 1e-2f)
     }
+
+    @Test
+    fun buildFrameCarriesThePassedTrace() {
+        val snap = snapshot()
+        val names = mapOf(1L to "Bench", 2L to "Incline")
+        val sets = listOf(set(exerciseId = 1L, weight = 100f, reps = 5))
+        val sample = sampleSession(1L, listOf(1L, 2L), snap, sets, 1_000L, config)
+        val trace = io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace(
+            lines = emptyList(), finalWeightKg = 42f,
+        )
+        val frame = buildFrame(
+            targetId = 1L, muscleIds = listOf(1L, 2L), snapshot = snap,
+            sets = sets, asOf = 1_000L, namesById = names, config = config, sample = sample,
+            trace = trace,
+        )
+        assertEquals(42f, frame.trace!!.finalWeightKg, 0f)
+    }
 }

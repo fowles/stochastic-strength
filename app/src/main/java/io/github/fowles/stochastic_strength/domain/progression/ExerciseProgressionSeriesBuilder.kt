@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
+import io.github.fowles.stochastic_strength.domain.belief.PrescriptionTrace
 import io.github.fowles.stochastic_strength.domain.belief.setObservationsE1rm
 import kotlin.math.exp
 import kotlin.math.sqrt
@@ -40,6 +41,7 @@ data class ProgressionFrame(
     val merged: Float?,
     val crossTuning: List<CrossTuningRow>,
     val observations: List<SessionExerciseObservation>,
+    val trace: PrescriptionTrace? = null,
 )
 
 data class ExerciseProgressionData(
@@ -128,6 +130,7 @@ internal fun buildFrame(
     namesById: Map<Long, String>,
     config: BeliefConfig,
     sample: SessionSample,
+    trace: PrescriptionTrace? = null,
 ): ProgressionFrame {
     val crossTuning = computeCrossTuning(
         beliefs = snapshot.currentBeliefs,
@@ -154,6 +157,7 @@ internal fun buildFrame(
         merged = sample.merged.firstOrNull()?.value,
         crossTuning = crossTuning,
         observations = observations,
+        trace = trace,
     )
 }
 
