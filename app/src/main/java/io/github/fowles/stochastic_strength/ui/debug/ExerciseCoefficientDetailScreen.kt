@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -56,70 +59,89 @@ fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
             return@Scaffold
         }
 
-        // One selection drives all three sections. Until the user taps, selectedEpochDay is null and
+        // One selection drives both tabs. Until the user taps, selectedEpochDay is null and
         // everything shows the synthetic "predicted today" point (state.defaultEpochDay); tapping a
-        // session dot time-travels the trace, cross-tuning, and headers to that session's PRE-FOLD
-        // decision state. Selection persists across recomposition.
+        // session dot on the always-visible chart time-travels the cross-tuning and trace panels to
+        // that session's PRE-FOLD decision state. Selection persists across recomposition and across
+        // tab switches (the chart stays fixed at the top).
         var selectedEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
+        var selectedTab by rememberSaveable { mutableStateOf(0) }
         val crossTuningFrame = (selectedEpochDay ?: state.defaultEpochDay)
             ?.let { state.framesByEpochDay[it] }
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            item { SectionHeader("Estimated 1RM over time", verticalPadding = 4.dp) }
-
-            item {
-                val hasData = state.progressionSeries.any { it.points.isNotEmpty() }
-                if (!hasData) {
-                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        Text("No sessions yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    Column {
-                        ProgressionLegend(state.progressionSeries)
-                        ExerciseProgressionChart(
-                            series = state.progressionSeries,
-                            yFormatter = { value -> WeightFormatter.format(value, state.weightUnit) },
-                            selectedSessionEpochDay = selectedEpochDay,
-                            onSelectEpochDay = { selectedEpochDay = it },
-                            tooltipLabel = { epochDay -> state.framesByEpochDay[epochDay]?.tooltip ?: "" },
-                            yRange = state.chartYRange,
-                            modifier = Modifier.fillMaxWidth().height(300.dp).padding(horizontal = 16.dp),
-                        )
-                    }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Fixed top region: chart is always visible and does not scroll.
+            SectionHeader("Estimated 1RM over time", verticalPadding = 4.dp)
+            val hasData = state.progressionSeries.any { it.points.isNotEmpty() }
+            if (!hasData) {
+                Box(Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
+                    Text("No sessions yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            } else {
+                ProgressionLegend(state.progressionSeries)
+                ExerciseProgressionChart(
+                    series = state.progressionSeries,
+                    yFormatter = { value -> WeightFormatter.format(value, state.weightUnit) },
+                    selectedSessionEpochDay = selectedEpochDay,
+                    onSelectEpochDay = { selectedEpochDay = it },
+                    tooltipLabel = { epochDay -> state.framesByEpochDay[epochDay]?.tooltip ?: "" },
+                    yRange = state.chartYRange,
+                    modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp),
+                )
             }
 
-            item { SectionHeader("Cross-tuning", verticalPadding = 4.dp) }
-
-            item {
-                if (crossTuningFrame == null) {
-                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    Column {
-                        ProgressionNumericHeader(
-                            own = crossTuningFrame.headerOwn,
-                            siblings = crossTuningFrame.headerSiblings,
-                            merged = crossTuningFrame.headerMerged,
-                        )
-                        CrossTuningSection(rows = crossTuningFrame.crossTuning, highlightedName = state.exercise?.name)
-                    }
-                }
+            SecondaryTabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Cross-tuning") },
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Trace") },
+                )
             }
 
-            item { SectionHeader("Why this weight", verticalPadding = 4.dp) }
-
-            item {
-                val trace = crossTuningFrame?.trace
-                if (trace == null) {
-                    Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
-                        Text("No effective belief yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    PrescriptionTraceSection(trace, state.weightUnit)
+            // Each panel fills the remaining height and scrolls independently.
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                when (selectedTab) {
+                    0 -> CrossTuningTab(crossTuningFrame, highlightedName = state.exercise?.name)
+                    else -> TraceTab(crossTuningFrame, state.weightUnit)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CrossTuningTab(frame: FrameView?, highlightedName: String?) {
+    if (frame == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No weighted exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            ProgressionNumericHeader(
+                own = frame.headerOwn,
+                siblings = frame.headerSiblings,
+                merged = frame.headerMerged,
+            )
+            CrossTuningSection(rows = frame.crossTuning, highlightedName = highlightedName)
+        }
+    }
+}
+
+@Composable
+private fun TraceTab(frame: FrameView?, weightUnit: WeightUnit) {
+    val trace = frame?.trace
+    if (trace == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No effective belief yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            PrescriptionTraceSection(trace, weightUnit)
         }
     }
 }
