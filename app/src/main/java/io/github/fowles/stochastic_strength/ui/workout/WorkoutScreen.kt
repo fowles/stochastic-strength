@@ -38,6 +38,7 @@ fun WorkoutScreen(
     val state by viewModel.state.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val doneSummary by viewModel.doneSummary.collectAsState()
+    val doneHighlight by viewModel.doneHighlight.collectAsState()
     val stravaState by viewModel.stravaState.collectAsState()
     val activity = LocalContext.current as android.app.Activity
 
@@ -166,6 +167,7 @@ fun WorkoutScreen(
                 )
                 is WorkoutState.Done -> DoneContent(
                     doneSummary = doneSummary,
+                    highlight = doneHighlight,
                     stravaState = stravaState,
                     onExportToStrava = viewModel::onExportToStrava,
                     onDone = viewModel::completeWorkout,

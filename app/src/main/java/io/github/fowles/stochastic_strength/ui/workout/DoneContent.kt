@@ -11,18 +11,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
+import io.github.fowles.stochastic_strength.ui.history.HighlightCard
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportButton
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 
 @Composable
 internal fun DoneContent(
     doneSummary: WorkoutSummaryData?,
+    highlight: String?,
     stravaState: StravaExportState,
     onExportToStrava: () -> Unit,
     onDone: () -> Unit,
 ) {
     WorkoutSummaryContent(
         summary = doneSummary,
+        belowDuration = highlight?.let { text -> { HighlightCard(text) } },
         header = {
             Text("Workout Complete!", style = MaterialTheme.typography.headlineLarge)
             Spacer(Modifier.height(8.dp))

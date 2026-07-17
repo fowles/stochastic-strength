@@ -131,4 +131,51 @@ class HistoryHighlightTest {
         }
         assertTrue("expected at least one quip-only pick across seeds", sawQuipOnly)
     }
+
+    @Test
+    fun scopeToSession_keepsSessionLiftsAndMuscles() {
+        val pts = listOf(ProgressionPoint(0L, 100f), ProgressionPoint(1L, 110f))
+        val inLift = HighlightSeries("Bench Press", MuscleGroup.CHEST, pts, HighlightKind.LIFT, exerciseId = 1L)
+        val outLift = HighlightSeries("Squat", MuscleGroup.QUADS, pts, HighlightKind.LIFT, exerciseId = 2L)
+        val inMuscle = HighlightSeries("Chest", MuscleGroup.CHEST, pts, HighlightKind.MUSCLE)
+        val outMuscle = HighlightSeries("Quads", MuscleGroup.QUADS, pts, HighlightKind.MUSCLE)
+
+        val scoped = HistoryHighlight.scopeToSession(
+            series = listOf(inLift, outLift, inMuscle, outMuscle),
+            exerciseIds = setOf(1L),
+            muscles = setOf(MuscleGroup.CHEST),
+        )
+
+        assertEquals(listOf(inLift, inMuscle), scoped)
+    }
+
+    @Test
+    fun pick_withNoQuipOnly_returnsFactWhenCandidateExists() {
+        // A clear month-over-month lift gain guarantees a candidate.
+        val monthMs = 30L * 24 * 3600 * 1000
+        val now = 10L * monthMs
+        val series = listOf(
+            HighlightSeries(
+                subject = "Bench Press",
+                muscle = MuscleGroup.CHEST,
+                points = listOf(
+                    ProgressionPoint(now - 2 * monthMs, 100f),
+                    ProgressionPoint(now, 120f),
+                ),
+                kind = HighlightKind.LIFT,
+                exerciseId = 1L,
+            ),
+        )
+        // Try several seeds; with quipOnlyProbability = 0f none may be a bare quip.
+        repeat(20) { seed ->
+            val text = HistoryHighlight.pick(
+                series = series,
+                weightUnit = WeightUnit.KG,
+                nowMs = now,
+                random = Random(seed.toLong()),
+                config = HighlightConfig(quipOnlyProbability = 0f),
+            )
+            assertTrue("expected a fact, got: $text", text.contains("Bench Press is up"))
+        }
+    }
 }

@@ -20,14 +20,17 @@ import io.github.fowles.stochastic_strength.ui.WorkoutSummaryData
 import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportController
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
+import kotlin.random.Random
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StochasticStrengthApp
@@ -49,6 +52,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val _doneSummary = MutableStateFlow<WorkoutSummaryData?>(null)
     val doneSummary: StateFlow<WorkoutSummaryData?> = _doneSummary.asStateFlow()
+
+    private val _doneHighlight = MutableStateFlow<String?>(null)
+    val doneHighlight: StateFlow<String?> = _doneHighlight.asStateFlow()
 
     private val stravaController = StravaExportController(app.stravaExporter, app.database, app.applicationScope)
     val stravaState: StateFlow<StravaExportState> = stravaController.state
@@ -108,10 +114,21 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             controller.state.collect { s ->
                 when {
-                    s is WorkoutState.Done && _doneSummary.value == null ->
+                    s is WorkoutState.Done && _doneSummary.value == null -> {
                         _doneSummary.value = loadWorkoutSummary(app.database, s.sessionId)
-                    s !is WorkoutState.Done ->
+                        _doneHighlight.value = withContext(Dispatchers.Default) {
+                            app.workoutRepository.buildSessionHighlight(
+                                sessionId = s.sessionId,
+                                weightUnit = _weightUnit.value,
+                                nowMs = System.currentTimeMillis(),
+                                random = Random(s.sessionId),
+                            )
+                        }
+                    }
+                    s !is WorkoutState.Done -> {
                         _doneSummary.value = null
+                        _doneHighlight.value = null
+                    }
                 }
             }
         }

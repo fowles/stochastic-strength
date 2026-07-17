@@ -14,6 +14,7 @@ data class HighlightSeries(
     val muscle: MuscleGroup?,
     val points: List<ProgressionPoint>,
     val kind: HighlightKind,
+    val exerciseId: Long? = null,
 )
 
 data class HighlightConfig(
@@ -161,6 +162,18 @@ object HistoryHighlight {
         val chosen = candidates.random(random)
         val eligible = QUIPS.filter { it.muscle == null || it.muscle == chosen.muscle }
         return "${chosen.text} ${eligible.random(random).text}"
+    }
+
+    /** Filter series down to lifts/muscles performed in one session. */
+    fun scopeToSession(
+        series: List<HighlightSeries>,
+        exerciseIds: Set<Long>,
+        muscles: Set<MuscleGroup>,
+    ): List<HighlightSeries> = series.filter { s ->
+        when (s.kind) {
+            HighlightKind.LIFT -> s.exerciseId in exerciseIds
+            HighlightKind.MUSCLE -> s.muscle in muscles
+        }
     }
 
     private fun candidate(

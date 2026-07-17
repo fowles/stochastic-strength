@@ -22,8 +22,10 @@ import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
+import io.github.fowles.stochastic_strength.domain.history.HighlightConfig
 import io.github.fowles.stochastic_strength.domain.history.HighlightKind
 import io.github.fowles.stochastic_strength.domain.history.HighlightSeries
+import io.github.fowles.stochastic_strength.domain.history.HistoryHighlight
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
@@ -39,6 +41,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.random.Random
 
 class WorkoutRepository(
     private val db: AppDatabase,
@@ -407,10 +410,37 @@ class WorkoutRepository(
         val liftSeries = progressionSeriesBuilder.buildAllMergedSeries(db).mapNotNull { (id, points) ->
             val exercise = exercisesById[id] ?: return@mapNotNull null
             if (points.isEmpty()) null
-            else HighlightSeries(exercise.name, exercise.primaryMuscle, points, HighlightKind.LIFT)
+            else HighlightSeries(exercise.name, exercise.primaryMuscle, points, HighlightKind.LIFT, exerciseId = id)
         }
 
         return muscleSeries + liftSeries
+    }
+
+    /**
+     * Highlight string for the finished-workout card: a fact about a lift or muscle
+     * performed in [sessionId], paired with a quip. Always tries a session fact
+     * (quipOnlyProbability = 0), falling back to a bare quip only when nothing
+     * qualifies. Seed [random] with the session id for a stable-per-session pick.
+     */
+    suspend fun buildSessionHighlight(
+        sessionId: Long,
+        weightUnit: WeightUnit,
+        nowMs: Long,
+        random: Random,
+    ): String {
+        val series = buildHighlightSeries()
+        val exerciseIds = db.workoutSetDao().getSetsForSession(sessionId)
+            .map { it.exerciseId }.toSet()
+        val muscles = db.exerciseDao().getByIds(exerciseIds.toList())
+            .map { it.primaryMuscle }.toSet()
+        val scoped = HistoryHighlight.scopeToSession(series, exerciseIds, muscles)
+        return HistoryHighlight.pick(
+            series = scoped,
+            weightUnit = weightUnit,
+            nowMs = nowMs,
+            random = random,
+            config = HighlightConfig(quipOnlyProbability = 0f),
+        )
     }
 
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =

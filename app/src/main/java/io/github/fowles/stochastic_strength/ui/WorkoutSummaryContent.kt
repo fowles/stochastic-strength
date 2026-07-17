@@ -23,6 +23,7 @@ fun WorkoutSummaryContent(
     summary: WorkoutSummaryData?,
     modifier: Modifier = Modifier,
     onExerciseTap: ((Long) -> Unit)? = null,
+    belowDuration: (@Composable ColumnScope.() -> Unit)? = null,
     header: @Composable ColumnScope.() -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
 ) {
@@ -43,6 +44,10 @@ fun WorkoutSummaryContent(
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (belowDuration != null) {
+                Spacer(Modifier.height(12.dp))
+                belowDuration()
+            }
             Spacer(Modifier.height(24.dp))
             summary.exercises.forEach { ex ->
                 Column(
