@@ -4,13 +4,13 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.fowles.stochastic_strength.BuildConfig
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.domain.backup.BackupFormatException
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonBuilder
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonParser
+import io.github.fowles.stochastic_strength.domain.history.HighlightSeries
 import io.github.fowles.stochastic_strength.domain.history.HistoryHighlight
 import io.github.fowles.stochastic_strength.domain.history.HistoryRows
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +49,8 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     private val _state = MutableStateFlow(HistoryState())
     val state: StateFlow<HistoryState> = _state.asStateFlow()
 
+    private var highlightSeries: List<HighlightSeries> = emptyList()
+
     init {
         viewModelScope.launch { reloadInternal() }
     }
@@ -73,11 +75,12 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         val workoutDays = HistoryRows.workoutDays(
             rawSessions.filter { it.endTime != null }.map { it.startTime }, zone,
         )
-        // Daily-stable pick in release; re-roll on every open in debug for easy testing.
-        val seed = if (BuildConfig.DEBUG) System.nanoTime() else LocalDate.now(zone).toEpochDay()
+        // Daily-stable pick; "Inspire me" in the menu re-rolls on demand.
+        val seed = LocalDate.now(zone).toEpochDay()
         val highlight = withContext(Dispatchers.Default) {
+            highlightSeries = repository.buildHighlightSeries()
             HistoryHighlight.pick(
-                series = repository.buildHighlightSeries(),
+                series = highlightSeries,
                 weightUnit = weightUnit,
                 nowMs = nowMs,
                 random = Random(seed),
@@ -91,6 +94,24 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
             loading = false,
             message = message,
         )
+    }
+
+    fun inspireMe() {
+        val current = _state.value
+        if (current.loading) return
+        viewModelScope.launch {
+            val newHighlight = withContext(Dispatchers.Default) {
+                generateSequence {
+                    HistoryHighlight.pick(
+                        series = highlightSeries,
+                        weightUnit = current.weightUnit,
+                        nowMs = System.currentTimeMillis(),
+                        random = Random(System.nanoTime()),
+                    )
+                }.take(5).firstOrNull { it != current.highlight } ?: current.highlight
+            }
+            _state.value = _state.value.copy(highlight = newHighlight)
+        }
     }
 
     fun clearMessage() {

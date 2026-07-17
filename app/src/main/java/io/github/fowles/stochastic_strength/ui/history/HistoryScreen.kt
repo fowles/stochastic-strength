@@ -92,6 +92,13 @@ fun HistoryScreen(
                     }
                     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                         DropdownMenuItem(
+                            text = { Text("Inspire me") },
+                            onClick = {
+                                menuExpanded = false
+                                viewModel.inspireMe()
+                            },
+                        )
+                        DropdownMenuItem(
                             text = { Text("Export history") },
                             onClick = {
                                 menuExpanded = false
