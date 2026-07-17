@@ -32,7 +32,7 @@
   - `ExerciseSparklines.windowValues(seriesById: Map<Long, List<ProgressionPoint>>, firstPerformedById: Map<Long, Long>, nowMs: Long, windowMs: Long = DEFAULT_WINDOW_MS): Map<Long, List<Float>>` — per exercise keeps points in `max(now − windowMs, firstPerformed) .. now`; an exercise absent from `firstPerformedById` (never performed itself) is dropped.
   - `ExerciseSparklines.normalize(values: List<Float>): List<Float>` — min→0, max→1, flat→all 0.5, `< 2` values→empty.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/test/java/io/github/fowles/stochastic_strength/domain/progression/ExerciseSparklinesTest.kt`:
 
@@ -119,12 +119,12 @@ class ExerciseSparklinesTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ExerciseSparklinesTest"`
 Expected: FAIL — compile error, `ExerciseSparklines` is unresolved.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/domain/progression/ExerciseSparklines.kt`:
 
@@ -181,12 +181,12 @@ object ExerciseSparklines {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.progression.ExerciseSparklinesTest"`
 Expected: PASS (8 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m 'feat(exercises): pure sparkline window + normalize transforms
@@ -208,7 +208,7 @@ Claude-Session: https://claude.ai/code/session_01H61mBfQ9GnwvCMt9mdeX4d'
 
 No JVM unit test — Compose `Canvas` drawing is verified by the assemble build (Task 3) and on-device. The compilable deliverable is the composable itself.
 
-- [ ] **Step 1: Write the composable**
+- [x] **Step 1: Write the composable**
 
 Create `app/src/main/java/io/github/fowles/stochastic_strength/ui/components/Sparkline.kt`:
 
@@ -281,12 +281,12 @@ fun Sparkline(
 }
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj commit -m 'feat(exercises): Sparkline Canvas composable (line + gradient fill)
@@ -312,7 +312,7 @@ Claude-Session: https://claude.ai/code/session_01H61mBfQ9GnwvCMt9mdeX4d'
   - `WorkoutRepository.buildExerciseSparklines(windowMs: Long = ExerciseSparklines.DEFAULT_WINDOW_MS, nowMs: Long = System.currentTimeMillis()): Map<Long, List<Float>>`
   - `ExercisesViewModel.sparklines: StateFlow<Map<Long, List<Float>>>`
 
-- [ ] **Step 1: Add the first-performed DAO query**
+- [x] **Step 1: Add the first-performed DAO query**
 
 In `WorkoutSetDao.kt`, add a projection data class above the `@Dao interface WorkoutSetDao` declaration (after the imports):
 
@@ -333,7 +333,7 @@ Then add this query inside the interface (e.g. after `getAll()`):
     suspend fun getFirstCompletedAtByExercise(): List<ExerciseFirstCompleted>
 ```
 
-- [ ] **Step 2: Add the repository method**
+- [x] **Step 2: Add the repository method**
 
 In `WorkoutRepository.kt`, add the import alongside the other `domain.progression` imports (near line 29):
 
@@ -363,7 +363,7 @@ Then add this method immediately after `getExerciseProgressionData` (after line 
     }
 ```
 
-- [ ] **Step 3: Expose sparklines from the ViewModel**
+- [x] **Step 3: Expose sparklines from the ViewModel**
 
 In `ExercisesViewModel.kt`, add the state flow and populate it in `init`. Replace the existing `init { ... }` block (lines 36–42) with:
 
@@ -387,7 +387,7 @@ In `ExercisesViewModel.kt`, add the state flow and populate it in `init`. Replac
 
 (`MutableStateFlow`, `StateFlow`, `asStateFlow`, `viewModelScope`, `launch` are already imported.)
 
-- [ ] **Step 4: Render the sparkline in the row**
+- [x] **Step 4: Render the sparkline in the row**
 
 In `ExercisesScreen.kt`:
 
@@ -465,17 +465,17 @@ private fun ExerciseRow(
 }
 ```
 
-- [ ] **Step 5: Build the app**
+- [x] **Step 5: Build the app**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 6: Run the full unit test suite (regression check)**
+- [x] **Step 6: Run the full unit test suite (regression check)**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: BUILD SUCCESSFUL — all tests pass, including `ExerciseSparklinesTest`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m 'feat(exercises): merged-1RM sparkline on each exercise row
@@ -493,12 +493,12 @@ Claude-Session: https://claude.ai/code/session_01H61mBfQ9GnwvCMt9mdeX4d'
 
 **Files:** none (manual/visual).
 
-- [ ] **Step 1: Install and launch on the connected device/emulator**
+- [x] **Step 1: Install and launch on the connected device/emulator**
 
 Run: `./gradlew :app:installDebug`
 Then open the app → **Exercises**.
 
-- [ ] **Step 2: Verify the visuals**
+- [x] **Step 2: Verify the visuals**
 
 Confirm, on device:
 - Exercises trained ≥ 2 times in the last 6 months show a small line + gradient sparkline to the right of the name, before any Disliked/Hurt badge.
@@ -506,7 +506,7 @@ Confirm, on device:
 - The sparkline reads clearly in both light and dark theme (primary color; verify the gradient fill is visible but subtle — recall dynamic-color tokens can be washed out, so eyeball it).
 - Rows with a Disliked or Hurt badge still lay out cleanly with the sparkline present.
 
-- [ ] **Step 3: Note any visual adjustments**
+- [x] **Step 3: Note any visual adjustments**
 
 If width/height/alpha need tuning, adjust the defaults in `Sparkline.kt` (Task 2) or the `padding` in `ExerciseRow`, rebuild (`./gradlew :app:installDebug`), and amend the Task 3 commit (`jj describe` / re-commit). No behavioral logic changes here.
 
