@@ -32,6 +32,9 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
+// Raw-pixel drag distance (not dp) required to register a month swipe.
+private const val MONTH_SWIPE_THRESHOLD_PX = 60f
+
 @Composable
 fun MonthCalendar(
     shownMonth: YearMonth,
@@ -48,8 +51,8 @@ fun MonthCalendar(
                 var totalDrag = 0f
                 detectHorizontalDragGestures(
                     onDragEnd = {
-                        if (totalDrag > 60f) onMonthChange(shownMonth.minusMonths(1))
-                        else if (totalDrag < -60f) onMonthChange(shownMonth.plusMonths(1))
+                        if (totalDrag > MONTH_SWIPE_THRESHOLD_PX) onMonthChange(shownMonth.minusMonths(1))
+                        else if (totalDrag < -MONTH_SWIPE_THRESHOLD_PX) onMonthChange(shownMonth.plusMonths(1))
                         totalDrag = 0f
                     },
                 ) { _, drag -> totalDrag += drag }
@@ -110,7 +113,7 @@ fun MonthCalendar(
                                     .clickable { onDayTap(date) }
                             } else Modifier
                             Box(
-                                modifier = cellModifier.aspectRatio(1f),
+                                modifier = cellModifier,
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(

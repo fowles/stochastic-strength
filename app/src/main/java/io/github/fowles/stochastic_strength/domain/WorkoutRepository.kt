@@ -393,7 +393,7 @@ class WorkoutRepository(
      * per-lift series are the merged (belief) 1RM progression for each exercise trained in the last
      * ~90 days. Heavy (a muscle replay per active lift) but only runs on the cold History screen.
      */
-    suspend fun buildHighlightSeries(nowMs: Long): List<HighlightSeries> {
+    suspend fun buildHighlightSeries(nowMs: Long, allSessions: List<WorkoutSession>): List<HighlightSeries> {
         val quarterMs = 90L * 24 * 3600 * 1000
         val muscleSeries = MuscleGroup.entries.mapNotNull { muscle ->
             val points = getBaselineEvents(muscle)
@@ -402,7 +402,7 @@ class WorkoutRepository(
             else HighlightSeries(muscle.displayName(), muscle, points, HighlightKind.MUSCLE)
         }
 
-        val activeSessions = getAllSessions().filter { it.startTime >= nowMs - quarterMs }
+        val activeSessions = allSessions.filter { it.startTime >= nowMs - quarterMs }
         val activeExerciseIds = activeSessions
             .flatMap { db.workoutSetDao().getSetsForSession(it.id).map { s -> s.exerciseId } }
             .toSet()
