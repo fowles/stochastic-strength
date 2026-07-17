@@ -22,7 +22,6 @@ data class HighlightConfig(
     val liftMinGainKg: Float = 2f,
     val muscleMinGainFraction: Float = 0.03f,
     val quipOnlyProbability: Float = 0.25f,
-    val appendQuipProbability: Float = 0.4f,
 )
 
 /** A gym non-sequitur in the Yoked-Galileo voice. Muscle-keyed quips only attach to that muscle. */
@@ -84,6 +83,11 @@ object HistoryHighlight {
 
     private val genericQuips = QUIPS.filter { it.muscle == null }
 
+    private val PLURAL_MUSCLES = setOf(
+        MuscleGroup.SHOULDERS, MuscleGroup.BICEPS, MuscleGroup.TRICEPS,
+        MuscleGroup.QUADS, MuscleGroup.HAMSTRINGS, MuscleGroup.GLUTES, MuscleGroup.CALVES,
+    )
+
     fun pick(
         series: List<HighlightSeries>,
         weightUnit: WeightUnit,
@@ -104,12 +108,10 @@ object HistoryHighlight {
             return genericQuips.random(random).text
         }
 
+        // A stat always brings a quip along.
         val chosen = candidates.random(random)
-        if (random.nextFloat() < config.appendQuipProbability) {
-            val eligible = QUIPS.filter { it.muscle == null || it.muscle == chosen.muscle }
-            return "${chosen.text} ${eligible.random(random).text}"
-        }
-        return chosen.text
+        val eligible = QUIPS.filter { it.muscle == null || it.muscle == chosen.muscle }
+        return "${chosen.text} ${eligible.random(random).text}"
     }
 
     private fun candidate(
@@ -132,7 +134,8 @@ object HistoryHighlight {
                 val frac = gain / baseline.value
                 if (frac < config.muscleMinGainFraction) return null
                 val pct = (frac * 100f).roundToInt()
-                Candidate("Your ${s.subject} is up $pct% ${w.label}.", s.muscle)
+                val verb = if (s.muscle in PLURAL_MUSCLES) "are" else "is"
+                Candidate("Your ${s.subject.lowercase()} $verb up $pct% ${w.label}.", s.muscle)
             }
         }
     }

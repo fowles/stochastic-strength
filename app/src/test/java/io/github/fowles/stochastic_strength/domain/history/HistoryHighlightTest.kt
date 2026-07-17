@@ -49,6 +49,33 @@ class HistoryHighlightTest {
     }
 
     @Test
+    fun `muscle stat uses lowercase name and plural-aware verb`() {
+        fun muscleSeries(muscle: MuscleGroup) = HighlightSeries(
+            subject = muscle.displayName(), muscle = muscle, kind = HighlightKind.MUSCLE,
+            points = listOf(ProgressionPoint(now - 40 * day, 100f), ProgressionPoint(now, 115f)),
+        )
+        val glutes = HistoryHighlight.pick(
+            series = listOf(muscleSeries(MuscleGroup.GLUTES)),
+            weightUnit = WeightUnit.KG, nowMs = now, random = statSeed(),
+        )
+        assertTrue(glutes, glutes.contains("Your glutes are up"))
+        val chest = HistoryHighlight.pick(
+            series = listOf(muscleSeries(MuscleGroup.CHEST)),
+            weightUnit = WeightUnit.KG, nowMs = now, random = statSeed(),
+        )
+        assertTrue(chest, chest.contains("Your chest is up"))
+    }
+
+    @Test
+    fun `a stat pick always carries a quip`() {
+        val series = listOf(liftSeries("Bench Press", MuscleGroup.CHEST, 60f, 70f))
+        repeat(50) { s ->
+            val text = HistoryHighlight.pick(series, WeightUnit.KG, now, Random(s.toLong()))
+            assertTrue(text, HistoryHighlight.QUIPS.any { text.endsWith(it.text) })
+        }
+    }
+
+    @Test
     fun `flat and negative series never produce a stat, only a quip`() {
         val flat = liftSeries("Bench Press", MuscleGroup.CHEST, 60f, 60f)
         val down = liftSeries("Squat", MuscleGroup.QUADS, 100f, 90f)
