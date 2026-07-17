@@ -78,11 +78,12 @@ noise — a small fixed percent for muscles, ~one grid increment for lifts).
 
 A single pool of self-standing swole-bro non-sequiturs in "Yoked Galileo /
 Diesel Tycho Brahe" voice. Each quip must read fine **both** appended to a stat
-and standing alone. Examples of tone (final list authored during
-implementation):
+and standing alone. The rest of the pool is authored during implementation in
+this tone; **"The bar does not care about your feelings. Add weight to it
+anyway." is a committed quip that must be in the list.** Tone examples:
 
 - "Way to nail the vanity lifts!" (muscle-keyed — biceps/abs/etc.)
-- "The bar does not care about your feelings. Add weight to it anyway."
+- "The bar does not care about your feelings. Add weight to it anyway." (keep)
 - "Somewhere, Yoked Galileo is proud."
 
 Some quips are keyed to a specific muscle group and only appear when that
