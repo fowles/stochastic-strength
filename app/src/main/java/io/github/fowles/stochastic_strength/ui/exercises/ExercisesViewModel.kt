@@ -7,6 +7,7 @@ import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ExercisesState(
     val exercises: List<Exercise> = emptyList(),
@@ -33,11 +35,19 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
         .map { rows -> rows.associate { it.exerciseId to it.isHurt } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    private val _sparklines = MutableStateFlow<Map<Long, List<Float>>>(emptyMap())
+    val sparklines: StateFlow<Map<Long, List<Float>>> = _sparklines.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.observeAllExercises().collect { exercises ->
                 _state.value = _state.value.copy(exercises = exercises)
             }
+        }
+        // Computed once (beliefs only change after a workout finishes, and this screen is entered
+        // fresh from home) — mirrors the History highlight's one-shot series build.
+        viewModelScope.launch {
+            _sparklines.value = withContext(Dispatchers.Default) { repository.buildExerciseSparklines() }
         }
     }
 
