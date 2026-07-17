@@ -94,6 +94,7 @@ class StravaJsonBuilder {
             "Dumbbell Overhead Press"         -> "OVERHEAD_DUMBBELL_PRESS"
             "Arnold Press"                    -> "ARNOLD_PRESS"
             "Push Press"                      -> "PUSH_PRESS"
+            "Landmine Press"                  -> "STANDING_SINGLE_ARM_SHOULDER_PRESS"
             "Kettlebell Clean and Press"      -> "SINGLE_ARM_CLEAN_AND_PRESS"
             // SHOULDERS — Lateral Raise
             "Dumbbell Lateral Raise"          -> "LATERAL_RAISE_GENERIC"
