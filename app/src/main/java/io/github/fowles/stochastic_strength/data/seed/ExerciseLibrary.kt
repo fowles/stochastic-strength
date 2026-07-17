@@ -22,7 +22,6 @@ object ExerciseLibrary {
         // BACK
         Exercise(name = "Barbell Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BARBELL),
         Exercise(name = "T-Bar Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BARBELL, isAsymmetric = true),
-        Exercise(name = "Landmine Press", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = listOf(MuscleGroup.CHEST, MuscleGroup.TRICEPS, MuscleGroup.CORE), equipment = Equipment.BARBELL, isAsymmetric = true),
         Exercise(name = "Pull-Up", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Chin-Up", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Inverted Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BODYWEIGHT),
@@ -47,6 +46,7 @@ object ExerciseLibrary {
         Exercise(name = "Cable Lateral Raise", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.CABLE_MACHINE, isUnilateral = true),
         Exercise(name = "Machine Lateral Raise", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.MACHINE),
         Exercise(name = "Push Press", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = listOf(MuscleGroup.TRICEPS), equipment = Equipment.BARBELL),
+        Exercise(name = "Landmine Press", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = listOf(MuscleGroup.CHEST, MuscleGroup.TRICEPS, MuscleGroup.CORE), equipment = Equipment.BARBELL, isAsymmetric = true),
         Exercise(name = "Pike Push-Up", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = listOf(MuscleGroup.TRICEPS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Banded Lateral Raise", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.BAND),
         Exercise(name = "External Rotation", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = emptyList(), equipment = Equipment.BAND, isUnilateral = true),
