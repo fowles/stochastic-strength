@@ -163,13 +163,6 @@ private fun ExerciseRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (sparkline != null) {
-            Sparkline(
-                values = sparkline,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
-        }
         if (exercise.isDisliked) {
             StatusBadge(
                 label = "Disliked",
@@ -183,6 +176,13 @@ private fun ExerciseRow(
                 label = "Hurt",
                 containerColor = MaterialTheme.colorScheme.errorContainer,
                 contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            )
+        }
+        if (sparkline != null) {
+            Sparkline(
+                values = sparkline,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 8.dp),
             )
         }
     }
