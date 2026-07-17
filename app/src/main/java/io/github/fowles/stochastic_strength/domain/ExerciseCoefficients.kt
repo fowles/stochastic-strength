@@ -44,6 +44,7 @@ object ExerciseCoefficients : CoefficientSource {
         "Cable Lateral Raise"          to 0.15f,
         "Machine Lateral Raise"        to 0.20f,
         "Push Press"                   to 1.20f,
+        "Landmine Press"               to 0.5f,
         "Pike Push-Up"                 to 0.00f,
         "Banded Lateral Raise"         to 0.00f,
         "External Rotation"            to 0.00f,

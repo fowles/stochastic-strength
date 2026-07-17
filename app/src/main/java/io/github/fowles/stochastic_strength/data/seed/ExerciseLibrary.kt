@@ -21,7 +21,8 @@ object ExerciseLibrary {
         Exercise(name = "Banded Chest Press", primaryMuscle = MuscleGroup.CHEST, secondaryMuscles = listOf(MuscleGroup.SHOULDERS, MuscleGroup.TRICEPS), equipment = Equipment.BAND),
         // BACK
         Exercise(name = "Barbell Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BARBELL),
-        Exercise(name = "T-Bar Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BARBELL),
+        Exercise(name = "T-Bar Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BARBELL, isAsymmetric = true),
+        Exercise(name = "Landmine Press", primaryMuscle = MuscleGroup.SHOULDERS, secondaryMuscles = listOf(MuscleGroup.CHEST, MuscleGroup.TRICEPS, MuscleGroup.CORE), equipment = Equipment.BARBELL, isAsymmetric = true),
         Exercise(name = "Pull-Up", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Chin-Up", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BODYWEIGHT),
         Exercise(name = "Inverted Row", primaryMuscle = MuscleGroup.BACK, secondaryMuscles = listOf(MuscleGroup.BICEPS), equipment = Equipment.BODYWEIGHT),
