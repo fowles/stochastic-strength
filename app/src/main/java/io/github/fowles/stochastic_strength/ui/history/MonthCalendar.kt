@@ -2,128 +2,107 @@ package io.github.fowles.stochastic_strength.ui.history
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
-// Raw-pixel drag distance (not dp) required to register a month swipe.
-private const val MONTH_SWIPE_THRESHOLD_PX = 60f
-
-// Compact grid metrics: rows are a fixed height (not square cells, which made the
-// month fill the whole screen and read as sparse), and the workout circle is a fixed
-// size so it is always round and occupies most of the cell.
-private val WEEK_ROW_HEIGHT = 40.dp
-private val DAY_CIRCLE_SIZE = 34.dp
-
-// How many months are stacked, newest first. Two keeps the view dense without
-// crowding out the session list below.
-private const val MONTHS_SHOWN = 2
+// Fixed per-day cell; months are packed at their natural width and scroll horizontally
+// rather than stretching to fit the screen.
+private val DAY_CELL_SIZE = 34.dp
+// Small inset inside each cell → the gap between adjacent days.
+private val DAY_CELL_INSET = 1.dp
+// Gap between adjacent months in the horizontal strip.
+private val MONTH_GAP = 32.dp
+private const val DAYS_PER_WEEK = 7
 
 /**
- * A compact, multi-month calendar. Shows [MONTHS_SHOWN] months ending at [shownMonth]
- * (newest at top), marks workout days with a large filled circle, and pages the whole
- * window by one month via the arrows or a horizontal swipe. Tapping a workout day emits
- * its date.
+ * A horizontally scrolling calendar showing every month from the earliest workout to the
+ * latest (oldest on the left), packed at a fixed width. Opens scrolled to the newest month.
+ * Workout days are marked with a filled circle; tapping one emits its date.
  */
 @Composable
 fun MonthCalendar(
-    shownMonth: YearMonth,
     workoutDays: Set<LocalDate>,
-    onMonthChange: (YearMonth) -> Unit,
     onDayTap: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    val months = monthsToShow(workoutDays)
+    val scrollState = rememberScrollState()
+    // Open at the newest month (right edge): wait for the first layout to give a real
+    // maxValue, jump there once, then never again — so the user's own scrolling sticks.
+    LaunchedEffect(Unit) {
+        val end = snapshotFlow { scrollState.maxValue }.first { it > 0 }
+        scrollState.scrollTo(end)
+    }
+
+    Row(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .pointerInput(shownMonth) {
-                var totalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        if (totalDrag > MONTH_SWIPE_THRESHOLD_PX) onMonthChange(shownMonth.minusMonths(1))
-                        else if (totalDrag < -MONTH_SWIPE_THRESHOLD_PX) onMonthChange(shownMonth.plusMonths(1))
-                        totalDrag = 0f
-                    },
-                ) { _, drag -> totalDrag += drag }
-            },
+            .horizontalScroll(scrollState)
+            .padding(horizontal = 12.dp),
     ) {
-        for (offset in 0 until MONTHS_SHOWN) {
-            val month = shownMonth.minusMonths(offset.toLong())
-            MonthHeader(
-                month = month,
-                // Arrows live on the top (newest) month only; they page the whole window.
-                onPrevMonth = if (offset == 0) ({ onMonthChange(shownMonth.minusMonths(1)) }) else null,
-                onNextMonth = if (offset == 0) ({ onMonthChange(shownMonth.plusMonths(1)) }) else null,
-            )
-            WeekdayHeader()
-            MonthGrid(month = month, workoutDays = workoutDays, onDayTap = onDayTap)
+        months.forEachIndexed { index, month ->
+            if (index > 0) Spacer(Modifier.width(MONTH_GAP))
+            MonthColumn(month = month, workoutDays = workoutDays, onDayTap = onDayTap)
         }
     }
 }
 
+/** Every month from the earliest to the latest workout, inclusive; today's month if none. */
+private fun monthsToShow(workoutDays: Set<LocalDate>): List<YearMonth> {
+    if (workoutDays.isEmpty()) return listOf(YearMonth.now())
+    val monthsWithWorkouts = workoutDays.map { YearMonth.from(it) }
+    val start = monthsWithWorkouts.min()
+    val end = monthsWithWorkouts.max()
+    return generateSequence(start) { if (it < end) it.plusMonths(1) else null }.toList()
+}
+
 @Composable
-private fun MonthHeader(
+private fun MonthColumn(
     month: YearMonth,
-    onPrevMonth: (() -> Unit)?,
-    onNextMonth: (() -> Unit)?,
+    workoutDays: Set<LocalDate>,
+    onDayTap: (LocalDate) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        if (onPrevMonth != null) {
-            IconButton(onClick = onPrevMonth) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
-            }
-        } else {
-            Box(Modifier.size(48.dp))
-        }
+    Column(modifier = Modifier.width(DAY_CELL_SIZE * DAYS_PER_WEEK)) {
         Text(
-            text = "${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}",
-            style = MaterialTheme.typography.titleMedium,
+            text = "${month.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${month.year}",
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(DAY_CELL_SIZE * DAYS_PER_WEEK).padding(bottom = 2.dp),
         )
-        if (onNextMonth != null) {
-            IconButton(onClick = onNextMonth) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
-            }
-        } else {
-            Box(Modifier.size(48.dp))
-        }
+        WeekdayHeader()
+        MonthGrid(month = month, workoutDays = workoutDays, onDayTap = onDayTap)
     }
 }
 
 @Composable
 private fun WeekdayHeader() {
-    Row(modifier = Modifier.fillMaxWidth()) {
+    Row {
         // Week starts Monday to match ISO DayOfWeek ordering used in the grid.
         // DayOfWeek is a Java enum → values(), not the Kotlin-only .entries.
         for (dow in DayOfWeek.values()) {
@@ -132,7 +111,7 @@ private fun WeekdayHeader() {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.size(DAY_CELL_SIZE, 18.dp),
             )
         }
     }
@@ -148,14 +127,14 @@ private fun MonthGrid(
     // Monday=1..Sunday=7 → blanks before day 1.
     val leadingBlanks = firstOfMonth.dayOfWeek.value - 1
     val daysInMonth = month.lengthOfMonth()
-    val rows = (leadingBlanks + daysInMonth + 6) / 7
+    val rows = (leadingBlanks + daysInMonth + 6) / DAYS_PER_WEEK
 
     for (week in 0 until rows) {
-        Row(modifier = Modifier.fillMaxWidth().height(WEEK_ROW_HEIGHT)) {
-            for (dowIndex in 0 until 7) {
-                val dayNumber = week * 7 + dowIndex - leadingBlanks + 1
+        Row {
+            for (dowIndex in 0 until DAYS_PER_WEEK) {
+                val dayNumber = week * DAYS_PER_WEEK + dowIndex - leadingBlanks + 1
                 Box(
-                    modifier = Modifier.weight(1f).height(WEEK_ROW_HEIGHT),
+                    modifier = Modifier.size(DAY_CELL_SIZE).padding(DAY_CELL_INSET),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (dayNumber in 1..daysInMonth) {
@@ -177,7 +156,7 @@ private fun DayCell(dayNumber: Int, isWorkout: Boolean, onTap: () -> Unit) {
     if (isWorkout) {
         Box(
             modifier = Modifier
-                .size(DAY_CIRCLE_SIZE)
+                .fillMaxSize()
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary)
                 .clickable(onClick = onTap),
@@ -185,7 +164,7 @@ private fun DayCell(dayNumber: Int, isWorkout: Boolean, onTap: () -> Unit) {
         ) {
             Text(
                 text = dayNumber.toString(),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimary,
             )
@@ -193,7 +172,7 @@ private fun DayCell(dayNumber: Int, isWorkout: Boolean, onTap: () -> Unit) {
     } else {
         Text(
             text = dayNumber.toString(),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }

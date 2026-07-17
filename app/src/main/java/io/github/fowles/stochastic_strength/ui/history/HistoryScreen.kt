@@ -166,17 +166,11 @@ fun HistoryScreen(
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
 
-        var shownMonth by remember(state.sessions) {
-            mutableStateOf(entryDates.firstOrNull()?.let { YearMonth.from(it) } ?: YearMonth.now(zone))
-        }
-
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             HighlightCard(text = state.highlight)
 
             MonthCalendar(
-                shownMonth = shownMonth,
                 workoutDays = state.workoutDays,
-                onMonthChange = { shownMonth = it },
                 onDayTap = { date ->
                     HistoryRows.firstRowIndexForDate(rows, date)?.let { index ->
                         scope.launch { listState.animateScrollToItem(index) }
