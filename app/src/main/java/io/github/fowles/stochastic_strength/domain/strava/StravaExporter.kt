@@ -165,14 +165,26 @@ class StravaExporter(
             "Stochastic", "Capricious", "Serendipitous", "Haphazard", "Aleatory",
             "Mercurial", "Erratic", "Fortuitous", "Whimsical", "Impromptu",
             "Spontaneous", "Arbitrary", "Incidental", "Unpredictable", "Chaotic",
+            "Probabilistic", "Nondeterministic", "Random", "Entropic", "Brownian",
+            "Quantum", "Unforeseen", "Improvised", "Freewheeling", "Extemporaneous",
+            "Wayward", "Untamed", "Emergent", "Turbulent", "Kaleidoscopic",
+            "Roving", "Vagrant", "Dicey", "Monte-Carlo", "Unscripted",
         )
         private val STRENGTHS = listOf(
             "Power", "Might", "Brawn", "Vigor", "Grit", "Strength",
             "Mettle", "Fortitude", "Prowess", "Sinew", "Tenacity",
+            "Muscle", "Thew", "Potency", "Puissance", "Iron",
+            "Steel", "Moxie", "Gumption", "Hustle", "Ferocity",
+            "Wrath", "Gains", "Swole", "Heft", "Oomph",
+            "Vim", "Verve", "Torque", "Payload", "Clout",
         )
         private val WORKOUT_NOUNS = listOf(
             "Gauntlet", "Odyssey", "Quest", "Ritual", "Grind", "Workout",
             "Endeavor", "Foray", "Sortie", "Romp", "Reckoning", "Session",
+            "Escapade", "Expedition", "Pilgrimage", "Crusade", "Campaign",
+            "Excursion", "Caper", "Undertaking", "Saga", "Voyage",
+            "Jaunt", "Symposium", "Ordeal", "Bacchanal", "Communion",
+            "Séance", "Summit", "Tribunal", "Recital", "Pageant",
         )
     }
 }
