@@ -28,22 +28,29 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.domain.history.HistoryRow
+import io.github.fowles.stochastic_strength.domain.history.HistoryRows
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
-import io.github.fowles.stochastic_strength.ui.components.SectionHeader
-import io.github.fowles.stochastic_strength.ui.components.StrengthGrid
 import io.github.fowles.stochastic_strength.ui.components.formatDateTime
+import kotlinx.coroutines.launch
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.TextStyle
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -151,49 +158,77 @@ fun HistoryScreen(
             return@Scaffold
         }
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            item {
-                SectionHeader("Estimated One Rep Max")
-            }
+        val zone = ZoneId.systemDefault()
+        val entryDates = state.sessions.map { HistoryRows.localDate(it.session.startTime, zone) }
+        val rows = HistoryRows.buildRows(entryDates)
+        val listState = rememberLazyListState()
+        val scope = rememberCoroutineScope()
 
-            item {
-                StrengthGrid(
-                    strengths = state.muscleStrengths,
-                    tapTargets = state.referenceExerciseIds,
-                    weightUnit = state.weightUnit,
-                    onTap = onExerciseTap,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                )
-            }
+        var shownMonth by remember(state.sessions) {
+            mutableStateOf(entryDates.firstOrNull()?.let { YearMonth.from(it) } ?: YearMonth.now(zone))
+        }
 
-            item {
-                SectionHeader("Sessions")
-            }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            HighlightCard(text = state.highlight)
+
+            MonthCalendar(
+                shownMonth = shownMonth,
+                workoutDays = state.workoutDays,
+                onMonthChange = { shownMonth = it },
+                onDayTap = { date ->
+                    HistoryRows.firstRowIndexForDate(rows, date)?.let { index ->
+                        scope.launch { listState.animateScrollToItem(index) }
+                    }
+                },
+            )
 
             if (state.sessions.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "No sessions yet",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("No sessions yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                items(state.sessions, key = { it.session.id }) { item ->
-                    SessionRow(
-                        item = item,
-                        onClick = { onSessionTap(item.session.id) },
-                        onDelete = { viewModel.requestDelete(item.session.id) },
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    items(
+                        rows,
+                        key = { row ->
+                            when (row) {
+                                is HistoryRow.MonthHeader -> "h-${row.month}"
+                                is HistoryRow.Entry -> "s-${state.sessions[row.itemIndex].session.id}"
+                            }
+                        },
+                    ) { row ->
+                        when (row) {
+                            is HistoryRow.MonthHeader -> MonthDividerRow(row.month)
+                            is HistoryRow.Entry -> {
+                                val item = state.sessions[row.itemIndex]
+                                SessionRow(
+                                    item = item,
+                                    onClick = { onSessionTap(item.session.id) },
+                                    onDelete = { viewModel.requestDelete(item.session.id) },
+                                )
+                                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun MonthDividerRow(month: YearMonth) {
+    Text(
+        text = "${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}",
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+    )
 }
 
 @Composable
