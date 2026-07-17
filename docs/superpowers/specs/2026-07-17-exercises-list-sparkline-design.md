@@ -15,6 +15,12 @@ the user can glance down the list and see which lifts are moving.
   per session, the same "merged" line the exercise detail chart and the History
   highlight already draw. One value per session the lift's muscle was trained.
 - **Window:** the **last 6 months** (`now − ~182 days`).
+- **No leading sibling-only points:** the merged series records a point for every
+  exercise in a *touched muscle* each session (via pooling), so a lift inherits
+  sibling-driven points from **before it was ever performed itself**. The
+  sparkline must start no earlier than the exercise's **first actually-performed
+  set** — points before that are dropped, and a lift never performed itself shows
+  nothing (even if siblings gave it merged points).
 - **Sparse rows:** a row with fewer than 2 in-window points renders **nothing**
   (blank right side). New/dormant lifts stay calm; nothing is invented.
 - **Scale:** each sparkline self-normalizes to its own min/max over its window
@@ -32,9 +38,13 @@ The data backbone already exists — no belief/policy/replay changes.
   returns `Map<Long, List<ProgressionPoint>>`, session-ordered.
 - New `WorkoutRepository` method, e.g. `buildExerciseSparklines(windowMs: Long)`:
   1. call `buildAllMergedSeries(db)`,
-  2. filter each series to points with `timestampMs >= now − windowMs`,
-  3. drop series with `< 2` points,
-  4. return `Map<Long, List<Float>>` — bare values in session order (a sparkline
+  2. look up each exercise's first actually-performed set time (new DAO query,
+     `MIN(completedAt) GROUP BY exerciseId`),
+  3. for each series keep points with `timestampMs` in
+     `max(now − windowMs, firstPerformed) .. now`; an exercise with no
+     first-performed time (never done itself) is dropped entirely,
+  4. drop series with `< 2` surviving points,
+  5. return `Map<Long, List<Float>>` — bare values in session order (a sparkline
      needs shape, not timestamps).
 - `ExercisesViewModel` computes this **once on init** (mirrors the History
   highlight; beliefs only change after a workout finishes, and this screen is
