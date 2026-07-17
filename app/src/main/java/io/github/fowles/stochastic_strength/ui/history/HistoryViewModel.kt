@@ -4,22 +4,24 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.fowles.stochastic_strength.BuildConfig
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
-import io.github.fowles.stochastic_strength.data.model.MuscleGroup
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
-import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.domain.backup.BackupFormatException
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonBuilder
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonParser
+import io.github.fowles.stochastic_strength.domain.history.HistoryHighlight
+import io.github.fowles.stochastic_strength.domain.history.HistoryRows
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.ZoneId
+import kotlin.random.Random
 
 enum class ImportMode { ADDITIVE, DESTRUCTIVE }
 
@@ -31,8 +33,8 @@ data class SessionListItem(
 )
 
 data class HistoryState(
-    val muscleStrengths: List<MuscleGroupStrength> = emptyList(),
-    val referenceExerciseIds: Map<MuscleGroup, Long> = emptyMap(),
+    val highlight: String = "",
+    val workoutDays: Set<LocalDate> = emptySet(),
     val sessions: List<SessionListItem> = emptyList(),
     val weightUnit: WeightUnit = WeightUnit.KG,
     val loading: Boolean = true,
@@ -52,10 +54,10 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private suspend fun reloadInternal(message: String? = null) {
+        val zone = ZoneId.systemDefault()
+        val nowMs = System.currentTimeMillis()
         val profile = app.database.userProfileDao().getProfile()
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
-        val muscleStrengths = repository.getMuscleGroupStrengths()
-            .sortedBy { it.muscleGroup.ordinal }
         val locations = repository.getLocations().associateBy { it.id }
         val rawSessions = repository.getAllSessions()
         val sessions = rawSessions.map { session ->
@@ -68,12 +70,22 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 else 0L,
             )
         }
-        val referenceExerciseIds = repository.observeAllExercises().first()
-            .filter { ExerciseCoefficients.byName[it.name] == 1.0f }
-            .associate { it.primaryMuscle to it.id }
+        val workoutDays = HistoryRows.workoutDays(
+            rawSessions.filter { it.endTime != null }.map { it.startTime }, zone,
+        )
+        // Daily-stable pick in release; re-roll on every open in debug for easy testing.
+        val seed = if (BuildConfig.DEBUG) System.nanoTime() else LocalDate.now(zone).toEpochDay()
+        val highlight = withContext(Dispatchers.Default) {
+            HistoryHighlight.pick(
+                series = repository.buildHighlightSeries(),
+                weightUnit = weightUnit,
+                nowMs = nowMs,
+                random = Random(seed),
+            )
+        }
         _state.value = HistoryState(
-            muscleStrengths = muscleStrengths,
-            referenceExerciseIds = referenceExerciseIds,
+            highlight = highlight,
+            workoutDays = workoutDays,
             sessions = sessions,
             weightUnit = weightUnit,
             loading = false,
