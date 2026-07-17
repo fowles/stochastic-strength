@@ -22,14 +22,18 @@ import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPrescriber
 import io.github.fowles.stochastic_strength.domain.derived.DerivedStateStore
 import io.github.fowles.stochastic_strength.domain.derived.MutableDerivedState
+import io.github.fowles.stochastic_strength.domain.history.HighlightKind
+import io.github.fowles.stochastic_strength.domain.history.HighlightSeries
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
+import io.github.fowles.stochastic_strength.domain.progression.ProgressionPoint
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
@@ -383,6 +387,35 @@ class WorkoutRepository(
 
     suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineHistory> =
         derivedState.snapshot().baselineHistoryForMuscle(muscleGroup)
+
+    /**
+     * Input series for the History highlight card. Per-muscle series come from baseline_history;
+     * per-lift series are the merged (belief) 1RM progression for each exercise trained in the last
+     * ~90 days. Heavy (a muscle replay per active lift) but only runs on the cold History screen.
+     */
+    suspend fun buildHighlightSeries(nowMs: Long): List<HighlightSeries> {
+        val quarterMs = 90L * 24 * 3600 * 1000
+        val muscleSeries = MuscleGroup.entries.mapNotNull { muscle ->
+            val points = getBaselineEvents(muscle)
+                .map { ProgressionPoint(it.timestamp, it.newBaseline) }
+            if (points.isEmpty()) null
+            else HighlightSeries(muscle.displayName(), muscle, points, HighlightKind.MUSCLE)
+        }
+
+        val activeSessions = getAllSessions().filter { it.startTime >= nowMs - quarterMs }
+        val activeExerciseIds = activeSessions
+            .flatMap { db.workoutSetDao().getSetsForSession(it.id).map { s -> s.exerciseId } }
+            .toSet()
+        val exercisesById = observeAllExercises().first().associateBy { it.id }
+        val liftSeries = activeExerciseIds.mapNotNull { id ->
+            val exercise = exercisesById[id] ?: return@mapNotNull null
+            val merged = getExerciseProgressionData(id).series.merged
+            if (merged.isEmpty()) null
+            else HighlightSeries(exercise.name, exercise.primaryMuscle, merged, HighlightKind.LIFT)
+        }
+
+        return muscleSeries + liftSeries
+    }
 
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
         derivedState.snapshot().coefficientHistoryForExercise(exerciseId)
