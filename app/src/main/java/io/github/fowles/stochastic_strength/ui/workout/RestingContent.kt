@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.usesBarPlates
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -168,7 +169,7 @@ internal fun RestingContent(
                                     else "Up next",
                             exerciseName = up.exercise.name,
                             weight = warmup?.weight ?: up.sessionWeight,
-                            equipment = up.exercise.equipment,
+                            usesBarPlates = up.exercise.usesBarPlates,
                             weightUnit = weightUnit,
                         )
                     }
@@ -190,7 +191,7 @@ internal fun RestingContent(
                         title = "Reduced weight",
                         exerciseName = plannedExercise.exercise.name,
                         weight = plannedExercise.sessionWeight,
-                        equipment = plannedExercise.exercise.equipment,
+                        usesBarPlates = plannedExercise.exercise.usesBarPlates,
                         weightUnit = weightUnit,
                     )
                 }
@@ -200,7 +201,7 @@ internal fun RestingContent(
                         title = if (warmup != null) "Warm up" else "Next up",
                         exerciseName = nextExercise.exercise.name,
                         weight = warmup?.weight ?: nextExercise.sessionWeight,
-                        equipment = nextExercise.exercise.equipment,
+                        usesBarPlates = nextExercise.exercise.usesBarPlates,
                         weightUnit = weightUnit,
                     )
                 }
@@ -283,7 +284,7 @@ private fun NextExerciseCard(
     title: String,
     exerciseName: String,
     weight: Float,
-    equipment: Equipment,
+    usesBarPlates: Boolean,
     weightUnit: WeightUnit,
 ) {
     Column(
@@ -295,7 +296,7 @@ private fun NextExerciseCard(
             style = MaterialTheme.typography.labelLarge,
         )
         if (weight > 0f) {
-            val plates = if (equipment == Equipment.BARBELL)
+            val plates = if (usesBarPlates)
                 WeightFormatter.platesPerSide(weight, weightUnit) else null
             val weightLine = buildString {
                 append(WeightFormatter.format(weight, weightUnit))

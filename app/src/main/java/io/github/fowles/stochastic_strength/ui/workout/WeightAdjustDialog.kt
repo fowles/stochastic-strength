@@ -22,15 +22,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.usesBarPlates
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 
 @Composable
 internal fun WeightAdjustDialog(
     exerciseName: String,
     startWeight: Float,
-    equipment: Equipment,
+    usesBarPlates: Boolean,
     weightUnit: WeightUnit,
     onConfirm: (Float) -> Unit,
     onDismiss: () -> Unit,
@@ -59,7 +59,7 @@ internal fun WeightAdjustDialog(
                     Spacer(Modifier.width(16.dp))
                     OutlinedButton(onClick = { working += increment }) { Text("+") }
                 }
-                if (equipment == Equipment.BARBELL) {
+                if (usesBarPlates) {
                     WeightFormatter.platesPerSide(working, weightUnit)?.let {
                         Spacer(Modifier.height(8.dp))
                         Text(

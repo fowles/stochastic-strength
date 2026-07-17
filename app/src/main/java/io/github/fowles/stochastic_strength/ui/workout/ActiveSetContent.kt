@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.usesBarPlates
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -193,7 +194,7 @@ internal fun ExerciseSetLayout(
             when {
                 weight > 0f -> {
                     Text(WeightFormatter.format(weight, weightUnit), style = MaterialTheme.typography.displaySmall)
-                    if (exercise.equipment == Equipment.BARBELL) {
+                    if (exercise.usesBarPlates) {
                         WeightFormatter.platesPerSide(weight, weightUnit)?.let {
                             Text(
                                 it,

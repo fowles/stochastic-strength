@@ -26,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.data.model.usesBarPlates
 import io.github.fowles.stochastic_strength.ui.strava.StravaExportState
 
 @Composable
@@ -132,7 +133,7 @@ fun WorkoutScreen(
                         WeightAdjustDialog(
                             exerciseName = planned.exercise.name,
                             startWeight = planned.sessionWeight,
-                            equipment = planned.exercise.equipment,
+                            usesBarPlates = planned.exercise.usesBarPlates,
                             weightUnit = weightUnit,
                             onConfirm = { newWeight ->
                                 showWeightDialog = false
