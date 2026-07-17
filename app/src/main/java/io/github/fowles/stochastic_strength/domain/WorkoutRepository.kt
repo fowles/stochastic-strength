@@ -390,11 +390,11 @@ class WorkoutRepository(
 
     /**
      * Input series for the History highlight card. Per-muscle series come from baseline_history;
-     * per-lift series are the merged (belief) 1RM progression for each exercise trained in the last
-     * ~90 days. Heavy (a muscle replay per active lift) but only runs on the cold History screen.
+     * per-lift series are each exercise's merged (belief) 1RM trend, all produced in ONE replay via
+     * [ExerciseProgressionSeriesBuilder.buildAllMergedSeries] (not a replay per lift — that was ~1s
+     * on a cold open). The highlight's own window filter drops exercises with no recent point.
      */
-    suspend fun buildHighlightSeries(nowMs: Long, allSessions: List<WorkoutSession>): List<HighlightSeries> {
-        val quarterMs = 90L * 24 * 3600 * 1000
+    suspend fun buildHighlightSeries(): List<HighlightSeries> {
         val muscleSeries = MuscleGroup.entries.mapNotNull { muscle ->
             val points = getBaselineEvents(muscle)
                 .map { ProgressionPoint(it.timestamp, it.newBaseline) }
@@ -402,16 +402,11 @@ class WorkoutRepository(
             else HighlightSeries(muscle.displayName(), muscle, points, HighlightKind.MUSCLE)
         }
 
-        val activeSessions = allSessions.filter { it.startTime >= nowMs - quarterMs }
-        val activeExerciseIds = activeSessions
-            .flatMap { db.workoutSetDao().getSetsForSession(it.id).map { s -> s.exerciseId } }
-            .toSet()
         val exercisesById = observeAllExercises().first().associateBy { it.id }
-        val liftSeries = activeExerciseIds.mapNotNull { id ->
+        val liftSeries = progressionSeriesBuilder.buildAllMergedSeries(db).mapNotNull { (id, points) ->
             val exercise = exercisesById[id] ?: return@mapNotNull null
-            val merged = getExerciseProgressionData(id).series.merged
-            if (merged.isEmpty()) null
-            else HighlightSeries(exercise.name, exercise.primaryMuscle, merged, HighlightKind.LIFT)
+            if (points.isEmpty()) null
+            else HighlightSeries(exercise.name, exercise.primaryMuscle, points, HighlightKind.LIFT)
         }
 
         return muscleSeries + liftSeries

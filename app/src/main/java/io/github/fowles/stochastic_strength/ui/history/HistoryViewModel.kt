@@ -77,7 +77,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         val seed = if (BuildConfig.DEBUG) System.nanoTime() else LocalDate.now(zone).toEpochDay()
         val highlight = withContext(Dispatchers.Default) {
             HistoryHighlight.pick(
-                series = repository.buildHighlightSeries(nowMs, rawSessions),
+                series = repository.buildHighlightSeries(),
                 weightUnit = weightUnit,
                 nowMs = nowMs,
                 random = Random(seed),

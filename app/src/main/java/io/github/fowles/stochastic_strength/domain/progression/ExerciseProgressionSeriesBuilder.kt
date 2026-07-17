@@ -228,6 +228,32 @@ class ExerciseProgressionSeriesBuilder(
     private val engine: ReplayEngine = ReplayEngine(config),
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
 ) {
+    /**
+     * Every exercise's merged (pooled effective) 1RM trend in a SINGLE replay: at each session,
+     * pool each touched muscle once and record `exp(mu)` for every exercise in it. This is
+     * O(sessions × muscles-per-session) instead of [build]'s O(exercises × full-replay-with-traces),
+     * for consumers that need only the merged trend — e.g. the History highlight, which reads no
+     * frames or "why this weight" traces. Points are post-fold (strength as of each session's end)
+     * in id/time order; exercises never trained produce no entry.
+     */
+    suspend fun buildAllMergedSeries(db: AppDatabase): Map<Long, List<ProgressionPoint>> {
+        val snapshot = ReplaySnapshot.loadStaticFromDb(db)
+        val pooling = BeliefPooling(config)
+        val out = HashMap<Long, MutableList<ProgressionPoint>>()
+        engine.run(db = db, snapshot = snapshot) { _, asOf, _, snap, beliefResult ->
+            for (muscle in beliefResult.steps.map { it.muscle }.toHashSet()) {
+                val muscleIds = snap.muscleExerciseIds[muscle] ?: continue
+                val effective = pooling
+                    .effective(snap.currentBeliefs, snap.seedCoefficients, muscleIds, asOf)
+                    .effective
+                for ((exId, belief) in effective) {
+                    out.getOrPut(exId) { mutableListOf() }.add(ProgressionPoint(asOf, exp(belief.mu)))
+                }
+            }
+        }
+        return out
+    }
+
     /** DB adapter: loads the static inputs, then delegates to the DB-free [buildCore]. */
     suspend fun build(db: AppDatabase, exerciseId: Long): ExerciseProgressionData {
         val snapshot = ReplaySnapshot.loadStaticFromDb(db)
