@@ -38,6 +38,9 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
     private val _sparklines = MutableStateFlow<Map<Long, List<Float>>>(emptyMap())
     val sparklines: StateFlow<Map<Long, List<Float>>> = _sparklines.asStateFlow()
 
+    private val _lastPerformed = MutableStateFlow<Map<Long, Long>>(emptyMap())
+    val lastPerformed: StateFlow<Map<Long, Long>> = _lastPerformed.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.observeAllExercises().collect { exercises ->
@@ -47,7 +50,10 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
         // Computed once (beliefs only change after a workout finishes, and this screen is entered
         // fresh from home) — mirrors the History highlight's one-shot series build.
         viewModelScope.launch {
-            _sparklines.value = withContext(Dispatchers.Default) { repository.buildExerciseSparklines() }
+            withContext(Dispatchers.Default) {
+                _sparklines.value = repository.buildExerciseSparklines()
+                _lastPerformed.value = repository.getLastPerformedByExercise()
+            }
         }
     }
 

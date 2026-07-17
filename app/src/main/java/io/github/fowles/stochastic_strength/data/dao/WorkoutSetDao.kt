@@ -9,6 +9,9 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 /** One exercise's earliest completed-set time — the first session it was actually performed in. */
 data class ExerciseFirstCompleted(val exerciseId: Long, val firstCompletedAt: Long)
 
+/** One exercise's latest completed-set time — the most recent session it was performed in. */
+data class ExerciseLastCompleted(val exerciseId: Long, val lastCompletedAt: Long)
+
 @Dao
 interface WorkoutSetDao {
     @Insert
@@ -74,6 +77,14 @@ interface WorkoutSetDao {
         GROUP BY exerciseId
     """)
     suspend fun getFirstCompletedAtByExercise(): List<ExerciseFirstCompleted>
+
+    @Query("""
+        SELECT exerciseId, MAX(completedAt) AS lastCompletedAt
+        FROM workout_sets
+        WHERE completedAt IS NOT NULL
+        GROUP BY exerciseId
+    """)
+    suspend fun getLastCompletedAtByExercise(): List<ExerciseLastCompleted>
 
     @Query("SELECT * FROM workout_sets WHERE id = :id")
     suspend fun getById(id: Long): WorkoutSet?

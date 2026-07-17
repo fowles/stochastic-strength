@@ -442,6 +442,11 @@ class WorkoutRepository(
         )
     }
 
+    /** Most-recent completed-set time per exercise, for ordering the exercises-list "Recent" section. */
+    suspend fun getLastPerformedByExercise(): Map<Long, Long> =
+        db.workoutSetDao().getLastCompletedAtByExercise()
+            .associate { it.exerciseId to it.lastCompletedAt }
+
     suspend fun getCrossTuning(
         muscle: MuscleGroup,
         now: Long = System.currentTimeMillis(),

@@ -48,8 +48,9 @@ fun ExercisesScreen(
     val state by viewModel.state.collectAsState()
     val hurtMap by viewModel.hurtMap.collectAsState()
     val sparklines by viewModel.sparklines.collectAsState()
+    val lastPerformed by viewModel.lastPerformed.collectAsState()
 
-    val grouped = remember(state.exercises, state.selectedFilter, state.selectedEquipmentFilter) {
+    val filtered = remember(state.exercises, state.selectedFilter, state.selectedEquipmentFilter) {
         state.exercises
             .let { list ->
                 if (state.selectedFilter != null) list.filter { it.primaryMuscle == state.selectedFilter }
@@ -59,8 +60,21 @@ fun ExercisesScreen(
                 if (state.selectedEquipmentFilter != null) list.filter { it.equipment == state.selectedEquipmentFilter }
                 else list
             }
+    }
+
+    val grouped = remember(filtered) {
+        filtered
             .sortedWith(compareBy({ it.primaryMuscle.ordinal }, { it.name }))
             .groupBy { it.primaryMuscle }
+    }
+
+    // The 7 most-recently-performed exercises that have a sparkline, drawn from the same
+    // filtered pool so Recent stays consistent with the sections below.
+    val recentExercises = remember(filtered, sparklines, lastPerformed) {
+        filtered
+            .filter { sparklines.containsKey(it.id) && lastPerformed.containsKey(it.id) }
+            .sortedByDescending { lastPerformed[it.id] }
+            .take(7)
     }
 
     Scaffold(
@@ -111,21 +125,20 @@ fun ExercisesScreen(
             HorizontalDivider()
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                for ((muscle, exercises) in grouped) {
-                    stickyHeader(key = muscle.name) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceContainer)
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                        ) {
-                            Text(
-                                text = muscle.displayName(),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
+                if (recentExercises.isNotEmpty()) {
+                    stickyHeader(key = "__recent__") { SectionHeaderBar("Recent") }
+                    items(recentExercises, key = { "recent-${it.id}" }) { exercise ->
+                        ExerciseRow(
+                            exercise = exercise,
+                            isHurt = hurtMap[exercise.id] ?: false,
+                            sparkline = sparklines[exercise.id],
+                            onClick = { onExerciseTap(exercise.id) },
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                     }
+                }
+                for ((muscle, exercises) in grouped) {
+                    stickyHeader(key = muscle.name) { SectionHeaderBar(muscle.displayName()) }
                     items(exercises, key = { it.id }) { exercise ->
                         ExerciseRow(
                             exercise = exercise,
@@ -138,6 +151,22 @@ fun ExercisesScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeaderBar(label: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
