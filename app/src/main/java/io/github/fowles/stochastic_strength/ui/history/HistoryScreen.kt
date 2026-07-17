@@ -192,7 +192,7 @@ fun HistoryScreen(
                     Text("No sessions yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
                     items(
                         rows,
                         key = { row ->

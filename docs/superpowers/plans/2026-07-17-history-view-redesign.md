@@ -23,7 +23,7 @@
 
 ---
 
-### Task 1: `HistoryHighlight` pure component
+### Task 1: `HistoryHighlight` pure component ✅ COMPLETE
 
 Pure, Android-free. Reuses the existing `ProgressionPoint(timestampMs: Long, value: Float)` from `domain/progression`. Given per-lift and per-muscle value series, produces one motivational display string, deterministic under an injected `Random`.
 
@@ -39,7 +39,7 @@ Pure, Android-free. Reuses the existing `ProgressionPoint(timestampMs: Long, val
   - `data class HighlightConfig(val monthWindowMs: Long = 30L*24*3600*1000, val quarterWindowMs: Long = 90L*24*3600*1000, val liftMinGainKg: Float = 2f, val muscleMinGainFraction: Float = 0.03f, val quipOnlyProbability: Float = 0.25f, val appendQuipProbability: Float = 0.4f)`
   - `object HistoryHighlight { fun pick(series: List<HighlightSeries>, weightUnit: WeightUnit, nowMs: Long, random: Random, config: HighlightConfig = HighlightConfig()): String }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `HistoryHighlightTest.kt`:
 
@@ -152,12 +152,12 @@ class HistoryHighlightTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.HistoryHighlightTest"`
 Expected: FAIL — unresolved reference `HistoryHighlight` / `HighlightSeries`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `HistoryHighlight.kt`:
 
@@ -266,12 +266,12 @@ object HistoryHighlight {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.HistoryHighlightTest"`
 Expected: PASS (all 8 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: HistoryHighlight pure motivational-string picker"
@@ -297,7 +297,7 @@ Pure `java.time` mapping helpers shared by the calendar and the list: workout-da
     - `fun buildRows(dates: List<LocalDate>): List<HistoryRow>` — `dates` in display (newest-first) order; inserts a `MonthHeader` whenever the `YearMonth` changes; `Entry.itemIndex` indexes into `dates`.
     - `fun firstRowIndexForDate(rows: List<HistoryRow>, date: LocalDate): Int?`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `HistoryRowsTest.kt`:
 
@@ -360,12 +360,12 @@ class HistoryRowsTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.HistoryRowsTest"`
 Expected: FAIL — unresolved reference `HistoryRows`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `HistoryRows.kt`:
 
@@ -411,12 +411,12 @@ object HistoryRows {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.HistoryRowsTest"`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: HistoryRows pure calendar/list mapping helpers"
@@ -438,7 +438,7 @@ Add a repository method that builds the `HighlightSeries` list from the DB (per-
   - `WorkoutRepository.buildHighlightSeries(nowMs: Long): List<HighlightSeries>`
   - `HistoryState(highlight: String, workoutDays: Set<LocalDate>, sessions: List<SessionListItem>, weightUnit: WeightUnit, loading: Boolean, pendingDeleteSessionId: Long?, message: String?)` — `muscleStrengths` and `referenceExerciseIds` removed.
 
-- [ ] **Step 1: Add `buildHighlightSeries` to `WorkoutRepository`**
+- [x] **Step 1: Add `buildHighlightSeries` to `WorkoutRepository`**
 
 Add these imports if missing (near the other `domain`/`data.model` imports):
 
@@ -482,12 +482,12 @@ suspend fun buildHighlightSeries(nowMs: Long): List<HighlightSeries> {
 }
 ```
 
-- [ ] **Step 2: Build to verify the repository method compiles**
+- [x] **Step 2: Build to verify the repository method compiles**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Rewire `HistoryViewModel` / `HistoryState`**
+- [x] **Step 3: Rewire `HistoryViewModel` / `HistoryState`**
 
 Replace the imports block additions and the `HistoryState` + `reloadInternal` in `HistoryViewModel.kt`.
 
@@ -563,12 +563,12 @@ private suspend fun reloadInternal(message: String? = null) {
 }
 ```
 
-- [ ] **Step 4: Build to verify wiring compiles**
+- [x] **Step 4: Build to verify wiring compiles**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: FAIL — `HistoryScreen.kt` still references `state.muscleStrengths` / `referenceExerciseIds` (fixed in Task 5). Confirm the ONLY errors are in `HistoryScreen.kt`; `HistoryViewModel.kt` and `WorkoutRepository.kt` must compile clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: highlight-series assembly + History VM wiring (grid removed)"
@@ -590,7 +590,7 @@ A one-month, weekday-aligned grid. Workout days render with a large filled circl
 - Produces:
   - `@Composable fun MonthCalendar(shownMonth: YearMonth, workoutDays: Set<LocalDate>, onMonthChange: (YearMonth) -> Unit, onDayTap: (LocalDate) -> Unit, modifier: Modifier = Modifier)`
 
-- [ ] **Step 1: Write the composable**
+- [x] **Step 1: Write the composable**
 
 Create `MonthCalendar.kt`:
 
@@ -727,12 +727,12 @@ fun MonthCalendar(
 }
 ```
 
-- [ ] **Step 2: Build to verify it compiles**
+- [x] **Step 2: Build to verify it compiles**
 
 Run: `./gradlew :app:compileDebugKotlin`
 Expected: FAIL only in `HistoryScreen.kt` (Task 5); `MonthCalendar.kt` itself must contribute no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 jj commit -m "feat: MonthCalendar composable with workout-day circles"
@@ -752,7 +752,7 @@ Add the highlight card, then rebuild `HistoryScreen`'s body as three regions: pi
 - Consumes: `HistoryState.highlight`, `HistoryState.workoutDays`, `HistoryState.sessions` (Task 3); `MonthCalendar` (Task 4); `HistoryRows.buildRows` / `firstRowIndexForDate` / `localDate`, `HistoryRow` (Task 2).
 - Produces: `@Composable fun HighlightCard(text: String, modifier: Modifier = Modifier)` and the rebuilt `HistoryScreen` body.
 
-- [ ] **Step 1: Write `HighlightCard`**
+- [x] **Step 1: Write `HighlightCard`**
 
 Create `HighlightCard.kt`:
 
@@ -792,7 +792,7 @@ fun HighlightCard(text: String, modifier: Modifier = Modifier) {
 }
 ```
 
-- [ ] **Step 2: Rebuild the `HistoryScreen` body**
+- [x] **Step 2: Rebuild the `HistoryScreen` body**
 
 In `HistoryScreen.kt`:
 
@@ -898,17 +898,17 @@ private fun MonthDividerRow(month: YearMonth) {
 
 Also change the `items(...)` import already present (`androidx.compose.foundation.lazy.items`) stays — it now iterates `rows`. The old `SectionHeader` calls and `StrengthGrid` item are deleted by the replacement above.
 
-- [ ] **Step 3: Build the whole app**
+- [x] **Step 3: Build the whole app**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL (no remaining references to `muscleStrengths`, `referenceExerciseIds`, `SectionHeader`, or `StrengthGrid` in `HistoryScreen.kt`).
 
-- [ ] **Step 4: Run the full unit suite (regression + gate)**
+- [x] **Step 4: Run the full unit suite (regression + gate)**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: PASS — including the backtest gate (`BeliefScoreTest`) unchanged, plus the new `HistoryHighlightTest` and `HistoryRowsTest`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat: rebuild History screen — highlight card, calendar, month-grouped list"
