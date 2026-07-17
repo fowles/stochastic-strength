@@ -27,6 +27,7 @@ import io.github.fowles.stochastic_strength.domain.history.HighlightSeries
 import io.github.fowles.stochastic_strength.domain.progression.CrossTuningRow
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionSeriesBuilder
+import io.github.fowles.stochastic_strength.domain.progression.ExerciseSparklines
 import io.github.fowles.stochastic_strength.domain.progression.ProgressionPoint
 import io.github.fowles.stochastic_strength.domain.progression.ReplayEngine
 import io.github.fowles.stochastic_strength.domain.progression.computeCrossTuning
@@ -422,6 +423,24 @@ class WorkoutRepository(
 
     suspend fun getExerciseProgressionData(exerciseId: Long): ExerciseProgressionData =
         progressionSeriesBuilder.build(db, exerciseId)
+
+    /**
+     * Per-exercise merged-1RM sparkline values for the exercises list: every exercise's merged
+     * (belief) 1RM trend from [ExerciseProgressionSeriesBuilder.buildAllMergedSeries] (ONE replay),
+     * windowed to the last [windowMs] and reduced to bare values via [ExerciseSparklines.windowValues].
+     * The per-exercise first-performed time trims leading sibling-driven points from before the lift's
+     * own debut; exercises with fewer than 2 surviving points are omitted (their row shows nothing).
+     */
+    suspend fun buildExerciseSparklines(
+        windowMs: Long = ExerciseSparklines.DEFAULT_WINDOW_MS,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Map<Long, List<Float>> {
+        val firstPerformed = db.workoutSetDao().getFirstCompletedAtByExercise()
+            .associate { it.exerciseId to it.firstCompletedAt }
+        return ExerciseSparklines.windowValues(
+            progressionSeriesBuilder.buildAllMergedSeries(db), firstPerformed, nowMs, windowMs,
+        )
+    }
 
     suspend fun getCrossTuning(
         muscle: MuscleGroup,

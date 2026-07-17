@@ -6,6 +6,9 @@ import androidx.room.Query
 import androidx.room.Update
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 
+/** One exercise's earliest completed-set time — the first session it was actually performed in. */
+data class ExerciseFirstCompleted(val exerciseId: Long, val firstCompletedAt: Long)
+
 @Dao
 interface WorkoutSetDao {
     @Insert
@@ -63,6 +66,14 @@ interface WorkoutSetDao {
 
     @Query("SELECT * FROM workout_sets")
     suspend fun getAll(): List<WorkoutSet>
+
+    @Query("""
+        SELECT exerciseId, MIN(completedAt) AS firstCompletedAt
+        FROM workout_sets
+        WHERE completedAt IS NOT NULL
+        GROUP BY exerciseId
+    """)
+    suspend fun getFirstCompletedAtByExercise(): List<ExerciseFirstCompleted>
 
     @Query("SELECT * FROM workout_sets WHERE id = :id")
     suspend fun getById(id: Long): WorkoutSet?

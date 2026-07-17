@@ -36,6 +36,7 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
+import io.github.fowles.stochastic_strength.ui.components.Sparkline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +47,7 @@ fun ExercisesScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val hurtMap by viewModel.hurtMap.collectAsState()
+    val sparklines by viewModel.sparklines.collectAsState()
 
     val grouped = remember(state.exercises, state.selectedFilter, state.selectedEquipmentFilter) {
         state.exercises
@@ -128,6 +130,7 @@ fun ExercisesScreen(
                         ExerciseRow(
                             exercise = exercise,
                             isHurt = hurtMap[exercise.id] ?: false,
+                            sparkline = sparklines[exercise.id],
                             onClick = { onExerciseTap(exercise.id) },
                         )
                         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
@@ -139,7 +142,12 @@ fun ExercisesScreen(
 }
 
 @Composable
-private fun ExerciseRow(exercise: Exercise, isHurt: Boolean, onClick: () -> Unit) {
+private fun ExerciseRow(
+    exercise: Exercise,
+    isHurt: Boolean,
+    sparkline: List<Float>?,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -153,6 +161,13 @@ private fun ExerciseRow(exercise: Exercise, isHurt: Boolean, onClick: () -> Unit
                 exercise.equipment.displayName(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (sparkline != null) {
+            Sparkline(
+                values = sparkline,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 8.dp),
             )
         }
         if (exercise.isDisliked) {
