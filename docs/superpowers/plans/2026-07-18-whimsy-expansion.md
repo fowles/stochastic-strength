@@ -32,7 +32,7 @@
 
 Diesel appears 8× in the pantheon; only Diesel Tycho Brahe keeps it. Apply these exact string replacements inside `QUIPS` (old → new; each old string appears exactly once):
 
-- [ ] **Step 1: Apply the eight epithet edits**
+- [x] **Step 1: Apply the eight epithet edits**
 
 | Old text (exact) | New text (exact) |
 |---|---|
@@ -47,17 +47,17 @@ Diesel appears 8× in the pantheon; only Diesel Tycho Brahe keeps it. Apply thes
 
 Do NOT touch `Diesel Tycho Brahe measured the heavens. You measure the gains.` — he is the flagship. The `muscle =` parameter on the Atlas (BACK) and Sisyphus (CALVES) quips stays unchanged.
 
-- [ ] **Step 2: Verify no stray Diesel remains**
+- [x] **Step 2: Verify no stray Diesel remains**
 
 Run: `rg -n "Diesel" app/src/main/java/io/github/fowles/stochastic_strength/domain/history/HistoryHighlight.kt`
 Expected: exactly one match — the Diesel Tycho Brahe quip.
 
-- [ ] **Step 3: Run the highlight tests**
+- [x] **Step 3: Run the highlight tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.HistoryHighlightTest"`
 Expected: PASS (no test pins the edited strings).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "feat(quips): redistribute Diesel epithets across the pantheon" app/src/main/java/io/github/fowles/stochastic_strength/domain/history/HistoryHighlight.kt
@@ -75,7 +75,7 @@ jj commit -m "feat(quips): redistribute Diesel epithets across the pantheon" app
 - Consumes: `Quip(text)` data class as-is.
 - Produces: 10 additional generic (no-muscle) entries in `HistoryHighlight.QUIPS`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `HistoryHighlightTest.kt` (follows the existing `committed quip is present in the pool` pattern):
 
@@ -96,12 +96,12 @@ fun `new pantheon members are present and generic`() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.HistoryHighlightTest"`
 Expected: FAIL with `missing pantheon member: Colossal Katherine Johnson`
 
-- [ ] **Step 3: Add the ten quips**
+- [x] **Step 3: Add the ten quips**
 
 Append these entries to `QUIPS` immediately after the `Buff Hypatia mapped the stars` quip (keeping the generic block together, before the muscle-keyed block that starts with `Curls for the girls`):
 
@@ -118,12 +118,12 @@ Quip("Granite Ibn al-Haytham invented the experiment. Today's hypothesis: one mo
 Quip("Bulletproof Bose counted indistinguishable particles. Every one of your reps still counts."),
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.HistoryHighlightTest"`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(quips): ten new pantheon members, chosen for diversity" app/src/main/java/io/github/fowles/stochastic_strength/domain/history/HistoryHighlight.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/history/HistoryHighlightTest.kt
@@ -141,7 +141,7 @@ jj commit -m "feat(quips): ten new pantheon members, chosen for diversity" app/s
 - Consumes: `HistoryHighlight.QUIPS`, `Quip`, `MuscleGroup`.
 - Produces: `object RestQuips` with `const val QUIP_PROBABILITY = 0.04f` and `fun pick(upcomingMuscles: Set<MuscleGroup>?, random: Random): String?`. Task 4 calls exactly this signature. `upcomingMuscles == null` means "this is the final rest" and must always return null.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `RestQuipsTest.kt`:
 
@@ -202,12 +202,12 @@ class RestQuipsTest {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.RestQuipsTest"`
 Expected: compilation FAILURE — `RestQuips` unresolved.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `RestQuips.kt`:
 
@@ -238,12 +238,12 @@ object RestQuips {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.RestQuipsTest"`
 Expected: PASS (5 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(quips): RestQuips scarce selection for the rest timer" app/src/main/java/io/github/fowles/stochastic_strength/domain/history/RestQuips.kt app/src/test/java/io/github/fowles/stochastic_strength/domain/history/RestQuipsTest.kt
@@ -264,7 +264,7 @@ jj commit -m "feat(quips): RestQuips scarce selection for the rest timer" app/sr
 
 The pick happens once, inside `recordFeedback`, when the Resting state is constructed — so it is stable across recomposition and countdown ticks (each tick uses `copy()`, preserving the field). Staged-action rests (`stageRest`) keep the default null: their subtitle slot already carries action-specific copy. Undo deletes the set and leaves Resting entirely, so a fresh pick on the next feedback is correct.
 
-- [ ] **Step 1: Add the field to `WorkoutState.Resting`**
+- [x] **Step 1: Add the field to `WorkoutState.Resting`**
 
 In `WorkoutState.kt`, add the last parameter to the `Resting` data class:
 
@@ -284,7 +284,7 @@ In `WorkoutState.kt`, add the last parameter to the `Resting` data class:
     ) : WorkoutState
 ```
 
-- [ ] **Step 2: Pick the quip in `recordFeedback`**
+- [x] **Step 2: Pick the quip in `recordFeedback`**
 
 In `WorkoutSessionController.kt`:
 
@@ -326,7 +326,7 @@ In `recordFeedback`, extend the `WorkoutState.Resting` construction (after `curr
 
 Note: `completedSetIndex` here is the local val computed just above (HURT jumps it to `totalSets - 1`, which correctly makes the upcoming exercise the *next* one — or null when HURT ends the last exercise).
 
-- [ ] **Step 3: Render the quip in `RestingContent`**
+- [x] **Step 3: Render the quip in `RestingContent`**
 
 In `RestingContent.kt`, add import `androidx.compose.ui.text.font.FontStyle`, then insert after the Undo/Skip button `Row` (directly below `Row(horizontalArrangement = ...) { ... }` inside the countdown `Column`):
 
@@ -343,7 +343,7 @@ In `RestingContent.kt`, add import `androidx.compose.ui.text.font.FontStyle`, th
                 }
 ```
 
-- [ ] **Step 4: Build and run the app-side tests**
+- [x] **Step 4: Build and run the app-side tests**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL
@@ -351,7 +351,7 @@ Expected: BUILD SUCCESSFUL
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.history.RestQuipsTest" --tests "io.github.fowles.stochastic_strength.domain.history.HistoryHighlightTest"`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(workout): occasional quip on the rest timer (4%, never final rest)" app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutState.kt app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/WorkoutSessionController.kt app/src/main/java/io/github/fowles/stochastic_strength/ui/workout/RestingContent.kt
@@ -368,7 +368,7 @@ jj commit -m "feat(workout): occasional quip on the rest timer (4%, never final 
 - Consumes: nothing new; `buildWorkoutName()` already does `"${ADJECTIVES.random()} ${STRENGTHS.random()} ${WORKOUT_NOUNS.random()}"`.
 - Produces: 10 possessive entries appended to `ADJECTIVES` (35 → 45; pantheon titles ~1 in 4.5 exports, e.g. "Chiseled Chien-Shiung Wu's Entropic Gauntlet").
 
-- [ ] **Step 1: Append the possessives**
+- [x] **Step 1: Append the possessives**
 
 In `StravaExporter.kt`, extend `ADJECTIVES` by adding one final line before the closing parenthesis:
 
@@ -388,17 +388,17 @@ In `StravaExporter.kt`, extend `ADJECTIVES` by adding one final line before the 
         )
 ```
 
-- [ ] **Step 2: Run the strava tests**
+- [x] **Step 2: Run the strava tests**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.strava.StravaDescriptionTest"`
 Expected: PASS (titles are untested data; description tests must stay green).
 
-- [ ] **Step 3: Full unit-test suite (global CLAUDE.md requirement)**
+- [x] **Step 3: Full unit-test suite (global CLAUDE.md requirement)**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: all tests PASS, including the backtest gate (`BeliefScoreTest`) — this change is display-strings only, so any backtest movement means something went wrong.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "feat(strava): pantheon possessives join the title adjectives" app/src/main/java/io/github/fowles/stochastic_strength/domain/strava/StravaExporter.kt
@@ -408,9 +408,9 @@ jj commit -m "feat(strava): pantheon possessives join the title adjectives" app/
 
 ### Task 6: Instrumented tests
 
-- [ ] **Step 1: Run instrumented tests** (emulator is typically already running — attempt directly)
+- [x] **Step 1: Run instrumented tests** (emulator is typically already running — attempt directly)
 
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: PASS. If no device is connected, report that to the user rather than skipping silently.
 
-- [ ] **Step 2: No commit needed** (verification only).
+- [x] **Step 2: No commit needed** (verification only).
