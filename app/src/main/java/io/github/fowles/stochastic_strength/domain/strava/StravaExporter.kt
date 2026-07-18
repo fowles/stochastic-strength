@@ -19,14 +19,17 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
+import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.delay
 import java.io.File
 import java.io.IOException
+import kotlin.random.Random
 
 class StravaExporter(
     private val db: AppDatabase,
     private val tokenStore: StravaTokenStore,
     private val jsonBuilder: StravaJsonBuilder,
+    private val workoutRepository: WorkoutRepository,
     private val context: Context,
 ) {
     private val notificationManager =
@@ -84,7 +87,13 @@ class StravaExporter(
 
         val durationMs = (session.endTime ?: session.startTime) - session.startTime
         val name = buildWorkoutName()
-        val description = buildDescription(sets, exerciseById, durationMs, weightUnit)
+        val highlight = workoutRepository.buildSessionHighlight(
+            sessionId = sessionId,
+            weightUnit = weightUnit,
+            nowMs = System.currentTimeMillis(),
+            random = Random(sessionId),
+        )
+        val description = buildDescription(highlight, sets, exerciseById, durationMs, weightUnit)
         val jsonBody = jsonBuilder.build(session, sets, nameById)
         val uploadId = StravaApiClient.uploadJson(accessToken, jsonBody, name, description)
         repeat(20) {
@@ -116,50 +125,61 @@ class StravaExporter(
     private fun buildWorkoutName(): String =
         "${ADJECTIVES.random()} ${STRENGTHS.random()} ${WORKOUT_NOUNS.random()}"
 
-    private fun buildDescription(
-        sets: List<WorkoutSet>,
-        exerciseById: Map<Long, Exercise>,
-        durationMs: Long,
-        weightUnit: WeightUnit,
-    ): String {
-        val setsByExercise = sets.groupBy { it.exerciseId }
-        val sb = StringBuilder()
-
-        for ((id, exercise) in exerciseById) {
-            val exerciseSets = setsByExercise[id] ?: continue
-            sb.append(exercise.name).append('\n')
-            for (set in exerciseSets) {
-                val quantity = if (set.durationSeconds != null) "${set.durationSeconds}s"
-                    else formatQuantity(set.actualReps ?: set.targetReps, exercise.isTimed)
-                val weightSuffix = if (set.targetWeight > 0f)
-                    " @ ${WeightFormatter.format(set.targetWeight, weightUnit)}"
-                else ""
-                sb.append("$quantity$weightSuffix - ${feedbackEmoji(set.feedback)}\n")
-            }
-            sb.append('\n')
-        }
-
-        val totalSec = durationMs / 1000
-        val mins = totalSec / 60
-        val secs = totalSec % 60
-        sb.append("Duration: $mins:%02d".format(secs))
-        sb.append("\n\nUploaded from Stochastic Strength")
-
-        return sb.toString()
-    }
-
-    private fun feedbackEmoji(feedback: SetFeedback?): String = when (feedback) {
-        SetFeedback.TOO_HARD -> "🔴"
-        SetFeedback.HURT -> "🤕"
-        SetFeedback.RIR_0_1 -> "✅"
-        SetFeedback.RIR_2_4 -> "💪"
-        SetFeedback.RIR_5_PLUS -> "😌"
-        null -> "—"
-    }
-
     companion object {
         private const val CHANNEL_ID = "strava_export"
         private const val NOTIFICATION_ID = 1002
+
+        /**
+         * Pure builder for the Strava activity description: an optional inspirational
+         * highlight at the top, then each exercise (in workout order — [sets] is grouped
+         * by first appearance), then duration and footer.
+         */
+        internal fun buildDescription(
+            highlight: String,
+            sets: List<WorkoutSet>,
+            exerciseById: Map<Long, Exercise>,
+            durationMs: Long,
+            weightUnit: WeightUnit,
+        ): String {
+            // groupBy preserves first-appearance order, so exercises list in workout order.
+            val setsByExercise = sets.groupBy { it.exerciseId }
+            val sb = StringBuilder()
+
+            if (highlight.isNotBlank()) {
+                sb.append(highlight).append("\n\n")
+            }
+
+            for ((id, exerciseSets) in setsByExercise) {
+                val exercise = exerciseById[id] ?: continue
+                sb.append(exercise.name).append('\n')
+                for (set in exerciseSets) {
+                    val quantity = if (set.durationSeconds != null) "${set.durationSeconds}s"
+                        else formatQuantity(set.actualReps ?: set.targetReps, exercise.isTimed)
+                    val weightSuffix = if (set.targetWeight > 0f)
+                        " @ ${WeightFormatter.format(set.targetWeight, weightUnit)}"
+                    else ""
+                    sb.append("$quantity$weightSuffix - ${feedbackEmoji(set.feedback)}\n")
+                }
+                sb.append('\n')
+            }
+
+            val totalSec = durationMs / 1000
+            val mins = totalSec / 60
+            val secs = totalSec % 60
+            sb.append("Duration: $mins:%02d".format(secs))
+            sb.append("\n\nUploaded from Stochastic Strength")
+
+            return sb.toString()
+        }
+
+        private fun feedbackEmoji(feedback: SetFeedback?): String = when (feedback) {
+            SetFeedback.TOO_HARD -> "🔴"
+            SetFeedback.HURT -> "🤕"
+            SetFeedback.RIR_0_1 -> "✅"
+            SetFeedback.RIR_2_4 -> "💪"
+            SetFeedback.RIR_5_PLUS -> "😌"
+            null -> "—"
+        }
 
         private val ADJECTIVES = listOf(
             "Stochastic", "Capricious", "Serendipitous", "Haphazard", "Aleatory",
