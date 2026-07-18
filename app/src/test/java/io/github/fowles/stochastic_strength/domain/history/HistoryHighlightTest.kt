@@ -128,7 +128,7 @@ class HistoryHighlightTest {
             "Colossal Katherine Johnson", "Beefy al-Khwarizmi", "Chiseled Chien-Shiung Wu",
             "Titanic Tu Youyou", "Girthy George Washington Carver", "Peak Rosalind Franklin",
             "Unbreakable Emmy Noether", "Astro-Jacked Mae Jemison", "Granite Ibn al-Haytham",
-            "Bulletproof Bose",
+            "Bulletproof Bose", "Thicc Occam", "Buff Bayes",
         )
         for (member in members) {
             val quip = HistoryHighlight.QUIPS.find { it.text.contains(member) }
