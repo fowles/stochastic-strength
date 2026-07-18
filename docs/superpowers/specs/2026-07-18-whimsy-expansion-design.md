@@ -22,8 +22,11 @@ No schema change, no backtest impact, no new Room tables.
 - **Scarcity:** 4% chance per rest (1-in-25), so an average workout (~15 rests)
   sees a quip a bit more often than every other workout. Many workouts see none —
   the whimsy is itself stochastic, which is on-brand.
-- **Muscle eligibility:** muscle-keyed quips are eligible only when their muscle is
-  in the current session (same rule as the highlight system).
+- **Muscle eligibility:** muscle-keyed quips are eligible only when the upcoming
+  set (the one this rest precedes) works that muscle — the quip talks about what
+  you're about to do, not the session at large.
+- **No quip on the final rest:** the last rest of the workout never shows a quip;
+  the Done screen's HighlightCard immediately follows and would make it feel spammy.
 - **Shuffle bag:** when the 4% chance fires, the quip is drawn from a persisted
   no-repeat shuffle bag (below), not an independent random pick.
 
@@ -32,7 +35,7 @@ No schema change, no backtest impact, no new Room tables.
 - Lives in `domain/history/` next to the quip pool.
 - A shuffled permutation of quip indices plus a cursor; drawing returns the next
   eligible index (skipping muscle-ineligible ones without consuming them — they
-  stay in the bag for a session where their muscle appears).
+  stay in the bag for a rest that precedes an exercise working their muscle).
 - Persisted via SharedPreferences, keyed by pool size: growing the pool later
   invalidates the bag and triggers a reshuffle. No Room schema change.
 - On exhaustion: reshuffle and start over.
@@ -103,5 +106,6 @@ prefer one-offs and alliteration.
   bag invalidation when the pool grows; muscle-ineligible quips skipped without
   being consumed.
 - Rest-quip selection: decided once per rest (stable across recomposition/undo);
-  ~4% rate exercised with a seeded Random.
+  ~4% rate exercised with a seeded Random; final rest of a workout never quips;
+  muscle-keyed quips only appear before a set that works that muscle.
 - Existing highlight tests and the backtest gate untouched (display strings only).
