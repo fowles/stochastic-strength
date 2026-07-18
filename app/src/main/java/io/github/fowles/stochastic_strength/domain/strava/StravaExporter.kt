@@ -189,10 +189,11 @@ class StravaExporter(
             "Quantum", "Unforeseen", "Improvised", "Freewheeling", "Extemporaneous",
             "Wayward", "Untamed", "Emergent", "Turbulent", "Kaleidoscopic",
             "Roving", "Vagrant", "Dicey", "Monte-Carlo", "Unscripted",
+            "Bayesian", "Markovian", "Ergodic", "Annealed", "Heuristic",
+            "Volatile", "Scattershot", "Slapdash", "Peripatetic", "Rambunctious",
+            "Untrammeled", "Feral", "Anarchic", "Herculean", "Promethean",
             "Yoked Galileo's", "Diesel Tycho Brahe's", "Massive Marie Curie's",
-            "Jacked Ada Lovelace's", "Ripped Ramanujan's", "Beefy al-Khwarizmi's",
-            "Chiseled Chien-Shiung Wu's", "Unbreakable Emmy Noether's",
-            "Buff Hypatia's", "Stacked Turing's",
+            "Jacked Ada Lovelace's", "Ripped Ramanujan's",
         )
         private val STRENGTHS = listOf(
             "Power", "Might", "Brawn", "Vigor", "Grit", "Strength",
@@ -201,7 +202,10 @@ class StravaExporter(
             "Steel", "Moxie", "Gumption", "Hustle", "Ferocity",
             "Wrath", "Gains", "Swole", "Heft", "Oomph",
             "Vim", "Verve", "Torque", "Payload", "Clout",
-            "Hypertrophy",
+            "Hypertrophy", "Wallop", "Beef", "Bulk", "Pep",
+            "Zeal", "Chutzpah", "Horsepower", "Wattage", "Voltage",
+            "Thunder", "Fury", "Valor", "Dynamism", "Momentum",
+            "Leverage", "Traction", "Stoutness", "Gusto",
         )
         private val WORKOUT_NOUNS = listOf(
             "Gauntlet", "Odyssey", "Quest", "Ritual", "Grind", "Workout",
@@ -210,6 +214,10 @@ class StravaExporter(
             "Excursion", "Caper", "Undertaking", "Saga", "Voyage",
             "Jaunt", "Symposium", "Ordeal", "Bacchanal", "Communion",
             "Séance", "Summit", "Tribunal", "Recital", "Pageant",
+            "Rite", "Vigil", "Jubilee", "Jamboree", "Hootenanny",
+            "Rumpus", "Shindig", "Kerfuffle", "Melee", "Skirmish",
+            "Siege", "Conclave", "Audit", "Inquest", "Referendum",
+            "Filibuster", "Safari", "Walkabout",
         )
     }
 }
