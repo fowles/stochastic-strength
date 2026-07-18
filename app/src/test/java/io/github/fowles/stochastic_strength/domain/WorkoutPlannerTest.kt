@@ -587,6 +587,32 @@ class WorkoutPlannerTest {
         assertEquals(listOf(3, 2), warmups.map { it.reps })
     }
 
+    @Test
+    fun `computeWarmupSets asymmetric barbell uses percentage ramp not bar math`() {
+        val asymmetric = Exercise(
+            id = 1L,
+            name = "T-Bar Row",
+            primaryMuscle = MuscleGroup.BACK,
+            equipment = Equipment.BARBELL,
+            isAsymmetric = true,
+        )
+        val warmups = planner().computeWarmupSets(100f, asymmetric)
+        assertEquals(listOf(40, 60, 80), warmups.map { it.weight.roundToInt() })
+        assertEquals(listOf(5, 3, 2), warmups.map { it.reps })
+    }
+
+    @Test
+    fun `computeWarmupSets symmetric barbell still uses bar math`() {
+        val symmetric = Exercise(
+            id = 2L,
+            name = "Barbell Row",
+            primaryMuscle = MuscleGroup.BACK,
+            equipment = Equipment.BARBELL,
+        )
+        val warmups = planner().computeWarmupSets(100f, symmetric)
+        assertEquals(listOf(20, 40, 60, 80, 90), warmups.map { it.weight.roundToInt() })
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     // Recently-failed muscle group exclusion
     // ──────────────────────────────────────────────────────────────────────

@@ -12,5 +12,10 @@ data class Exercise(
     val equipment: Equipment,
     val isDisliked: Boolean = false,
     val isUnilateral: Boolean = false,
+    val isAsymmetric: Boolean = false,
     val isTimed: Boolean = false,
 )
+
+/** True when this lift loads a symmetric bar with plates per side (standard warmup + plate breakdown). */
+val Exercise.usesBarPlates: Boolean
+    get() = equipment == Equipment.BARBELL && !isAsymmetric

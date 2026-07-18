@@ -6,6 +6,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.data.model.usesBarPlates
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
@@ -130,9 +131,10 @@ class WorkoutPlanner(
     }
 
     fun computeWarmupSets(weightKg: Float, exercise: Exercise? = null): List<WarmupSet> {
-        // Non-barbell lifts have no bar and no plate math — ramp as a percentage
-        // of the working weight instead of the barbell plates-and-quarters model.
-        if (exercise != null && exercise.equipment != Equipment.BARBELL) {
+        // Non-bar lifts (bodyweight/dumbbell/etc.) and asymmetric barbells (T-Bar, Landmine)
+        // have no symmetric plate-loaded bar — ramp as a percentage of the working weight
+        // instead of the plates-and-quarters bar model.
+        if (exercise != null && !exercise.usesBarPlates) {
             return percentageRampWarmups(weightKg)
         }
 

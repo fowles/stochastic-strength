@@ -66,6 +66,7 @@ object BackupJsonBuilder {
         "id" to e.id, "name" to e.name, "primaryMuscle" to e.primaryMuscle.name,
         "secondaryMuscles" to e.secondaryMuscles.toJsonArray(), "equipment" to e.equipment.name,
         "isDisliked" to e.isDisliked, "isUnilateral" to e.isUnilateral, "isTimed" to e.isTimed,
+        "isAsymmetric" to e.isAsymmetric,
     )
 
     private fun locationObj(l: KnownLocation) = obj(
@@ -157,6 +158,7 @@ object BackupJsonParser {
         equipment = Equipment.valueOf(o.getString("equipment")),
         isDisliked = o.getBoolean("isDisliked"), isUnilateral = o.getBoolean("isUnilateral"),
         isTimed = o.getBoolean("isTimed"),
+        isAsymmetric = o.optBoolean("isAsymmetric", false),
     )
 
     private fun location(o: JSONObject) = KnownLocation(
