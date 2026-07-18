@@ -41,6 +41,7 @@ sealed interface WorkoutState {
         val weightAtSetStart: Float,
         val currentSetRowId: Long,
         val staged: StagedAction? = null,
+        val restQuip: String? = null,
     ) : WorkoutState
 
     data class Done(
