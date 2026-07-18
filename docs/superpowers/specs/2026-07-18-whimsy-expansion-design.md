@@ -19,12 +19,12 @@ No schema change, no backtest impact, no new Room tables.
 - `RestingContent` gains an optional quip line under the countdown.
 - **Selection at rest start, fixed for that rest** — no re-roll on recomposition,
   undo, or process churn within the rest.
-- **Scarcity:** 1-in-15 chance per rest (~7%), so an average workout (~15 rests)
-  sees about one quip. Some workouts see zero, some two — the whimsy is itself
-  stochastic, which is on-brand.
+- **Scarcity:** 4% chance per rest (1-in-25), so an average workout (~15 rests)
+  sees a quip a bit more often than every other workout. Many workouts see none —
+  the whimsy is itself stochastic, which is on-brand.
 - **Muscle eligibility:** muscle-keyed quips are eligible only when their muscle is
   in the current session (same rule as the highlight system).
-- **Shuffle bag:** when the 1-in-15 fires, the quip is drawn from a persisted
+- **Shuffle bag:** when the 4% chance fires, the quip is drawn from a persisted
   no-repeat shuffle bag (below), not an independent random pick.
 
 ## 2. Shuffle bag (`QuipBag`)
@@ -83,7 +83,7 @@ prefer one-offs and alliteration.
 - Expand the shared `HistoryHighlight.QUIPS` list (history highlights, done-screen
   HighlightCard, and the new rest timer all draw from it) with new pantheon-voiced
   entries, targeting **~60–80 generic quips total** so the bag lasts a couple of
-  months at ~1 sighting per workout.
+  months at under one sighting per workout.
 - New-member quips follow the existing voice: gym non-sequiturs, science puns,
   warm not mocking.
 
@@ -103,5 +103,5 @@ prefer one-offs and alliteration.
   bag invalidation when the pool grows; muscle-ineligible quips skipped without
   being consumed.
 - Rest-quip selection: decided once per rest (stable across recomposition/undo);
-  ~1-in-15 rate exercised with a seeded Random.
+  ~4% rate exercised with a seeded Random.
 - Existing highlight tests and the backtest gate untouched (display strings only).
