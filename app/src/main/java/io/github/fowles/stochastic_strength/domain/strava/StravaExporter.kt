@@ -201,6 +201,7 @@ class StravaExporter(
             "Steel", "Moxie", "Gumption", "Hustle", "Ferocity",
             "Wrath", "Gains", "Swole", "Heft", "Oomph",
             "Vim", "Verve", "Torque", "Payload", "Clout",
+            "Hypertrophy",
         )
         private val WORKOUT_NOUNS = listOf(
             "Gauntlet", "Odyssey", "Quest", "Ritual", "Grind", "Workout",
