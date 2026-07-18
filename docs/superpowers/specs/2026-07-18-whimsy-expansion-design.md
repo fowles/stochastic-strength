@@ -27,20 +27,11 @@ No schema change, no backtest impact, no new Room tables.
   you're about to do, not the session at large.
 - **No quip on the final rest:** the last rest of the workout never shows a quip;
   the Done screen's HighlightCard immediately follows and would make it feel spammy.
-- **Shuffle bag:** when the 4% chance fires, the quip is drawn from a persisted
-  no-repeat shuffle bag (below), not an independent random pick.
+- **Selection:** when the 4% chance fires, pick uniformly at random from the
+  eligible quips. At under one sighting per workout, repeat-avoidance machinery
+  (shuffle bags, persistence) is not worth its weight — no state is persisted.
 
-## 2. Shuffle bag (`QuipBag`)
-
-- Lives in `domain/history/` next to the quip pool.
-- A shuffled permutation of quip indices plus a cursor; drawing returns the next
-  eligible index (skipping muscle-ineligible ones without consuming them — they
-  stay in the bag for a rest that precedes an exercise working their muscle).
-- Persisted via SharedPreferences, keyed by pool size: growing the pool later
-  invalidates the bag and triggers a reshuffle. No Room schema change.
-- On exhaustion: reshuffle and start over.
-
-## 3. Pantheon
+## 2. Pantheon
 
 ### Re-epitheted canon (edit existing quip strings; Diesel was over-represented)
 
@@ -81,16 +72,16 @@ Ripped Ramanujan, Swole Sagan, Jacked Gauss, Buff Hypatia.
 Epithet inventory rule: each epithet used at most ~3 times across the pantheon;
 prefer one-offs and alliteration.
 
-## 4. Quip pool growth
+## 3. Quip pool growth
 
 - Expand the shared `HistoryHighlight.QUIPS` list (history highlights, done-screen
   HighlightCard, and the new rest timer all draw from it) with new pantheon-voiced
-  entries, targeting **~60–80 generic quips total** so the bag lasts a couple of
-  months at under one sighting per workout.
+  entries, targeting **~60–80 generic quips total**; at under one sighting per
+  workout, repeats stay rare for months even with independent random picks.
 - New-member quips follow the existing voice: gym non-sequiturs, science puns,
   warm not mocking.
 
-## 5. Strava titles
+## 4. Strava titles
 
 - Append **10 possessive pantheon forms to the existing `ADJECTIVES` list** in
   `StravaExporter` (no separate pool): Yoked Galileo's, Diesel Tycho Brahe's,
@@ -102,9 +93,6 @@ prefer one-offs and alliteration.
 
 ## Testing
 
-- `QuipBag` unit tests: no repeats until exhaustion; reshuffle on exhaustion;
-  bag invalidation when the pool grows; muscle-ineligible quips skipped without
-  being consumed.
 - Rest-quip selection: decided once per rest (stable across recomposition/undo);
   ~4% rate exercised with a seeded Random; final rest of a workout never quips;
   muscle-keyed quips only appear before a set that works that muscle.
