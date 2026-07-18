@@ -123,6 +123,21 @@ class HistoryHighlightTest {
     }
 
     @Test
+    fun `new pantheon members are present and generic`() {
+        val members = listOf(
+            "Colossal Katherine Johnson", "Beefy al-Khwarizmi", "Chiseled Chien-Shiung Wu",
+            "Titanic Tu Youyou", "Girthy George Washington Carver", "Peak Rosalind Franklin",
+            "Unbreakable Emmy Noether", "Astro-Jacked Mae Jemison", "Granite Ibn al-Haytham",
+            "Bulletproof Bose",
+        )
+        for (member in members) {
+            val quip = HistoryHighlight.QUIPS.find { it.text.contains(member) }
+            assertTrue("missing pantheon member: $member", quip != null)
+            assertEquals("pantheon quips must be generic: $member", null, quip!!.muscle)
+        }
+    }
+
+    @Test
     fun `quip-only outcome is reachable even when a stat qualifies`() {
         val series = listOf(liftSeries("Bench Press", MuscleGroup.CHEST, 60f, 70f))
         val sawQuipOnly = (0 until 200).any { s ->

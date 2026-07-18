@@ -189,6 +189,10 @@ class StravaExporter(
             "Quantum", "Unforeseen", "Improvised", "Freewheeling", "Extemporaneous",
             "Wayward", "Untamed", "Emergent", "Turbulent", "Kaleidoscopic",
             "Roving", "Vagrant", "Dicey", "Monte-Carlo", "Unscripted",
+            "Yoked Galileo's", "Diesel Tycho Brahe's", "Massive Marie Curie's",
+            "Jacked Ada Lovelace's", "Ripped Ramanujan's", "Beefy al-Khwarizmi's",
+            "Chiseled Chien-Shiung Wu's", "Unbreakable Emmy Noether's",
+            "Buff Hypatia's", "Stacked Turing's",
         )
         private val STRENGTHS = listOf(
             "Power", "Might", "Brawn", "Vigor", "Grit", "Strength",
@@ -197,6 +201,7 @@ class StravaExporter(
             "Steel", "Moxie", "Gumption", "Hustle", "Ferocity",
             "Wrath", "Gains", "Swole", "Heft", "Oomph",
             "Vim", "Verve", "Torque", "Payload", "Clout",
+            "Hypertrophy",
         )
         private val WORKOUT_NOUNS = listOf(
             "Gauntlet", "Odyssey", "Quest", "Ritual", "Grind", "Workout",

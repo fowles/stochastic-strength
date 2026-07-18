@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
+import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -14,8 +15,10 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantit
 import io.github.fowles.stochastic_strength.domain.ReplacementTier
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
+import io.github.fowles.stochastic_strength.domain.history.RestQuips
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
@@ -355,6 +358,10 @@ class WorkoutSessionController(
                 lastFeedback = feedback,
                 weightAtSetStart = current.plannedExercise.sessionWeight,
                 currentSetRowId = rowId,
+                restQuip = RestQuips.pick(
+                    upcomingMusclesAfterRest(current.plan, current.exerciseIndex, completedSetIndex),
+                    Random.Default,
+                ),
             ))
             startRestTimer()
         }
@@ -623,6 +630,20 @@ class WorkoutSessionController(
                 setState(current.copy(secondsRemaining = current.secondsRemaining - 1))
             }
         }
+    }
+
+    /** Muscles of the exercise the upcoming rest precedes; null when the rest is the workout's last. */
+    private fun upcomingMusclesAfterRest(
+        plan: WorkoutPlan,
+        exerciseIndex: Int,
+        completedSetIndex: Int,
+    ): Set<MuscleGroup>? {
+        val exercise = when {
+            completedSetIndex + 1 < PlannedExercise.DEFAULT_SETS -> plan.exercises[exerciseIndex]
+            exerciseIndex + 1 < plan.exercises.size -> plan.exercises[exerciseIndex + 1]
+            else -> return null
+        }.exercise
+        return setOf(exercise.primaryMuscle) + exercise.secondaryMuscles
     }
 
     private fun advanceAfterRest() {
