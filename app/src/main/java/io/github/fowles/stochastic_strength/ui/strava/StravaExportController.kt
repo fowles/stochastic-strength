@@ -46,8 +46,12 @@ class StravaExportController(
         // Back from the browser: the callback activity finishes only after saving the
         // token, so by resume time auth is settled. Authenticated → run the export;
         // not authenticated → the user abandoned/denied auth, so clear the spinner.
-        if (exporter.isAuthenticated()) launch(sessionId, weightUnit)
-        else _state.value = StravaExportState.Idle
+        if (exporter.isAuthenticated()) {
+            launch(sessionId, weightUnit)
+        } else {
+            _state.value = StravaExportState.Idle
+            exporter.notifyExportCancelled()
+        }
     }
 
     fun onMessageShown() {

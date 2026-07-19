@@ -62,6 +62,12 @@ class StravaExporter(
             .build()
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
+    fun notifyExportCancelled() {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, "Strava Export Cancelled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun getAuthUrl(): String = StravaApiClient.buildAuthUrl(BuildConfig.STRAVA_CLIENT_ID)
 
     fun isAuthenticated(): Boolean = tokenStore.isAuthenticated()
