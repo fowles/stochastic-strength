@@ -47,6 +47,11 @@ class SummaryViewModel(
         stravaController.export(sessionId, weightUnit)
     }
 
+    fun onReexportToStrava() {
+        val weightUnit = summary.value?.weightUnit ?: WeightUnit.KG
+        stravaController.reexport(sessionId, weightUnit)
+    }
+
     fun onStravaAuthUrlLaunched() = stravaController.onAuthUrlLaunched()
 
     fun onResumed() {

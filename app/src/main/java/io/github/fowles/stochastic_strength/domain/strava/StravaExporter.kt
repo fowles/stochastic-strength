@@ -66,6 +66,8 @@ class StravaExporter(
 
     fun isAuthenticated(): Boolean = tokenStore.isAuthenticated()
 
+    fun clearTokens() = tokenStore.clearTokens()
+
     suspend fun handleAuthCallback(code: String) {
         val tokens = StravaApiClient.exchangeCode(
             BuildConfig.STRAVA_CLIENT_ID,

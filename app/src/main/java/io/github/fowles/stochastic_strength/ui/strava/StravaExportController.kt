@@ -31,6 +31,11 @@ class StravaExportController(
         launch(sessionId, weightUnit)
     }
 
+    fun reexport(sessionId: Long, weightUnit: WeightUnit) {
+        exporter.clearTokens()
+        export(sessionId, weightUnit)   // now unauthenticated → NeedsAuth → connect flow
+    }
+
     fun onAuthUrlLaunched() {
         if (_state.value is StravaExportState.NeedsAuth)
             _state.value = StravaExportState.WaitingForAuth
