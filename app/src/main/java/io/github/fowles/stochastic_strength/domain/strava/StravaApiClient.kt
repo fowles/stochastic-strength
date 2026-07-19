@@ -2,7 +2,6 @@ package io.github.fowles.stochastic_strength.domain.strava
 
 import android.net.Uri
 import android.util.Log
-import io.github.fowles.stochastic_strength.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -69,22 +68,45 @@ object StravaApiClient {
                 .build())
         }
 
-    suspend fun uploadJson(accessToken: String, jsonBody: String, name: String, description: String): String =
-        withContext(Dispatchers.IO) {
-            val requestBody = MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("data_type", "json")
-                .addFormDataPart("sport_type", "WeightTraining")
-                .addFormDataPart("name", name)
-                .addFormDataPart("description", description)
-                .addFormDataPart(
-                    "file",
-                    "strava_export.json",
-                    jsonBody.toByteArray().toRequestBody("application/octet-stream".toMediaType()),
-                )
-                .build()
+    /**
+     * A stable per-session key handed to Strava as the upload's `external_id`. Distinct
+     * sessions get distinct ids so Strava does not collapse two different workouts onto one
+     * activity (its manual/JSON-upload dedup is not keyed on start time); re-uploading the
+     * SAME session reuses the key, which is exactly the case where a duplicate is correct.
+     */
+    fun uploadExternalId(sessionId: Long): String = "stochastic-strength-session-$sessionId"
 
-            if (BuildConfig.DEBUG) Log.d("StravaApiClient", "JSON upload body: ${jsonBody.take(1000)}")
+    internal fun buildUploadBody(
+        jsonBody: String,
+        name: String,
+        description: String,
+        externalId: String,
+    ): MultipartBody =
+        MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("data_type", "json")
+            .addFormDataPart("sport_type", "WeightTraining")
+            .addFormDataPart("name", name)
+            .addFormDataPart("description", description)
+            .addFormDataPart("external_id", externalId)
+            .addFormDataPart(
+                "file",
+                "strava_export.json",
+                jsonBody.toByteArray().toRequestBody("application/octet-stream".toMediaType()),
+            )
+            .build()
+
+    suspend fun uploadJson(
+        accessToken: String,
+        jsonBody: String,
+        name: String,
+        description: String,
+        externalId: String,
+    ): String =
+        withContext(Dispatchers.IO) {
+            val requestBody = buildUploadBody(jsonBody, name, description, externalId)
+
+            Log.i("StravaApiClient", "JSON upload (external_id=$externalId) body: ${jsonBody.take(1000)}")
 
             val request = Request.Builder()
                 .url(UPLOAD_URL)
@@ -94,7 +116,7 @@ object StravaApiClient {
 
             val response = client.newCall(request).execute()
             val bodyStr = response.body?.string() ?: throw IOException("Empty upload response")
-            if (BuildConfig.DEBUG) Log.d("StravaApiClient", "Upload response ${response.code}: $bodyStr")
+            Log.i("StravaApiClient", "Upload response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Upload failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)
@@ -111,7 +133,7 @@ object StravaApiClient {
 
             val response = client.newCall(request).execute()
             val bodyStr = response.body?.string() ?: throw IOException("Empty poll response")
-            if (BuildConfig.DEBUG) Log.d("StravaApiClient", "Poll response ${response.code}: $bodyStr")
+            Log.i("StravaApiClient", "Poll response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Poll failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)

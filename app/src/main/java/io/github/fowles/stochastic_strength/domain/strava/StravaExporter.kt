@@ -119,7 +119,10 @@ class StravaExporter(
         )
         val description = buildDescription(highlight, sets, exerciseById, durationMs, weightUnit)
         val jsonBody = jsonBuilder.build(session, sets, nameById)
-        val uploadId = StravaApiClient.uploadJson(accessToken, jsonBody, name, description)
+        val uploadId = StravaApiClient.uploadJson(
+            accessToken, jsonBody, name, description,
+            externalId = StravaApiClient.uploadExternalId(sessionId),
+        )
         repeat(20) {
             val activityId = StravaApiClient.pollUpload(accessToken, uploadId)
             if (activityId != null) return activityId
