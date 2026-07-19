@@ -14,6 +14,7 @@ class StravaCallbackActivity : ComponentActivity() {
         lifecycleScope.launch {
             if (code != null) {
                 runCatching { exporter.handleAuthCallback(code) }
+                    .onFailure { exporter.recordAuthError(it.message ?: it.javaClass.simpleName) }
             }
             finish()
         }

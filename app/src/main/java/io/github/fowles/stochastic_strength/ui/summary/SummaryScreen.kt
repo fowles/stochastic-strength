@@ -2,12 +2,20 @@ package io.github.fowles.stochastic_strength.ui.summary
 
 import android.content.Intent
 import androidx.core.net.toUri
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -16,6 +24,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -30,6 +41,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(
     sessionId: Long,
@@ -62,20 +74,42 @@ fun SummaryScreen(
         }
     }
 
-    Scaffold { paddingValues ->
+    val dateLabel = summary?.let {
+        SimpleDateFormat("EEEE, MMM d · h:mm a", Locale.getDefault()).format(Date(it.startTime))
+    }
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { if (dateLabel != null) Text(dateLabel) },
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Re-export to Strava") },
+                                onClick = {
+                                    menuExpanded = false
+                                    viewModel.onReexportToStrava()
+                                },
+                            )
+                        }
+                    }
+                },
+            )
+        },
+    ) { paddingValues ->
         WorkoutSummaryContent(
             summary = summary,
             modifier = Modifier.padding(paddingValues),
             onExerciseTap = onExerciseTap,
-            header = {
-                val s = summary
-                if (s != null) {
-                    val dateLabel = SimpleDateFormat("EEEE, MMM d · h:mm a", Locale.getDefault())
-                        .format(Date(s.startTime))
-                    Text(dateLabel, style = MaterialTheme.typography.headlineMedium)
-                    Spacer(Modifier.height(8.dp))
-                }
-            },
+            header = {},
             footer = {
                 if (onBack != null) {
                     OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {

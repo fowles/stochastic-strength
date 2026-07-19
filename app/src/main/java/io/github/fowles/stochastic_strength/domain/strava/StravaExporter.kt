@@ -35,6 +35,14 @@ class StravaExporter(
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+    // Set by StravaCallbackActivity when the token exchange throws; read (and cleared)
+    // by the controller on resume to tell a real auth failure from a plain user cancel.
+    @Volatile
+    private var lastAuthError: String? = null
+
+    fun recordAuthError(message: String?) { lastAuthError = message }
+    fun consumeAuthError(): String? = lastAuthError.also { lastAuthError = null }
+
     init {
         notificationManager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Strava Export", NotificationManager.IMPORTANCE_LOW)
@@ -62,9 +70,25 @@ class StravaExporter(
             .build()
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
+    fun notifyExportCancelled() {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, "Strava Export Cancelled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun notifyExportError(details: String?) {
+        val text = if (details.isNullOrBlank()) "Strava Export Error"
+            else "Strava Export Error: $details"
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+        }
+    }
+
     fun getAuthUrl(): String = StravaApiClient.buildAuthUrl(BuildConfig.STRAVA_CLIENT_ID)
 
     fun isAuthenticated(): Boolean = tokenStore.isAuthenticated()
+
+    fun clearTokens() = tokenStore.clearTokens()
 
     suspend fun handleAuthCallback(code: String) {
         val tokens = StravaApiClient.exchangeCode(

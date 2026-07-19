@@ -31,14 +31,33 @@ class StravaExportController(
         launch(sessionId, weightUnit)
     }
 
+    fun reexport(sessionId: Long, weightUnit: WeightUnit) {
+        exporter.clearTokens()
+        export(sessionId, weightUnit)   // now unauthenticated → NeedsAuth → connect flow
+    }
+
     fun onAuthUrlLaunched() {
-        if (_state.value is StravaExportState.NeedsAuth)
+        if (_state.value is StravaExportState.NeedsAuth) {
+            exporter.consumeAuthError()   // discard any stale error from a prior attempt
             _state.value = StravaExportState.WaitingForAuth
+        }
     }
 
     fun onResumedWaitingForAuth(sessionId: Long, weightUnit: WeightUnit) {
-        if (_state.value is StravaExportState.WaitingForAuth && exporter.isAuthenticated())
+        if (_state.value !is StravaExportState.WaitingForAuth) return
+        // Back from the browser: the callback activity finishes only after saving the
+        // token, so by resume time auth is settled. Authenticated → run the export;
+        // not authenticated → the user abandoned/denied auth, so clear the spinner.
+        if (exporter.isAuthenticated()) {
             launch(sessionId, weightUnit)
+        } else {
+            _state.value = StravaExportState.Idle
+            // A recorded error means the token exchange threw; otherwise the user
+            // simply backed out or denied.
+            val authError = exporter.consumeAuthError()
+            if (authError != null) exporter.notifyExportError(authError)
+            else exporter.notifyExportCancelled()
+        }
     }
 
     fun onMessageShown() {
