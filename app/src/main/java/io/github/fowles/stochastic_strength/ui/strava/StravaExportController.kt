@@ -37,8 +37,10 @@ class StravaExportController(
     }
 
     fun onAuthUrlLaunched() {
-        if (_state.value is StravaExportState.NeedsAuth)
+        if (_state.value is StravaExportState.NeedsAuth) {
+            exporter.consumeAuthError()   // discard any stale error from a prior attempt
             _state.value = StravaExportState.WaitingForAuth
+        }
     }
 
     fun onResumedWaitingForAuth(sessionId: Long, weightUnit: WeightUnit) {
@@ -50,7 +52,11 @@ class StravaExportController(
             launch(sessionId, weightUnit)
         } else {
             _state.value = StravaExportState.Idle
-            exporter.notifyExportCancelled()
+            // A recorded error means the token exchange threw; otherwise the user
+            // simply backed out or denied.
+            val authError = exporter.consumeAuthError()
+            if (authError != null) exporter.notifyExportError(authError)
+            else exporter.notifyExportCancelled()
         }
     }
 
