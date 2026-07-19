@@ -32,7 +32,7 @@
   - `StravaExportController.reexport(sessionId: Long, weightUnit: WeightUnit)` : Unit
   - `SummaryViewModel.onReexportToStrava()` : Unit
 
-- [ ] **Step 1: Expose token clear on the exporter**
+- [x] **Step 1: Expose token clear on the exporter**
 
 In `StravaExporter.kt`, add next to `isAuthenticated()` (around line 67):
 
@@ -40,7 +40,7 @@ In `StravaExporter.kt`, add next to `isAuthenticated()` (around line 67):
 fun clearTokens() = tokenStore.clearTokens()
 ```
 
-- [ ] **Step 2: Add `reexport` to the controller**
+- [x] **Step 2: Add `reexport` to the controller**
 
 In `StravaExportController.kt`, add immediately after the `export(...)` function (after line 32):
 
@@ -51,7 +51,7 @@ fun reexport(sessionId: Long, weightUnit: WeightUnit) {
 }
 ```
 
-- [ ] **Step 3: Add `onReexportToStrava` to the view model**
+- [x] **Step 3: Add `onReexportToStrava` to the view model**
 
 In `SummaryViewModel.kt`, add immediately after `onExportToStrava()` (after line 48):
 
@@ -62,12 +62,12 @@ fun onReexportToStrava() {
 }
 ```
 
-- [ ] **Step 4: Build to verify it compiles**
+- [x] **Step 4: Build to verify it compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(strava): re-export plumbing — clearTokens + reexport wiring
@@ -87,7 +87,7 @@ Claude-Session: https://claude.ai/code/session_01YMbPUs4NjqmdXWPMxB3uoK"
 - Consumes: `SummaryViewModel.onReexportToStrava()` (from Task 1); existing `summary` / `stravaState` flows and `WorkoutSummaryContent`.
 - Produces: no new public interface (UI only).
 
-- [ ] **Step 1: Add imports**
+- [x] **Step 1: Add imports**
 
 In `SummaryScreen.kt`, add these imports (alongside the existing Compose imports):
 
@@ -109,7 +109,7 @@ import androidx.compose.runtime.setValue
 
 Note: `getValue` is already imported for `by collectAsState()`; keep a single import (do not duplicate).
 
-- [ ] **Step 2: Opt in to the Material3 top-bar API**
+- [x] **Step 2: Opt in to the Material3 top-bar API**
 
 Annotate the `SummaryScreen` composable (add above the existing `@Composable` on line 33):
 
@@ -119,7 +119,7 @@ Annotate the `SummaryScreen` composable (add above the existing `@Composable` on
 fun SummaryScreen(
 ```
 
-- [ ] **Step 3: Compute the date label once and add menu state**
+- [x] **Step 3: Compute the date label once and add menu state**
 
 Inside `SummaryScreen`, just before the `Scaffold { paddingValues ->` line (line 65), add:
 
@@ -130,7 +130,7 @@ Inside `SummaryScreen`, just before the `Scaffold { paddingValues ->` line (line
     var menuExpanded by remember { mutableStateOf(false) }
 ```
 
-- [ ] **Step 4: Add the TopAppBar and drop the duplicate header date**
+- [x] **Step 4: Add the TopAppBar and drop the duplicate header date**
 
 Replace the `Scaffold { paddingValues ->` opening (line 65) and the content `header` block (lines 70-78) so the date lives in the app bar instead of the content header.
 
@@ -177,12 +177,12 @@ Then change the `WorkoutSummaryContent(...)` call to drop the `header` parameter
 
 The `footer` block (Back / Export / Done buttons) is unchanged.
 
-- [ ] **Step 5: Build to verify it compiles**
+- [x] **Step 5: Build to verify it compiles**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: `BUILD SUCCESSFUL`. If the compiler reports `MaterialTheme` or the `SimpleDateFormat` imports as now-unused, remove them.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat(strava): re-export menu on workout summary top bar
