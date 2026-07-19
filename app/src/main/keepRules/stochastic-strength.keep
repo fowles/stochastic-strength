@@ -1,0 +1,3 @@
+# Preserve line number information so Play Console crash reports
+# can be deobfuscated to real source locations.
+-keepattributes SourceFile,LineNumberTable

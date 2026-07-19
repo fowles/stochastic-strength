@@ -37,11 +37,9 @@ providers.gradleProperty("STOCHASTIC_UPLOAD_STORE_PASSWORD").get()
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            optimization {
+                enable = true
+            }
         }
         create("releaseLocal") {
             initWith(getByName("release"))
