@@ -42,8 +42,12 @@ class StravaExportController(
     }
 
     fun onResumedWaitingForAuth(sessionId: Long, weightUnit: WeightUnit) {
-        if (_state.value is StravaExportState.WaitingForAuth && exporter.isAuthenticated())
-            launch(sessionId, weightUnit)
+        if (_state.value !is StravaExportState.WaitingForAuth) return
+        // Back from the browser: the callback activity finishes only after saving the
+        // token, so by resume time auth is settled. Authenticated → run the export;
+        // not authenticated → the user abandoned/denied auth, so clear the spinner.
+        if (exporter.isAuthenticated()) launch(sessionId, weightUnit)
+        else _state.value = StravaExportState.Idle
     }
 
     fun onMessageShown() {
