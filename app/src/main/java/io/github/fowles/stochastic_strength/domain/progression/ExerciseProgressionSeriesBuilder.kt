@@ -19,6 +19,7 @@ import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import io.github.fowles.stochastic_strength.domain.policy.PrescriptionPolicy
 import kotlin.math.exp
 import kotlin.math.sqrt
+import kotlin.math.max
 
 data class ProgressionPoint(val timestampMs: Long, val value: Float)
 
@@ -74,6 +75,12 @@ internal data class SessionSample(
 /** One exercise's session sets reduced to dots via the shared [setObservationsE1rm] rule. */
 private fun perSetDots(sets: List<WorkoutSet>, asOf: Long, config: BeliefConfig): List<ProgressionPoint> =
     setObservationsE1rm(sets, config).map { ProgressionPoint(asOf, it) }
+
+/** Stamps the "next prescription" point at least 24h after the last session that trained the muscle. */
+internal fun predictedNow(now: Long, lastMuscleSessionAsOf: Long?): Long {
+    val day = 24L * 60 * 60 * 1000
+    return max(now, (lastMuscleSessionAsOf ?: 0L) + day)
+}
 
 /**
  * Computes one session's samples for [targetId], given the post-step [snapshot] (beliefs already
@@ -314,6 +321,8 @@ class ExerciseProgressionSeriesBuilder(
         var preFold: Map<Long, Belief> = emptyMap()
         // Completed sets from sessions strictly before the current one (the facts a decision saw).
         val priorSets = mutableListOf<WorkoutSet>()
+        // Time of the most recent session that touched this muscle.
+        var lastMuscleSessionAsOf: Long? = null
 
         fun preFoldSnapshot(beliefs: Map<Long, Belief>): ReplaySnapshot =
             ReplaySnapshot(snapshot.exerciseMuscle, snapshot.seedCoefficients)
@@ -331,6 +340,7 @@ class ExerciseProgressionSeriesBuilder(
             beforeSession = { beliefs, _ -> preFold = HashMap(beliefs) },
             observer = { _, asOf, sets, snap, beliefResult ->
                 if (beliefResult.steps.any { it.muscle == muscle }) {
+                    lastMuscleSessionAsOf = asOf
                     val preSnap = preFoldSnapshot(preFold)
                     val sample = sampleSession(exerciseId, muscleIds, preSnap, sets, asOf, config)
                     ownEstimate += sample.ownEstimate
@@ -353,10 +363,11 @@ class ExerciseProgressionSeriesBuilder(
             },
         )
 
-        // Synthetic PREDICTED frame: the live forward-looking decision at `now`, from the
-        // post-final-fold state (snapshot.currentBeliefs after the last fold).
+        // Synthetic PREDICTED frame: the live forward-looking decision, from the post-final-fold
+        // state (snapshot.currentBeliefs after the last fold), stamped at `predictedNow`.
+        val predictedNow = predictedNow(now, lastMuscleSessionAsOf)
         val predictedFrame: ProgressionFrame? = if (frames.isNotEmpty()) {
-            val liveSample = sampleSession(exerciseId, muscleIds, snapshot, emptyList(), now, config)
+            val liveSample = sampleSession(exerciseId, muscleIds, snapshot, emptyList(), predictedNow, config)
             ownEstimate += liveSample.ownEstimate
             siblingsEstimate += liveSample.siblingsEstimate
             merged += liveSample.merged
@@ -368,10 +379,10 @@ class ExerciseProgressionSeriesBuilder(
                 targetId = exerciseId, muscle = muscle, beliefs = snapshot.currentBeliefs,
                 seedCoef = snapshot.seedCoefficients, muscleExerciseIds = muscleIds,
                 exerciseMuscle = snapshot.exerciseMuscle, priorSets = priorSets,
-                sessionReps = liveReps, now = now, weightUnit = weightUnit,
+                sessionReps = liveReps, now = predictedNow, weightUnit = weightUnit,
                 config = config, engine = progressionEngine,
             )
-            buildFrame(exerciseId, muscleIds, snapshot, emptyList(), now, namesById, config, liveSample, liveTrace)
+            buildFrame(exerciseId, muscleIds, snapshot, emptyList(), predictedNow, namesById, config, liveSample, liveTrace)
         } else null
 
         return ExerciseProgressionData(

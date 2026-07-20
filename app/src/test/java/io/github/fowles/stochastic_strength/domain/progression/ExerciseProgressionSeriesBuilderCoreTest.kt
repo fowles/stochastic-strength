@@ -48,7 +48,9 @@ class ExerciseProgressionSeriesBuilderCoreTest {
             1L to listOf(setAt(1L, 1L, weight = 100f, reps = 5, at = 1_000L)),
             2L to listOf(setAt(1L, 2L, weight = 105f, reps = 5, at = 3_000L)),
         )
-        val now = 9_999_999L
+        // `now` is several days after the last session (well past last-set + 24h): the predicted
+        // point stays at `now`.
+        val now = 5L * 24 * 60 * 60 * 1000
 
         val data = builder.buildCore(
             exerciseId = 1L,
@@ -86,6 +88,42 @@ class ExerciseProgressionSeriesBuilderCoreTest {
         // Every emitted frame carries a trace.
         assertTrue(data.frames.all { it.trace != null })
         assertNotNull(data.predictedFrame!!.trace)
+    }
+
+    @Test
+    fun predictedFramePushedTo24hAfterLastSetWhenNowIsTooSoon() = runBlocking {
+        val snap = snapshotSeeded()
+        val initial = io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride(
+            exerciseId = 1L, e1rm = 100f, asOf = 0L, sessionId = null,
+        )
+        val day = 24 * 60 * 60 * 1000L
+        val s1Time = 2 * day + 1_000L
+        val s2Time = 2 * day + 3_000L
+        val s1 = WorkoutSession(id = 1L, startTime = 2 * day, endTime = s1Time)
+        val s2 = WorkoutSession(id = 2L, startTime = 2 * day + 2_000L, endTime = s2Time)
+        val setsBySession = mapOf(
+            1L to listOf(setAt(1L, 1L, weight = 100f, reps = 5, at = s1Time)),
+            2L to listOf(setAt(1L, 2L, weight = 105f, reps = 5, at = s2Time)),
+        )
+        // `now` is only seconds after the last session (< last-set + 24h).
+        val now = 2 * day + 10_000L
+
+        val data = builder.buildCore(
+            exerciseId = 1L,
+            snapshot = snap,
+            muscle = MuscleGroup.CHEST,
+            muscleIds = listOf(1L),
+            namesById = mapOf(1L to "Bench"),
+            weightUnit = WeightUnit.KG,
+            initialOverrides = listOf(initial),
+            sessionOverrides = emptyMap(),
+            sessions = listOf(s1, s2),
+            setsForSession = { setsBySession.getValue(it) },
+            now = now,
+        )
+
+        // Too soon → the predicted point is stamped 24h after the last session, not at `now`.
+        assertEquals(s2Time + day, data.predictedFrame!!.timestampMs)
     }
 
     @Test
