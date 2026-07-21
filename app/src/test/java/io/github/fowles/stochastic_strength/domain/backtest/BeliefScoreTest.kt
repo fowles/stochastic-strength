@@ -37,12 +37,14 @@ class BeliefScoreTest {
         }
         println(sb)
 
-        // PHASE-2 SHIP GATE: beat main's Phase-0 baseline on the same metric. The belief stack may
-        // score MORE sets (cold-start via siblings), which only adds distance — conservative gate.
+        // PHASE-2 SHIP GATE: beat main's Phase-0 baseline on PER-SET distance. Comparing totals is
+        // invalid once the two stacks score different-sized histories (the belief stack cold-starts
+        // more sets via siblings, and history.json grows over time); per-set mean is size-invariant.
         if (baseline != null) {
+            val beliefPerSet = r.totalDistance / r.scoredSets
             assertTrue(
-                "belief stack (${r.totalDistance}) must beat main's baseline (${baseline.getDouble("totalDistance")})",
-                r.totalDistance < baseline.getDouble("totalDistance"),
+                "belief stack ($beliefPerSet/set) must beat main's baseline (${baseline.getDouble("meanDistancePerSet")}/set)",
+                beliefPerSet < baseline.getDouble("meanDistancePerSet"),
             )
         }
     }
