@@ -20,8 +20,12 @@ data class BeliefConfig(
     val sigmaSeed: Float = 0.15f,
     /** `semantic`: a deliberate user edit / detraining row is trusted a bit more, ±10%. */
     val sigmaOverride: Float = 0.10f,
-    /** `fitted` 2026-07-15, curve in phase-2 plan appendix: fractional fresh-capacity loss per prior set. */
-    val phi: Float = 0.01f,
+    /**
+     * `fitted` 2026-07-28 (re-fit on 34-session history): fractional fresh-capacity loss per prior
+     * set. Genuine bowl, min at 0.03 — curve 0.0→35.998 0.01→35.638 0.02→35.374 0.03→35.250
+     * 0.05→35.542 0.08→37.328 (held-out total, ln-units). Was 0.01 (fitted 2026-07-15).
+     */
+    val phi: Float = 0.03f,
     /** `fitted` 2026-07-15, curve in phase-2 plan appendix: sigma2 growth per idle day. */
     val qPerDay: Float = 3e-6f,
     /**
