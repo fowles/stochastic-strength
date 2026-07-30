@@ -134,7 +134,7 @@ object HistoryHighlight {
         Quip("One photo told Peak Rosalind Franklin everything about structure. Yours is coming along."),
         Quip("Unbreakable Emmy Noether proved that lifts conserve gains."),
         Quip("Astro-Jacked Mae Jemison calls the bottom of a squat 'low orbit.'"),
-        Quip("Granite Ibn al-Haytham invented the experiment. Three sets is a replication study."),
+        Quip("Granite Ibn al-Haytham knows that one rep is an experiment, but three is a replication study."),
         Quip("Bulletproof Bose and Absolute-Unit Einstein always share a locker. They still fight over who gets to spot you."),
         Quip("Curls for the girls, curls for the boys, curls for the abstract concept of curls.", muscle = MuscleGroup.BICEPS),
         Quip("The sleeve tax is now unaffordable. Congratulations.", muscle = MuscleGroup.BICEPS),
