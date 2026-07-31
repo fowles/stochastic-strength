@@ -28,7 +28,7 @@ data class WorkoutBackup(
     companion object {
         const val FORMAT = "stochastic-strength-backup"
         const val FORMAT_VERSION = 1
-        const val DB_VERSION = 18
+        const val DB_VERSION = 19
     }
 }
 

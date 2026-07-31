@@ -1,16 +1,18 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.domain.backtest.BacktestFixtures.DAY_MS
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.policy.SetIntervals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BeliefHeldOutScorerTest {
@@ -33,7 +35,7 @@ class BeliefHeldOutScorerTest {
             exercises = listOf(squat),
             sessions = listOf(WorkoutSession(id = 1, startTime = 0, endTime = 1 * DAY_MS)),
             sets = sets,
-            strengthOverrides = listOf(ExerciseStrengthOverride(sessionId = null, exerciseId = 1, e1rm = 110f, asOf = 0)),
+            baselineOverrides = listOf(BaselineOverride(sessionId = null, muscleGroup = MuscleGroup.QUADS, baselineWeight = 110f, asOf = 0)),
         ))
         // Expected: replay once, sum interval.distanceTo(predictedLn) over the two feedback sets.
         var expected = 0.0
@@ -51,12 +53,20 @@ class BeliefHeldOutScorerTest {
 
     @Test
     fun setsWithoutAPredictionAreSkippedNotScored() {
-        // No override, single lonely exercise: session 1 has no prediction for it.
-        val squat = Exercise(id = 1, name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL)
+        // Live seed expansion seeds every LOADED (coef > 0) exercise from its muscle baseline —
+        // so the only way a set has no prediction now is a zero-coefficient (unloadable) exercise:
+        // it's excluded from `seedCoefficients.filterValues { it > 0f }` and therefore from
+        // `muscleExerciseIds`, so pooling never produces an effective belief for it (the fold skips
+        // it too, per CLAUDE.md: "zero-coefficient (unloadable) exercises are skipped").
+        val pullUp = Exercise(id = 1, name = "Pull-Up", primaryMuscle = MuscleGroup.BACK, equipment = Equipment.BODYWEIGHT)
+        assertTrue("fixture assumption: Pull-Up must be a real zero-coef entry", (ExerciseCoefficients.get(pullUp) ?: 0f) == 0f)
         val data = BacktestData.from(BacktestFixtures.backup(
-            exercises = listOf(squat),
+            exercises = listOf(pullUp),
             sessions = listOf(WorkoutSession(id = 1, startTime = 0, endTime = 1 * DAY_MS)),
-            sets = listOf(WorkoutSet(id = 1, sessionId = 1, exerciseId = 1, setNumber = 1, targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1)),
+            // targetWeight must be > 0 for SetIntervals to imply an interval at all (bodyweight sets
+            // are still logged with a nominal weight); the point under test is the missing
+            // PREDICTION, not a missing interval.
+            sets = listOf(WorkoutSet(id = 1, sessionId = 1, exerciseId = 1, setNumber = 1, targetWeight = 70f, targetReps = 8, feedback = SetFeedback.RIR_0_1)),
         ))
         val result = BeliefHeldOutScorer.score(data, config)
         assertEquals(0, result.report.scoredSets)

@@ -52,8 +52,8 @@ class ReplayEngineTest {
         kotlinx.coroutines.runBlocking {
             ReplayEngine().runCore(
                 snapshot = snap,
-                initialOverrides = emptyList(),
-                sessionOverrides = emptyMap(),
+                initialSeeds = emptyList(),
+                sessionSeeds = emptyMap(),
                 sessions = listOf(session),
                 setsForSession = { sets },
                 observer = { _, _, _, _, _ -> },

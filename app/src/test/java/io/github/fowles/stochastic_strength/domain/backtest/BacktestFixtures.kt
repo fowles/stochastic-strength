@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -15,6 +16,7 @@ object BacktestFixtures {
         sessions: List<WorkoutSession>,
         sets: List<WorkoutSet>,
         strengthOverrides: List<ExerciseStrengthOverride> = emptyList(),
+        baselineOverrides: List<BaselineOverride> = emptyList(),
     ): WorkoutBackup = WorkoutBackup(
         formatVersion = WorkoutBackup.FORMAT_VERSION,
         dbVersion = WorkoutBackup.DB_VERSION,
@@ -25,7 +27,7 @@ object BacktestFixtures {
         workoutSessions = sessions,
         workoutSets = sets,
         userProfile = emptyList(),
-        baselineOverrides = emptyList(),
+        baselineOverrides = baselineOverrides,
         exerciseHurtState = emptyList(),
         exerciseStrengthOverrides = strengthOverrides,
     )

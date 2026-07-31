@@ -1,7 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -272,7 +271,18 @@ class ExerciseProgressionSeriesBuilder(
             return ExerciseProgressionData(ExerciseProgressionSeries.empty(), emptyList())
         }
         val namesById = db.exerciseDao().getAll().associate { it.id to it.name }
-        val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+        val profile = db.userProfileDao().getProfile()
+        val weightUnit = profile?.weightUnit ?: WeightUnit.KG
+        val seeds = if (profile == null) {
+            ExerciseSeedExpansion.Seeds(emptyList(), emptyMap())
+        } else {
+            ExerciseSeedExpansion.buildSeeds(
+                initialOverrides = db.baselineOverrideDao().getInitials(),
+                sessionOverrides = db.baselineOverrideDao().getNonInitials(),
+                sex = profile.sex, level = profile.strengthLevel,
+                exerciseMuscle = snapshot.exerciseMuscle, coefById = snapshot.seedCoefficients,
+            )
+        }
         return buildCore(
             exerciseId = exerciseId,
             snapshot = snapshot,
@@ -280,9 +290,8 @@ class ExerciseProgressionSeriesBuilder(
             muscleIds = muscleIds,
             namesById = namesById,
             weightUnit = weightUnit,
-            initialOverrides = db.exerciseStrengthOverrideDao().getInitials(),
-            sessionOverrides = db.exerciseStrengthOverrideDao().getNonInitials()
-                .groupBy { it.sessionId!! },
+            initialSeeds = seeds.initial,
+            sessionSeeds = seeds.bySession,
             sessions = db.workoutSessionDao().getAll(),
             setsForSession = { db.workoutSetDao().getSetsForSession(it) },
             now = System.currentTimeMillis(),
@@ -301,8 +310,8 @@ class ExerciseProgressionSeriesBuilder(
         muscleIds: List<Long>,
         namesById: Map<Long, String>,
         weightUnit: WeightUnit,
-        initialOverrides: List<ExerciseStrengthOverride>,
-        sessionOverrides: Map<Long, List<ExerciseStrengthOverride>>,
+        initialSeeds: List<SeedBelief>,
+        sessionSeeds: Map<Long, List<SeedBelief>>,
         sessions: List<WorkoutSession>,
         setsForSession: suspend (Long) -> List<WorkoutSet>,
         now: Long,
@@ -333,8 +342,8 @@ class ExerciseProgressionSeriesBuilder(
 
         engine.runCore(
             snapshot = snapshot,
-            initialOverrides = initialOverrides,
-            sessionOverrides = sessionOverrides,
+            initialSeeds = initialSeeds,
+            sessionSeeds = sessionSeeds,
             sessions = sessions,
             setsForSession = setsForSession,
             beforeSession = { beliefs, _ -> preFold = HashMap(beliefs) },

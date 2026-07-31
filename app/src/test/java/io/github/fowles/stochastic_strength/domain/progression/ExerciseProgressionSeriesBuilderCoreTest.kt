@@ -39,9 +39,7 @@ class ExerciseProgressionSeriesBuilderCoreTest {
     @Test
     fun framesArePreFoldAndTrailingPredictedFrameIsLive() = runBlocking {
         val snap = snapshotSeeded()
-        val initial = io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride(
-            exerciseId = 1L, e1rm = 100f, asOf = 0L, sessionId = null,
-        )
+        val initial = SeedBelief(sessionId = null, exerciseId = 1L, e1rm = 100f, asOf = 0L)
         val s1 = WorkoutSession(id = 1L, startTime = 0L, endTime = 1_000L)
         val s2 = WorkoutSession(id = 2L, startTime = 2_000L, endTime = 3_000L)
         val setsBySession = mapOf(
@@ -59,8 +57,8 @@ class ExerciseProgressionSeriesBuilderCoreTest {
             muscleIds = listOf(1L),
             namesById = mapOf(1L to "Bench"),
             weightUnit = WeightUnit.KG,
-            initialOverrides = listOf(initial),
-            sessionOverrides = emptyMap(),
+            initialSeeds = listOf(initial),
+            sessionSeeds = emptyMap(),
             sessions = listOf(s1, s2),
             setsForSession = { setsBySession.getValue(it) },
             now = now,
@@ -93,9 +91,7 @@ class ExerciseProgressionSeriesBuilderCoreTest {
     @Test
     fun predictedFramePushedTo24hAfterLastSetWhenNowIsTooSoon() = runBlocking {
         val snap = snapshotSeeded()
-        val initial = io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride(
-            exerciseId = 1L, e1rm = 100f, asOf = 0L, sessionId = null,
-        )
+        val initial = SeedBelief(sessionId = null, exerciseId = 1L, e1rm = 100f, asOf = 0L)
         val day = 24 * 60 * 60 * 1000L
         val s1Time = 2 * day + 1_000L
         val s2Time = 2 * day + 3_000L
@@ -115,8 +111,8 @@ class ExerciseProgressionSeriesBuilderCoreTest {
             muscleIds = listOf(1L),
             namesById = mapOf(1L to "Bench"),
             weightUnit = WeightUnit.KG,
-            initialOverrides = listOf(initial),
-            sessionOverrides = emptyMap(),
+            initialSeeds = listOf(initial),
+            sessionSeeds = emptyMap(),
             sessions = listOf(s1, s2),
             setsForSession = { setsBySession.getValue(it) },
             now = now,
@@ -129,9 +125,7 @@ class ExerciseProgressionSeriesBuilderCoreTest {
     @Test
     fun noTouchedSessionsYieldsEmptyFramesAndNullPredicted() = runBlocking {
         val snap = snapshotSeeded()
-        val initial = io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride(
-            exerciseId = 1L, e1rm = 100f, asOf = 0L, sessionId = null,
-        )
+        val initial = SeedBelief(sessionId = null, exerciseId = 1L, e1rm = 100f, asOf = 0L)
         val now = 9_999_999L
 
         val data = builder.buildCore(
@@ -141,8 +135,8 @@ class ExerciseProgressionSeriesBuilderCoreTest {
             muscleIds = listOf(1L),
             namesById = mapOf(1L to "Bench"),
             weightUnit = WeightUnit.KG,
-            initialOverrides = listOf(initial),
-            sessionOverrides = emptyMap(),
+            initialSeeds = listOf(initial),
+            sessionSeeds = emptyMap(),
             sessions = emptyList(),
             setsForSession = { emptyList() },
             now = now,

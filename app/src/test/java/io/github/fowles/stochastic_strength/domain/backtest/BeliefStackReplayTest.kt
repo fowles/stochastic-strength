@@ -1,8 +1,8 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -14,7 +14,6 @@ import io.github.fowles.stochastic_strength.domain.belief.BeliefFold
 import io.github.fowles.stochastic_strength.domain.belief.BeliefPooling
 import io.github.fowles.stochastic_strength.domain.belief.EffectiveBelief
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 import kotlin.math.ln
 
@@ -40,7 +39,9 @@ class BeliefStackReplayTest {
             exercises = listOf(squat),
             sessions = listOf(WorkoutSession(id = 1, startTime = 0, endTime = 1 * DAY_MS)),
             sets = sets,
-            strengthOverrides = listOf(ExerciseStrengthOverride(sessionId = null, exerciseId = 1, e1rm = 110f, asOf = 0)),
+            // squat coef 1.00: a QUADS baseline of 110 seeds exercise 1 at 110 (only squat is
+            // loaded here, so the muscle-wide expansion produces exactly this one seed).
+            baselineOverrides = listOf(BaselineOverride(sessionId = null, muscleGroup = MuscleGroup.QUADS, baselineWeight = 110f, asOf = 0)),
         ))
         val fold = BeliefFold(config)
         val pooling = BeliefPooling(config)
@@ -66,8 +67,11 @@ class BeliefStackReplayTest {
     }
 
     @Test
-    fun coldExerciseIsInitializedFromItsSiblingPredictionBeforeFolding() {
-        // Session 1 trains the squat (seeded); session 2 trains the cold front squat.
+    fun newlyTrainedExerciseUsesItsMuscleSeedThenFolds() {
+        // Live seed expansion seeds EVERY loaded QUADS exercise from the muscle baseline up front —
+        // front squat (coef 0.80) is never "cold": it gets its own initial belief at ln(110 * 0.80)
+        // just like squat gets ln(110 * 1.00). Session 1 trains only the squat; session 2 trains the
+        // (still-untouched, now stale) front squat for the first time.
         val sets1 = listOf(WorkoutSet(id = 1, sessionId = 1, exerciseId = 1, setNumber = 1, targetWeight = 100f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
         val sets2 = listOf(WorkoutSet(id = 2, sessionId = 2, exerciseId = 2, setNumber = 1, targetWeight = 70f, targetReps = 5, feedback = SetFeedback.RIR_0_1))
         val data = BacktestData.from(BacktestFixtures.backup(
@@ -77,7 +81,7 @@ class BeliefStackReplayTest {
                 WorkoutSession(id = 2, startTime = 0, endTime = 3 * DAY_MS),
             ),
             sets = sets1 + sets2,
-            strengthOverrides = listOf(ExerciseStrengthOverride(sessionId = null, exerciseId = 1, e1rm = 110f, asOf = 0)),
+            baselineOverrides = listOf(BaselineOverride(sessionId = null, muscleGroup = MuscleGroup.QUADS, baselineWeight = 110f, asOf = 0)),
         ))
         var effAtSession2: EffectiveBelief? = null
         var beliefsAfter1: Map<Long, Belief> = emptyMap()
@@ -86,11 +90,22 @@ class BeliefStackReplayTest {
             if (sessionId == 1L) beliefsAfter1 = beliefs.toMap()
             if (sessionId == 2L) { effAtSession2 = effective[2L]; beliefsAfter2 = beliefs.toMap() }
         }
-        assertNull(beliefsAfter1[2L])   // not materialized before it is trained
-        // The cold prior IS the pre-fold sibling prediction; folding it yields the stored belief.
+        // Front squat IS seeded from session start — untouched by session 1 (which only trains
+        // squat), so its belief after session 1 is exactly its initial muscle-baseline seed.
+        val frontSeed = beliefsAfter1.getValue(2L)
+        assertEquals(ln(110f * 0.80f), frontSeed.mu, 1e-5f)
+        assertEquals(config.sigmaSeed * config.sigmaSeed, frontSeed.sigma2, 1e-9f)
+        assertEquals(0L, frontSeed.updatedAt)
+
+        // Front squat HAS its own seeded belief (unlike the old cold-exercise case), so the actual
+        // fold ages and folds ITS OWN belief directly — the fold is local (CLAUDE.md: "cross-informing
+        // happens only at read time"). Pre-fold pooling's blended `mu`/`sigma2` is a read-time-only
+        // prediction (used for scoring/trace); the breakdown's `own` field is what the engine
+        // actually folds against, and it's exposed precisely so consumers never re-derive the math.
         val fold = BeliefFold(config)
-        val expected = fold.foldSession(
-            Belief(effAtSession2!!.mu, effAtSession2!!.sigma2, 3 * DAY_MS), sets2, 3 * DAY_MS)
+        val ownAged = effAtSession2!!.own!!
+        assertEquals(0.4677618f, effAtSession2!!.siblingShare, 1e-4f) // sanity: sibling meaningfully informs the blend
+        val expected = fold.foldSession(ownAged, sets2, 3 * DAY_MS)
         assertEquals(expected, beliefsAfter2[2L])
     }
 }

@@ -46,8 +46,8 @@ object BeliefStackReplay {
         runBlocking {
             ReplayEngine(config).runCore(
                 snapshot = snapshot,
-                initialOverrides = data.initialOverrides,
-                sessionOverrides = data.sessionOverrides,
+                initialSeeds = data.initialSeeds,
+                sessionSeeds = data.sessionSeeds,
                 sessions = data.sessions,
                 setsForSession = { data.setsBySession[it].orEmpty() },
                 beforeSession = { beliefs, asOf ->

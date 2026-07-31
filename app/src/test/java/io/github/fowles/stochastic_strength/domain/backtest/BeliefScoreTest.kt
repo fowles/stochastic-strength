@@ -8,9 +8,13 @@ import org.junit.Test
 
 /**
  * Phase-2 score of the belief stack on real history vs the Phase-0 baseline (main's estimator:
- * total 26.7593 / per-set 0.12563 / 213 scored / 9 skipped). Skips without history.json.
+ * total 28.4451 / per-set 0.12002 / 237 scored / 9 skipped). Skips without history.json.
  * NOTE: the belief stack may score sets main skipped (cold-start via siblings), which can only
  * ADD distance — comparing totals is conservative in main's favor.
+ *
+ * Measured after wiring live seed expansion (`ExerciseSeedExpansion.buildSeeds`) into replay:
+ * total 37.6714 / per-set 0.11015 / 342 scored / 9 skipped — still beats the baseline per-set mean
+ * (0.11015 < 0.12002), so no re-pin is needed; the gate is relative, not an absolute constant.
  */
 class BeliefScoreTest {
 

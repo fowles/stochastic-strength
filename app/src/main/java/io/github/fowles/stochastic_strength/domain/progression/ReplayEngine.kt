@@ -1,7 +1,6 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
@@ -40,11 +39,23 @@ class ReplayEngine(
         beforeSession: ((beliefs: Map<Long, Belief>, asOf: Long) -> Unit)? = null,
         observer: SessionObserver,
     ) {
+        val profile = db.userProfileDao().getProfile()
+        val seeds = if (profile == null) {
+            ExerciseSeedExpansion.Seeds(emptyList(), emptyMap())
+        } else {
+            ExerciseSeedExpansion.buildSeeds(
+                initialOverrides = db.baselineOverrideDao().getInitials(),
+                sessionOverrides = db.baselineOverrideDao().getNonInitials(),
+                sex = profile.sex,
+                level = profile.strengthLevel,
+                exerciseMuscle = snapshot.exerciseMuscle,
+                coefById = snapshot.seedCoefficients,
+            )
+        }
         runCore(
             snapshot = snapshot,
-            initialOverrides = db.exerciseStrengthOverrideDao().getInitials(),
-            sessionOverrides = db.exerciseStrengthOverrideDao().getNonInitials()
-                .groupBy { it.sessionId!! },
+            initialSeeds = seeds.initial,
+            sessionSeeds = seeds.bySession,
             sessions = db.workoutSessionDao().getAll(),
             setsForSession = { db.workoutSetDao().getSetsForSession(it) },
             observer = observer,
@@ -53,15 +64,15 @@ class ReplayEngine(
     }
 
     /**
-     * The engine itself: seed beliefs from initial override rows (sigmaSeed), then for each
-     * completed session in (endTime, id) order apply its override rows (sigmaOverride), fold its
-     * sets, and notify [observer]. [beforeSession] (optional) runs after the overrides but before
-     * the fold — a pre-fold inspection hook (the backtest pools held-out beliefs there).
+     * The engine itself: seed beliefs from initial seeds (sigmaSeed), then for each completed
+     * session in (endTime, id) order apply its session seeds (sigmaOverride), fold its sets, and
+     * notify [observer]. [beforeSession] (optional) runs after the seeds but before the fold — a
+     * pre-fold inspection hook (the backtest pools held-out beliefs there).
      */
     suspend fun runCore(
         snapshot: ReplaySnapshot,
-        initialOverrides: List<ExerciseStrengthOverride>,
-        sessionOverrides: Map<Long, List<ExerciseStrengthOverride>>,
+        initialSeeds: List<SeedBelief>,
+        sessionSeeds: Map<Long, List<SeedBelief>>,
         sessions: List<WorkoutSession>,
         setsForSession: suspend (Long) -> List<WorkoutSet>,
         observer: SessionObserver,
@@ -70,9 +81,8 @@ class ReplayEngine(
         val sigmaSeed2 = beliefConfig.sigmaSeed * beliefConfig.sigmaSeed
         val sigmaOverride2 = beliefConfig.sigmaOverride * beliefConfig.sigmaOverride
 
-        // Init from per-exercise strength overrides (sessionId = null rows).
-        for (init in initialOverrides) {
-            snapshot.currentBeliefs[init.exerciseId] = Belief(ln(init.e1rm), sigmaSeed2, init.asOf)
+        for (seed in initialSeeds) {
+            snapshot.currentBeliefs[seed.exerciseId] = Belief(ln(seed.e1rm), sigmaSeed2, seed.asOf)
         }
 
         val ordered = sessions
@@ -80,8 +90,8 @@ class ReplayEngine(
             .sortedWith(compareBy({ it.endTime!! }, { it.id }))
 
         for (session in ordered) {
-            sessionOverrides[session.id]?.forEach { o ->
-                snapshot.currentBeliefs[o.exerciseId] = Belief(ln(o.e1rm), sigmaOverride2, o.asOf)
+            sessionSeeds[session.id]?.forEach { seed ->
+                snapshot.currentBeliefs[seed.exerciseId] = Belief(ln(seed.e1rm), sigmaOverride2, seed.asOf)
             }
 
             val sets = setsForSession(session.id)

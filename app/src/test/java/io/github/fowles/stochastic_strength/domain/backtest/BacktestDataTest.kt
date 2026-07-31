@@ -1,8 +1,8 @@
 package io.github.fowles.stochastic_strength.domain.backtest
 
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
@@ -39,20 +39,21 @@ class BacktestDataTest {
     }
 
     @Test
-    fun overridesAreSplitByInitialVsSession() {
+    fun seedsAreSplitByInitialVsSession() {
+        // squat coef = 1.00, so a QUADS baseline of 110 seeds this exercise at 110.
         val backup = BacktestFixtures.backup(
             exercises = listOf(squat),
             sessions = emptyList(),
             sets = emptyList(),
-            strengthOverrides = listOf(
-                ExerciseStrengthOverride(id = 1, sessionId = null, exerciseId = 1, e1rm = 110f, asOf = 0),
-                ExerciseStrengthOverride(id = 2, sessionId = 7, exerciseId = 1, e1rm = 120f, asOf = 5),
+            baselineOverrides = listOf(
+                BaselineOverride(id = 1, sessionId = null, muscleGroup = MuscleGroup.QUADS, baselineWeight = 110f, asOf = 0),
+                BaselineOverride(id = 2, sessionId = 7, muscleGroup = MuscleGroup.QUADS, baselineWeight = 120f, asOf = 5),
             ),
         )
         val data = BacktestData.from(backup)
-        assertEquals(1, data.initialOverrides.size)
-        assertEquals(110f, data.initialOverrides[0].e1rm, 0f)
-        assertEquals(120f, data.sessionOverrides[7L]!![0].e1rm, 0f)
+        assertEquals(1, data.initialSeeds.size)
+        assertEquals(110f, data.initialSeeds[0].e1rm, 0f)
+        assertEquals(120f, data.sessionSeeds[7L]!![0].e1rm, 0f)
     }
 
     @Test
