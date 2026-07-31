@@ -74,7 +74,7 @@ For one session, `BeliefSessionStep.step`:
 2. **Per-exercise fold** (`BeliefFold.foldSession`): age `sigma2` by idle days (`qPerDay`), then fold each set in id order. Each set implies a model-free ln-1RM interval (`SetIntervals`, from the rep-max formula + feedback bucket), shifted up by a fatigue term `phi·(rank−1)`. The fold is a boundary-pull Gaussian/Tobit update: mu inside the interval → confirmation (sigma shrinks, mu unmoved); outside → one Kalman step at the violated boundary. `HURT` and feedback-less sets carry no interval (but count toward rank); zero-coefficient (unloadable) exercises are skipped. The fold is **local** — cross-informing happens only at read time.
 3. **Post-fold pooling** for the touched muscles: each exercise with a belief votes `mu_j − ln(coef_j)` with precision `1/(sigma_j² + tau²)`; the effective belief blends the own aged belief with the leave-one-out sibling prediction by precision. Fresh tight evidence outvotes siblings; stale/cold exercises lean on them; never mutates stored beliefs. The muscle level goes to `MuscleGroupStrength` + `baseline_history` (epsilon-deduped), derived coefficients to `coefficient_history`. The pooling result exposes its per-exercise breakdown (`own`/`sibling`/`siblingShare`/`voterWeight`) — consumers (trace, cross-tuning, charts) must read that, never re-derive the math.
 
-Manual baseline edits and detraining write per-exercise `ExerciseStrengthOverride` rows that seed/reset beliefs during replay (`sigmaSeed` for initial rows, `sigmaOverride` for deliberate edits).
+Cold-start seeds are not stored per-exercise: `ExerciseSeedExpansion` synthesizes them live during replay by expanding each per-muscle `BaselineOverride` (manual edits and initial rows; muscles with no override default to `StartingWeights` for the user's sex/level) through the *current* `ExerciseCoefficients` for every loaded exercise in that muscle. There is no `exercise_strength_override` table — shipping a new/refit coefficient table changes seeds automatically on next replay, no migration needed.
 
 **Prescription** is estimator → prescriber → policy, in that order:
 - `BeliefPooling.effective` → `BeliefPrescriber.targetE1rm` (30th-percentile of the effective belief, `Z`) gives the raw target.
@@ -91,4 +91,4 @@ On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation
 
 ### Database
 
-Room database (`AppDatabase`, version 17). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
+Room database (`AppDatabase`, version 19). Schema migrations live in `AppDatabase.Companion`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
