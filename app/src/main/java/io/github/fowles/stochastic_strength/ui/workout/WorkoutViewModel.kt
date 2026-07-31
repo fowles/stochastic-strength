@@ -159,8 +159,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun applyDetraining(fraction: Float) = controller.applyDetraining(fraction)
-    fun skipDetraining() = controller.skipDetraining()
+    fun dismissDetrainingNotice() = controller.dismissDetrainingNotice()
     fun startFirstExercise() = controller.startFirstExercise()
     fun replaceExercise(exerciseId: Long, reason: ExerciseRemovalReason) = controller.replaceExercise(exerciseId, reason)
     fun adjustExerciseWeight(exerciseId: Long, delta: Float) = controller.adjustExerciseWeight(exerciseId, delta)

@@ -1,6 +1,5 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
-import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
@@ -27,7 +26,7 @@ sealed interface WorkoutState {
         val locationName: String? = null,
         val repMin: Int = 5,
         val repMax: Int = 10,
-        val detraining: DetrainingPrompt? = null,
+        val detraining: DetrainingNotice? = null,
     ) : WorkoutState
 
     data class Resting(
@@ -67,8 +66,5 @@ data class PendingSwap(
     val locationId: Long?,
 )
 
-data class DetrainingPrompt(
-    val weeksOff: Int,
-    val suggestedFraction: Float,
-    val currentStrengths: List<MuscleGroupStrength>,
-)
+/** Informational "you've been away — starting lighter" banner; carries no adjustable state. */
+data class DetrainingNotice(val weeksOff: Int)

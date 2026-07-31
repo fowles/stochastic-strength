@@ -211,24 +211,6 @@ class WorkoutRepository(
         replayDerivedState()
     }
 
-    suspend fun applyDetrainingReduction(sessionId: Long, overrides: Map<Long, Float>) {
-        if (overrides.isEmpty()) return
-        val session = db.workoutSessionDao().getById(sessionId)
-        val asOf = session?.startTime ?: System.currentTimeMillis()
-        for ((exerciseId, e1rm) in overrides) {
-            db.exerciseStrengthOverrideDao().insert(
-                ExerciseStrengthOverride(
-                    sessionId = sessionId,
-                    exerciseId = exerciseId,
-                    e1rm = e1rm,
-                    asOf = asOf,
-                    reason = BaselineChangeReason.DETRAIN,
-                )
-            )
-        }
-        replayDerivedState()
-    }
-
     /**
      * Replays all sessions to fold the just-finished session into derived state. Mid-set weight
      * drops flow through the set log as negative innovations, so no reduction data is threaded here.

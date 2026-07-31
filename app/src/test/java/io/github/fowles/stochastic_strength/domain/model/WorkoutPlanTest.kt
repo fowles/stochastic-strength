@@ -40,13 +40,11 @@ class WorkoutPlanTest {
     }
 
     @Test
-    fun effectiveOverrides_mergesWithManualWinning() {
-        // exerciseOverrides win over detrainOverrides for the same key (exercise id)
+    fun effectiveOverrides_equalsExerciseOverrides() {
         val plan = WorkoutPlan(
             exercises = emptyList(),
             locationId = null,
-            exerciseOverrides = mapOf(1L to 70f),
-            detrainOverrides = mapOf(1L to 50f, 2L to 60f),
+            exerciseOverrides = mapOf(1L to 70f, 2L to 60f),
         )
         assertEquals(
             mapOf(1L to 70f, 2L to 60f),
