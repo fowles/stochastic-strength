@@ -1,70 +1,89 @@
 package io.github.fowles.stochastic_strength.domain.progression
 
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
-import io.github.fowles.stochastic_strength.data.model.Equipment
-import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
-import io.github.fowles.stochastic_strength.domain.CoefficientSource
+import io.github.fowles.stochastic_strength.data.model.Sex
+import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExerciseSeedExpansionTest {
 
-    private fun ex(id: Long, muscle: MuscleGroup) = Exercise(
-        id = id, name = "ex$id", primaryMuscle = muscle, secondaryMuscles = emptyList(),
-        equipment = Equipment.BARBELL, isDisliked = false, isUnilateral = false, isTimed = false,
+    // Two CHEST exercises (coef 1.0 and 0.5), one BACK (coef 1.0), one bodyweight CHEST (coef 0.0).
+    private val exerciseMuscle = mapOf(
+        1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST, 3L to MuscleGroup.BACK, 4L to MuscleGroup.CHEST,
     )
+    private val coefById = mapOf(1L to 1.0f, 2L to 0.5f, 3L to 1.0f, 4L to 0.0f)
 
-    private val coef = object : CoefficientSource {
-        override fun get(exercise: Exercise): Float? = when (exercise.id) {
-            1L -> 1.0f; 2L -> 0.6f; 3L -> 0.0f; else -> null
-        }
+    @Test
+    fun expand_scalesEachLoadedExerciseByCoef_andSkipsZeroCoef() {
+        val rows = ExerciseSeedExpansion.expand(
+            muscleBaselines = listOf(
+                ExerciseSeedExpansion.MuscleBaseline(null, MuscleGroup.CHEST, 80f, 0L),
+            ),
+            exerciseMuscle = exerciseMuscle,
+            coefById = coefById,
+        )
+        // exercise 4 (coef 0) is skipped; 1 -> 80, 2 -> 40. No BACK row (no BACK baseline given).
+        assertEquals(setOf(1L to 80f, 2L to 40f), rows.map { it.exerciseId to it.e1rm }.toSet())
+        assertTrue(rows.all { it.sessionId == null && it.asOf == 0L })
     }
 
     @Test
-    fun expandsOneMuscleRowIntoPerExerciseRows() {
+    fun expand_skipsRowsWhoseProductIsNotPositive() {
         val rows = ExerciseSeedExpansion.expand(
-            muscleOverrides = listOf(
-                ExerciseSeedExpansion.MuscleOverrideRow(null, MuscleGroup.CHEST, 80f, 0L, BaselineChangeReason.INITIAL),
-            ),
-            exercises = listOf(ex(1L, MuscleGroup.CHEST), ex(2L, MuscleGroup.CHEST), ex(3L, MuscleGroup.CHEST)),
-            coefSource = coef,
+            muscleBaselines = listOf(ExerciseSeedExpansion.MuscleBaseline(null, MuscleGroup.CHEST, 0f, 0L)),
+            exerciseMuscle = exerciseMuscle,
+            coefById = coefById,
         )
-        // Loaded chest exercises 1 (coef 1.0) and 2 (coef 0.6) get rows; 3 (coef 0) is skipped.
-        assertEquals(2, rows.size)
-        assertEquals(80f, rows.first { it.exerciseId == 1L }.e1rm, 1e-3f)
-        assertEquals(48f, rows.first { it.exerciseId == 2L }.e1rm, 1e-3f)
-        assertTrue("zero-coef exercise excluded", rows.none { it.exerciseId == 3L })
+        assertTrue(rows.isEmpty())
     }
 
     @Test
-    fun nullCoefExerciseExcluded() {
-        // id 4 is an unknown exercise whose coefficient source returns null (not zero) — it must be
-        // excluded from expansion just like a zero-coef exercise, leaving only the loaded id-1 row.
-        val rows = ExerciseSeedExpansion.expand(
-            muscleOverrides = listOf(
-                ExerciseSeedExpansion.MuscleOverrideRow(null, MuscleGroup.CHEST, 80f, 0L, BaselineChangeReason.INITIAL),
-            ),
-            exercises = listOf(ex(1L, MuscleGroup.CHEST), ex(4L, MuscleGroup.CHEST)),
-            coefSource = coef,
+    fun buildSeeds_defaultsMusclesWithoutAnInitialOverrideToStartingWeights() {
+        // No overrides at all -> every muscle uses StartingWeights.baseline(sex, level, muscle).
+        val seeds = ExerciseSeedExpansion.buildSeeds(
+            initialOverrides = emptyList(),
+            sessionOverrides = emptyList(),
+            sex = Sex.MALE, level = StrengthLevel.MEDIUM,
+            exerciseMuscle = exerciseMuscle,
+            coefById = coefById,
         )
-        assertEquals(1, rows.size)
-        assertTrue("null-coef exercise excluded", rows.none { it.exerciseId == 4L })
+        // CHEST default = 80 (StartingWeights), BACK default = 80. Exercise 1 -> 80, 2 -> 40, 3 -> 80.
+        assertEquals(setOf(1L to 80f, 2L to 40f, 3L to 80f), seeds.initial.map { it.exerciseId to it.e1rm }.toSet())
+        assertTrue(seeds.bySession.isEmpty())
     }
 
     @Test
-    fun preservesSessionAsOfAndReason() {
-        val rows = ExerciseSeedExpansion.expand(
-            muscleOverrides = listOf(
-                ExerciseSeedExpansion.MuscleOverrideRow(7L, MuscleGroup.CHEST, 90f, 1234L, BaselineChangeReason.DETRAIN),
+    fun buildSeeds_prefersInitialOverrideOverDefault_perMuscle() {
+        val seeds = ExerciseSeedExpansion.buildSeeds(
+            initialOverrides = listOf(
+                BaselineOverride(sessionId = null, muscleGroup = MuscleGroup.CHEST, baselineWeight = 100f, asOf = 5L, reason = BaselineChangeReason.INITIAL),
             ),
-            exercises = listOf(ex(1L, MuscleGroup.CHEST)),
-            coefSource = coef,
+            sessionOverrides = emptyList(),
+            sex = Sex.MALE, level = StrengthLevel.MEDIUM,
+            exerciseMuscle = exerciseMuscle,
+            coefById = coefById,
         )
-        assertEquals(1, rows.size)
-        assertEquals(7L, rows[0].sessionId)
-        assertEquals(1234L, rows[0].asOf)
-        assertEquals(BaselineChangeReason.DETRAIN, rows[0].reason)
+        // CHEST overridden to 100 (asOf 5) -> 1:100, 2:50; BACK still default 80 -> 3:80.
+        assertEquals(mapOf(1L to 100f, 2L to 50f, 3L to 80f), seeds.initial.associate { it.exerciseId to it.e1rm })
+        assertEquals(5L, seeds.initial.first { it.exerciseId == 1L }.asOf)
+    }
+
+    @Test
+    fun buildSeeds_routesSessionScopedOverridesIntoBySession() {
+        val seeds = ExerciseSeedExpansion.buildSeeds(
+            initialOverrides = emptyList(),
+            sessionOverrides = listOf(
+                BaselineOverride(sessionId = 7L, muscleGroup = MuscleGroup.CHEST, baselineWeight = 90f, asOf = 123L, reason = BaselineChangeReason.OVERRIDE),
+            ),
+            sex = Sex.MALE, level = StrengthLevel.MEDIUM,
+            exerciseMuscle = exerciseMuscle,
+            coefById = coefById,
+        )
+        assertEquals(setOf(1L to 90f, 2L to 45f), seeds.bySession.getValue(7L).map { it.exerciseId to it.e1rm }.toSet())
+        assertTrue(seeds.bySession.getValue(7L).all { it.asOf == 123L })
     }
 }
