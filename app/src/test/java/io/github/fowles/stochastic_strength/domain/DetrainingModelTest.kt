@@ -32,9 +32,10 @@ class DetrainingModelTest {
         assertEquals(0f, DetrainingModel.suggestedFraction(0), 1e-6f)
     }
 
-    @Test fun qualifies_requiresAtLeastOneWeek() {
+    @Test fun qualifies_requiresTwoFullWeeks() {
         assertFalse(DetrainingModel.qualifies(0))
-        assertTrue(DetrainingModel.qualifies(1))
+        assertFalse(DetrainingModel.qualifies(1))
+        assertTrue(DetrainingModel.qualifies(2))
         assertTrue(DetrainingModel.qualifies(5))
     }
 
@@ -43,14 +44,15 @@ class DetrainingModelTest {
         assertEquals(100f, DetrainingModel.reduce(100f, 0f), 1e-4f)
     }
 
-    @Test fun retention_isFullBelowOneWeek() {
+    @Test fun retention_isFullBelowTwoWeeks() {
         assertEquals(1f, DetrainingModel.retention(0L), 1e-6f)
-        assertEquals(1f, DetrainingModel.retention(week - 1), 1e-6f)
+        assertEquals(1f, DetrainingModel.retention(week), 1e-6f)          // 1 week -> no detrain
+        assertEquals(1f, DetrainingModel.retention(2 * week - 1), 1e-6f)  // just under 2 weeks
     }
 
-    @Test fun retention_dropsFivePercentPerWholeWeek() {
-        assertEquals(0.95f, DetrainingModel.retention(week), 1e-6f)        // 1 week -> 5%
+    @Test fun retention_dropsAfterTwoWeeks() {
         assertEquals(0.90f, DetrainingModel.retention(2 * week), 1e-6f)    // 2 weeks -> 10%
+        assertEquals(0.85f, DetrainingModel.retention(3 * week), 1e-6f)    // 3 weeks -> 15%
     }
 
     @Test fun retention_floorsAtHalf() {
