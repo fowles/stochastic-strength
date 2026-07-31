@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.data.seed
 
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.domain.CoefficientCompression
 import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -33,6 +34,10 @@ class ExerciseLibraryTest {
     @Test
     fun `Landmine Press has a coefficient`() {
         val e = byName("Landmine Press")!!
-        assertEquals(0.5f, ExerciseCoefficients.get(e))
+        assertEquals(
+            CoefficientCompression.compress(0.5f, ExerciseCoefficients.LAMBDA),
+            ExerciseCoefficients.get(e)!!,
+            1e-6f,
+        )
     }
 }

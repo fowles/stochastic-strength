@@ -8,6 +8,8 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.backtest.BacktestFixtures.DAY_MS
+import io.github.fowles.stochastic_strength.domain.CoefficientCompression
+import io.github.fowles.stochastic_strength.domain.ExerciseCoefficients
 import io.github.fowles.stochastic_strength.domain.belief.Belief
 import io.github.fowles.stochastic_strength.domain.belief.BeliefConfig
 import io.github.fowles.stochastic_strength.domain.belief.BeliefFold
@@ -93,7 +95,8 @@ class BeliefStackReplayTest {
         // Front squat IS seeded from session start — untouched by session 1 (which only trains
         // squat), so its belief after session 1 is exactly its initial muscle-baseline seed.
         val frontSeed = beliefsAfter1.getValue(2L)
-        assertEquals(ln(110f * 0.80f), frontSeed.mu, 1e-5f)
+        val frontCoef = CoefficientCompression.compress(0.80f, ExerciseCoefficients.LAMBDA)
+        assertEquals(ln(110f * frontCoef), frontSeed.mu, 1e-5f)
         assertEquals(config.sigmaSeed * config.sigmaSeed, frontSeed.sigma2, 1e-9f)
         assertEquals(0L, frontSeed.updatedAt)
 

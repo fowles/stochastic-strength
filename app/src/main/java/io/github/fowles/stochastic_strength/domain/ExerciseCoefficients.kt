@@ -10,11 +10,14 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
  */
 object ExerciseCoefficients : CoefficientSource {
     /**
-     * `fitted` — global log-coefficient compression exponent. Adopted from the held-out λ sweep
-     * (CoefExponentFitTest). Provenance curve recorded in Task 5.
-     * TODO(Task 5): move off 1.0 to the fitted optimum after the sweep is reviewed.
+     * `fitted` 2026-07-31 — global log-coefficient compression exponent (coef' = guess^λ), adopted
+     * from the held-out λ sweep (CoefExponentFitTest). Curve (held-out per-set, ln-units):
+     * 0.60→0.08959  0.65→0.08463  0.70→0.08175  0.75→0.08075(best)  0.80→0.08132  0.85→0.08469
+     * 0.90→0.09105  1.00→0.11015(identity). Clean interior minimum at 0.75, a 27% improvement over
+     * identity. Independent cold-start LOO (scratchpad) landed the same 0.75–0.80. Reference (1.0)
+     * and bodyweight (0.0) lifts are unchanged (compress is a no-op at those exponent boundaries).
      */
-    const val LAMBDA: Float = 1.0f
+    const val LAMBDA: Float = 0.75f
 
     val byName: Map<String, Float> = CoefficientCompression.compressAll(CoefficientGuesses.raw, LAMBDA)
 

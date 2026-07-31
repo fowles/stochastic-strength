@@ -15,6 +15,10 @@ import org.junit.Test
  * Measured after wiring live seed expansion (`ExerciseSeedExpansion.buildSeeds`) into replay:
  * total 37.6714 / per-set 0.11015 / 342 scored / 9 skipped — still beats the baseline per-set mean
  * (0.11015 < 0.12002), so no re-pin is needed; the gate is relative, not an absolute constant.
+ *
+ * Re-measured after adopting λ=0.75 coefficient compression (`ExerciseCoefficients.LAMBDA`):
+ * total 27.6165 / per-set 0.08075 / 342 scored / 9 skipped — still beats the baseline per-set mean
+ * (0.08075 < 0.12002), so again no re-pin is needed.
  */
 class BeliefScoreTest {
 
