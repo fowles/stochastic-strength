@@ -7,6 +7,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.CoefficientGuesses
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonBuilder
 import io.github.fowles.stochastic_strength.domain.backup.BackupJsonParser
 import org.junit.Assert.assertEquals
@@ -76,5 +77,27 @@ class BacktestDataTest {
         val data = BacktestData.from(BackupJsonParser.parse(BackupJsonBuilder.build(backup)))
         assertEquals(1, data.sessions.size)
         assertTrue(data.setsBySession[1L]!!.single().feedback == SetFeedback.RIR_0_1)
+    }
+
+    @Test
+    fun withCoefLambdaOneReproducesRawGuessSeeds() {
+        val data = BacktestData.loadOrNull() ?: return
+        val identity = data.withCoefLambda(1.0f)
+        // λ=1 → coefById equals the raw guesses per active exercise.
+        val expected = data.backup.exercises.filterNot { it.isDisliked }
+            .associate { it.id to (CoefficientGuesses.raw[it.name] ?: 0f) }
+        assertEquals(expected, identity.coefById)
+    }
+
+    @Test
+    fun withCoefLambdaCompressesCoefficients() {
+        val data = BacktestData.loadOrNull() ?: return
+        val compressed = data.withCoefLambda(0.5f)
+        // Every positive, non-reference coefficient moves strictly toward 1.0.
+        val moved = compressed.coefById.entries.count { (id, c) ->
+            val g = data.backup.exercises.first { it.id == id }.let { CoefficientGuesses.raw[it.name] ?: 0f }
+            g > 0f && g != 1f && c != g
+        }
+        assertTrue("λ=0.5 must change at least one coefficient", moved > 0)
     }
 }
