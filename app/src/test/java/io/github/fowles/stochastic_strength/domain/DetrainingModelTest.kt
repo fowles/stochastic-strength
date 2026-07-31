@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DetrainingModelTest {
-    private val week = 7L * 24 * 60 * 60 * 1000
+    private val week = DetrainingModel.WEEK_MILLIS
 
     @Test fun weeksOff_floorsToWholeWeeks() {
         assertEquals(0, DetrainingModel.weeksOff(lastEndTime = 0, now = 6 * 24 * 60 * 60 * 1000))
@@ -41,5 +41,19 @@ class DetrainingModelTest {
     @Test fun reduce_lowersBaselineByFraction() {
         assertEquals(90f, DetrainingModel.reduce(100f, 0.10f), 1e-4f)
         assertEquals(100f, DetrainingModel.reduce(100f, 0f), 1e-4f)
+    }
+
+    @Test fun retention_isFullBelowOneWeek() {
+        assertEquals(1f, DetrainingModel.retention(0L), 1e-6f)
+        assertEquals(1f, DetrainingModel.retention(week - 1), 1e-6f)
+    }
+
+    @Test fun retention_dropsFivePercentPerWholeWeek() {
+        assertEquals(0.95f, DetrainingModel.retention(week), 1e-6f)        // 1 week -> 5%
+        assertEquals(0.90f, DetrainingModel.retention(2 * week), 1e-6f)    // 2 weeks -> 10%
+    }
+
+    @Test fun retention_floorsAtHalf() {
+        assertEquals(0.5f, DetrainingModel.retention(20 * week), 1e-6f)    // capped at 50%
     }
 }

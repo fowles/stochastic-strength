@@ -20,4 +20,15 @@ object DetrainingModel {
     fun qualifies(weeksOff: Int): Boolean = weeksOff >= 1
 
     fun reduce(baseline: Float, fraction: Float): Float = baseline * (1f - fraction)
+
+    /**
+     * Multiplicative fresh-1RM retention across an idle gap of [gapMillis] — the inferred
+     * detraining factor. `1f` below one week; drops [PER_WEEK] per whole week, floored at
+     * `1 - MAX_FRACTION`. Applied prospectively to the comeback prescription; the set log
+     * self-corrects the belief afterward.
+     */
+    fun retention(gapMillis: Long): Float {
+        val weeks = (gapMillis / WEEK_MILLIS).toInt().coerceAtLeast(0)
+        return 1f - suggestedFraction(weeks)
+    }
 }
