@@ -1,7 +1,7 @@
 # Fitted cold-start coefficients + derived-state cleanup
 
 **Date:** 2026-07-31
-**Status:** design approved, pre-plan
+**Status:** Part A shipped (Plans 1–2); Part B (compression) shipped 2026-07-31
 
 ## Motivation
 
