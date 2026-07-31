@@ -721,6 +721,14 @@ class MigrationTest {
             raw.query("SELECT * FROM user_profile").use { c ->
                 assertEquals(1, c.count)
                 assertEquals(-1, c.columnNames.indexOf("perExerciseSeedsBackfilled"))
+                assertTrue(c.moveToFirst())
+                assertEquals(1, c.getInt(c.getColumnIndexOrThrow("id")))
+                assertEquals("MALE", c.getString(c.getColumnIndexOrThrow("sex")))
+                assertEquals("MEDIUM", c.getString(c.getColumnIndexOrThrow("strengthLevel")))
+                assertEquals("KG", c.getString(c.getColumnIndexOrThrow("weightUnit")))
+                assertEquals(5, c.getInt(c.getColumnIndexOrThrow("preferredExerciseCount")))
+                assertEquals(5, c.getInt(c.getColumnIndexOrThrow("preferredRepMin")))
+                assertEquals(10, c.getInt(c.getColumnIndexOrThrow("preferredRepMax")))
             }
         }
         db.close()
