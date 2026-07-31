@@ -211,6 +211,38 @@ class WorkoutRepositoryTest {
     }
 
     @Test
+    fun buildPlanner_reducesPrescriptionAfterALayoff() = runBlocking {
+        val benchId = db.exerciseDao().insert(Exercise(
+            name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
+            equipment = Equipment.BARBELL,
+        ))
+        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
+            sessionId = null, exerciseId = benchId, e1rm = 1000f, asOf = 0L,
+        ))
+        repository.replayDerivedState()
+
+        // A completed session 3 weeks ago is the only session on record: the comeback
+        // prescription should be eased down by the inferred detraining curve.
+        val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS
+        db.workoutSessionDao().insert(WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo))
+
+        val afterLayoffPlan = repository.buildPlanner(locationId = null, weightUnit = WeightUnit.KG)
+            .generateWorkout(repMin = 5, repMax = 5)
+        val afterLayoff = afterLayoffPlan.exercises.first { it.exercise.id == benchId }.sessionWeight
+
+        // A fresh (yesterday) completed session supersedes the stale one -> no decay.
+        val yesterday = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+        db.workoutSessionDao().insert(WorkoutSession(startTime = yesterday, endTime = yesterday))
+
+        val freshPlan = repository.buildPlanner(locationId = null, weightUnit = WeightUnit.KG)
+            .generateWorkout(repMin = 5, repMax = 5)
+        val fresh = freshPlan.exercises.first { it.exercise.id == benchId }.sessionWeight
+
+        // 3 weeks off -> 15% reduction (retention 0.85), independent of the seed magnitude.
+        assertEquals(fresh * 0.85f, afterLayoff, fresh * 0.02f)
+    }
+
+    @Test
     fun seedInitialWeights_writesExerciseInitialsThatSeedTheEstimateMap() = runBlocking {
         // seedInitialWeights writes one per-exercise initial per loaded exercise present in the DB.
         db.exerciseDao().insertAll(listOf(

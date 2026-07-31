@@ -102,15 +102,19 @@ class WorkoutRepository(
         val ctx = prescriptionContext(locationId, now)
         val available = ctx.available
         val beliefs = derivedState.snapshot().exerciseBeliefs()
+        val recentSessions = db.workoutSessionDao().getRecentCompletedSessions(limit = 50)
+        // Inferred detraining: a gap since the last completed session eases the comeback
+        // prescription down (DetrainingModel curve). The set log self-corrects the belief after.
+        val lastCompletedEnd = recentSessions.mapNotNull { it.endTime }.maxOrNull()
+        val retention = lastCompletedEnd?.let { DetrainingModel.retention(now - it) } ?: 1f
         val prescribedE1rm = ctx.muscleExerciseIds.flatMap { (_, ids) ->
             beliefPooling.effective(beliefs, ctx.seedCoef, ids, now).effective.entries
-                .map { it.key to BeliefPrescriber.targetE1rm(it.value) }
+                .map { it.key to BeliefPrescriber.targetE1rm(it.value) * retention }
         }.toMap()
         val history = if (available.isNotEmpty())
             db.workoutSetDao().getRecentSetsForExercises(available.map { it.id }, limit = 200)
                 .groupBy { it.exerciseId }
         else emptyMap()
-        val recentSessions = db.workoutSessionDao().getRecentCompletedSessions(limit = 50)
         val recentSets = if (recentSessions.isNotEmpty())
             db.workoutSetDao().getSetsForSessions(recentSessions.map { it.id })
                 .groupBy { it.sessionId }
