@@ -28,7 +28,6 @@ class BackupJsonTest {
             userProfile = emptyList(),
             baselineOverrides = emptyList(),
             exerciseHurtState = emptyList(),
-            exerciseStrengthOverrides = emptyList(),
         )
         val json = BackupJsonBuilder.build(backup)
         val restored = BackupJsonParser.parse(json)

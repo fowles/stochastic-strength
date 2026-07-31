@@ -6,7 +6,6 @@ import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -245,22 +244,7 @@ class WorkoutRepository(
     }
 
     suspend fun seedInitialWeights(sex: Sex, strengthLevel: StrengthLevel, weightUnit: WeightUnit) {
-        db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit, perExerciseSeedsBackfilled = true))
-        val exercises = db.exerciseDao().getAll()
-        // Transactional for parity with ExerciseStrengthOverrideBackfill: the per-exercise
-        // delete+insert seeds are still self-healing (idempotent re-run), but an all-or-nothing
-        // write avoids leaving a half-seeded initial set if this is interrupted.
-        db.withTransaction {
-            for (ex in exercises) {
-                val e1rm = StartingWeights.seedInitialE1rm(sex, strengthLevel, ex)
-                if (e1rm > 0f) {
-                    db.exerciseStrengthOverrideDao().deleteInitialFor(ex.id)
-                    db.exerciseStrengthOverrideDao().insert(
-                        ExerciseStrengthOverride(sessionId = null, exerciseId = ex.id, e1rm = e1rm, asOf = 0L)
-                    )
-                }
-            }
-        }
+        db.userProfileDao().insert(UserProfile(sex = sex, strengthLevel = strengthLevel, weightUnit = weightUnit))
         replayDerivedState()
     }
 

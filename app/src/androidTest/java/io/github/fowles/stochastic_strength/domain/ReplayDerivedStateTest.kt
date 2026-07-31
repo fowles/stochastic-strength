@@ -6,10 +6,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
@@ -85,10 +85,10 @@ class ReplayDerivedStateTest {
     @Test
     fun replay_appliesManualOverridesAtSessionBoundary() = runBlocking {
         seedSmallHistory()
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
+        db.baselineOverrideDao().insert(BaselineOverride(
             sessionId = SESSION_2_ID,
-            exerciseId = BENCH_EXERCISE_ID,
-            e1rm = 999f,
+            muscleGroup = MuscleGroup.CHEST,
+            baselineWeight = 999f,
             asOf = SESSION_2_START,
             reason = BaselineChangeReason.OVERRIDE,
         ))
@@ -122,8 +122,8 @@ class ReplayDerivedStateTest {
         db.exerciseDao().insert(Exercise(
             id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL))
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = BENCH_EXERCISE_ID, e1rm = 100f, asOf = 0))
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST, baselineWeight = 100f, asOf = 0))
 
         val sessionId = SESSION_1_ID
         db.workoutSessionDao().insert(WorkoutSession(
@@ -162,8 +162,8 @@ class ReplayDerivedStateTest {
         // Bench seed coefficient is 1.0; seed the per-exercise estimate well below a realistic
         // 1RM so RIR_5_PLUS at the seed weight is plausible.
         val initialEstimate = 80f
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = BENCH_EXERCISE_ID, e1rm = initialEstimate, asOf = 0))
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST, baselineWeight = initialEstimate, asOf = 0))
 
         val sessionData = listOf(
             Triple(SESSION_1_ID, SESSION_1_START, 80f),
@@ -225,8 +225,8 @@ class ReplayDerivedStateTest {
         db.exerciseDao().insert(Exercise(
             id = BENCH_EXERCISE_ID, name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL))
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = BENCH_EXERCISE_ID, e1rm = 80f, asOf = 0))
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST, baselineWeight = 80f, asOf = 0))
 
         db.workoutSessionDao().insert(WorkoutSession(
             id = SESSION_1_ID, startTime = SESSION_1_START, endTime = SESSION_1_START + 1000))

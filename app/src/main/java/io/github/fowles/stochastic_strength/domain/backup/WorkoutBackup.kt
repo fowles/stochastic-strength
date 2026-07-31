@@ -3,7 +3,6 @@ package io.github.fowles.stochastic_strength.domain.backup
 import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.UserProfile
@@ -23,7 +22,6 @@ data class WorkoutBackup(
     val userProfile: List<UserProfile>,
     val baselineOverrides: List<BaselineOverride>,
     val exerciseHurtState: List<ExerciseHurtState>,
-    val exerciseStrengthOverrides: List<ExerciseStrengthOverride>,
 ) {
     companion object {
         const val FORMAT = "stochastic-strength-backup"

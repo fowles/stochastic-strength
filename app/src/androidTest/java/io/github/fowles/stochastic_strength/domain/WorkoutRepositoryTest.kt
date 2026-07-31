@@ -5,9 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -60,12 +60,10 @@ class WorkoutRepositoryTest {
         val exercises = db.exerciseDao().getActive()
         val ex1 = exercises.first { it.name == "Barbell Bench Press" }   // seed coef 1.00
         val ex2 = exercises.first { it.name == "Machine Chest Press" }   // seed coef 0.90
-        // Per-exercise initial seeds at the same muscle level (100): bench E=100, machine E=90.
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = ex1.id, e1rm = 100f, asOf = 0L,
-        ))
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = ex2.id, e1rm = 90f, asOf = 0L,
+        // Muscle-level initial seed (100) expands live via each exercise's coefficient:
+        // bench (coef 1.00) -> E=100, machine (coef 0.90) -> E=90.
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST, baselineWeight = 100f, asOf = 0L,
         ))
         val sessionId = db.workoutSessionDao().insert(
             WorkoutSession(startTime = 1000L, endTime = 2000L)
@@ -122,12 +120,15 @@ class WorkoutRepositoryTest {
 
     @Test
     fun buildPlanner_reducesPrescriptionAfterALayoff() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
         val benchId = db.exerciseDao().insert(Exercise(
             name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST,
             equipment = Equipment.BARBELL,
         ))
-        db.exerciseStrengthOverrideDao().insert(ExerciseStrengthOverride(
-            sessionId = null, exerciseId = benchId, e1rm = 1000f, asOf = 0L,
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST, baselineWeight = 1000f, asOf = 0L,
         ))
         repository.replayDerivedState()
 
@@ -153,8 +154,10 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun seedInitialWeights_writesExerciseInitialsThatSeedTheEstimateMap() = runBlocking {
-        // seedInitialWeights writes one per-exercise initial per loaded exercise present in the DB.
+    fun seedInitialWeights_seedsEstimatesLiveFromStartingWeightsWithNoOverrides() = runBlocking {
+        // seedInitialWeights is now profile-only: with no baseline_override rows present, replay's
+        // live ExerciseSeedExpansion falls back to the StartingWeights default per (sex, level,
+        // muscle), scaled by each loaded exercise's seed coefficient.
         db.exerciseDao().insertAll(listOf(
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
@@ -162,27 +165,27 @@ class WorkoutRepositoryTest {
 
         repository.seedInitialWeights(Sex.MALE, StrengthLevel.MEDIUM, WeightUnit.KG)
 
-        // Per-exercise initials must be written for every loaded exercise with a positive seed.
-        val initials = db.exerciseStrengthOverrideDao().getInitials()
-        assertTrue("expected at least one exercise_strength_override initial", initials.isNotEmpty())
-        assertTrue("all initials must be sessionId=null", initials.all { it.sessionId == null })
-        assertTrue("all initials must carry a positive e1rm", initials.all { it.e1rm > 0f })
+        val exercises = db.exerciseDao().getActive()
+        val benchId = exercises.first { it.name == "Barbell Bench Press" }.id
+        val squatId = exercises.first { it.name == "Barbell Squat" }.id
 
-        // replay seeds the live planner's estimate map from those initials (the replay starting
-        // point). This is what the per-exercise contract reads for the weight calc.
+        // Both exercises have seed coefficient 1.00, so the estimate equals the muscle default.
         val estimates = repository.derivedState.snapshot().exerciseBeliefs()
-        for (initial in initials) {
-            assertEquals(
-                "estimate for exercise ${initial.exerciseId} must seed from its initial e1rm",
-                initial.e1rm,
-                estimates[initial.exerciseId]?.e1rm ?: 0f,
-                0.01f,
-            )
-        }
+        assertEquals(
+            "bench estimate should seed from the CHEST StartingWeights default",
+            StartingWeights.baseline(Sex.MALE, StrengthLevel.MEDIUM, MuscleGroup.CHEST),
+            estimates[benchId]?.e1rm ?: 0f,
+            0.01f,
+        )
+        assertEquals(
+            "squat estimate should seed from the QUADS StartingWeights default",
+            StartingWeights.baseline(Sex.MALE, StrengthLevel.MEDIUM, MuscleGroup.QUADS),
+            estimates[squatId]?.e1rm ?: 0f,
+            0.01f,
+        )
 
         // Cold-start display parity: seeding also fills muscle_group_strength (projected from the
         // seeded estimates) so the History strength grid is non-empty before the first workout.
-        // Under the bare per-exercise migration this grid was empty until a session was replayed.
         val strengths = repository.derivedState.snapshot().allMuscleGroupStrengths()
         assertTrue(
             "expected CHEST muscle_group_strength populated at seed time; got $strengths",

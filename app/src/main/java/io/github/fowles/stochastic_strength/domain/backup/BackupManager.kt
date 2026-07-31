@@ -29,7 +29,6 @@ class BackupManager(
             userProfile = db.userProfileDao().getAll(),
             baselineOverrides = db.baselineOverrideDao().getAll(),
             exerciseHurtState = db.exerciseHurtStateDao().getAll(),
-            exerciseStrengthOverrides = db.exerciseStrengthOverrideDao().getAll(),
         )
     }
 
@@ -39,7 +38,6 @@ class BackupManager(
             db.workoutSetDao().deleteAll()
             db.workoutSessionDao().deleteAll()
             db.exerciseHurtStateDao().deleteAll()
-            db.exerciseStrengthOverrideDao().deleteAll()
             db.baselineOverrideDao().deleteAll()
             db.locationExcludedExerciseDao().deleteAll()
             db.userProfileDao().deleteAll()
@@ -54,7 +52,6 @@ class BackupManager(
             backup.userProfile.forEach { db.userProfileDao().insert(it) }
             backup.baselineOverrides.forEach { db.baselineOverrideDao().insert(it) }
             backup.exerciseHurtState.forEach { db.exerciseHurtStateDao().upsert(it) }
-            backup.exerciseStrengthOverrides.forEach { db.exerciseStrengthOverrideDao().insert(it) }
         }
         repository.replayDerivedState()
     }

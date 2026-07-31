@@ -6,7 +6,6 @@ import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -49,12 +48,10 @@ class BackupJsonTest {
         ),
         userProfile = listOf(UserProfile(id = 1, sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM,
             weightUnit = WeightUnit.LBS, preferredExerciseCount = 6, preferredRepMin = null,
-            preferredRepMax = 8, perExerciseSeedsBackfilled = true)),
+            preferredRepMax = 8)),
         baselineOverrides = listOf(BaselineOverride(id = 3, sessionId = null, muscleGroup = MuscleGroup.CHEST,
             baselineWeight = 80.25f, asOf = 0, reason = BaselineChangeReason.OVERRIDE)),
         exerciseHurtState = listOf(ExerciseHurtState(exerciseId = 5, isHurt = true, asOf = 500)),
-        exerciseStrengthOverrides = listOf(ExerciseStrengthOverride(id = 4, sessionId = 9, exerciseId = 5,
-            e1rm = 95.5f, asOf = 600, reason = BaselineChangeReason.DETRAIN)),
     )
 
     @Test
@@ -71,7 +68,6 @@ class BackupJsonTest {
             exportedAt = 0, exercises = emptyList(), knownLocations = emptyList(),
             locationExcludedExercises = emptyList(), workoutSessions = emptyList(), workoutSets = emptyList(),
             userProfile = emptyList(), baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
-            exerciseStrengthOverrides = emptyList(),
         )
         assertEquals(empty, BackupJsonParser.parse(BackupJsonBuilder.build(empty)))
     }

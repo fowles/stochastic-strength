@@ -5,7 +5,6 @@ import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.LocationExcludedExercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
@@ -52,7 +51,6 @@ object BackupJsonBuilder {
             .put("userProfile", JSONArray().apply { backup.userProfile.forEach { put(profileObj(it)) } })
             .put("baselineOverrides", JSONArray().apply { backup.baselineOverrides.forEach { put(baselineObj(it)) } })
             .put("exerciseHurtState", JSONArray().apply { backup.exerciseHurtState.forEach { put(hurtObj(it)) } })
-            .put("exerciseStrengthOverrides", JSONArray().apply { backup.exerciseStrengthOverrides.forEach { put(strengthObj(it)) } })
         return JSONObject()
             .put("format", WorkoutBackup.FORMAT)
             .put("formatVersion", backup.formatVersion)
@@ -94,7 +92,6 @@ object BackupJsonBuilder {
         "id" to p.id, "sex" to p.sex.name, "strengthLevel" to p.strengthLevel.name,
         "weightUnit" to p.weightUnit.name, "preferredExerciseCount" to p.preferredExerciseCount,
         "preferredRepMin" to p.preferredRepMin, "preferredRepMax" to p.preferredRepMax,
-        "perExerciseSeedsBackfilled" to p.perExerciseSeedsBackfilled,
     )
 
     private fun baselineObj(b: BaselineOverride) = obj(
@@ -104,11 +101,6 @@ object BackupJsonBuilder {
 
     private fun hurtObj(h: ExerciseHurtState) = obj(
         "exerciseId" to h.exerciseId, "isHurt" to h.isHurt, "asOf" to h.asOf,
-    )
-
-    private fun strengthObj(s: ExerciseStrengthOverride) = obj(
-        "id" to s.id, "sessionId" to s.sessionId, "exerciseId" to s.exerciseId,
-        "e1rm" to s.e1rm.toDouble(), "asOf" to s.asOf, "reason" to s.reason.name,
     )
 }
 
@@ -144,7 +136,6 @@ object BackupJsonParser {
                 userProfile = tables.getJSONArray("userProfile").map { profile(it) },
                 baselineOverrides = tables.getJSONArray("baselineOverrides").map { baseline(it) },
                 exerciseHurtState = tables.getJSONArray("exerciseHurtState").map { hurt(it) },
-                exerciseStrengthOverrides = tables.getJSONArray("exerciseStrengthOverrides").map { strength(it) },
             )
         } catch (e: JSONException) {
             throw BackupFormatException("Malformed backup contents: ${e.message}")
@@ -190,7 +181,6 @@ object BackupJsonParser {
         weightUnit = WeightUnit.valueOf(o.getString("weightUnit")),
         preferredExerciseCount = o.intOrNull("preferredExerciseCount"),
         preferredRepMin = o.intOrNull("preferredRepMin"), preferredRepMax = o.intOrNull("preferredRepMax"),
-        perExerciseSeedsBackfilled = o.getBoolean("perExerciseSeedsBackfilled"),
     )
 
     private fun baseline(o: JSONObject) = BaselineOverride(
@@ -202,11 +192,5 @@ object BackupJsonParser {
 
     private fun hurt(o: JSONObject) = ExerciseHurtState(
         exerciseId = o.getLong("exerciseId"), isHurt = o.getBoolean("isHurt"), asOf = o.getLong("asOf"),
-    )
-
-    private fun strength(o: JSONObject) = ExerciseStrengthOverride(
-        id = o.getLong("id"), sessionId = o.longOrNull("sessionId"), exerciseId = o.getLong("exerciseId"),
-        e1rm = o.floatVal("e1rm"), asOf = o.getLong("asOf"),
-        reason = BaselineChangeReason.valueOf(o.getString("reason")),
     )
 }

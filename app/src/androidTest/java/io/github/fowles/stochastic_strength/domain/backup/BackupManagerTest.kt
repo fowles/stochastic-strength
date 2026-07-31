@@ -86,7 +86,6 @@ class BackupManagerTest {
                 WorkoutSet(id = 2, sessionId = 9, exerciseId = 6, setNumber = 1, targetWeight = 100f, targetReps = 5),
             ),
             userProfile = emptyList(), baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
-            exerciseStrengthOverrides = emptyList(),
         )
 
         val result = manager.importAdditive(backup)
@@ -123,7 +122,6 @@ class BackupManagerTest {
                 weightUnit = io.github.fowles.stochastic_strength.data.model.WeightUnit.LBS,
             )),
             baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
-            exerciseStrengthOverrides = emptyList(),
         )
 
         manager.importAdditive(backup)

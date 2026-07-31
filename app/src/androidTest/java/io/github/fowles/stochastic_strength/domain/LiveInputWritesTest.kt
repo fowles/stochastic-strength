@@ -6,8 +6,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.BaselineOverride
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
-import io.github.fowles.stochastic_strength.data.model.ExerciseStrengthOverride
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.Sex
@@ -64,11 +64,11 @@ class LiveInputWritesTest {
         db.exerciseHurtStateDao().upsert(
             ExerciseHurtState(exerciseId = BENCH_EXERCISE_ID, isHurt = false, asOf = 0L)
         )
-        db.exerciseStrengthOverrideDao().insert(
-            ExerciseStrengthOverride(
+        db.baselineOverrideDao().insert(
+            BaselineOverride(
                 sessionId = null,
-                exerciseId = BENCH_EXERCISE_ID,
-                e1rm = 80f,
+                muscleGroup = MuscleGroup.CHEST,
+                baselineWeight = 80f,
                 asOf = 0,
             )
         )
