@@ -330,9 +330,6 @@ class WorkoutRepository(
         return orderedIds.mapNotNull { nameById[it] }
     }
 
-    suspend fun getMuscleGroupStrengths(): List<MuscleGroupStrength> =
-        derivedState.snapshot().allMuscleGroupStrengths()
-
     suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
         val rows = derivedState.snapshot().coefficientHistoryMostRecent(limit)
         if (rows.isEmpty()) return emptyList()
