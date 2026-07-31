@@ -4,7 +4,6 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
-import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
@@ -50,37 +49,6 @@ class LiveInputWritesTest {
 
     @After
     fun tearDown() = db.close()
-
-    @Test
-    fun applyManualExerciseOverrides_writesOverrideRowOnly() = runBlocking {
-        val sessionId = db.workoutSessionDao().insert(
-            WorkoutSession(startTime = 1_700_000_000_000L, endTime = null)
-        )
-
-        repository.applyManualExerciseOverrides(sessionId, mapOf(BENCH_EXERCISE_ID to 95f))
-
-        // The write lands as one per-exercise override row, keyed by exerciseId, with the e1rm
-        // and an OVERRIDE reason.
-        val overrides = db.exerciseStrengthOverrideDao().getForSession(sessionId)
-        assertEquals(1, overrides.size)
-        assertEquals(BENCH_EXERCISE_ID, overrides[0].exerciseId)
-        assertEquals(95f, overrides[0].e1rm)
-        assertEquals(BaselineChangeReason.OVERRIDE, overrides[0].reason)
-
-        // Must NOT have written muscle_group_strength or baseline_history.
-        // (The session has no endTime, so replay would skip it; nothing should be derived from it.)
-        val snap = repository.derivedState.snapshot()
-        val strengths = snap.allMuscleGroupStrengths()
-        assertTrue(
-            "expected no muscle_group_strength row from manual override write; got $strengths",
-            strengths.none { it.muscleGroup == MuscleGroup.CHEST },
-        )
-        val history = snap.allBaselineHistory()
-        assertTrue(
-            "expected no baseline_history row from manual override write; got $history",
-            history.isEmpty(),
-        )
-    }
 
     @Test
     fun applySessionProgression_doesNotMutateHurtState() = runBlocking {

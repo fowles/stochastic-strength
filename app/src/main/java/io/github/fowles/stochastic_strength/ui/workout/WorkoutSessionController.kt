@@ -123,7 +123,6 @@ class WorkoutSessionController(
             val sessionId = database.workoutSessionDao().insert(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
-            repository.applyManualExerciseOverrides(sessionId, plan.exerciseOverrides)
             setState(WorkoutState.ActiveSet(
                 plan = plan,
                 exerciseIndex = 0,

@@ -49,44 +49,6 @@ class WorkoutRepositoryTest {
     }
 
     @Test
-    fun applyManualExerciseOverrides_writesExerciseStrengthOverrideRow() = runBlocking {
-        val exerciseId = 200L
-        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
-
-        repository.applyManualExerciseOverrides(sessionId, mapOf(exerciseId to 90f))
-
-        val overrides = db.exerciseStrengthOverrideDao().getForSession(sessionId)
-        assertEquals(1, overrides.size)
-        with(overrides[0]) {
-            assertEquals(exerciseId, this.exerciseId)
-            assertEquals(90f, e1rm)
-            assertEquals(sessionId, this.sessionId)
-            assertEquals(1000L, asOf)
-            assertEquals(BaselineChangeReason.OVERRIDE, reason)
-        }
-        // Must NOT write to muscle_group_strength or baseline_history — those are derived.
-        // (The session has no endTime, so replay derives nothing from it.)
-        val snap = repository.derivedState.snapshot()
-        assertTrue(snap.allMuscleGroupStrengths().isEmpty())
-        assertTrue(snap.allBaselineHistory().isEmpty())
-    }
-
-    @Test
-    fun applyManualExerciseOverrides_doesNotWriteHistoryOrStrength() = runBlocking {
-        val exerciseId = 200L
-        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
-        val repo = WorkoutRepository(db)
-
-        repo.applyManualExerciseOverrides(sessionId, mapOf(exerciseId to 120f))
-
-        // Only the exercise_strength_override input row should exist — no derived writes.
-        val snap = repo.derivedState.snapshot()
-        val rows = snap.allBaselineHistory()
-        assertTrue("expected no baseline_history rows", rows.isEmpty())
-        assertTrue(snap.allMuscleGroupStrengths().isEmpty())
-    }
-
-    @Test
     fun finishSession_aggregatesExercisesInSameMuscleGroupIntoOneLogEntry() = runBlocking {
         db.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
