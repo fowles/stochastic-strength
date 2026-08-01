@@ -34,7 +34,7 @@
   - `object CoefficientGuesses { val raw: Map<String, Float> }` — the legible round-number priors.
   - `object CoefficientCompression { fun compress(guess: Float, lambda: Float): Float; fun compressAll(raw: Map<String, Float>, lambda: Float): Map<String, Float> }`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `CoefficientCompressionTest.kt`:
 
@@ -87,12 +87,12 @@ class CoefficientCompressionTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CoefficientCompressionTest"`
 Expected: FAIL — `CoefficientCompression` unresolved.
 
-- [ ] **Step 3: Write `CoefficientCompression`**
+- [x] **Step 3: Write `CoefficientCompression`**
 
 `CoefficientCompression.kt`:
 
@@ -120,7 +120,7 @@ object CoefficientCompression {
 }
 ```
 
-- [ ] **Step 4: Create `CoefficientGuesses` (move the current map verbatim)**
+- [x] **Step 4: Create `CoefficientGuesses` (move the current map verbatim)**
 
 `CoefficientGuesses.kt` — copy the **entire** `val byName = mapOf(...)` body (all entries, all section comments) verbatim from the current `ExerciseCoefficients.kt` (lines 6–125) into `raw`:
 
@@ -144,12 +144,12 @@ object CoefficientGuesses {
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CoefficientCompressionTest"`
 Expected: PASS (6 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/CoefficientGuesses.kt \
@@ -170,7 +170,7 @@ git commit -m "feat(coef): CoefficientGuesses prior + CoefficientCompression (gu
 - Consumes: `CoefficientGuesses.raw`, `CoefficientCompression.compressAll` (Task 1).
 - Produces: `ExerciseCoefficients` unchanged public surface — `object ExerciseCoefficients : CoefficientSource { const val LAMBDA: Float; val byName: Map<String, Float>; fun get(exercise): Float? }`. **This task keeps `LAMBDA = 1.0f` so `byName` is bit-identical to today** — a pure refactor proven behavior-preserving before the number moves in Task 5.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `ExerciseCoefficientsTest.kt`:
 
@@ -196,12 +196,12 @@ fun everyGuessSurvivesAsAKey() {
 
 (Add `import org.junit.Assert.assertEquals` to the test file.)
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ExerciseCoefficientsTest"`
 Expected: FAIL — `ExerciseCoefficients.LAMBDA` unresolved.
 
-- [ ] **Step 3: Rewrite `ExerciseCoefficients`**
+- [x] **Step 3: Rewrite `ExerciseCoefficients`**
 
 Replace the whole file body with the computed table (the literal map now lives in `CoefficientGuesses`):
 
@@ -230,7 +230,7 @@ object ExerciseCoefficients : CoefficientSource {
 }
 ```
 
-- [ ] **Step 4: Run the coefficient tests, then the full JVM suite**
+- [x] **Step 4: Run the coefficient tests, then the full JVM suite**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ExerciseCoefficientsTest"`
 Expected: PASS.
@@ -238,7 +238,7 @@ Expected: PASS.
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: **All green** — at λ=1.0 the table is identical, so no downstream test moves. (If anything fails here, the refactor is not behavior-preserving — stop and investigate; do not proceed to Task 5.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/ExerciseCoefficients.kt \
@@ -258,7 +258,7 @@ git commit -m "refactor(coef): ExerciseCoefficients = compress(CoefficientGuesse
 - Consumes: `CoefficientGuesses.raw`, `CoefficientCompression.compress` (Task 1); `ExerciseCoefficients` (shipped default).
 - Produces: `BacktestData.coefById: Map<Long, Float>` (single coefficient source routed to both `newSnapshot().seedCoefficients` and the prebuilt seeds); `fun BacktestData.withCoefLambda(lambda: Float): BacktestData` — a copy whose coefficients are `CoefficientGuesses.raw[name]^lambda` per active exercise. `withCoefLambda(ExerciseCoefficients.LAMBDA)` reproduces the default.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `BacktestDataTest.kt` (guard on history like the other backtest tests):
 
@@ -288,12 +288,12 @@ fun withCoefLambdaCompressesCoefficients() {
 
 (Imports: `CoefficientGuesses`, `org.junit.Assert.assertEquals`, `org.junit.Assert.assertTrue`.)
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BacktestDataTest"`
 Expected: FAIL — `withCoefLambda` / `coefById` unresolved.
 
-- [ ] **Step 3: Route coefficients through one `coefById` and add `withCoefLambda`**
+- [x] **Step 3: Route coefficients through one `coefById` and add `withCoefLambda`**
 
 Rewrite `BacktestData.kt` so every coefficient consumer reads one `coefById`, and both factories funnel through a private constructor:
 
@@ -385,12 +385,12 @@ class BacktestData private constructor(
 
 Note: `backup` and `weightUnit` remain public (existing callers use them). `newSnapshot()` and the seeds now read `coefById` instead of recomputing from `ExerciseCoefficients`.
 
-- [ ] **Step 4: Run the backtest suite, fix any fallout**
+- [x] **Step 4: Run the backtest suite, fix any fallout**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.*"`
 Expected: PASS. `BacktestData.from(...)` produces the shipped table (λ=1.0 here → identical to today), so `BeliefScoreTest`/`BeliefStackReplayTest`/`BeliefHeldOutScorerTest` are unaffected. If a test referenced a removed public constructor or the old `newSnapshot` recompute, update it to the private-constructor + `from()` shape.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/BacktestData.kt \
@@ -409,7 +409,7 @@ git commit -m "test(backtest): route coefficients through coefById + BacktestDat
 - Consumes: `BacktestData.loadOrNull`, `BacktestData.withCoefLambda` (Task 3); `BeliefHeldOutScorer.score` + `BeliefConfig` (existing).
 - Produces: a reporting test (like `BeliefFitTest`) that prints the held-out total/per-set score for each λ in a grid and the argmin. **Not a gate** — it reports; a human adopts in Task 5.
 
-- [ ] **Step 1: Write the fit/report test**
+- [x] **Step 1: Write the fit/report test**
 
 `CoefExponentFitTest.kt`:
 
@@ -466,12 +466,12 @@ class CoefExponentFitTest {
 }
 ```
 
-- [ ] **Step 2: Run it and confirm it reports (does not assert)**
+- [x] **Step 2: Run it and confirm it reports (does not assert)**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.CoefExponentFitTest" -i`
 Expected: PASS, with the λ curve printed to stdout. Capture the printed curve + best λ — Task 5 consumes them.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/test/java/io/github/fowles/stochastic_strength/domain/backtest/CoefExponentFitTest.kt
@@ -493,7 +493,7 @@ git commit -m "test(backtest): held-out λ sweep for coefficient compression (re
 
 **⚠️ This task is a review checkpoint. Present the Task 4 curve to the human before adopting. Adopt the argmin unless it sits on a grid edge (then widen the grid in Task 4 and re-run). Expected optimum ≈ 0.75 (usv fit + this session's cold-start LOO both landed 0.75–0.80).**
 
-- [ ] **Step 1: Adopt λ in `ExerciseCoefficients`**
+- [x] **Step 1: Adopt λ in `ExerciseCoefficients`**
 
 Set `LAMBDA` to the adopted value and replace the `TODO(Task 5)` provenance with the recorded curve, e.g.:
 
@@ -509,7 +509,7 @@ Set `LAMBDA` to the adopted value and replace the `TODO(Task 5)` provenance with
 
 Fill `<x>` from the actual Task 4 printout. Use the adopted argmin as the literal.
 
-- [ ] **Step 2: Update the one coefficient-literal test**
+- [x] **Step 2: Update the one coefficient-literal test**
 
 `ExerciseLibraryTest.kt:36` currently asserts `assertEquals(0.5f, ExerciseCoefficients.get(e))`. The shipped value is now compressed. Change it to assert the compressed value so intent (get() returns the shipped coef) is preserved:
 
@@ -523,17 +523,17 @@ assertEquals(
 )
 ```
 
-- [ ] **Step 3: Run the safety-critical prescription pin FIRST**
+- [x] **Step 3: Run the safety-critical prescription pin FIRST**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ProdBssPrescriptionTest"`
 Expected: PASS. The BSS pin folds on demonstrated data, so the compressed QUADS seed should not move the prescription. **If it fails, STOP** — a moved safety pin is a human adjudication (trust this canonical test, per project memory), not a number to silently re-pin.
 
-- [ ] **Step 4: Re-baseline the belief gate (comment numbers only)**
+- [x] **Step 4: Re-baseline the belief gate (comment numbers only)**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.backtest.BeliefScoreTest" -i`
 Expected: PASS — the gate is **relative** (belief per-set < phase0 baseline per-set); compression is expected to lower the per-set score, so it passes more comfortably. Read the printed `total` / `mean per set`, and update the recorded numbers in `BeliefScoreTest`'s KDoc header (the "Measured after wiring live seed expansion … total 37.6714 / per-set 0.11015 …" line) to the new post-compression values, noting "after adopting λ=<value>". **If the gate goes red** (per-set rose above the phase0 baseline), STOP and escalate — that means compression hurt on this history; do not adopt.
 
-- [ ] **Step 5: Full JVM + instrumented suites, fix fallout**
+- [x] **Step 5: Full JVM + instrumented suites, fix fallout**
 
 Run: `./gradlew :app:testDebugUnitTest`
 Expected: green. Fix any test that hardcoded a now-compressed coefficient or seed weight (grep `ExerciseCoefficients` / seed-weight literals in the failing test; assert against `CoefficientCompression.compress(guess, ExerciseCoefficients.LAMBDA)` or `CoefficientGuesses.raw`).
@@ -541,7 +541,7 @@ Expected: green. Fix any test that hardcoded a now-compressed coefficient or see
 Run: `./gradlew :app:connectedAndroidTest`
 Expected: green (emulator typically running). The instrumented replay/derived-state tests re-derive through `replayDerivedState`; a compressed coefficient shifts cold-start seeds only, self-corrected by folds. Fix any hardcoded-coefficient assertion the same way.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/io/github/fowles/stochastic_strength/domain/ExerciseCoefficients.kt \
@@ -563,7 +563,7 @@ git commit -m "feat(coef): adopt fitted compression λ=<value>; re-baseline beli
 - Consumes: nothing (docs).
 - Produces: living docs reflect the compressed-coefficient artifact.
 
-- [ ] **Step 1: Update CLAUDE.md**
+- [x] **Step 1: Update CLAUDE.md**
 
 In the progression section, the cold-start paragraph already says "shipping a new/refit coefficient table changes seeds automatically on next replay, no migration needed." Extend the coefficient description to record the new shape. Find the sentence describing `ExerciseCoefficients` seed coefficients (near "Seed coefficients come from `ExerciseCoefficients`") and append:
 
@@ -571,11 +571,11 @@ In the progression section, the cold-start paragraph already says "shipping a ne
 `ExerciseCoefficients.byName` is a fitted artifact: `CoefficientCompression.compress(CoefficientGuesses.raw, LAMBDA)` where `LAMBDA` (`fitted`, global) is pinned by the held-out λ sweep (`CoefExponentFitTest`) and CI-guarded by `ExerciseCoefficientsTest`. `CoefficientGuesses` holds the legible round-number priors; reference (1.0) and bodyweight (0.0) lifts are unchanged by compression. Re-fitting λ or editing a guess is a pure code change — nothing coefficient-derived is stored per user.
 ```
 
-- [ ] **Step 2: Mark the spec's Part B done**
+- [x] **Step 2: Mark the spec's Part B done**
 
 At the top of the spec file, note Part B shipped (the plan split into three: detrain-by-inference, seed/override consolidation, and this compression plan). Add a one-line status under the header, e.g. `**Status:** Part A shipped (Plans 1–2); Part B (compression) shipped 2026-07-31.`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers/specs/2026-07-31-fitted-coefficients-and-derived-state-cleanup-design.md
