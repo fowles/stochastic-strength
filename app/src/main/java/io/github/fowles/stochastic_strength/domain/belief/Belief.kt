@@ -25,7 +25,7 @@ data class BeliefConfig(
      * set. Genuine bowl, min at 0.03 — curve 0.0→35.998 0.01→35.638 0.02→35.374 0.03→35.250
      * 0.05→35.542 0.08→37.328 (held-out total, ln-units). Was 0.01 (fitted 2026-07-15).
      */
-    val phi: Float = 0.03f,
+    val fatiguePerSetEstimate: Float = 0.03f,
     /** `fitted` 2026-07-15, curve in phase-2 plan appendix: sigma2 growth per idle day. */
     val qPerDay: Float = 3e-6f,
     /**

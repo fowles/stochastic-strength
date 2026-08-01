@@ -13,7 +13,7 @@ class BeliefFoldTest {
     // Explicit config in every test — defaults are re-fit later and must not be load-bearing here.
     private val config = BeliefConfig(
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
-        phi = 0.05f, qPerDay = 1e-3f,
+        fatiguePerSetEstimate = 0.05f, qPerDay = 1e-3f,
         sigmaObs = 0.10f,
         tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )
@@ -38,7 +38,7 @@ class BeliefFoldTest {
     @Test
     fun fatigueShiftIsMinusLnOfRemainingCapacity() {
         assertEquals(0f, fold.fatigueShift(1), 1e-7f)                       // first set: fresh
-        assertEquals(-ln(1f - 0.05f * 2), fold.fatigueShift(3), 1e-6f)      // phi·(k−1), k=3
+        assertEquals(-ln(1f - 0.05f * 2), fold.fatigueShift(3), 1e-6f)      // fatiguePerSetEstimate·(k−1), k=3
     }
 
     @Test

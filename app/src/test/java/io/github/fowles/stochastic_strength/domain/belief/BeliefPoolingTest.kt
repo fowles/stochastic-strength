@@ -9,7 +9,7 @@ import kotlin.math.ln
 class BeliefPoolingTest {
     private val config = BeliefConfig(
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
-        phi = 0.05f, qPerDay = 0f,           // qPerDay=0: aging is a no-op so numbers are exact
+        fatiguePerSetEstimate = 0.05f, qPerDay = 0f,           // qPerDay=0: aging is a no-op so numbers are exact
         sigmaObs = 0.10f,
         tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )

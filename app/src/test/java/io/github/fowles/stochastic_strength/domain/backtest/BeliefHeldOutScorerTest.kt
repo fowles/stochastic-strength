@@ -18,7 +18,7 @@ import org.junit.Test
 class BeliefHeldOutScorerTest {
     private val config = BeliefConfig(
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
-        phi = 0.05f, qPerDay = 1e-3f,
+        fatiguePerSetEstimate = 0.05f, qPerDay = 1e-3f,
         sigmaObs = 0.10f,
         tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )

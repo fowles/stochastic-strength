@@ -18,11 +18,12 @@ class BeliefFold(private val config: BeliefConfig) {
 
     /**
      * Set rank k (1-based, ALL of the exercise's rows in the session, including feedback-less and
-     * HURT) observes fresh capacity reduced by phi·(k−1); the implied interval shifts UP by
-     * −ln(1 − phi·(k−1)) before folding. Clamped so the shift stays finite.
+     * HURT) observes fresh capacity reduced by fatiguePerSetEstimate·(k−1); the implied interval
+     * shifts UP by −ln(1 − fatiguePerSetEstimate·(k−1)) before folding. Clamped so the shift stays
+     * finite.
      */
     fun fatigueShift(rank: Int): Float =
-        -ln(1f - (config.phi * (rank - 1)).coerceAtMost(0.9f))
+        -ln(1f - (config.fatiguePerSetEstimate * (rank - 1)).coerceAtMost(0.9f))
 
     /**
      * Boundary-pull Gaussian fold (spec Phase 2). If mu lies inside the shifted interval the set
