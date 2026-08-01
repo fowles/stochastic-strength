@@ -95,7 +95,7 @@ class BeliefStackReplayTest {
         // Front squat IS seeded from session start — untouched by session 1 (which only trains
         // squat), so its belief after session 1 is exactly its initial muscle-baseline seed.
         val frontSeed = beliefsAfter1.getValue(2L)
-        val frontCoef = CoefficientCompression.compress(0.80f, ExerciseCoefficients.LAMBDA)
+        val frontCoef = CoefficientCompression.compress(0.80f, CoefficientCompression.BAKED_LAMBDA)
         assertEquals(ln(110f * frontCoef), frontSeed.mu, 1e-5f)
         assertEquals(config.sigmaSeed * config.sigmaSeed, frontSeed.sigma2, 1e-9f)
         assertEquals(0L, frontSeed.updatedAt)

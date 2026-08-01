@@ -9,7 +9,8 @@ import org.junit.Test
  * ONE authority: held-out belief score on real history (BeliefHeldOutScorer). λ is not a
  * BeliefConfig field — it transforms fixed guessed constants into other fixed constants — so it is
  * swept via BacktestData.withCoefLambda, not the BeliefConfig coordinate descent. Human-gated:
- * the printed argmin + curve is adopted into ExerciseCoefficients.LAMBDA by hand (Task 5). Skips
+ * the printed argmin + curve is adopted by re-baking ExerciseCoefficients at the new exponent
+ * (CoefficientCompression.BAKED_LAMBDA) by hand. Skips
  * without history.json.
  *
  * Design evidence (already gathered, this session): forward-chaining cold-start RMSE improved

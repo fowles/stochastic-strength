@@ -67,7 +67,7 @@ class BacktestData private constructor(
             return backup.exercises.filter { !it.isDisliked || it.id in trainedIds }
         }
 
-        /** Shipped table (already compressed at ExerciseCoefficients.LAMBDA). */
+        /** Shipped table (already baked at CoefficientCompression.BAKED_LAMBDA). */
         private fun shippedCoef(backup: WorkoutBackup): Map<Long, Float> =
             seedExercises(backup).associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
 

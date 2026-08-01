@@ -18,8 +18,10 @@ class ExerciseCoefficientsTest {
 
     @Test
     fun byNameIsCompressedGuesses() {
+        // Consistency guard: the shipped baked table must still equal compress(guesses, BAKED_LAMBDA).
+        // If a guess is edited without re-baking ExerciseCoefficients, this fails (that is the point).
         assertEquals(
-            CoefficientCompression.compressAll(CoefficientGuesses.raw, ExerciseCoefficients.LAMBDA),
+            CoefficientCompression.compressAll(CoefficientGuesses.raw, CoefficientCompression.BAKED_LAMBDA),
             ExerciseCoefficients.byName,
         )
     }

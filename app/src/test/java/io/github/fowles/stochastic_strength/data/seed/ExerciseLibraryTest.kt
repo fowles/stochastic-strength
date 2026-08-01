@@ -35,7 +35,7 @@ class ExerciseLibraryTest {
     fun `Landmine Press has a coefficient`() {
         val e = byName("Landmine Press")!!
         assertEquals(
-            CoefficientCompression.compress(0.5f, ExerciseCoefficients.LAMBDA),
+            CoefficientCompression.compress(0.5f, CoefficientCompression.BAKED_LAMBDA),
             ExerciseCoefficients.get(e)!!,
             1e-6f,
         )
