@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Superseded later the same day (2026-07-31):** the runtime `compress()` / `LAMBDA` step this
+> plan built was *baked away* — `ExerciseCoefficients` now ships the `guess^0.75` literals directly,
+> and `CoefficientGuesses` + `CoefficientCompression` moved into the test tree (`BAKED_LAMBDA`) as a
+> sweep-only tool. No runtime compression or exponent knob remains. This plan below is the record of
+> the compression design as it was built; see CLAUDE.md for the current baked shape.
+
 **Goal:** Turn `ExerciseCoefficients` into a fitted artifact — the shipped values become `guess^λ` compressed from a legible `CoefficientGuesses` prior, with a global λ fit by the held-out backtest and CI-guarded, so shipping new coefficients needs zero migration.
 
 **Architecture:** `CoefficientGuesses.raw` holds the round-number priors (today's `ExerciseCoefficients.byName`, moved verbatim). `CoefficientCompression.compress(guess, λ)` maps `guess → guess^λ` preserving `0→0` and `1→1`. `ExerciseCoefficients.byName` is computed once at object init as `compressAll(CoefficientGuesses.raw, LAMBDA)`; `LAMBDA` is a shipped `fitted` constant. λ is fit by a 1-D held-out sweep over the existing belief backtest (`BeliefHeldOutScorer` on `BacktestData.withCoefLambda(λ)`); adoption + gate re-baseline is a human-gated checkpoint.

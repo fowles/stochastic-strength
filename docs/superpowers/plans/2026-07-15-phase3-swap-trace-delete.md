@@ -1030,7 +1030,7 @@ Expected: gate PASS (24.3274 < 28.4451, unchanged), 0 invariant violations, bind
 
 - [x] **Step 2: Constant census.** Grep every numeric constant in `domain/belief/`, `domain/policy/`, and confirm each carries a ledger label matching the spec (~7 estimator: σ_seed, σ_override, fatiguePerSetEstimate, q, σ_obs, floor/cap; policy semantics: cap expiry 28d, HURT 0.15/14d/0.6, cooldown 2d, z, nudge = one increment). Any constant without a label: label it from the Phase-2 record or delete it (constitution rule 2). Record the census table in the appendix.
 
-- [x] **Step 3: Docs.** Rewrite `docs/adaptation/02-strength-signal.md` (set → implied ln-1RM interval, fatigue shift), `03-exercise-estimates.md` (Belief μ/σ², boundary-pull fold, aging, override seeding), `04-muscle-pooling.md` (precision-weighted level, LOO blend, z-prescription, policy caps + nudge), and the README's flow diagram to the belief model. Keep the docs' existing voice and length; these are living docs (the superpowers specs/plans are historical and stay).
+- [x] **Step 3: Docs.** Rewrite `docs/adaptation/02-strength-signal.md` (set → implied ln-1RM interval, fatigue shift), `03-exercise-estimates.md` (Belief μ/σ², boundary-pull fold, aging, override seeding), `04-muscle-pooling.md` (confidence-weighted level, LOO blend, z-prescription, policy caps + nudge), and the README's flow diagram to the belief model. Keep the docs' existing voice and length; these are living docs (the superpowers specs/plans are historical and stay).
 
 - [x] **Step 4: Full suites.**
 

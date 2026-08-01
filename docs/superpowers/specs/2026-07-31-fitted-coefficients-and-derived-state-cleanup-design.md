@@ -1,7 +1,12 @@
 # Fitted cold-start coefficients + derived-state cleanup
 
 **Date:** 2026-07-31
-**Status:** Part A shipped (Plans 1–2); Part B (compression) shipped 2026-07-31
+**Status:** Part A shipped (Plans 1–2); Part B (compression) shipped 2026-07-31.
+**Superseded later the same day:** the runtime `compress()` / `LAMBDA` step was *baked away* —
+`ExerciseCoefficients` now ships the `guess^0.75` literals directly, and `CoefficientGuesses` +
+`CoefficientCompression` moved into the test tree (`BAKED_LAMBDA`) as a sweep-only tool. There is
+no runtime compression or compression-exponent knob anymore. See CLAUDE.md and the
+plain-estimate-names refactor. (This doc below describes the λ design as it was built.)
 
 ## Motivation
 

@@ -4,7 +4,7 @@
 
 **Goal:** Build the new estimator — `Belief(mu, sigma2)` Kalman core with boundary-pull Gaussian folds, fatigue shift fatiguePerSetEstimate, aging q, single-crossLiftIndependenceEstimate pooling, percentile-z prescription — fit its constants against real history via the Phase-0 harness, and beat main's held-out baseline (26.7593 ln-units total / 0.12563 per set). **No prod wiring** — the swap is Phase 3; everything ships dark (new `domain/belief/` package used only by the test-tree backtest) except two small policy-layer extensions that default off.
 
-**Architecture:** Per spec `docs/superpowers/specs/2026-07-14-estimator-rebuild-design.md` (binding constitution). Prod package `domain/belief/` holds four pure components: `Belief`+`BeliefConfig`, `BeliefFold` (aging + fatigue shift + boundary-pull Gaussian fold), `BeliefPooling` (precision-weighted muscle level + leave-one-out effective belief), `BeliefPrescriber` (percentile-z target). The policy layer gains the overload nudge (behind a default-false flag) and the `allEasy` log-fact. Test tree gains `BeliefStackReplay` (forward-chained replay of the new stack), `BeliefHeldOutScorer` (per-set scoring against the Phase-0 intervals), and `BeliefFitHarness` (coordinate-descent fitting with sensitivity curves).
+**Architecture:** Per spec `docs/superpowers/specs/2026-07-14-estimator-rebuild-design.md` (binding constitution). Prod package `domain/belief/` holds four pure components: `Belief`+`BeliefConfig`, `BeliefFold` (aging + fatigue shift + boundary-pull Gaussian fold), `BeliefPooling` (confidence-weighted muscle level + leave-one-out effective belief), `BeliefPrescriber` (percentile-z target). The policy layer gains the overload nudge (behind a default-false flag) and the `allEasy` log-fact. Test tree gains `BeliefStackReplay` (forward-chained replay of the new stack), `BeliefHeldOutScorer` (per-set scoring against the Phase-0 intervals), and `BeliefFitHarness` (coordinate-descent fitting with sensitivity curves).
 
 **Tech Stack:** Kotlin, JUnit4 JVM unit tests, existing Phase-0 backtest harness (`app/src/test/.../domain/backtest/`), jj for version control.
 
@@ -383,7 +383,7 @@ jj commit -m "feat(belief): fatigue shift + boundary-pull Gaussian fold + per-se
 
 ---
 
-### Task 4: Pooling — precision-weighted level + leave-one-out effective belief
+### Task 4: Pooling — confidence-weighted level + leave-one-out effective belief
 
 **Files:**
 - Create: `app/src/main/java/io/github/fowles/stochastic_strength/domain/belief/BeliefPooling.kt`
@@ -580,7 +580,7 @@ Expected: 6 PASS.
 - [x] **Step 5: Commit**
 
 ```bash
-jj commit -m "feat(belief): precision-weighted pooling with leave-one-out effective beliefs"
+jj commit -m "feat(belief): confidence-weighted pooling with leave-one-out effective beliefs"
 ```
 
 ---
@@ -611,7 +611,7 @@ class BeliefPrescriberTest {
     @Test
     fun targetIsThe30thPercentileOfBelievedCapacity() {
         val eff = EffectiveBelief(mu = ln(100f), sigma2 = 0.04f)
-        assertEquals(exp(ln(100f) - BeliefPrescriber.Z * sqrt(0.04f)), BeliefPrescriber.targetE1rm(eff), 1e-4f)
+        assertEquals(exp(ln(100f) - BeliefPrescriber.cautionMargin * sqrt(0.04f)), BeliefPrescriber.targetE1rm(eff), 1e-4f)
     }
 
     @Test
