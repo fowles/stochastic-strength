@@ -27,7 +27,7 @@ data class BeliefConfig(
      */
     val fatiguePerSetEstimate: Float = 0.03f,
     /** `fitted` 2026-07-15, curve in phase-2 plan appendix: sigma2 growth per idle day. */
-    val qPerDay: Float = 3e-6f,
+    val confidenceDecayEstimate: Float = 3e-6f,
     /**
      * `edge-pinned`/`saturated` (re-confirmed 2026-07-15 on updated history): single observation
      * sigma for all load folds. Task 10 collapsed the RIR/FAIL pair (identical optima 0.005) into

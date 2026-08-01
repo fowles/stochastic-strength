@@ -12,7 +12,7 @@ class BeliefFold(private val config: BeliefConfig) {
     /** sigma² grows by q per idle day (mu untouched); clamped by the flat guards. */
     fun aged(b: Belief, now: Long): Belief {
         val idleDays = (now - b.updatedAt).coerceAtLeast(0L).toFloat() / dayMs
-        val s2 = (b.sigma2 + config.qPerDay * idleDays).coerceIn(config.sigma2Floor, config.sigma2Cap)
+        val s2 = (b.sigma2 + config.confidenceDecayEstimate * idleDays).coerceIn(config.sigma2Floor, config.sigma2Cap)
         return Belief(b.mu, s2, now)
     }
 

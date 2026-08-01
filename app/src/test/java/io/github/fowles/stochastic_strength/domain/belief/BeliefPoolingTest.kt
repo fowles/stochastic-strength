@@ -9,7 +9,7 @@ import kotlin.math.ln
 class BeliefPoolingTest {
     private val config = BeliefConfig(
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
-        fatiguePerSetEstimate = 0.05f, qPerDay = 0f,           // qPerDay=0: aging is a no-op so numbers are exact
+        fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 0f,           // confidenceDecayEstimate=0: aging is a no-op so numbers are exact
         sigmaObs = 0.10f,
         tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )
@@ -77,7 +77,7 @@ class BeliefPoolingTest {
 
     @Test
     fun beliefsAreAgedBeforeVoting() {
-        val aging = BeliefPooling(config.copy(qPerDay = 1e-3f))
+        val aging = BeliefPooling(config.copy(confidenceDecayEstimate = 1e-3f))
         val tenDays = 10 * 24L * 60 * 60 * 1000
         val result = aging.effective(beliefs, coef, ids, now = tenDays)
         // A's own variance is aged from 0.01 → 0.02 before blending.
