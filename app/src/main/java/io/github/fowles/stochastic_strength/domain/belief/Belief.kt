@@ -36,7 +36,7 @@ data class BeliefConfig(
      * saturated asymptote, not a genuine bowl. 0.005 kept as the least-extreme saturated value; curve
      * in the phase-2 plan appendix.
      */
-    val sigmaObs: Float = 0.005f,
+    val perSetDoubtEstimate: Float = 0.005f,
     /** `fitted` 2026-07-15, curve in phase-2 plan appendix: transfer noise between same-muscle exercises in pooling. */
     val tau: Float = 0.2f,
     /** `flat` guard: sigma never collapses below ±2%. */

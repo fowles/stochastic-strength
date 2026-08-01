@@ -54,7 +54,7 @@ class BeliefFold(private val config: BeliefConfig) {
         var b = aged(prior, asOf)
         exSets.sortedBy { it.id }.forEachIndexed { idx, set ->
             val interval = SetIntervals.impliedLn1RmInterval(set) ?: return@forEachIndexed
-            b = fold(b, interval, fatigueShift(idx + 1), config.sigmaObs, asOf)
+            b = fold(b, interval, fatigueShift(idx + 1), config.perSetDoubtEstimate, asOf)
         }
         return b
     }

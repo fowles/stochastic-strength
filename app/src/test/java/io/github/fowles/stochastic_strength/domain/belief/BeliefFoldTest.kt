@@ -14,7 +14,7 @@ class BeliefFoldTest {
     private val config = BeliefConfig(
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
         fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 1e-3f,
-        sigmaObs = 0.10f,
+        perSetDoubtEstimate = 0.10f,
         tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )
     private val fold = BeliefFold(config)
@@ -92,8 +92,8 @@ class BeliefFoldTest {
         val asOf = 24L * 60 * 60 * 1000
         // Hand-fold with the same components: aging first, then set 1 (rank 1) and set 3 (rank 3).
         var expected = fold.aged(prior, asOf)
-        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[0])!!, fold.fatigueShift(1), config.sigmaObs, asOf)
-        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[2])!!, fold.fatigueShift(3), config.sigmaObs, asOf)
+        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[0])!!, fold.fatigueShift(1), config.perSetDoubtEstimate, asOf)
+        expected = fold.fold(expected, io.github.fowles.stochastic_strength.domain.policy.SetIntervals.impliedLn1RmInterval(sets[2])!!, fold.fatigueShift(3), config.perSetDoubtEstimate, asOf)
         assertEquals(expected, fold.foldSession(prior, sets, asOf))
     }
 }

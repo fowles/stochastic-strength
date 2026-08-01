@@ -79,7 +79,7 @@ class ReplayDerivedStateTest {
      * progression is folded in. Here we seed the override well ABOVE the natural trajectory and
      * confirm the belief going into session 2 reflects it: the belief stack's single-observation
      * boundary-pull fold (Phase-2) snaps a confident-but-wrong belief hard toward the session's
-     * demonstrated interval in one fold (gain ~= sigmaOverride2 / (sigmaOverride2 + sigmaObs2)),
+     * demonstrated interval in one fold (gain ~= sigmaOverride2 / (sigmaOverride2 + perSetDoubtEstimate2)),
      * so "dominates" means strictly above the no-override trajectory, not "stays near 999".
      */
     @Test
