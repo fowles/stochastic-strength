@@ -69,7 +69,7 @@ class PrescriptionTraceTest {
 
         val labels = trace.lines.map { it.label }
         assertEquals(
-            listOf("Own belief", "Sibling pull", "Effective belief", "Risk percentile", "HURT backoff", "Overload nudge", "Capacity cap", "Rounding"),
+            listOf("Own belief", "Sibling pull", "Effective belief", "Success target", "HURT backoff", "Overload nudge", "Capacity cap", "Rounding"),
             labels,
         )
 

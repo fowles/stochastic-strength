@@ -11,7 +11,7 @@ class BeliefPrescriberTest {
     @Test
     fun targetIsThe30thPercentileOfBelievedCapacity() {
         val eff = EffectiveBelief(mu = ln(100f), sigma2 = 0.04f)
-        assertEquals(exp(ln(100f) - BeliefPrescriber.Z * sqrt(0.04f)), BeliefPrescriber.targetE1rm(eff), 1e-4f)
+        assertEquals(exp(ln(100f) - BeliefPrescriber.cautionMargin * sqrt(0.04f)), BeliefPrescriber.targetE1rm(eff), 1e-4f)
     }
 
     @Test

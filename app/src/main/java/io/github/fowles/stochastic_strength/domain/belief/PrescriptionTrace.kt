@@ -82,17 +82,17 @@ object PrescriptionTraceBuilder {
             "~${WeightFormatter.format(exp(effective.mu), weightUnit)} (±${"%.0f".format(sigmaPercent(effective.sigma2))}%)",
         )
 
-        val percentileTarget = BeliefPrescriber.targetE1rm(effective)
+        val successTarget = BeliefPrescriber.targetE1rm(effective)
         val riskLine = TraceLine(
-            "Risk percentile",
-            "prescribing at the ${BeliefPrescriber.PERCENTILE}th percentile: " +
-                "~${WeightFormatter.format(percentileTarget, weightUnit)}",
+            "Success target",
+            "aiming for a weight you'll make ~${(BeliefPrescriber.targetSuccessChance * 100).toInt()}% of the time: " +
+                "~${WeightFormatter.format(successTarget, weightUnit)}",
         )
 
         // Detraining backoff: the planner eases the comeback target down by `retention` after a
         // layoff, then the set log self-corrects the belief. Mirror it here so the trace's final
         // weight matches what the workout screen actually prescribes.
-        val rawE1rm = percentileTarget * retention
+        val rawE1rm = successTarget * retention
         val detrainLine = if (retention < 1f) {
             TraceLine(
                 "Detraining backoff",
