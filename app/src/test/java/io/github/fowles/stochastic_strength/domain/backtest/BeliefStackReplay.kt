@@ -61,7 +61,7 @@ object BeliefStackReplay {
                     val predictions = sets.groupBy { it.exerciseId }.flatMap { (id, exSets) ->
                         val eff = result.preFoldEffective[id]
                         exSets.sortedBy { it.id }.mapIndexed { idx, s ->
-                            SetPrediction(s, idx + 1, eff?.let { it.mu - fold.fatigueShift(idx + 1) })
+                            SetPrediction(s, idx + 1, eff?.let { it.bestGuessLn - fold.fatigueShift(idx + 1) })
                         }
                     }
                     observer.onSession(sessionId, asOf, predictions, allEffective, snap.currentBeliefs)

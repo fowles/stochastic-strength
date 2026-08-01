@@ -27,8 +27,8 @@ class PrescriptionTraceTest {
     // Own belief high and tight enough that the uncapped target actually exceeds the failed
     // session's demonstrated-capacity cap below, so the cap binds and cites the failed set.
     private val beliefs = mapOf(
-        targetId to Belief(mu = ln(60f), sigma2 = 0.005f, updatedAt = now),
-        siblingId to Belief(mu = ln(100f), sigma2 = 0.01f, updatedAt = now),
+        targetId to Belief(bestGuessLn = ln(60f), uncertainty = 0.005f, updatedAt = now),
+        siblingId to Belief(bestGuessLn = ln(100f), uncertainty = 0.01f, updatedAt = now),
     )
 
     private val capSessionSets = listOf(
@@ -110,7 +110,7 @@ class PrescriptionTraceTest {
     fun nonBindingCapLineShowsTheCapWeightNotTheWantedWeight() {
         // Own belief low enough that the target sits far below the demonstrated cap.
         val lowBeliefs = mapOf(
-            targetId to Belief(mu = ln(20f), sigma2 = 0.005f, updatedAt = now),
+            targetId to Belief(bestGuessLn = ln(20f), uncertainty = 0.005f, updatedAt = now),
         )
         val trace = PrescriptionTraceBuilder.build(
             exerciseId = targetId,
@@ -143,7 +143,7 @@ class PrescriptionTraceTest {
     fun ownBeliefLineShowsTheStoredFoldDateNotToday() {
         val foldedAt = now - 40L * 24 * 60 * 60 * 1000  // 40 days before `now`
         val staleBeliefs = mapOf(
-            targetId to Belief(mu = ln(60f), sigma2 = 0.005f, updatedAt = foldedAt),
+            targetId to Belief(bestGuessLn = ln(60f), uncertainty = 0.005f, updatedAt = foldedAt),
         )
         val trace = PrescriptionTraceBuilder.build(
             exerciseId = targetId,

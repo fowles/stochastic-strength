@@ -73,11 +73,11 @@ class ExerciseProgressionSeriesBuilderCoreTest {
 
         // Frame entering S2 = pre-fold = the belief AFTER folding S1. Compute it directly.
         val afterS1 = BeliefFold(config).foldSession(
-            Belief(mu = ln(100f), sigma2 = config.sigmaSeed * config.sigmaSeed, updatedAt = 0L),
+            Belief(bestGuessLn = ln(100f), uncertainty = config.seedUncertaintySd * config.seedUncertaintySd, updatedAt = 0L),
             setsBySession.getValue(1L),
             1_000L,
         )
-        assertEquals(exp(afterS1.mu), data.frames[1].own!!, 0.5f)
+        assertEquals(exp(afterS1.bestGuessLn), data.frames[1].own!!, 0.5f)
 
         // The predicted frame is stamped at `now` and reflects the state AFTER S2 (differs from S2's frame).
         assertEquals(now, data.predictedFrame!!.timestampMs)

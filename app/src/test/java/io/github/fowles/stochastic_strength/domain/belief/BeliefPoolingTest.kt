@@ -8,23 +8,23 @@ import kotlin.math.ln
 
 class BeliefPoolingTest {
     private val config = BeliefConfig(
-        sigmaSeed = 0.15f, sigmaOverride = 0.10f,
+        seedUncertaintySd = 0.15f, overrideUncertaintySd = 0.10f,
         fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 0f,           // confidenceDecayEstimate=0: aging is a no-op so numbers are exact
         perSetDoubtEstimate = 0.10f,
-        crossLiftIndependenceEstimate = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
+        crossLiftIndependenceEstimate = 0.10f, uncertaintyFloor = 4e-4f, uncertaintyCap = 0.25f,
     )
     private val pooling = BeliefPooling(config)
 
     // Muscle: A (coef 1.0, tight belief), B (coef 0.8, looser), C (coef 0.5, no belief).
     private val beliefs = mapOf(
-        1L to Belief(mu = ln(100f), sigma2 = 0.01f, updatedAt = 0L),
-        2L to Belief(mu = ln(72f), sigma2 = 0.04f, updatedAt = 0L),
+        1L to Belief(bestGuessLn = ln(100f), uncertainty = 0.01f, updatedAt = 0L),
+        2L to Belief(bestGuessLn = ln(72f), uncertainty = 0.04f, updatedAt = 0L),
     )
     private val coef = mapOf(1L to 1.0f, 2L to 0.8f, 3L to 0.5f)
     private val ids = listOf(1L, 2L, 3L)
 
     // Transparent restatement of the spec math (weights, not the SUT's code).
-    private fun w(sigma2: Float) = 1f / (sigma2 + config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate)
+    private fun w(uncertainty: Float) = 1f / (uncertainty + config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate)
 
     @Test
     fun ownBeliefBlendsWithLeaveOneOutSiblingPrediction() {
@@ -36,8 +36,8 @@ class BeliefPoolingTest {
         val pSib = 1f / predVar
         val expectedMu = (pOwn * ln(100f) + pSib * (ln(1.0f) + vB)) / (pOwn + pSib)
         val a = result.effective[1L]!!
-        assertEquals(expectedMu, a.mu, 1e-5f)
-        assertEquals(1f / (pOwn + pSib), a.sigma2, 1e-6f)
+        assertEquals(expectedMu, a.bestGuessLn, 1e-5f)
+        assertEquals(1f / (pOwn + pSib), a.uncertainty, 1e-6f)
     }
 
     @Test
@@ -46,8 +46,8 @@ class BeliefPoolingTest {
         val wA = w(0.01f); val wB = w(0.04f)
         val level = (wA * (ln(100f) - ln(1.0f)) + wB * (ln(72f) - ln(0.8f))) / (wA + wB)
         val c = result.effective[3L]!!
-        assertEquals(ln(0.5f) + level, c.mu, 1e-5f)
-        assertEquals(1f / (wA + wB) + config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate, c.sigma2, 1e-6f)
+        assertEquals(ln(0.5f) + level, c.bestGuessLn, 1e-5f)
+        assertEquals(1f / (wA + wB) + config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate, c.uncertainty, 1e-6f)
         assertEquals(level, result.levelLn!!, 1e-5f)
     }
 
@@ -55,10 +55,10 @@ class BeliefPoolingTest {
     fun lonelyVoterFallsBackToItsOwnBelief() {
         // Only A has a belief: its LOO pool is empty → effective = own belief, unshrunk.
         val result = pooling.effective(beliefs.filterKeys { it == 1L }, coef, ids, now = 0L)
-        assertEquals(ln(100f), result.effective[1L]!!.mu, 1e-6f)
-        assertEquals(0.01f, result.effective[1L]!!.sigma2, 1e-6f)
+        assertEquals(ln(100f), result.effective[1L]!!.bestGuessLn, 1e-6f)
+        assertEquals(0.01f, result.effective[1L]!!.uncertainty, 1e-6f)
         // Belief-less siblings still get the full-pool (= A-only) prediction.
-        assertEquals(ln(0.8f) + ln(100f), result.effective[2L]!!.mu, 1e-5f)
+        assertEquals(ln(0.8f) + ln(100f), result.effective[2L]!!.bestGuessLn, 1e-5f)
     }
 
     @Test
@@ -85,6 +85,6 @@ class BeliefPoolingTest {
         val predVar = 1f / (1f / (0.05f + 0.01f)) + 0.01f   // B aged to 0.05, crossLiftIndependenceEstimate²=0.01
         val pOwn = 1f / 0.02f
         val pSib = 1f / predVar
-        assertEquals((pOwn * ln(100f) + pSib * vB) / (pOwn + pSib), result.effective[1L]!!.mu, 1e-5f)
+        assertEquals((pOwn * ln(100f) + pSib * vB) / (pOwn + pSib), result.effective[1L]!!.bestGuessLn, 1e-5f)
     }
 }

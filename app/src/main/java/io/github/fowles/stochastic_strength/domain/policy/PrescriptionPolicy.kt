@@ -112,7 +112,7 @@ object PrescriptionPolicy {
      * (`allEasy`) and still within the cap's expiry window, bump the rounded uncapped weight by one
      * grid increment (semantic: the smallest available plate) before the cap comparison — the
      * demonstrated-capacity cap still applies on top and can clamp the nudge away. The belief
-     * stack's in-band feedback legitimately leaves mu unmoved, so this is the steady-state
+     * stack's in-band feedback legitimately leaves bestGuessLn unmoved, so this is the steady-state
      * progressive-overload rule (spec Phase 2).
      */
     fun prescribe(

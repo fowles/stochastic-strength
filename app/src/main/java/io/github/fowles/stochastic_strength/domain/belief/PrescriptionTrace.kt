@@ -31,7 +31,7 @@ data class PrescriptionTrace(val lines: List<TraceLine>, val finalWeightKg: Floa
 object PrescriptionTraceBuilder {
     private val dateFormat get() = SimpleDateFormat("MMM d", Locale.US)
 
-    private fun sigmaPercent(sigma2: Float): Float = (exp(sqrt(sigma2.toDouble())).toFloat() - 1f) * 100f
+    private fun sigmaPercent(uncertainty: Float): Float = (exp(sqrt(uncertainty.toDouble())).toFloat() - 1f) * 100f
 
     fun build(
         exerciseId: Long,
@@ -60,7 +60,7 @@ object PrescriptionTraceBuilder {
             val foldedAt = beliefs[exerciseId]?.updatedAt ?: now
             TraceLine(
                 "Own belief",
-                "~${WeightFormatter.format(own.e1rm, weightUnit)} (±${"%.0f".format(sigmaPercent(own.sigma2))}%), " +
+                "~${WeightFormatter.format(own.e1rm, weightUnit)} (±${"%.0f".format(sigmaPercent(own.uncertainty))}%), " +
                     "last updated ${dateFormat.format(Date(foldedAt))}",
             )
         } else {
@@ -70,7 +70,7 @@ object PrescriptionTraceBuilder {
         val siblingLine = if (sibling != null) {
             TraceLine(
                 "Sibling pull",
-                "siblings imply ~${WeightFormatter.format(exp(sibling.mu), weightUnit)}; " +
+                "siblings imply ~${WeightFormatter.format(exp(sibling.bestGuessLn), weightUnit)}; " +
                     "blended at ${"%.0f".format(effective.siblingShare * 100f)}%",
             )
         } else {
@@ -79,7 +79,7 @@ object PrescriptionTraceBuilder {
 
         val effectiveLine = TraceLine(
             "Effective belief",
-            "~${WeightFormatter.format(exp(effective.mu), weightUnit)} (±${"%.0f".format(sigmaPercent(effective.sigma2))}%)",
+            "~${WeightFormatter.format(exp(effective.bestGuessLn), weightUnit)} (±${"%.0f".format(sigmaPercent(effective.uncertainty))}%)",
         )
 
         val successTarget = BeliefPrescriber.targetE1rm(effective)

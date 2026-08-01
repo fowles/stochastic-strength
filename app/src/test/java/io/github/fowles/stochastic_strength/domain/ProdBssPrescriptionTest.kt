@@ -96,9 +96,9 @@ class ProdBssPrescriptionTest {
         val exerciseMuscle = seedCoef.keys.associateWith { MuscleGroup.QUADS }
         val muscleExerciseIds = mapOf(MuscleGroup.QUADS to seedCoef.keys.toList())
         val beliefConfig = BeliefConfig()
-        val sigmaSeed2 = beliefConfig.sigmaSeed * beliefConfig.sigmaSeed
+        val seedUncertainty = beliefConfig.seedUncertaintySd * beliefConfig.seedUncertaintySd
         val beliefs: MutableMap<Long, Belief> = initials.mapValuesTo(mutableMapOf()) { (_, e1rm) ->
-            Belief(ln(e1rm), sigmaSeed2, 0L)
+            Belief(ln(e1rm), seedUncertainty, 0L)
         }
         val step = BeliefSessionStep(beliefConfig)
         for (sessionId in listOf(12L, 14L, 15L, 16L, 18L)) {

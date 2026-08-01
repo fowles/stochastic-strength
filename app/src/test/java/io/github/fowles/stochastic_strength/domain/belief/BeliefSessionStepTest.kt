@@ -31,8 +31,8 @@ class BeliefSessionStepTest {
             muscleExerciseIds = mapOf(MuscleGroup.QUADS to listOf(7L)),
             asOf = 86_400_000L,
         )
-        assertEquals(expected.mu, beliefs.getValue(7L).mu, 1e-6f)
-        assertEquals(expected.sigma2, beliefs.getValue(7L).sigma2, 1e-6f)
+        assertEquals(expected.bestGuessLn, beliefs.getValue(7L).bestGuessLn, 1e-6f)
+        assertEquals(expected.uncertainty, beliefs.getValue(7L).uncertainty, 1e-6f)
     }
 
     @Test
@@ -49,7 +49,7 @@ class BeliefSessionStepTest {
         )
         // The pre-fold effective for the cold exercise is the sibling prediction…
         val pre = result.preFoldEffective.getValue(2L)
-        assertEquals(ln(0.5f) + ln(100f), pre.mu, 1e-4f)
+        assertEquals(ln(0.5f) + ln(100f), pre.bestGuessLn, 1e-4f)
         // …and after the step the cold exercise HAS a belief (folded from that prior).
         assertTrue(2L in beliefs)
     }
@@ -92,7 +92,7 @@ class BeliefSessionStepTest {
         assertEquals(eff, quads.level, 1e-3f)
         assertEquals(1f, quads.derivedCoef.getValue(1L), 1e-4f)
         // Post-fold: the RIR_2_4 fold ran before this projection.
-        assertEquals(exp(beliefs.getValue(1L).mu), eff, 1e-3f)
+        assertEquals(exp(beliefs.getValue(1L).bestGuessLn), eff, 1e-3f)
     }
 
     @Test

@@ -75,11 +75,11 @@ class ReplayDerivedStateTest {
 
     /**
      * A non-initial per-exercise override row at a session boundary re-bases that exercise's
-     * belief to the override value (a confident belief, sigmaOverride) before that session's
+     * belief to the override value (a confident belief, overrideUncertaintySd) before that session's
      * progression is folded in. Here we seed the override well ABOVE the natural trajectory and
      * confirm the belief going into session 2 reflects it: the belief stack's single-observation
      * boundary-pull fold (Phase-2) snaps a confident-but-wrong belief hard toward the session's
-     * demonstrated interval in one fold (gain ~= sigmaOverride2 / (sigmaOverride2 + perSetDoubtEstimate2)),
+     * demonstrated interval in one fold (gain ~= overrideUncertainty / (overrideUncertainty + perSetDoubtEstimate2)),
      * so "dominates" means strictly above the no-override trajectory, not "stays near 999".
      */
     @Test

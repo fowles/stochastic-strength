@@ -22,10 +22,10 @@ import kotlin.math.ln
 class BeliefStackReplayTest {
 
     private val config = BeliefConfig(
-        sigmaSeed = 0.15f, sigmaOverride = 0.10f,
+        seedUncertaintySd = 0.15f, overrideUncertaintySd = 0.10f,
         fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 1e-3f,
         perSetDoubtEstimate = 0.10f,
-        crossLiftIndependenceEstimate = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
+        crossLiftIndependenceEstimate = 0.10f, uncertaintyFloor = 4e-4f, uncertaintyCap = 0.25f,
     )
     // Barbell Squat coef 1.00, Front Squat coef 0.80 — both QUADS (ExerciseCoefficients).
     private val squat = Exercise(id = 1, name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL)
@@ -55,13 +55,13 @@ class BeliefStackReplayTest {
         }
 
         // Hand-replay: seed belief, pool at asOf, per-set fatigue-shifted point predictions.
-        val seedBeliefs = mapOf(1L to Belief(ln(110f), config.sigmaSeed * config.sigmaSeed, 0L))
+        val seedBeliefs = mapOf(1L to Belief(ln(110f), config.seedUncertaintySd * config.seedUncertaintySd, 0L))
         val snapshot = data.newSnapshot()
         val eff = pooling.effective(seedBeliefs, snapshot.seedCoefficients,
             snapshot.muscleExerciseIds[MuscleGroup.QUADS]!!, 1 * DAY_MS).effective[1L]!!
         assertEquals(2, seen.size)
-        assertEquals(eff.mu - fold.fatigueShift(1), seen[0].predictedLn!!, 1e-5f)
-        assertEquals(eff.mu - fold.fatigueShift(2), seen[1].predictedLn!!, 1e-5f)
+        assertEquals(eff.bestGuessLn - fold.fatigueShift(1), seen[0].predictedLn!!, 1e-5f)
+        assertEquals(eff.bestGuessLn - fold.fatigueShift(2), seen[1].predictedLn!!, 1e-5f)
         assertEquals(1, seen[0].rank); assertEquals(2, seen[1].rank)
 
         // Post-fold state matches foldSession on the aged seed.
@@ -96,13 +96,13 @@ class BeliefStackReplayTest {
         // squat), so its belief after session 1 is exactly its initial muscle-baseline seed.
         val frontSeed = beliefsAfter1.getValue(2L)
         val frontCoef = CoefficientCompression.compress(0.80f, CoefficientCompression.BAKED_LAMBDA)
-        assertEquals(ln(110f * frontCoef), frontSeed.mu, 1e-5f)
-        assertEquals(config.sigmaSeed * config.sigmaSeed, frontSeed.sigma2, 1e-9f)
+        assertEquals(ln(110f * frontCoef), frontSeed.bestGuessLn, 1e-5f)
+        assertEquals(config.seedUncertaintySd * config.seedUncertaintySd, frontSeed.uncertainty, 1e-9f)
         assertEquals(0L, frontSeed.updatedAt)
 
         // Front squat HAS its own seeded belief (unlike the old cold-exercise case), so the actual
         // fold ages and folds ITS OWN belief directly — the fold is local (CLAUDE.md: "cross-informing
-        // happens only at read time"). Pre-fold pooling's blended `mu`/`sigma2` is a read-time-only
+        // happens only at read time"). Pre-fold pooling's blended `bestGuessLn`/`uncertainty` is a read-time-only
         // prediction (used for scoring/trace); the breakdown's `own` field is what the engine
         // actually folds against, and it's exposed precisely so consumers never re-derive the math.
         val fold = BeliefFold(config)

@@ -33,10 +33,10 @@ fun computeCrossTuning(
         val eff = pool.effective[id] ?: return@mapNotNull null
         val own = eff.own ?: return@mapNotNull null
         val name = namesById[id] ?: return@mapNotNull null
-        val prediction = eff.sibling?.let { exp(it.mu) } ?: 0f
+        val prediction = eff.sibling?.let { exp(it.bestGuessLn) } ?: 0f
         CrossTuningRow(
             exerciseId = id, name = name,
-            agreement = if (prediction > 0f) exp(own.mu) / prediction - 1f else 0f,
+            agreement = if (prediction > 0f) exp(own.bestGuessLn) / prediction - 1f else 0f,
             contribution = if (pool.totalVoterWeight > 0f) eff.voterWeight / pool.totalVoterWeight else 0f,
         )
     }.sortedByDescending { it.agreement }

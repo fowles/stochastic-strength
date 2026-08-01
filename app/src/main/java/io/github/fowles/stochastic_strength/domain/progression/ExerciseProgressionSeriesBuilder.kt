@@ -98,21 +98,21 @@ internal fun sampleSession(
     val pooling = BeliefPooling(config)
     val targetCoef = snapshot.seedCoefficients[targetId] ?: 0f
 
-    // Lines: own post-fold belief, leave-one-out siblings prediction, pooled effective mu/sigma.
+    // Lines: own post-fold belief, leave-one-out siblings prediction, pooled effective bestGuessLn/uncertainty.
     val ownEstimate = snapshot.currentBeliefs[targetId]?.let {
-        listOf(ProgressionPoint(asOf, exp(it.mu)))
+        listOf(ProgressionPoint(asOf, exp(it.bestGuessLn)))
     } ?: emptyList()
 
     val fullPooling = pooling.effective(snapshot.currentBeliefs, snapshot.seedCoefficients, muscleIds, asOf)
     val effective = fullPooling.effective[targetId]
-    val merged = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu))) } ?: emptyList()
-    val bandUpper = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu + sqrt(it.sigma2)))) } ?: emptyList()
-    val bandLower = effective?.let { listOf(ProgressionPoint(asOf, exp(it.mu - sqrt(it.sigma2)))) } ?: emptyList()
+    val merged = effective?.let { listOf(ProgressionPoint(asOf, exp(it.bestGuessLn))) } ?: emptyList()
+    val bandUpper = effective?.let { listOf(ProgressionPoint(asOf, exp(it.bestGuessLn + sqrt(it.uncertainty)))) } ?: emptyList()
+    val bandLower = effective?.let { listOf(ProgressionPoint(asOf, exp(it.bestGuessLn - sqrt(it.uncertainty)))) } ?: emptyList()
 
     // The leave-one-out sibling prediction comes straight off the pooling breakdown — the same
     // number the blend used, no second pool.
     val siblingsEstimate = effective?.sibling?.let {
-        listOf(ProgressionPoint(asOf, exp(it.mu)))
+        listOf(ProgressionPoint(asOf, exp(it.bestGuessLn)))
     } ?: emptyList()
 
     // Dots: own + sibling per-set observations, siblings rescaled into target space.
@@ -239,7 +239,7 @@ class ExerciseProgressionSeriesBuilder(
 ) {
     /**
      * Every exercise's merged (pooled effective) 1RM trend in a SINGLE replay: at each session,
-     * pool each touched muscle once and record `exp(mu)` for every exercise in it. This is
+     * pool each touched muscle once and record `exp(bestGuessLn)` for every exercise in it. This is
      * O(sessions × muscles-per-session) instead of [build]'s O(exercises × full-replay-with-traces),
      * for consumers that need only the merged trend — e.g. the History highlight, which reads no
      * frames or "why this weight" traces. Points are post-fold (strength as of each session's end)
@@ -256,7 +256,7 @@ class ExerciseProgressionSeriesBuilder(
                     .effective(snap.currentBeliefs, snap.seedCoefficients, muscleIds, asOf)
                     .effective
                 for ((exId, belief) in effective) {
-                    out.getOrPut(exId) { mutableListOf() }.add(ProgressionPoint(asOf, exp(belief.mu)))
+                    out.getOrPut(exId) { mutableListOf() }.add(ProgressionPoint(asOf, exp(belief.bestGuessLn)))
                 }
             }
         }

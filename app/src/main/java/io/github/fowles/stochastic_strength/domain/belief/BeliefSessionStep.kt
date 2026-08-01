@@ -61,7 +61,7 @@ class BeliefSessionStep(private val config: BeliefConfig) {
         setsByExercise.forEach { (id, exSets) ->
             if ((seedCoef[id] ?: 0f) <= 0f) return@forEach
             val prior = beliefs[id]
-                ?: preFold[id]?.let { Belief(it.mu, it.sigma2, asOf) }
+                ?: preFold[id]?.let { Belief(it.bestGuessLn, it.uncertainty, asOf) }
                 ?: return@forEach
             beliefs[id] = fold.foldSession(prior, exSets, asOf)
             exerciseMuscle[id]?.let { touched.add(it) }
@@ -71,7 +71,7 @@ class BeliefSessionStep(private val config: BeliefConfig) {
             val ids = muscleExerciseIds[muscle] ?: return@mapNotNull null
             val pool = pooling.effective(beliefs, seedCoef, ids, asOf)
             val level = pool.levelLn?.let { exp(it) } ?: 0f
-            val effective = pool.effective.mapValues { (_, e) -> exp(e.mu) }
+            val effective = pool.effective.mapValues { (_, e) -> exp(e.bestGuessLn) }
             val coefs = effective.mapValues { (id, e1rm) ->
                 if (level > 0f) e1rm / level else (seedCoef[id] ?: 0f)
             }

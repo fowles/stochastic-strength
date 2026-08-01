@@ -83,7 +83,7 @@ class WorkoutSessionControllerTest {
 
     /**
      * Seed the derived state the way the live planner reads it under the belief-stack contract:
-     * a confident per-exercise belief (≈100 kg 1RM, tight sigma) per active exercise drives the
+     * a confident per-exercise belief (≈100 kg 1RM, tight uncertainty) per active exercise drives the
      * prescribed weight, plus the muscle_group_strength display projection the detraining prompt
      * reads.
      */
@@ -94,7 +94,7 @@ class WorkoutSessionControllerTest {
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
             mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.QUADS, 100f))
             mut.putExerciseBeliefs(
-                active.associate { it.id to Belief(mu = kotlin.math.ln(100f), sigma2 = 4e-4f, updatedAt = now) }
+                active.associate { it.id to Belief(bestGuessLn = kotlin.math.ln(100f), uncertainty = 4e-4f, updatedAt = now) }
             )
         }
     }

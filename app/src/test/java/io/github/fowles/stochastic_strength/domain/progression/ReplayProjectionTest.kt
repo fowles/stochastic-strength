@@ -20,13 +20,13 @@ class ReplayProjectionTest {
         // level * derivedCoef == effectiveE1rm for every touched exercise -> the derived-state
         // projection written by replayDerivedState is internally consistent.
         val config = BeliefConfig()
-        val sigmaSeed2 = config.sigmaSeed * config.sigmaSeed
+        val seedUncertainty = config.seedUncertaintySd * config.seedUncertaintySd
         val seedCoef = mapOf(10L to 1.0f, 11L to 0.6f, 12L to 0.4f)
         val exerciseMuscle = seedCoef.keys.associateWith { MuscleGroup.QUADS }
         val muscleExerciseIds = mapOf(MuscleGroup.QUADS to seedCoef.keys.toList())
         val beliefs: MutableMap<Long, Belief> = mutableMapOf(
-            10L to Belief(ln(100f), sigmaSeed2, 0L),
-            11L to Belief(ln(58f), sigmaSeed2, 0L),
+            10L to Belief(ln(100f), seedUncertainty, 0L),
+            11L to Belief(ln(58f), seedUncertainty, 0L),
             // 12L intentionally cold (no seed belief) — it will lean on its siblings' prediction.
         )
 

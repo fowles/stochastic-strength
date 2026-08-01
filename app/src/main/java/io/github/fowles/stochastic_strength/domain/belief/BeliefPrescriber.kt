@@ -23,5 +23,5 @@ object BeliefPrescriber {
      */
     const val cautionMargin = 0.5244f
 
-    fun targetE1rm(eff: EffectiveBelief): Float = exp(eff.mu - cautionMargin * sqrt(eff.sigma2))
+    fun targetE1rm(eff: EffectiveBelief): Float = exp(eff.bestGuessLn - cautionMargin * sqrt(eff.uncertainty))
 }

@@ -25,8 +25,8 @@ class ExerciseProgressionSeriesBuilderTest {
             exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
             seedCoefficients = mapOf(1L to 1.0f, 2L to 0.6f),
         )
-        snap.currentBeliefs[1L] = Belief(mu = ln(100f), sigma2 = 0.01f, updatedAt = 0L)
-        snap.currentBeliefs[2L] = Belief(mu = ln(60f), sigma2 = 0.01f, updatedAt = 0L)
+        snap.currentBeliefs[1L] = Belief(bestGuessLn = ln(100f), uncertainty = 0.01f, updatedAt = 0L)
+        snap.currentBeliefs[2L] = Belief(bestGuessLn = ln(60f), uncertainty = 0.01f, updatedAt = 0L)
         return snap
     }
 
@@ -73,7 +73,7 @@ class ExerciseProgressionSeriesBuilderTest {
             seedCoefficients = snap.seedCoefficients + (crossMuscleId to 0.5f),
         ).also {
             it.currentBeliefs.putAll(snap.currentBeliefs)
-            it.currentBeliefs[crossMuscleId] = Belief(mu = ln(200f), sigma2 = 0.01f, updatedAt = 0L)
+            it.currentBeliefs[crossMuscleId] = Belief(bestGuessLn = ln(200f), uncertainty = 0.01f, updatedAt = 0L)
         }
         val sets = listOf(
             set(exerciseId = 2L, weight = 60f, reps = 5),           // same-muscle sibling
@@ -99,8 +99,8 @@ class ExerciseProgressionSeriesBuilderTest {
             exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.CHEST),
             seedCoefficients = mapOf(1L to 1.0f, 2L to 0.6f),
         )
-        snap.currentBeliefs[1L] = Belief(mu = ln(80f), sigma2 = 0.01f, updatedAt = 0L)
-        snap.currentBeliefs[2L] = Belief(mu = ln(60f), sigma2 = 0.01f, updatedAt = 0L)
+        snap.currentBeliefs[1L] = Belief(bestGuessLn = ln(80f), uncertainty = 0.01f, updatedAt = 0L)
+        snap.currentBeliefs[2L] = Belief(bestGuessLn = ln(60f), uncertainty = 0.01f, updatedAt = 0L)
         val asOf = 1_000L
         val pooling = BeliefPooling(config)
 
@@ -114,17 +114,17 @@ class ExerciseProgressionSeriesBuilderTest {
             config = config,
         )
 
-        // Expected merged value: full pooling effective mu for target 1.
+        // Expected merged value: full pooling effective bestGuessLn for target 1.
         val expectedEffective = pooling
             .effective(snap.currentBeliefs, snap.seedCoefficients, listOf(1L, 2L), asOf)
             .effective.getValue(1L)
-        val expectedMerged = exp(expectedEffective.mu)
+        val expectedMerged = exp(expectedEffective.bestGuessLn)
 
         assertEquals(1, sample.merged.size)
         assertEquals(expectedMerged, sample.merged.single().value, 1e-3f)
 
-        val expectedUpper = exp(expectedEffective.mu + sqrt(expectedEffective.sigma2))
-        val expectedLower = exp(expectedEffective.mu - sqrt(expectedEffective.sigma2))
+        val expectedUpper = exp(expectedEffective.bestGuessLn + sqrt(expectedEffective.uncertainty))
+        val expectedLower = exp(expectedEffective.bestGuessLn - sqrt(expectedEffective.uncertainty))
         assertEquals(1, sample.bandUpper.size)
         assertEquals(expectedUpper, sample.bandUpper.single().value, 1e-3f)
         assertEquals(expectedLower, sample.bandLower.single().value, 1e-3f)
@@ -157,14 +157,14 @@ class ExerciseProgressionSeriesBuilderTest {
 
         assertEquals(1, sample.ownEstimate.size)
         assertEquals(asOf, sample.ownEstimate.single().timestampMs)
-        assertEquals(exp(folded.mu), sample.ownEstimate.single().value, 1e-2f)
+        assertEquals(exp(folded.bestGuessLn), sample.ownEstimate.single().value, 1e-2f)
     }
 
     @Test
     fun leaveOneOutLineExcludesTargetVote() {
         val snap = snapshot()
         // Make target (1) artificially huge; leave-one-out must ignore it and reflect sibling 2.
-        snap.currentBeliefs[1L] = Belief(mu = ln(1000f), sigma2 = 0.01f, updatedAt = 0L)
+        snap.currentBeliefs[1L] = Belief(bestGuessLn = ln(1000f), uncertainty = 0.01f, updatedAt = 0L)
         val sample = sampleSession(
             targetId = 1L,
             muscleIds = listOf(1L, 2L),

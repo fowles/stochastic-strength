@@ -8,8 +8,8 @@ import kotlin.math.ln
  * that actually ran instead of re-deriving it).
  */
 data class EffectiveBelief(
-    val mu: Float,
-    val sigma2: Float,
+    val bestGuessLn: Float,
+    val uncertainty: Float,
     /** The aged own belief that entered the blend; null for a cold exercise. */
     val own: Belief? = null,
     /** The leave-one-out sibling prediction (ln coef + L₋ᵢ, var(L₋ᵢ) + τ²); null with no other voters. */
@@ -35,7 +35,7 @@ data class MusclePoolResult(
  * blend of the own aged belief with the leave-one-out sibling prediction
  * (ln coef_i + L₋ᵢ, var(L₋ᵢ) + crossLiftIndependenceEstimate²). Fresh tight evidence mathematically outvotes siblings;
  * stale (aged) exercises lean on them. Exercises without a belief take the full-pool prediction —
- * no separate seed-anchor constant: seeded-cold exercises sit at seed with sigmaSeed and anchor
+ * no separate seed-anchor constant: seeded-cold exercises sit at seed with seedUncertaintySd and anchor
  * the level automatically.
  */
 class BeliefPooling(private val config: BeliefConfig) {
@@ -59,7 +59,7 @@ class BeliefPooling(private val config: BeliefConfig) {
             if (coef <= 0f) continue
             val b = beliefs[id]?.let { fold.aged(it, now) } ?: continue
             aged[id] = b
-            voters[id] = Voter(vote = b.mu - ln(coef), weight = 1f / (b.sigma2 + independenceVar))
+            voters[id] = Voter(vote = b.bestGuessLn - ln(coef), weight = 1f / (b.uncertainty + independenceVar))
         }
         val sumW = voters.values.sumOf { it.weight.toDouble() }.toFloat()
         val sumWV = voters.values.sumOf { (it.weight * it.vote).toDouble() }.toFloat()
@@ -75,15 +75,15 @@ class BeliefPooling(private val config: BeliefConfig) {
             val looW = sumW - (voter?.weight ?: 0f)
             val looWV = sumWV - ((voter?.weight ?: 0f) * (voter?.vote ?: 0f))
             val sibling: EffectiveBelief? = if (looW > 0f) {
-                EffectiveBelief(mu = ln(coef) + looWV / looW, sigma2 = 1f / looW + independenceVar)
+                EffectiveBelief(bestGuessLn = ln(coef) + looWV / looW, uncertainty = 1f / looW + independenceVar)
             } else null
             effective[id] = when {
                 own != null && sibling != null -> {
-                    val pOwn = 1f / own.sigma2
-                    val pSib = 1f / sibling.sigma2
+                    val pOwn = 1f / own.uncertainty
+                    val pSib = 1f / sibling.uncertainty
                     EffectiveBelief(
-                        mu = (pOwn * own.mu + pSib * sibling.mu) / (pOwn + pSib),
-                        sigma2 = 1f / (pOwn + pSib),
+                        bestGuessLn = (pOwn * own.bestGuessLn + pSib * sibling.bestGuessLn) / (pOwn + pSib),
+                        uncertainty = 1f / (pOwn + pSib),
                         own = own,
                         sibling = sibling,
                         siblingShare = pSib / (pOwn + pSib),
@@ -91,7 +91,7 @@ class BeliefPooling(private val config: BeliefConfig) {
                     )
                 }
                 own != null -> EffectiveBelief(
-                    own.mu, own.sigma2,
+                    own.bestGuessLn, own.uncertainty,
                     own = own, siblingShare = 0f, voterWeight = voter?.weight ?: 0f,
                 )
                 sibling != null -> sibling.copy(sibling = sibling, siblingShare = 1f)

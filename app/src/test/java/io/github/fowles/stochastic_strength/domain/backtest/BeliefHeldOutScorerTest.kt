@@ -17,10 +17,10 @@ import org.junit.Test
 
 class BeliefHeldOutScorerTest {
     private val config = BeliefConfig(
-        sigmaSeed = 0.15f, sigmaOverride = 0.10f,
+        seedUncertaintySd = 0.15f, overrideUncertaintySd = 0.10f,
         fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 1e-3f,
         perSetDoubtEstimate = 0.10f,
-        crossLiftIndependenceEstimate = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
+        crossLiftIndependenceEstimate = 0.10f, uncertaintyFloor = 4e-4f, uncertaintyCap = 0.25f,
     )
 
     @Test

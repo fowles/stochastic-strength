@@ -25,9 +25,9 @@ class BuildSessionTraceTest {
     @Test
     fun capBindsWhenPriorSessionFailedTheWantedWeight() {
         // Belief wants a weight that exceeds the failed cap; a recent failed (TOO_HARD) session at
-        // a lower weight must surface a binding capacity cap in the trace. The belief mu = ln(60f)
+        // a lower weight must surface a binding capacity cap in the trace. The belief bestGuessLn = ln(60f)
         // produces an uncapped prescription > 35 kg, so the TOO_HARD at 35 kg caps it.
-        val beliefs = mapOf(1L to Belief(mu = ln(60f), sigma2 = 0.005f, updatedAt = 0L))
+        val beliefs = mapOf(1L to Belief(bestGuessLn = ln(60f), uncertainty = 0.005f, updatedAt = 0L))
         val now = 100_000_000L
         val priorSets = listOf(
             completedSet(1L, weight = 35f, reps = 10, actual = 6, fb = SetFeedback.TOO_HARD, at = now - 1_000L),
@@ -53,7 +53,7 @@ class BuildSessionTraceTest {
 
     @Test
     fun setsOutsideTheFactsWindowDoNotFormFacts() {
-        val beliefs = mapOf(1L to Belief(mu = ln(60f), sigma2 = 0.005f, updatedAt = 0L))
+        val beliefs = mapOf(1L to Belief(bestGuessLn = ln(60f), uncertainty = 0.005f, updatedAt = 0L))
         val now = 100_000_000L
         // A failed session OLDER than the facts window must be ignored (no binding cap).
         val stale = now - PrescriptionPolicy.FACTS_WINDOW_MS - 1_000L
@@ -72,7 +72,7 @@ class BuildSessionTraceTest {
 
     @Test
     fun emptyPriorSetsProducesNoCap() {
-        val beliefs = mapOf(1L to Belief(mu = ln(60f), sigma2 = 0.005f, updatedAt = 0L))
+        val beliefs = mapOf(1L to Belief(bestGuessLn = ln(60f), uncertainty = 0.005f, updatedAt = 0L))
         val now = 100_000_000L
         // With no prior sets, there are no failed sessions to form a capacity cap.
         val priorSets = emptyList<WorkoutSet>()

@@ -151,7 +151,7 @@ class DerivedStateStoreTest {
         val store = DerivedStateStore()
         assertTrue(store.snapshot().exerciseBeliefs().isEmpty())
         store.rebuild { it.putExerciseBeliefs(mapOf(3L to Belief(4.6f, 0.01f, 99L))) }
-        assertEquals(4.6f, store.snapshot().exerciseBeliefs().getValue(3L).mu, 1e-6f)
+        assertEquals(4.6f, store.snapshot().exerciseBeliefs().getValue(3L).bestGuessLn, 1e-6f)
     }
 
     private fun baselineRow(muscle: MuscleGroup, ts: Long) = BaselineHistory(

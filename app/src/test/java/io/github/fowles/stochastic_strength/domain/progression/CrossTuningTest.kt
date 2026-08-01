@@ -11,7 +11,7 @@ class CrossTuningTest {
 
     private val config = BeliefConfig()
 
-    private fun belief(e1rm: Float, sigma2: Float) = Belief(mu = ln(e1rm), sigma2 = sigma2, updatedAt = 0L)
+    private fun belief(e1rm: Float, uncertainty: Float) = Belief(bestGuessLn = ln(e1rm), uncertainty = uncertainty, updatedAt = 0L)
 
     @Test
     fun agreementIsZeroWhenExerciseMatchesLeaveOneOutPrediction() {

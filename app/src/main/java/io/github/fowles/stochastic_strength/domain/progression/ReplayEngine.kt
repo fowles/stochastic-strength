@@ -64,8 +64,8 @@ class ReplayEngine(
     }
 
     /**
-     * The engine itself: seed beliefs from initial seeds (sigmaSeed), then for each completed
-     * session in (endTime, id) order apply its session seeds (sigmaOverride), fold its sets, and
+     * The engine itself: seed beliefs from initial seeds (seedUncertaintySd), then for each completed
+     * session in (endTime, id) order apply its session seeds (overrideUncertaintySd), fold its sets, and
      * notify [observer]. [beforeSession] (optional) runs after the seeds but before the fold — a
      * pre-fold inspection hook (the backtest pools held-out beliefs there).
      */
@@ -78,11 +78,11 @@ class ReplayEngine(
         observer: SessionObserver,
         beforeSession: ((beliefs: Map<Long, Belief>, asOf: Long) -> Unit)? = null,
     ) {
-        val sigmaSeed2 = beliefConfig.sigmaSeed * beliefConfig.sigmaSeed
-        val sigmaOverride2 = beliefConfig.sigmaOverride * beliefConfig.sigmaOverride
+        val seedUncertainty = beliefConfig.seedUncertaintySd * beliefConfig.seedUncertaintySd
+        val overrideUncertainty = beliefConfig.overrideUncertaintySd * beliefConfig.overrideUncertaintySd
 
         for (seed in initialSeeds) {
-            snapshot.currentBeliefs[seed.exerciseId] = Belief(ln(seed.e1rm), sigmaSeed2, seed.asOf)
+            snapshot.currentBeliefs[seed.exerciseId] = Belief(ln(seed.e1rm), seedUncertainty, seed.asOf)
         }
 
         val ordered = sessions
@@ -91,7 +91,7 @@ class ReplayEngine(
 
         for (session in ordered) {
             sessionSeeds[session.id]?.forEach { seed ->
-                snapshot.currentBeliefs[seed.exerciseId] = Belief(ln(seed.e1rm), sigmaOverride2, seed.asOf)
+                snapshot.currentBeliefs[seed.exerciseId] = Belief(ln(seed.e1rm), overrideUncertainty, seed.asOf)
             }
 
             val sets = setsForSession(session.id)
