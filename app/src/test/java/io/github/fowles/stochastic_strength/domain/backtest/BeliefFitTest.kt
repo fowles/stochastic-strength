@@ -25,7 +25,7 @@ class BeliefFitTest {
         sb.appendLine("=== Phase 2 fit: belief constants on real history (authority: held-out total) ===")
         sb.appendLine("best score : ${"%.4f".format(result.bestScore)} ln-units")
         sb.appendLine("best config: fatiguePerSetEstimate=${result.best.fatiguePerSetEstimate} confidenceDecayEstimate=${result.best.confidenceDecayEstimate} " +
-            "perSetDoubtEstimate=${result.best.perSetDoubtEstimate} tau=${result.best.tau}")
+            "perSetDoubtEstimate=${result.best.perSetDoubtEstimate} crossLiftIndependenceEstimate=${result.best.crossLiftIndependenceEstimate}")
         for ((axis, curve) in result.curves) {
             sb.appendLine("curve $axis : " + curve.joinToString("  ") { (v, s) -> "$v→${"%.4f".format(s)}" })
         }

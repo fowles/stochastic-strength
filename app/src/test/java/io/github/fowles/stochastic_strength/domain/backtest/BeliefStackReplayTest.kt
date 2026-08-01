@@ -25,7 +25,7 @@ class BeliefStackReplayTest {
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
         fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 1e-3f,
         perSetDoubtEstimate = 0.10f,
-        tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
+        crossLiftIndependenceEstimate = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )
     // Barbell Squat coef 1.00, Front Squat coef 0.80 — both QUADS (ExerciseCoefficients).
     private val squat = Exercise(id = 1, name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL)

@@ -11,7 +11,7 @@ class BeliefPoolingTest {
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
         fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 0f,           // confidenceDecayEstimate=0: aging is a no-op so numbers are exact
         perSetDoubtEstimate = 0.10f,
-        tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
+        crossLiftIndependenceEstimate = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )
     private val pooling = BeliefPooling(config)
 
@@ -24,14 +24,14 @@ class BeliefPoolingTest {
     private val ids = listOf(1L, 2L, 3L)
 
     // Transparent restatement of the spec math (weights, not the SUT's code).
-    private fun w(sigma2: Float) = 1f / (sigma2 + config.tau * config.tau)
+    private fun w(sigma2: Float) = 1f / (sigma2 + config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate)
 
     @Test
     fun ownBeliefBlendsWithLeaveOneOutSiblingPrediction() {
         val result = pooling.effective(beliefs, coef, ids, now = 0L)
-        // LOO level for A = B's vote alone; prediction variance = level var + tau².
+        // LOO level for A = B's vote alone; prediction variance = level var + crossLiftIndependenceEstimate².
         val vB = ln(72f) - ln(0.8f)
-        val predVar = 1f / w(0.04f) + config.tau * config.tau
+        val predVar = 1f / w(0.04f) + config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate
         val pOwn = 1f / 0.01f
         val pSib = 1f / predVar
         val expectedMu = (pOwn * ln(100f) + pSib * (ln(1.0f) + vB)) / (pOwn + pSib)
@@ -47,7 +47,7 @@ class BeliefPoolingTest {
         val level = (wA * (ln(100f) - ln(1.0f)) + wB * (ln(72f) - ln(0.8f))) / (wA + wB)
         val c = result.effective[3L]!!
         assertEquals(ln(0.5f) + level, c.mu, 1e-5f)
-        assertEquals(1f / (wA + wB) + config.tau * config.tau, c.sigma2, 1e-6f)
+        assertEquals(1f / (wA + wB) + config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate, c.sigma2, 1e-6f)
         assertEquals(level, result.levelLn!!, 1e-5f)
     }
 
@@ -82,7 +82,7 @@ class BeliefPoolingTest {
         val result = aging.effective(beliefs, coef, ids, now = tenDays)
         // A's own variance is aged from 0.01 → 0.02 before blending.
         val vB = ln(72f) - ln(0.8f)
-        val predVar = 1f / (1f / (0.05f + 0.01f)) + 0.01f   // B aged to 0.05, tau²=0.01
+        val predVar = 1f / (1f / (0.05f + 0.01f)) + 0.01f   // B aged to 0.05, crossLiftIndependenceEstimate²=0.01
         val pOwn = 1f / 0.02f
         val pSib = 1f / predVar
         assertEquals((pOwn * ln(100f) + pSib * vB) / (pOwn + pSib), result.effective[1L]!!.mu, 1e-5f)

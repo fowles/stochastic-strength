@@ -15,7 +15,7 @@ class BeliefFoldTest {
         sigmaSeed = 0.15f, sigmaOverride = 0.10f,
         fatiguePerSetEstimate = 0.05f, confidenceDecayEstimate = 1e-3f,
         perSetDoubtEstimate = 0.10f,
-        tau = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
+        crossLiftIndependenceEstimate = 0.10f, sigma2Floor = 4e-4f, sigma2Cap = 0.25f,
     )
     private val fold = BeliefFold(config)
 

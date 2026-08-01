@@ -38,7 +38,7 @@ data class BeliefConfig(
      */
     val perSetDoubtEstimate: Float = 0.005f,
     /** `fitted` 2026-07-15, curve in phase-2 plan appendix: transfer noise between same-muscle exercises in pooling. */
-    val tau: Float = 0.2f,
+    val crossLiftIndependenceEstimate: Float = 0.2f,
     /** `flat` guard: sigma never collapses below ±2%. */
     val sigma2Floor: Float = 4e-4f,
     /** `flat` guard: sigma never exceeds ±50% (aging saturates). */

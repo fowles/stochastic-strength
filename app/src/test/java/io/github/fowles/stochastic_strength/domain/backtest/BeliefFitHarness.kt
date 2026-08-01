@@ -22,7 +22,7 @@ object BeliefFitHarness {
         Axis("fatiguePerSetEstimate", listOf(0f, 0.01f, 0.02f, 0.03f, 0.05f, 0.08f), { it.fatiguePerSetEstimate }, { c, v -> c.copy(fatiguePerSetEstimate = v) }),
         Axis("confidenceDecayEstimate", listOf(1e-6f, 3e-6f, 1e-5f, 3e-5f, 1e-4f, 3e-4f, 1e-3f, 3e-3f), { it.confidenceDecayEstimate }, { c, v -> c.copy(confidenceDecayEstimate = v) }),
         Axis("perSetDoubtEstimate", listOf(0.001f, 0.002f, 0.005f, 0.01f, 0.02f, 0.04f, 0.07f, 0.10f, 0.15f, 0.25f), { it.perSetDoubtEstimate }, { c, v -> c.copy(perSetDoubtEstimate = v) }),
-        Axis("tau", listOf(0.05f, 0.08f, 0.12f, 0.20f, 0.30f, 0.50f, 0.80f, 1.20f), { it.tau }, { c, v -> c.copy(tau = v) }),
+        Axis("crossLiftIndependenceEstimate", listOf(0.05f, 0.08f, 0.12f, 0.20f, 0.30f, 0.50f, 0.80f, 1.20f), { it.crossLiftIndependenceEstimate }, { c, v -> c.copy(crossLiftIndependenceEstimate = v) }),
     )
 
     data class FitResult(

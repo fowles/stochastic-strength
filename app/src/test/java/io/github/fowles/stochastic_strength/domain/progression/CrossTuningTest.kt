@@ -35,7 +35,7 @@ class CrossTuningTest {
         // Exercise 1 has tighter variance (more precise) than exercise 2 -> larger contribution share.
         val beliefs = mapOf(1L to belief(100f, 0.01f), 2L to belief(30f, 0.04f))
         val seed = mapOf(1L to 1.0f, 2L to 0.3f)
-        val tau2 = config.tau * config.tau
+        val independenceVar = config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate
         val rows = computeCrossTuning(
             beliefs = beliefs,
             seedCoef = seed,
@@ -44,8 +44,8 @@ class CrossTuningTest {
             now = 0L,
             config = config,
         )
-        val w1 = 1f / (0.01f + tau2)
-        val w2 = 1f / (0.04f + tau2)
+        val w1 = 1f / (0.01f + independenceVar)
+        val w2 = 1f / (0.04f + independenceVar)
         val totalW = w1 + w2
         val row1 = rows.first { it.exerciseId == 1L }
         val row2 = rows.first { it.exerciseId == 2L }

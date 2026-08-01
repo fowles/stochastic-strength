@@ -31,9 +31,9 @@ data class MusclePoolResult(
 
 /**
  * Read-time pooling (spec Phase 2; never mutates beliefs). Each exercise with a belief votes
- * mu_j − ln(coef_j) with precision 1/(sigma_j² + tau²); the effective belief is the precision
+ * mu_j − ln(coef_j) with precision 1/(sigma_j² + crossLiftIndependenceEstimate²); the effective belief is the precision
  * blend of the own aged belief with the leave-one-out sibling prediction
- * (ln coef_i + L₋ᵢ, var(L₋ᵢ) + tau²). Fresh tight evidence mathematically outvotes siblings;
+ * (ln coef_i + L₋ᵢ, var(L₋ᵢ) + crossLiftIndependenceEstimate²). Fresh tight evidence mathematically outvotes siblings;
  * stale (aged) exercises lean on them. Exercises without a belief take the full-pool prediction —
  * no separate seed-anchor constant: seeded-cold exercises sit at seed with sigmaSeed and anchor
  * the level automatically.
@@ -49,7 +49,7 @@ class BeliefPooling(private val config: BeliefConfig) {
         muscleExerciseIds: List<Long>,
         now: Long,
     ): MusclePoolResult {
-        val tau2 = config.tau * config.tau
+        val independenceVar = config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate
         // Loaded voters, aged to now. Insertion-ordered maps keep the summation order identical
         // to the muscleExerciseIds order (the backtest gate is pinned bit-identical).
         val aged = mutableMapOf<Long, Belief>()
@@ -59,7 +59,7 @@ class BeliefPooling(private val config: BeliefConfig) {
             if (coef <= 0f) continue
             val b = beliefs[id]?.let { fold.aged(it, now) } ?: continue
             aged[id] = b
-            voters[id] = Voter(vote = b.mu - ln(coef), weight = 1f / (b.sigma2 + tau2))
+            voters[id] = Voter(vote = b.mu - ln(coef), weight = 1f / (b.sigma2 + independenceVar))
         }
         val sumW = voters.values.sumOf { it.weight.toDouble() }.toFloat()
         val sumWV = voters.values.sumOf { (it.weight * it.vote).toDouble() }.toFloat()
@@ -75,7 +75,7 @@ class BeliefPooling(private val config: BeliefConfig) {
             val looW = sumW - (voter?.weight ?: 0f)
             val looWV = sumWV - ((voter?.weight ?: 0f) * (voter?.vote ?: 0f))
             val sibling: EffectiveBelief? = if (looW > 0f) {
-                EffectiveBelief(mu = ln(coef) + looWV / looW, sigma2 = 1f / looW + tau2)
+                EffectiveBelief(mu = ln(coef) + looWV / looW, sigma2 = 1f / looW + independenceVar)
             } else null
             effective[id] = when {
                 own != null && sibling != null -> {
