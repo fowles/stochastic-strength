@@ -7,7 +7,7 @@ Consumed by: the per-exercise [belief fold](03-exercise-estimates.md), via
 Before anything can adapt, one logged set has to become a piece of evidence: "given how
 that set actually went, what does it say about your fresh one-rep max for this lift right
 now?" Unlike the old design, there is no per-session aggregation step — **every set is its
-own piece of feedback**, folded into the belief individually and in set-id order.
+own piece of feedback**, folded into the estimate individually and in set-id order.
 `SetIntervals.impliedLn1RmInterval` is the shared translation, used identically by the
 belief fold and by the held-out backtest metric that scores it, so a stack can't game its
 own score with its own modeling assumptions.
@@ -27,11 +27,11 @@ rep-max formula and the reported bucket — no fatigue correction, no belief con
 | **RIR 5+** ("lots left") | `[1RM(w, r+5), ∞)` — unbounded above |
 | **Hurt** / no feedback | no interval — carries no load information |
 
-A belief that already sits inside the interval is **confirmed** by the set (unchanged
-mean, tighter variance); a belief outside the interval gets pulled toward the boundary it
-violates. See [the fold](03-exercise-estimates.md) for the mechanics. This is symmetric:
-a strong, RIR-5+ set pulls the belief up exactly as hard as a failure pulls it down — there
-is no down-snap or off-day damping in the estimator itself. (Weight *creeping back up* to a
+An estimate that already sits inside the interval is **confirmed** by the set (best guess
+unchanged, uncertainty tightened); an estimate outside the interval gets pulled toward the
+boundary it violates. See [the fold](03-exercise-estimates.md) for the mechanics. This is
+symmetric: a strong, RIR-5+ set pulls the estimate up exactly as hard as a failure pulls it
+down — there is no down-snap or off-day damping in the estimator itself. (Weight *creeping back up* to a
 just-failed number is prevented separately, by the policy cap — see
 [muscle pooling](04-muscle-pooling.md).)
 
@@ -43,14 +43,16 @@ within the session — **every row counts toward the rank, including HURT and
 feedback-less rows** — and set *k*'s implied interval is shifted **up** before folding by
 
 ```
-shift(k) = −ln(1 − phi·(k−1))
+shift(k) = −ln(1 − fatiguePerSetEstimate·(k−1))
 ```
 
 so a later, more-fatigued set is read as implying a *higher* fresh capacity than its raw
 numbers alone would suggest (a heavier "true" 1RM is consistent with managing that weight
-after prior fatigue). `phi` is the one fatigue constant — `fitted` on real history (see
-`BeliefConfig.phi`, curve recorded in the phase-2 plan appendix). The shift is capped so it
-stays finite (`phi·(k−1)` clamped below 0.9 before the log).
+after prior fatigue). `fatiguePerSetEstimate` is our one guess at how much each prior set
+saps fresh capacity — `fitted` on real history (see `BeliefConfig.fatiguePerSetEstimate`,
+curve recorded in the phase-2 plan appendix), an estimate we tune, not a measured law. The
+shift is capped so it stays finite (`fatiguePerSetEstimate·(k−1)` clamped below 0.9 before
+the log).
 
 ## What carries no signal
 

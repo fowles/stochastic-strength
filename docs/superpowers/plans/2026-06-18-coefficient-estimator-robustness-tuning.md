@@ -500,7 +500,7 @@ class CoefficientConvergenceSimulationTest {
             !maxStepPct.isNaN() && !maxStepPct.isInfinite() &&
             !avgEndErrorPct.isNaN() && !avgEndErrorPct.isInfinite()
 
-    /** Damper sweep over alpha x tau x minRelChange (full peers). Writes the report and returns rows. */
+    /** Damper sweep over alpha x crossLiftIndependenceEstimate x minRelChange (full peers). Writes the report and returns rows. */
     fun damperSweep(): List<SweepRow> {
         val rows = mutableListOf<SweepRow>()
         val sb = StringBuilder()

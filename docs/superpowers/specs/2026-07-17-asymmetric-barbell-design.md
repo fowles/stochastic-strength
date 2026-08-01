@@ -18,7 +18,7 @@ We want two things:
 - Give asymmetric barbell exercises **proper handling**: no plate breakdown, and the
   ordinary percentage-ramp warmup path.
 
-Equipment must remain `BARBELL` so belief pooling / per-equipment τ is unchanged.
+Equipment must remain `BARBELL` so belief pooling / per-equipment crossLiftIndependenceEstimate is unchanged.
 
 ## Design
 
@@ -133,5 +133,5 @@ builder (`BackupJson.kt` ~line 68) and the parser (~line 158) so it round-trips.
 
 ## Non-goals
 
-- No new `Equipment` enum value (would break per-equipment τ pooling).
+- No new `Equipment` enum value (would break per-equipment crossLiftIndependenceEstimate pooling).
 - No change to `platesPerSide` math or the belief/progression stack.

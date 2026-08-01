@@ -24,7 +24,7 @@ established two things from the real `history.json`:
 and `StartingWeights`, plus a v18→v19 backfill migration to compress existing users' materialized
 seed rows. That is the wrong shape: λ only ever transforms fixed guessed constants into other fixed
 constants — it has no runtime dependence, so its output can be precomputed. It is not the same kind
-of thing as `phi`/`tau`/`qPerDay`, which govern live estimator dynamics.
+of thing as `fatiguePerSetEstimate`/`crossLiftIndependenceEstimate`/`confidenceDecayEstimate`, which govern live estimator dynamics.
 
 **This work** replaces the runtime knob with a fitted, precomputed coefficient table, and collapses
 the durable state that forced coefficient changes to migrate user data.

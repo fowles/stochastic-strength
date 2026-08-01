@@ -16,7 +16,7 @@
 - **Bodyweight (`coef == 0`) exercises stay 0** and **reference lifts (`coef == 1`) stay 1** under compression.
 - **No migration.** Coefficients are not stored per user; changing them is a pure code change re-derived by idempotent `replayDerivedState`.
 - **ONE fitness authority** (constitution rule 1): the held-out belief score on real history (`BeliefHeldOutScorer`). The forward-chaining cold-start RMSE (python scratchpad this session: RMSE 0.275→0.226 at λ≈0.75–0.80 under leave-one-exercise-out) is **already-recorded design evidence**, cited, not re-derived in Kotlin.
-- **λ adoption and gate re-baseline are human decisions** — the fit test *reports*; a person adopts the printed value by hand (same ceremony as `phi`/`tau` in `BeliefConfig`).
+- **λ adoption and gate re-baseline are human decisions** — the fit test *reports*; a person adopts the printed value by hand (same ceremony as `fatiguePerSetEstimate`/`crossLiftIndependenceEstimate` in `BeliefConfig`).
 - Constitution rule 2: every new tuning constant is labeled `semantic`/`fitted`/`flat` with provenance.
 
 ---

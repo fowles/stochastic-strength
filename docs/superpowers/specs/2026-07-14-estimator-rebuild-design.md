@@ -127,8 +127,8 @@ seed/override beliefs with σ_seed/σ_override.
 
 - **Set → interval.** The same bounds table as the harness metric.
 - **Fatigue shift.** Set *k* (1-based rank among the exercise's rows in the session,
-  including feedback-less/HURT rows) observes fresh capacity reduced by φ·(k−1); the
-  interval is shifted up by −ln(1 − φ·(k−1)) before folding. One constant φ, `fitted`.
+  including feedback-less/HURT rows) observes fresh capacity reduced by fatiguePerSetEstimate·(k−1); the
+  interval is shifted up by −ln(1 − fatiguePerSetEstimate·(k−1)) before folding. One constant fatiguePerSetEstimate, `fitted`.
 - **Boundary-pull Gaussian fold.** If μ lies inside the set's (shifted) interval, the set
   confirms: μ unchanged, σ shrinks as a Gaussian fold at the nearer boundary would shrink
   it. If μ lies outside, fold a Gaussian observation at the violated boundary — one Kalman
@@ -150,11 +150,11 @@ so your ceiling is at least ~24; we were below, so we moved up toward it").
 ## Phase 2 — Pooling (read-time, never mutates beliefs)
 
 - **Muscle level.** Each loaded exercise votes `μ_j − ln(coef_j)` with precision
-  `1/(σ_j² + τ²)`; τ = transfer noise, **one constant** (`fitted` or `flat`; the branch's
-  three per-equipment τs were simulator-tuned and start collapsed). No separate seed-anchor
+  `1/(σ_j² + crossLiftIndependenceEstimate²)`; crossLiftIndependenceEstimate = transfer noise, **one constant** (`fitted` or `flat`; the branch's
+  three per-equipment crossLiftIndependenceEstimates were simulator-tuned and start collapsed). No separate seed-anchor
   constant: cold exercises sit at seed with σ_seed and anchor the level automatically.
 - **Effective belief.** Precision-weighted blend of own `(μ_i, σ_i²)` with the sibling
-  prediction `(ln coef_i + L₋ᵢ, σ²_level + τ²)`, leave-one-out so an exercise never borrows
+  prediction `(ln coef_i + L₋ᵢ, σ²_level + crossLiftIndependenceEstimate²)`, leave-one-out so an exercise never borrows
   its own evidence back. Fresh two-sided evidence (small own σ) mathematically outvotes
   siblings — the principled replacement for the branch's `evidenceVar`/`siblingExcess`
   gate. Stale exercises (aged σ) lean on siblings.
@@ -186,7 +186,7 @@ formula → policy caps → grid round. Two semantic constants:
 
 ## Constant ledger (target)
 
-Estimator (~7): σ_seed, σ_override (semantic-ish priors), q (fitted), φ (fitted), 1–2
+Estimator (~7): σ_seed, σ_override (semantic-ish priors), q (fitted), fatiguePerSetEstimate (fitted), 1–2
 obs-σ (fitted/flat), σ floor/cap (flat guards).
 Policy/prescription (~8, all semantic): cap expiry 28 d; HURT depth/half-life/floor;
 cooldown 2 d; z; overload nudge = one grid increment.

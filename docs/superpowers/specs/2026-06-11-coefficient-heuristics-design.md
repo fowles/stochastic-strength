@@ -86,7 +86,7 @@ For each exercise `e` with `seed_coef > 0` (bodyweight exercises are skipped):
 1. Collect `(est_coef_e,s, weight_e,s)` for every session `s` where the exercise appeared with a usable signal. No hard time cutoff — recency decay does the work.
    - `est_coef_e,s = est_1RM_e,s / muscleBaseline_at_s`
    - `weight_e,s = recency(s) × session_confidence_e,s`
-   - `recency(s) = exp(-(now - sessionTime_s) × ln(2) / τ_half)` — at `Δt = τ_half`, recency = 0.5
+   - `recency(s) = exp(-(now - sessionTime_s) × ln(2) / crossLiftIndependenceEstimate_half)` — at `Δt = crossLiftIndependenceEstimate_half`, recency = 0.5
 2. Compute the **weighted median** of `est_coef_e,s` values, weighted by `weight_e,s`. This is `proposal_e`.
 3. Compute `total_weight_e = Σ weight_e,s`.
 4. Compute `proposal_confidence_e = Σ(recency_e,s × session_confidence_e,s) / Σ recency_e,s` — recency-weighted mean of session confidences. (Not weighted by `weight_e,s`, which would double-count confidence.)
@@ -117,14 +117,14 @@ case (n, pattern):
     pass through (no consensus check possible — H1's proposal stands at proposal_confidence_e)
 
   n ≥ 2 AND all signed_log_ratio_e same sign AND
-    |mean_log_ratio| > τ_consensus_threshold:
+    |mean_log_ratio| > crossLiftIndependenceEstimate_consensus_threshold:
     → likely baseline-engine drift, NOT coefficient miscalibration
     → suppress all proposals in m (emit nothing for this muscle group this round)
     → metadata on a suppressed-but-logged marker is out of scope (see Open Question 1)
 
-  n ≥ 3 AND exactly one exercise e* has |signed_log_ratio_e*| > τ_outlier_threshold
+  n ≥ 3 AND exactly one exercise e* has |signed_log_ratio_e*| > crossLiftIndependenceEstimate_outlier_threshold
     AND e* has session_count_e* ≥ 2
-    AND every other exercise in m has |signed_log_ratio_e| < τ_consensus_threshold:
+    AND every other exercise in m has |signed_log_ratio_e| < crossLiftIndependenceEstimate_consensus_threshold:
     → e* is the miscalibrated coefficient; siblings are well-calibrated
     → emit e*'s proposal with confidence replaced by 1.0 (overrides H1's proposal_confidence)
     → suppress other exercises in m for this round
@@ -162,11 +162,11 @@ Initial defaults — these are starting points, not validated values. All live a
 
 | Parameter | Symbol | Default | Notes |
 |-----------|--------|---------|-------|
-| Recency half-life | `τ_half` | 14 days | sole time control; no hard cutoff. At Δt=28d recency ≈ 0.25, at 56d ≈ 0.06 |
+| Recency half-life | `crossLiftIndependenceEstimate_half` | 14 days | sole time control; no hard cutoff. At Δt=28d recency ≈ 0.25, at 56d ≈ 0.06 |
 | Min evidence weight | `min_evidence_weight` | 1.5 | roughly 2–3 medium-confidence sessions; bypassed by any `actualReps` point |
 | Outlier minimum session count | `min_outlier_sessions` | 2 | the outlier exercise must have ≥ this many contributing sessions to qualify for the 1.0 confidence boost |
-| Consensus suppression threshold | `τ_consensus_threshold` | `ln(1.05)` | ≈5% mean log-ratio; below this, mixed-signal path |
-| Outlier detection threshold | `τ_outlier_threshold` | `ln(1.10)` | ≈10% log-ratio; outlier must diverge meaningfully |
+| Consensus suppression threshold | `crossLiftIndependenceEstimate_consensus_threshold` | `ln(1.05)` | ≈5% mean log-ratio; below this, mixed-signal path |
+| Outlier detection threshold | `crossLiftIndependenceEstimate_outlier_threshold` | `ln(1.10)` | ≈10% log-ratio; outlier must diverge meaningfully |
 | Damping rate | `α` | 0.2 | fraction of log-distance closed per update |
 | Max log-step per update | `max_log_step` | `ln(1.05)` | ≈5% max change per recompute |
 | Min change threshold | `min_change_threshold` | 0.005 | absolute coefficient change below this is dropped |
@@ -225,7 +225,7 @@ Internal structure of `compute`:
 
 User has done Barbell Bench Press 4 times in the last 21 days. Current `c_e = 1.00`, muscle baseline currently 80 kg.
 
-Using `denom = -2.55 + 4.58·ln(80) ≈ 17.52`, est_1RM = `80 × (1 + (reps-1)^0.85 / 17.52)`. Recency uses `τ_half = 14d`, so `recency(Δt) = 2^(-Δt/14)`:
+Using `denom = -2.55 + 4.58·ln(80) ≈ 17.52`, est_1RM = `80 × (1 + (reps-1)^0.85 / 17.52)`. Recency uses `crossLiftIndependenceEstimate_half = 14d`, so `recency(Δt) = 2^(-Δt/14)`:
 
 | Session | Δt | targetWeight | targetReps | feedback | reps used | est_1RM | est_coef | recency | weight |
 |---------|----|---|---|---|---|---|---|---|---|
@@ -248,7 +248,7 @@ Same muscle group (chest), three exercises with recent H1 proposals, all showing
 - Incline Barbell: est_coef 0.91 vs current 0.85 → log_ratio +0.068
 - Dumbbell Bench: est_coef 0.43 vs current 0.40 → log_ratio +0.072
 
-All same sign, `mean_log_ratio = 0.066`, exceeds `τ_consensus_threshold = ln(1.05) ≈ 0.049`. → **suppressed**. The user got stronger; baseline will catch up next session. Coefficients untouched. Metadata: `consensus_suppressed:m=CHEST,mean_log_ratio=0.066`.
+All same sign, `mean_log_ratio = 0.066`, exceeds `crossLiftIndependenceEstimate_consensus_threshold = ln(1.05) ≈ 0.049`. → **suppressed**. The user got stronger; baseline will catch up next session. Coefficients untouched. Metadata: `consensus_suppressed:m=CHEST,mean_log_ratio=0.066`.
 
 ### Example C: outlier detection
 
@@ -258,7 +258,7 @@ Three back exercises with recent H1 proposals:
 - Lat Pulldown: est_coef 0.79 vs current 0.80 → −0.013
 - Seated Cable Row: est_coef 0.96 vs current 0.75 → **+0.247**
 
-Two near-zero, one strongly positive and the outlier. `τ_outlier_threshold = 0.0953`. Assume Seated Cable Row has `session_count_e = 3` (≥ 2 required) — outlier qualifies. → Update Seated Cable Row with boosted confidence (1.0). Barbell Row and Lat Pulldown suppressed this round. Metadata on the row update: `consensus_outlier:m=BACK,sibling_count=2`.
+Two near-zero, one strongly positive and the outlier. `crossLiftIndependenceEstimate_outlier_threshold = 0.0953`. Assume Seated Cable Row has `session_count_e = 3` (≥ 2 required) — outlier qualifies. → Update Seated Cable Row with boosted confidence (1.0). Barbell Row and Lat Pulldown suppressed this round. Metadata on the row update: `consensus_outlier:m=BACK,sibling_count=2`.
 
 (If Seated Cable Row had only one contributing session — e.g., a freak TOO_HARD + actualReps that bypassed `min_evidence_weight` — the session-count gate would fail and H2 would fall through to the mixed-signal path, emitting the proposal at H1's native ≤ 0.95 confidence. The next session would either confirm the outlier signal or wash it out.)
 
@@ -317,7 +317,7 @@ All tests live on the JVM — the heuristic is a pure function over `Coefficient
 
 2. **First-update bootstrap.** When `current_coefficient` comes entirely from the seed (`ExerciseCoefficients`) — i.e., the exercise has never had a user-coefficient row — should the first update be damped (same as any other) or allowed to take a larger step? **Working assumption: same damping. The seed coefficient is a reasonable prior and shouldn't be overridden on a single recent batch of evidence.**
 
-3. ~~Should sessions older than the window contribute nothing, or contribute at very low weight via the recency decay?~~ **Resolved.** No hard cutoff; `τ_half = 14d` recency decay handles the fade naturally.
+3. ~~Should sessions older than the window contribute nothing, or contribute at very low weight via the recency decay?~~ **Resolved.** No hard cutoff; `crossLiftIndependenceEstimate_half = 14d` recency decay handles the fade naturally.
 
 ## Files Changed
 

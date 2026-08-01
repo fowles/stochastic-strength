@@ -12,7 +12,7 @@
 
 - Constitution: authority = forward-chaining held-out CV on local `app/src/test/resources/backtest/history.json` (gitignored; tests `Assume`-skip without it). Constants only `fitted`/`flat`/`semantic`. Safety = untuned prescription-time clamps invisible to the fitness function. Policy = log-fact arithmetic only.
 - **Ship gate (spec):** belief stack held-out ≥ main's baseline (recorded: belief **24.3274** total / 237 scored + 9 skipped vs main re-baselined **28.4451** / 0.12002 / 237 + 9); failure invariants green; clamp-bind report reviewed; constant census matches the ledger; full JVM + instrumented suites green.
-- Belief constants (adopted Phase 2, do NOT retune in this phase): σ_seed 0.15, σ_override 0.10, φ 0.01, qPerDay 3e-6, σ_obs 0.005, τ 0.2, σ² floor 4e-4 / cap 0.25, z 0.5244, nudge = one grid increment.
+- Belief constants (adopted Phase 2, do NOT retune in this phase): σ_seed 0.15, σ_override 0.10, fatiguePerSetEstimate 0.01, confidenceDecayEstimate 3e-6, σ_obs 0.005, crossLiftIndependenceEstimate 0.2, σ² floor 4e-4 / cap 0.25, z 0.5244, nudge = one grid increment.
 - Phase-2 flag to resolve FIRST (memory + phase-2 plan appendix): bind rate 7.4% (125 binds) vs main 3.4% (58) on the same history; nudge exonerated by ablation (nudge-off identical); hypothesis = z-target crosses demonstrated caps; **measure bind magnitude before wiring live** (Task 1).
 - `PolicyFacts` stays built at plan time from the set log in `buildPlanner` (deliberate deviation from the spec's "DerivedStateStore holds PolicyFacts" sentence): the replay iterates only completed sessions (`endTime != null`), so replay-built facts would DROP failure caps demonstrated in an abandoned (never-finished) session that the current set-log query still sees. Facts are still "rebuilt from the set log alone" — the constitutional point — just at plan time. Record this in the swap commit message.
 - VCS is jj (not git). Commit with `jj commit -m "..."`. **Run `jj commit` exactly once per task; if jj reports "divergent", STOP and report — do not retry.**
@@ -703,7 +703,7 @@ fun setObservationLn(set: WorkoutSet, rank: Int, config: BeliefConfig): Float?
 ```
 
 - Produces on `ExerciseProgressionSeries`: two new point lists `bandUpper`/`bandLower` (μ_eff ± σ_eff, exp'd); `ProgressionFrame` unchanged except `merged` header shows "value ±σ" (formatting lives in the ViewModel).
-- Produces `computeCrossTuning(beliefs: Map<Long, Belief>, seedCoef, namesById, muscleExerciseIds, now, config): List<CrossTuningRow>` — `CrossTuningRow` shape unchanged (agreement = own aged e1rm / LOO prediction − 1; contribution = pooling precision share `w_i/Σw`, `w_i = 1/(agedσ_i² + τ²)`).
+- Produces `computeCrossTuning(beliefs: Map<Long, Belief>, seedCoef, namesById, muscleExerciseIds, now, config): List<CrossTuningRow>` — `CrossTuningRow` shape unchanged (agreement = own aged e1rm / LOO prediction − 1; contribution = pooling precision share `w_i/Σw`, `w_i = 1/(agedσ_i² + crossLiftIndependenceEstimate²)`).
 - Consumes: `ReplayEngine.SessionObserver`'s `beliefResult` (Task 3), `snapshot.currentBeliefs`.
 
 - [x] **Step 1: Write `SetObservationTest`** (failing):
@@ -765,7 +765,7 @@ fun setObservationLn(set: WorkoutSet, rank: Int, config: BeliefConfig): Float? {
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.belief.SetObservationTest"` — PASS.
 
-- [x] **Step 3: Rewrite `CrossTuning.kt` on beliefs (TDD: update `CrossTuningTest` first).** Test expectations: with beliefs {1: ln100 σ²=0.01 coef 1, 2: ln30 σ²=0.01 coef 0.3}, exercise 2's LOO prediction = 0.3·100 = 30 → agreement 0; make one belief tighter and assert the contribution share follows `w_i = 1/(σ_i²+τ²)`. Implementation:
+- [x] **Step 3: Rewrite `CrossTuning.kt` on beliefs (TDD: update `CrossTuningTest` first).** Test expectations: with beliefs {1: ln100 σ²=0.01 coef 1, 2: ln30 σ²=0.01 coef 0.3}, exercise 2's LOO prediction = 0.3·100 = 30 → agreement 0; make one belief tighter and assert the contribution share follows `w_i = 1/(σ_i²+crossLiftIndependenceEstimate²)`. Implementation:
 
 ```kotlin
 fun computeCrossTuning(
@@ -778,7 +778,7 @@ fun computeCrossTuning(
 ): List<CrossTuningRow> {
     val fold = BeliefFold(config)
     val pooling = BeliefPooling(config)
-    val tau2 = config.tau * config.tau
+    val tau2 = config.crossLiftIndependenceEstimate * config.crossLiftIndependenceEstimate
     val weights = muscleExerciseIds.associateWith { id ->
         val coef = seedCoef[id] ?: return@associateWith 0f
         if (coef <= 0f) return@associateWith 0f
@@ -906,7 +906,7 @@ fun uncappedTraceSaysNoCap() { /* facts EMPTY → "Capacity cap" detail contains
 
 - [x] **Step 2: Run to verify failure**, then implement. Line construction (each `detail` a plain sentence; weights formatted with `WeightFormatter.format(v, weightUnit)`; σ shown as ±% via `(exp(sqrt(sigma2)) − 1) × 100`):
   1. **Own belief** — aged `Belief`: `"~X (±Y%), last updated <date>"`, or `"none — cold exercise, leaning on siblings"`.
-  2. **Sibling pull** — LOO prediction `exp(ln coef + L₋ᵢ)` and blend weight `pSib/(pOwn+pSib)` as a percent: `"siblings imply ~X; blended at Z%"` (recompute `pOwn`/`pSib` exactly as `BeliefPooling.effective` does: `pOwn = 1/σ²_own,aged`, `pSib = 1/(1/looW + τ²)`); or `"no siblings with evidence"`.
+  2. **Sibling pull** — LOO prediction `exp(ln coef + L₋ᵢ)` and blend weight `pSib/(pOwn+pSib)` as a percent: `"siblings imply ~X; blended at Z%"` (recompute `pOwn`/`pSib` exactly as `BeliefPooling.effective` does: `pOwn = 1/σ²_own,aged`, `pSib = 1/(1/looW + crossLiftIndependenceEstimate²)`); or `"no siblings with evidence"`.
   3. **Effective belief** — `"~X (±Y%)"` from the pooled `EffectiveBelief`.
   4. **Risk percentile** — `"prescribing at the 30th percentile: ~X"` = `BeliefPrescriber.targetE1rm`.
   5. **HURT backoff** — from `PrescriptionPolicy.hurtMultiplier(facts.hurtEventsByMuscle[muscle], now)`: `"none"` or `"×M after N recent HURT set(s)"`.
@@ -989,7 +989,7 @@ private const val RESERVE_RIR_5_PLUS = 6f
 ```
 
 (drop the `SessionSignalExtractor` import; kdoc: "display reserve offsets — midpoints of the SetIntervals feedback buckets".)
-- `domain/belief/BeliefFold.kt`: carry-forward — drop `obsSigma(feedback)`'s unused parameter: replace the method with direct `config.sigmaObs` use in `foldSession` (and delete the `SetFeedback` import if now unused); keep the Task-10 collapse note on `BeliefConfig.sigmaObs`.
+- `domain/belief/BeliefFold.kt`: carry-forward — drop `obsSigma(feedback)`'s unused parameter: replace the method with direct `config.perSetDoubtEstimate` use in `foldSession` (and delete the `SetFeedback` import if now unused); keep the Task-10 collapse note on `BeliefConfig.perSetDoubtEstimate`.
 - `test/domain/backtest/HeldOutScorer.kt` → rename content: keep ONLY `SessionScore` + `ScoreReport` in a new `ScoreReport.kt`; delete the `HeldOutScorer` object.
 - `test/domain/backtest/BeliefHeldOutScorer.kt`: carry-forward — add the missing skip-condition comment on the `pred == null` branch: `// skipped = the set implied an interval but no prediction existed (cold exercise before its first fold, zero-coef).`
 
@@ -1028,7 +1028,7 @@ jj commit -m "chore(belief): delete the old estimator (estimate/updater/projecto
 
 Expected: gate PASS (24.3274 < 28.4451, unchanged), 0 invariant violations, bind report (with Task-1 magnitudes) recorded in the appendix.
 
-- [x] **Step 2: Constant census.** Grep every numeric constant in `domain/belief/`, `domain/policy/`, and confirm each carries a ledger label matching the spec (~7 estimator: σ_seed, σ_override, φ, q, σ_obs, floor/cap; policy semantics: cap expiry 28d, HURT 0.15/14d/0.6, cooldown 2d, z, nudge = one increment). Any constant without a label: label it from the Phase-2 record or delete it (constitution rule 2). Record the census table in the appendix.
+- [x] **Step 2: Constant census.** Grep every numeric constant in `domain/belief/`, `domain/policy/`, and confirm each carries a ledger label matching the spec (~7 estimator: σ_seed, σ_override, fatiguePerSetEstimate, q, σ_obs, floor/cap; policy semantics: cap expiry 28d, HURT 0.15/14d/0.6, cooldown 2d, z, nudge = one increment). Any constant without a label: label it from the Phase-2 record or delete it (constitution rule 2). Record the census table in the appendix.
 
 - [x] **Step 3: Docs.** Rewrite `docs/adaptation/02-strength-signal.md` (set → implied ln-1RM interval, fatigue shift), `03-exercise-estimates.md` (Belief μ/σ², boundary-pull fold, aging, override seeding), `04-muscle-pooling.md` (precision-weighted level, LOO blend, z-prescription, policy caps + nudge), and the README's flow diagram to the belief model. Keep the docs' existing voice and length; these are living docs (the superpowers specs/plans are historical and stay).
 
@@ -1111,10 +1111,10 @@ tasks, no edits needed this ceremony):
 |---|---|---|---|
 | `sigmaSeed` | `belief/Belief.kt` (`BeliefConfig`) | 0.15 | semantic |
 | `sigmaOverride` | `belief/Belief.kt` (`BeliefConfig`) | 0.10 | semantic |
-| `phi` | `belief/Belief.kt` (`BeliefConfig`) | 0.01 | fitted |
-| `qPerDay` | `belief/Belief.kt` (`BeliefConfig`) | 3e-6 | fitted |
-| `sigmaObs` | `belief/Belief.kt` (`BeliefConfig`) | 0.005 | edge-pinned / saturated |
-| `tau` | `belief/Belief.kt` (`BeliefConfig`) | 0.2 | fitted |
+| `fatiguePerSetEstimate` | `belief/Belief.kt` (`BeliefConfig`) | 0.01 | fitted |
+| `confidenceDecayEstimate` | `belief/Belief.kt` (`BeliefConfig`) | 3e-6 | fitted |
+| `perSetDoubtEstimate` | `belief/Belief.kt` (`BeliefConfig`) | 0.005 | edge-pinned / saturated |
+| `crossLiftIndependenceEstimate` | `belief/Belief.kt` (`BeliefConfig`) | 0.2 | fitted |
 | `sigma2Floor` | `belief/Belief.kt` (`BeliefConfig`) | 4e-4 | flat guard |
 | `sigma2Cap` | `belief/Belief.kt` (`BeliefConfig`) | 0.25 | flat guard |
 | `Z` | `belief/BeliefPrescriber.kt` | 0.5244 | semantic |

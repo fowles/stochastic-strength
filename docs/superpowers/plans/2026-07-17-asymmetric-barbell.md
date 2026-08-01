@@ -12,7 +12,7 @@
 
 - Package root: `io.github.fowles.stochastic_strength`.
 - Real users in production: every DB version bump needs a proper `Migration`; destructive fallback is not configured.
-- Equipment MUST stay `Equipment.BARBELL` for T-Bar Row and Landmine Press (per-equipment τ pooling depends on it). Do NOT add an Equipment enum value.
+- Equipment MUST stay `Equipment.BARBELL` for T-Bar Row and Landmine Press (per-equipment crossLiftIndependenceEstimate pooling depends on it). Do NOT add an Equipment enum value.
 - Version control is jj; Claude commits at each checkpoint, user owns reshape + push. Commit commands below use `git` (works against the colocated repo).
 - Build: `./gradlew :app:assembleDebug`. JVM tests: `./gradlew :app:testDebugUnitTest`. Instrumented: `./gradlew :app:connectedAndroidTest` (emulator is typically already running — attempt directly).
 
