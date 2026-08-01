@@ -33,7 +33,7 @@ class BacktestData private constructor(
     private val exerciseMuscle = backup.exercises.associate { it.id to it.primaryMuscle }
 
     /** Mirrors ReplaySnapshot.loadStaticFromDb: muscle map from all exercises; coefficients from
-     *  active exercises only (exactly the DAO's getActive()). */
+     *  active exercises plus any disliked lift with completed sets (exactly loadStaticFromDb). */
     fun newSnapshot(): ReplaySnapshot = ReplaySnapshot(
         exerciseMuscle = exerciseMuscle,
         seedCoefficients = coefById,
@@ -61,14 +61,19 @@ class BacktestData private constructor(
         fun historyFile(): File = File(dir, "history.json")
         fun baselineFile(): File = File(dir, "phase0_baseline.json")
 
+        /** Active plus disliked-but-trained exercise ids (mirrors ReplaySnapshot.loadStaticFromDb). */
+        private fun seedExercises(backup: WorkoutBackup): List<io.github.fowles.stochastic_strength.data.model.Exercise> {
+            val trainedIds = backup.workoutSets.filter { it.completedAt != null }.mapTo(HashSet()) { it.exerciseId }
+            return backup.exercises.filter { !it.isDisliked || it.id in trainedIds }
+        }
+
         /** Shipped table (already compressed at ExerciseCoefficients.LAMBDA). */
         private fun shippedCoef(backup: WorkoutBackup): Map<Long, Float> =
-            backup.exercises.filterNot { it.isDisliked }
-                .associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
+            seedExercises(backup).associate { it.id to (ExerciseCoefficients.get(it) ?: 0f) }
 
-        /** Raw guesses compressed by an arbitrary λ, keyed by active exercise id. */
+        /** Raw guesses compressed by an arbitrary λ, keyed by seed exercise id. */
         private fun compressedCoef(backup: WorkoutBackup, lambda: Float): Map<Long, Float> =
-            backup.exercises.filterNot { it.isDisliked }
+            seedExercises(backup)
                 .associate { it.id to CoefficientCompression.compress(CoefficientGuesses.raw[it.name] ?: 0f, lambda) }
 
         fun loadOrNull(): BacktestData? {

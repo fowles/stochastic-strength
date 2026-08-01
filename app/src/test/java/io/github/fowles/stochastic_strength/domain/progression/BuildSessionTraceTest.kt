@@ -43,6 +43,7 @@ class BuildSessionTraceTest {
             sessionReps = 10,
             now = now,
             weightUnit = WeightUnit.KG,
+            retention = 1f,
             config = config,
         )
         assertNotNull(trace)
@@ -63,7 +64,7 @@ class BuildSessionTraceTest {
             targetId = 1L, muscle = MuscleGroup.CHEST, beliefs = beliefs,
             seedCoef = mapOf(1L to 0.3f), muscleExerciseIds = listOf(1L),
             exerciseMuscle = mapOf(1L to MuscleGroup.CHEST), priorSets = priorSets,
-            sessionReps = 10, now = now, weightUnit = WeightUnit.KG, config = config,
+            sessionReps = 10, now = now, weightUnit = WeightUnit.KG, retention = 1f, config = config,
         )
         assertNotNull(trace)
         assertTrue(trace!!.lines.any { it.label == "Capacity cap" && it.detail == "no cap" })
@@ -79,7 +80,7 @@ class BuildSessionTraceTest {
             targetId = 1L, muscle = MuscleGroup.CHEST, beliefs = beliefs,
             seedCoef = mapOf(1L to 0.3f), muscleExerciseIds = listOf(1L),
             exerciseMuscle = mapOf(1L to MuscleGroup.CHEST), priorSets = priorSets,
-            sessionReps = 10, now = now, weightUnit = WeightUnit.KG, config = config,
+            sessionReps = 10, now = now, weightUnit = WeightUnit.KG, retention = 1f, config = config,
         )
         assertNotNull(trace)
         assertTrue(trace!!.lines.any { it.label == "Capacity cap" && it.detail == "no cap" })

@@ -123,7 +123,7 @@ fun WorkoutScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 Text(
-                                    "Welcome back — it's been $weeks ${if (weeks == 1) "week" else "weeks"}. " +
+                                    "Welcome back — it's been $weeks weeks. " +
                                         "We've started you a little lighter; it'll climb back as you go.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.weight(1f),

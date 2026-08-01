@@ -6,6 +6,7 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
+import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.ProgressionEngine
 import io.github.fowles.stochastic_strength.domain.ReplaySnapshot
 import io.github.fowles.stochastic_strength.domain.belief.Belief
@@ -195,6 +196,7 @@ internal fun buildSessionTrace(
     sessionReps: Int,
     now: Long,
     weightUnit: WeightUnit,
+    retention: Float,
     config: BeliefConfig,
     engine: ProgressionEngine = DefaultProgressionEngine,
 ): PrescriptionTrace? {
@@ -218,6 +220,7 @@ internal fun buildSessionTrace(
         sessionReps = sessionReps,
         now = now,
         weightUnit = weightUnit,
+        retention = retention,
         config = config,
         engine = engine,
     )
@@ -332,6 +335,9 @@ class ExerciseProgressionSeriesBuilder(
         val priorSets = mutableListOf<WorkoutSet>()
         // Time of the most recent session that touched this muscle.
         var lastMuscleSessionAsOf: Long? = null
+        // End of the most recent COMPLETED session of any muscle before the current decision — the
+        // gap the live planner measures for its inferred detraining backoff (DetrainingModel).
+        var prevCompletedEnd: Long? = null
 
         fun preFoldSnapshot(beliefs: Map<Long, Belief>): ReplaySnapshot =
             ReplaySnapshot(snapshot.exerciseMuscle, snapshot.seedCoefficients)
@@ -359,16 +365,18 @@ class ExerciseProgressionSeriesBuilder(
                     bandLower += sample.bandLower
                     ownObservations += sample.ownObservations
                     siblingObservations += sample.siblingObservations
+                    val retention = DetrainingModel.retention(asOf - (prevCompletedEnd ?: asOf))
                     val trace = buildSessionTrace(
                         targetId = exerciseId, muscle = muscle, beliefs = preFold,
                         seedCoef = snap.seedCoefficients, muscleExerciseIds = muscleIds,
                         exerciseMuscle = snap.exerciseMuscle, priorSets = priorSets,
                         sessionReps = targetReps(sets), now = asOf, weightUnit = weightUnit,
-                        config = config, engine = progressionEngine,
+                        retention = retention, config = config, engine = progressionEngine,
                     )
                     frames += buildFrame(exerciseId, muscleIds, preSnap, sets, asOf, namesById, config, sample, trace)
                 }
                 priorSets += sets.filter { it.completedAt != null }
+                prevCompletedEnd = asOf
             },
         )
 
@@ -384,12 +392,13 @@ class ExerciseProgressionSeriesBuilder(
             bandLower += liveSample.bandLower
             val liveReps = priorSets.filter { it.exerciseId == exerciseId }
                 .maxByOrNull { it.completedAt ?: 0L }?.targetReps ?: 10
+            val liveRetention = DetrainingModel.retention(predictedNow - (prevCompletedEnd ?: predictedNow))
             val liveTrace = buildSessionTrace(
                 targetId = exerciseId, muscle = muscle, beliefs = snapshot.currentBeliefs,
                 seedCoef = snapshot.seedCoefficients, muscleExerciseIds = muscleIds,
                 exerciseMuscle = snapshot.exerciseMuscle, priorSets = priorSets,
                 sessionReps = liveReps, now = predictedNow, weightUnit = weightUnit,
-                config = config, engine = progressionEngine,
+                retention = liveRetention, config = config, engine = progressionEngine,
             )
             buildFrame(exerciseId, muscleIds, snapshot, emptyList(), predictedNow, namesById, config, liveSample, liveTrace)
         } else null

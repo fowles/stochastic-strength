@@ -44,6 +44,8 @@ object PrescriptionTraceBuilder {
         sessionReps: Int,
         now: Long,
         weightUnit: WeightUnit,
+        /** Inferred detraining factor the planner applies to the target (1f = no layoff backoff). */
+        retention: Float = 1f,
         config: BeliefConfig = BeliefConfig(),
         engine: ProgressionEngine = DefaultProgressionEngine,
     ): PrescriptionTrace? {
@@ -80,12 +82,23 @@ object PrescriptionTraceBuilder {
             "~${WeightFormatter.format(exp(effective.mu), weightUnit)} (±${"%.0f".format(sigmaPercent(effective.sigma2))}%)",
         )
 
-        val rawE1rm = BeliefPrescriber.targetE1rm(effective)
+        val percentileTarget = BeliefPrescriber.targetE1rm(effective)
         val riskLine = TraceLine(
             "Risk percentile",
             "prescribing at the ${BeliefPrescriber.PERCENTILE}th percentile: " +
-                "~${WeightFormatter.format(rawE1rm, weightUnit)}",
+                "~${WeightFormatter.format(percentileTarget, weightUnit)}",
         )
+
+        // Detraining backoff: the planner eases the comeback target down by `retention` after a
+        // layoff, then the set log self-corrects the belief. Mirror it here so the trace's final
+        // weight matches what the workout screen actually prescribes.
+        val rawE1rm = percentileTarget * retention
+        val detrainLine = if (retention < 1f) {
+            TraceLine(
+                "Detraining backoff",
+                "×${"%.2f".format(retention)} after a layoff → ~${WeightFormatter.format(rawE1rm, weightUnit)}",
+            )
+        } else null
 
         val prescription = PrescriptionPolicy.prescribe(
             rawE1rm = rawE1rm,
@@ -134,7 +147,9 @@ object PrescriptionTraceBuilder {
         val roundingLine = TraceLine("Rounding", "final: ${WeightFormatter.format(prescription.weightKg, weightUnit)}")
 
         return PrescriptionTrace(
-            lines = listOf(ownLine, siblingLine, effectiveLine, riskLine, hurtLine, nudgeLine, capLine, roundingLine),
+            lines = listOfNotNull(
+                ownLine, siblingLine, effectiveLine, riskLine, detrainLine, hurtLine, nudgeLine, capLine, roundingLine,
+            ),
             finalWeightKg = prescription.weightKg,
         )
     }

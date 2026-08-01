@@ -32,9 +32,14 @@ class ReplaySnapshot(
         /** Reads static (input-only) data from the DB once for a full replay run. */
         suspend fun loadStaticFromDb(db: AppDatabase): ReplaySnapshot {
             val allExercises = db.exerciseDao().getAll()
-            val activeExercises = db.exerciseDao().getActive()
             val exerciseMuscle = allExercises.associate { it.id to it.primaryMuscle }
-            val seedCoefficients = activeExercises.associate { ex ->
+            // Active exercises PLUS any disliked lift the user has actually trained: dropping a lift
+            // you have real sets for would silently discard that evidence — no seed, no fold (the
+            // fold gates on seedCoef > 0), and no sibling vote for the muscle. A disliked lift is
+            // still never *prescribed*; the planner filters on the active list independently.
+            val trainedIds = db.workoutSetDao().getFirstCompletedAtByExercise().mapTo(HashSet()) { it.exerciseId }
+            val seedExercises = allExercises.filter { !it.isDisliked || it.id in trainedIds }
+            val seedCoefficients = seedExercises.associate { ex ->
                 ex.id to (ExerciseCoefficients.get(ex) ?: 0f)
             }
             return ReplaySnapshot(exerciseMuscle = exerciseMuscle, seedCoefficients = seedCoefficients)

@@ -83,8 +83,10 @@ class BacktestDataTest {
     fun withCoefLambdaOneReproducesRawGuessSeeds() {
         val data = BacktestData.loadOrNull() ?: return
         val identity = data.withCoefLambda(1.0f)
-        // λ=1 → coefById equals the raw guesses per active exercise.
-        val expected = data.backup.exercises.filterNot { it.isDisliked }
+        // λ=1 → coefById equals the raw guesses per seed exercise (active + disliked-but-trained,
+        // mirroring ReplaySnapshot.loadStaticFromDb).
+        val trainedIds = data.backup.workoutSets.filter { it.completedAt != null }.mapTo(HashSet()) { it.exerciseId }
+        val expected = data.backup.exercises.filter { !it.isDisliked || it.id in trainedIds }
             .associate { it.id to (CoefficientGuesses.raw[it.name] ?: 0f) }
         assertEquals(expected, identity.coefById)
     }
