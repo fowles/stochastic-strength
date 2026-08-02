@@ -1,7 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.components
 
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
-import com.patrykandpatrick.vico.core.common.data.ExtraStore
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import io.github.fowles.stochastic_strength.domain.progression.ExerciseProgressionData
 import kotlin.math.abs
 

@@ -58,7 +58,7 @@ class ChartRangeTest {
 
     @Test fun fixedProviderReturnsTheGivenRangeIgnoringData() {
         val provider = fixedChartRangeProvider(70.0..110.0)
-        val store = com.patrykandpatrick.vico.core.common.data.ExtraStore.Empty
+        val store = com.patrykandpatrick.vico.compose.common.data.MutableExtraStore()
         assertEquals(70.0, provider.getMinY(0.0, 1000.0, store), eps)
         assertEquals(110.0, provider.getMaxY(0.0, 1000.0, store), eps)
     }

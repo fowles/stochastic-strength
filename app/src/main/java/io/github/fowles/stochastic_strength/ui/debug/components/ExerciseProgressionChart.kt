@@ -17,31 +17,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.TextStyle
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.Scroll
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
-import com.patrykandpatrick.vico.compose.cartesian.layer.point
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
+import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.compose.cartesian.marker.DefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.fill
-import com.patrykandpatrick.vico.core.cartesian.Scroll
-import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
-import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
-import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
-import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
-import com.patrykandpatrick.vico.core.common.Fill
-import com.patrykandpatrick.vico.core.common.shape.CorneredShape
 import io.github.fowles.stochastic_strength.ui.components.fixedChartRangeProvider
 import io.github.fowles.stochastic_strength.ui.components.paddedChartRangeProvider
 import java.text.SimpleDateFormat
@@ -80,7 +77,7 @@ internal fun ExerciseProgressionChart(
     val modelProducer = remember { CartesianChartModelProducer() }
     LaunchedEffect(ordered, zone) {
         modelProducer.runTransaction {
-            lineSeries {
+            lineModel {
                 ordered.forEach { s ->
                     // A single-point or empty series still needs a slot to keep line<->style indices aligned.
                     series(
@@ -96,7 +93,7 @@ internal fun ExerciseProgressionChart(
     // The marker exists only for its guideline and tap-to-select; its own label is invisible. The
     // tooltip is drawn as a Compose overlay flush with the chart's bottom instead — Vico's Top/Bottom
     // label positions reserve chart margin equal to the label height, which collapses a tall tooltip.
-    val invisibleLabel = rememberTextComponent(color = Color.Transparent)
+    val invisibleLabel = rememberTextComponent(style = TextStyle(color = Color.Transparent))
     val emptyFormatter = remember { DefaultCartesianMarker.ValueFormatter { _, _ -> "" } }
     val marker = rememberDefaultCartesianMarker(
         label = invisibleLabel,
@@ -125,22 +122,22 @@ internal fun ExerciseProgressionChart(
         val color = colors.getValue(s.colorRole)
         when (s.style) {
             ProgressionSeriesStyle.LINE -> LineCartesianLayer.rememberLine(
-                fill = LineCartesianLayer.LineFill.single(fill(color)),
+                fill = LineCartesianLayer.LineFill.single(Fill(color)),
             )
             ProgressionSeriesStyle.FILLED_DOTS -> LineCartesianLayer.rememberLine(
                 fill = transparent,
                 pointProvider = LineCartesianLayer.PointProvider.single(
-                    LineCartesianLayer.point(rememberShapeComponent(fill(color), CorneredShape.Pill), size = 8.dp),
+                    LineCartesianLayer.Point(rememberShapeComponent(Fill(color), CircleShape), size = 8.dp),
                 ),
             )
             ProgressionSeriesStyle.HOLLOW_DOTS -> LineCartesianLayer.rememberLine(
                 fill = transparent,
                 pointProvider = LineCartesianLayer.PointProvider.single(
-                    LineCartesianLayer.point(
+                    LineCartesianLayer.Point(
                         rememberShapeComponent(
-                            fill = fill(Color.Transparent),
-                            shape = CorneredShape.Pill,
-                            strokeFill = fill(color),
+                            fill = Fill(Color.Transparent),
+                            shape = CircleShape,
+                            strokeFill = Fill(color),
                             strokeThickness = 1.5.dp,
                         ),
                         size = 8.dp,
@@ -150,11 +147,11 @@ internal fun ExerciseProgressionChart(
             ProgressionSeriesStyle.PREDICTED_DOT -> LineCartesianLayer.rememberLine(
                 fill = transparent,
                 pointProvider = LineCartesianLayer.PointProvider.single(
-                    LineCartesianLayer.point(
+                    LineCartesianLayer.Point(
                         rememberShapeComponent(
-                            fill = fill(Color.Transparent),
-                            shape = CorneredShape.Pill,
-                            strokeFill = fill(color),
+                            fill = Fill(Color.Transparent),
+                            shape = CircleShape,
+                            strokeFill = Fill(color),
                             strokeThickness = 2.5.dp,
                         ),
                         size = 12.dp,

@@ -1,8 +1,9 @@
 package io.github.fowles.stochastic_strength.ui.debug.components
 
-import com.patrykandpatrick.vico.core.cartesian.data.LineCartesianLayerModel
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
-import com.patrykandpatrick.vico.core.cartesian.marker.LineCartesianLayerMarkerTarget
+import androidx.compose.ui.graphics.Color
+import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerModel
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.compose.cartesian.marker.LineCartesianLayerMarkerTarget
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -56,7 +57,7 @@ class ChartMarkerLabelTest {
             targets = listOf(target),
             xLabel = { "May 4" },
             yLabel = { "%.0f lbs".format(it) },
-            excludeColor = 0xFF3366,
+            excludeColor = Color(0xFF3366),
         )
 
         assertEquals("May 4 • 182 lbs", label.toString())
@@ -70,7 +71,7 @@ class ChartMarkerLabelTest {
             targets = listOf(target),
             xLabel = { "May 4" },
             yLabel = { "%.0f lbs".format(it) },
-            excludeColor = 0xFF3366,
+            excludeColor = Color(0xFF3366),
         )
 
         assertEquals("May 4", label.toString())
@@ -97,7 +98,7 @@ class ChartMarkerLabelTest {
             LineCartesianLayerMarkerTarget.Point(
                 entry = LineCartesianLayerModel.Entry(x, y),
                 canvasY = 0f,
-                color = 0,
+                color = Color.Black,
             )
         }
         return object : LineCartesianLayerMarkerTarget {
@@ -115,7 +116,7 @@ class ChartMarkerLabelTest {
             LineCartesianLayerMarkerTarget.Point(
                 entry = LineCartesianLayerModel.Entry(x, y),
                 canvasY = 0f,
-                color = color,
+                color = Color(color),
             )
         }
         return object : LineCartesianLayerMarkerTarget {

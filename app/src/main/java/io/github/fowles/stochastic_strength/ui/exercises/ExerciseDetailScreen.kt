@@ -39,38 +39,34 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.patrykandpatrick.vico.compose.cartesian.AutoScrollCondition
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.Scroll
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
-import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
-import com.patrykandpatrick.vico.compose.common.insets
-import com.patrykandpatrick.vico.compose.cartesian.layer.continuous
-import com.patrykandpatrick.vico.compose.cartesian.layer.point
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
+import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
+import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.compose.cartesian.marker.DefaultCartesianMarker
+import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
+import com.patrykandpatrick.vico.compose.common.Insets
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.fill
-import com.patrykandpatrick.vico.core.cartesian.AutoScrollCondition
-import com.patrykandpatrick.vico.core.cartesian.Scroll
-import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
-import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
-import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarker
-import com.patrykandpatrick.vico.core.cartesian.marker.CartesianMarkerVisibilityListener
-import com.patrykandpatrick.vico.core.cartesian.marker.DefaultCartesianMarker
-import com.patrykandpatrick.vico.core.common.Fill
-import com.patrykandpatrick.vico.core.common.shape.CorneredShape
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
@@ -267,7 +263,7 @@ private fun ExerciseChart(
 
     LaunchedEffect(primaryPoints, shadowPoints, prescribedPoints) {
         modelProducer.runTransaction {
-            lineSeries {
+            lineModel {
                 if (primaryPoints.isNotEmpty()) {
                     series(
                         x = primaryPoints.map { it.dateMs / 86_400_000L },
@@ -297,8 +293,8 @@ private fun ExerciseChart(
     val primaryLine = LineCartesianLayer.rememberLine(
         fill = transparentFill,
         pointProvider = LineCartesianLayer.PointProvider.single(
-            LineCartesianLayer.point(
-                rememberShapeComponent(fill(primaryColor), CorneredShape.Pill),
+            LineCartesianLayer.Point(
+                rememberShapeComponent(Fill(primaryColor), CircleShape),
                 size = 8.dp,
             )
         ),
@@ -306,11 +302,11 @@ private fun ExerciseChart(
     val shadowLine = LineCartesianLayer.rememberLine(
         fill = transparentFill,
         pointProvider = LineCartesianLayer.PointProvider.single(
-            LineCartesianLayer.point(
+            LineCartesianLayer.Point(
                 rememberShapeComponent(
                     fill = Fill.Transparent,
-                    shape = CorneredShape.Pill,
-                    strokeFill = fill(secondaryColor),
+                    shape = CircleShape,
+                    strokeFill = Fill(secondaryColor),
                     strokeThickness = 2.dp,
                 ),
                 size = 10.dp,
@@ -318,9 +314,9 @@ private fun ExerciseChart(
         ),
     )
     val prescribedLine = LineCartesianLayer.rememberLine(
-        fill = LineCartesianLayer.LineFill.single(fill(primaryColor)),
-        stroke = LineCartesianLayer.LineStroke.continuous(thickness = 2.dp),
-        pointConnector = LineCartesianLayer.PointConnector.cubic(),
+        fill = LineCartesianLayer.LineFill.single(Fill(primaryColor)),
+        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 2.dp),
+        interpolator = LineCartesianLayer.Interpolator.cubic(),
     )
 
     val hasPrimary = primaryPoints.isNotEmpty()
@@ -389,28 +385,27 @@ private fun ExerciseChart(
 @Composable
 private fun rememberSelectionMarker(weightUnit: WeightUnit, prescribedColor: Color): DefaultCartesianMarker {
     val labelBackground = rememberShapeComponent(
-        fill = fill(MaterialTheme.colorScheme.surface),
-        shape = CorneredShape.Pill,
-        strokeFill = fill(MaterialTheme.colorScheme.outline),
+        fill = Fill(MaterialTheme.colorScheme.surface),
+        shape = CircleShape,
+        strokeFill = Fill(MaterialTheme.colorScheme.outline),
         strokeThickness = 1.dp,
     )
     val label = rememberTextComponent(
-        color = MaterialTheme.colorScheme.onSurface,
-        padding = insets(8.dp, 4.dp),
+        style = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp),
+        padding = Insets(8.dp, 4.dp),
         background = labelBackground,
     )
     val guideline = rememberAxisGuidelineComponent()
     val fmt = remember { DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()) }
     // The prescribed-target line is drawn in [prescribedColor]; exclude it so the
     // marker reports only the plotted achieved points, not the trend line's value.
-    val excludeArgb = remember(prescribedColor) { prescribedColor.toArgb() }
-    val valueFormatter = remember(fmt, weightUnit, excludeArgb) {
+    val valueFormatter = remember(fmt, weightUnit, prescribedColor) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
             formatLineMarkerLabel(
                 targets = targets,
                 xLabel = { x -> LocalDate.ofEpochDay(x.toLong()).format(fmt) },
                 yLabel = { y -> WeightFormatter.format(y.toFloat(), weightUnit) },
-                excludeColor = excludeArgb,
+                excludeColor = prescribedColor,
             )
         }
     }
