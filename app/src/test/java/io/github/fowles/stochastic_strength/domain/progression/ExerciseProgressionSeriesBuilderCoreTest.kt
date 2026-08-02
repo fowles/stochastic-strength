@@ -81,11 +81,11 @@ class ExerciseProgressionSeriesBuilderCoreTest {
 
         // The predicted frame is stamped at `now` and reflects the state AFTER S2 (differs from S2's frame).
         assertEquals(now, data.predictedFrame!!.timestampMs)
-        assertTrue(data.predictedFrame!!.own!! != data.frames[1].own!!)
+        assertTrue(data.predictedFrame.own!! != data.frames[1].own!!)
 
         // Every emitted frame carries a trace.
         assertTrue(data.frames.all { it.trace != null })
-        assertNotNull(data.predictedFrame!!.trace)
+        assertNotNull(data.predictedFrame.trace)
     }
 
     @Test

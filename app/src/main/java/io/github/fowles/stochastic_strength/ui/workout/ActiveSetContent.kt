@@ -78,7 +78,7 @@ private fun TimedSetContent(
     val secondsRemaining = state.timerSecondsRemaining
     val started = secondsRemaining != null
 
-    val targetProgress = if (started) secondsRemaining!! / WorkoutSessionController.TIMED_SET_SECONDS.toFloat() else 1f
+    val targetProgress = if (started) secondsRemaining / WorkoutSessionController.TIMED_SET_SECONDS.toFloat() else 1f
     val animatedProgress = remember { Animatable(1f) }
     LaunchedEffect(secondsRemaining) {
         animatedProgress.animateTo(

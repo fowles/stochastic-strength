@@ -130,8 +130,8 @@ object PrescriptionPolicy {
         val fact = facts.capByExercise[exerciseId]
         val withinWindow = fact != null && now - fact.demonstratedAt <= CAP_EXPIRY_MS
         val capLn = fact?.capLn?.takeIf { withinWindow }
-        // `fact?.allEasy == true` (not `fact.allEasy`): no smart cast through the withinWindow Boolean.
-        val nudge = if (withinWindow && fact?.allEasy == true) WeightFormatter.minIncrement(weightUnit) else 0f
+        // `withinWindow` implies `fact != null`, so `fact` smart-casts non-null here.
+        val nudge = if (withinWindow && fact.allEasy) WeightFormatter.minIncrement(weightUnit) else 0f
         val uncapped = WeightFormatter.round(engine.fromOneRepMax(backed, sessionReps), weightUnit) + nudge
         if (capLn == null) {
             return Prescription(uncapped, capBound = false, hurtMultiplier = mult, uncappedWeightKg = uncapped, nudgeKg = nudge)

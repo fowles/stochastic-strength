@@ -105,7 +105,7 @@ class ReplayEngine(
                 muscleExerciseIds = snapshot.muscleExerciseIds,
                 asOf = session.endTime!!,
             )
-            observer.onSession(session.id, session.endTime!!, sets, snapshot, beliefResult)
+            observer.onSession(session.id, session.endTime, sets, snapshot, beliefResult)
         }
     }
 }

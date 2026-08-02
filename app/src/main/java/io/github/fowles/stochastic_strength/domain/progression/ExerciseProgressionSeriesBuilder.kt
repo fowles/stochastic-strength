@@ -201,7 +201,7 @@ internal fun buildSessionTrace(
     engine: ProgressionEngine = DefaultProgressionEngine,
 ): PrescriptionTrace? {
     val windowStart = now - PrescriptionPolicy.FACTS_WINDOW_MS
-    val factsSets = priorSets.filter { it.completedAt != null && it.completedAt!! >= windowStart }
+    val factsSets = priorSets.filter { it.completedAt != null && it.completedAt >= windowStart }
     val facts = PolicyFacts.build(sets = factsSets, exerciseMuscle = exerciseMuscle)
     val capFact = facts.capByExercise[targetId]
     val capSessionSets = capFact?.let { f ->

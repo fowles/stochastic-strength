@@ -115,7 +115,7 @@ object StravaApiClient {
                 .build()
 
             val response = client.newCall(request).execute()
-            val bodyStr = response.body?.string() ?: throw IOException("Empty upload response")
+            val bodyStr = response.body.string()
             Log.i("StravaApiClient", "Upload response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Upload failed ${response.code}: $bodyStr")
 
@@ -132,7 +132,7 @@ object StravaApiClient {
                 .build()
 
             val response = client.newCall(request).execute()
-            val bodyStr = response.body?.string() ?: throw IOException("Empty poll response")
+            val bodyStr = response.body.string()
             Log.i("StravaApiClient", "Poll response ${response.code}: $bodyStr")
             if (!response.isSuccessful) throw IOException("Poll failed ${response.code}: $bodyStr")
 
@@ -156,7 +156,7 @@ object StravaApiClient {
             .build()
 
         val response = client.newCall(request).execute()
-        val bodyStr = response.body?.string() ?: throw IOException("Empty token response")
+        val bodyStr = response.body.string()
         if (!response.isSuccessful) {
             val msg = "Token exchange failed ${response.code}: $bodyStr"
             if (response.code == 400 || response.code == 401) throw StravaAuthException(msg)
