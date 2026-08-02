@@ -28,7 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -49,10 +49,10 @@ fun WorkoutScreen(
     val doneSummary by viewModel.doneSummary.collectAsState()
     val doneHighlight by viewModel.doneHighlight.collectAsState()
     val stravaState by viewModel.stravaState.collectAsState()
-    val activity = LocalContext.current as android.app.Activity
+    val activity = LocalActivity.current
 
     BackHandler(enabled = state is WorkoutState.ActiveSet || state is WorkoutState.Resting) {
-        activity.moveTaskToBack(true)
+        activity?.moveTaskToBack(true)
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -81,7 +81,7 @@ fun WorkoutScreen(
     LaunchedEffect(stravaState) {
         when (val s = stravaState) {
             is StravaExportState.NeedsAuth -> {
-                activity.startActivity(Intent(Intent.ACTION_VIEW, s.authUrl.toUri()))
+                activity?.startActivity(Intent(Intent.ACTION_VIEW, s.authUrl.toUri()))
                 viewModel.onStravaAuthUrlLaunched()
             }
             is StravaExportState.Error -> viewModel.onStravaMessageShown()

@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "io.github.fowles.stochastic_strength"
     compileSdk {
-        version = release(36) {
+        version = release(37) {
             minorApiLevel = 1
         }
     }

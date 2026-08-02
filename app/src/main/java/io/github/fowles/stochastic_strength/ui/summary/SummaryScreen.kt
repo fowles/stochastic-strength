@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -74,8 +75,9 @@ fun SummaryScreen(
         }
     }
 
+    val locale = LocalConfiguration.current.locales[0]
     val dateLabel = summary?.let {
-        SimpleDateFormat("EEEE, MMM d · h:mm a", Locale.getDefault()).format(Date(it.startTime))
+        SimpleDateFormat("EEEE, MMM d · h:mm a", locale).format(Date(it.startTime))
     }
     var menuExpanded by remember { mutableStateOf(false) }
 

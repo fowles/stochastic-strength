@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.TextStyle
-import java.util.Locale
+import androidx.compose.ui.platform.LocalConfiguration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -224,8 +224,9 @@ fun HistoryScreen(
 
 @Composable
 private fun MonthDividerRow(month: YearMonth) {
+    val locale = LocalConfiguration.current.locales[0]
     Text(
-        text = "${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}",
+        text = "${month.month.getDisplayName(TextStyle.FULL, locale)} ${month.year}",
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier

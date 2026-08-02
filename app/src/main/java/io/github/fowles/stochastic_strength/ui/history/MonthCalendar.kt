@@ -30,7 +30,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
-import java.util.Locale
+import androidx.compose.ui.platform.LocalConfiguration
 
 // Fixed per-day cell; months are packed at their natural width and scroll horizontally
 // rather than stretching to fit the screen.
@@ -88,9 +88,10 @@ private fun MonthColumn(
     workoutDays: Set<LocalDate>,
     onDayTap: (LocalDate) -> Unit,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     Column(modifier = Modifier.width(DAY_CELL_SIZE * DAYS_PER_WEEK)) {
         Text(
-            text = "${month.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${month.year}",
+            text = "${month.month.getDisplayName(TextStyle.SHORT, locale)} ${month.year}",
             style = MaterialTheme.typography.titleSmall,
             textAlign = TextAlign.Center,
             modifier = Modifier.width(DAY_CELL_SIZE * DAYS_PER_WEEK).padding(bottom = 2.dp),
@@ -102,12 +103,13 @@ private fun MonthColumn(
 
 @Composable
 private fun WeekdayHeader() {
+    val locale = LocalConfiguration.current.locales[0]
     Row {
         // Week starts Monday to match ISO DayOfWeek ordering used in the grid.
         // DayOfWeek is a Java enum → values(), not the Kotlin-only .entries.
         for (dow in DayOfWeek.values()) {
             Text(
-                text = dow.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                text = dow.getDisplayName(TextStyle.NARROW, locale),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
