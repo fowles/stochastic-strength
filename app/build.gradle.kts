@@ -84,7 +84,7 @@ dependencies {
     implementation(libs.vico.compose.m3)
     implementation(libs.reorderable)
     implementation(libs.okhttp)
-    implementation(libs.security.crypto)
+    implementation(libs.tink.android)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.json)
