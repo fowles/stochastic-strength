@@ -315,8 +315,12 @@ class WorkoutRepository(
         SavedWorkoutDetail(
             id = id,
             name = name,
-            entries = rows.sortedBy { it.position }
-                .mapNotNull { r -> byId[r.exerciseId]?.let { SavedWorkoutEntry(it, r.reps) } },
+            // Normalized after the drop, so a circuit that lost a member is still a valid structure.
+            entries = CircuitStructure.normalize(
+                rows.sortedBy { it.position }.mapNotNull { r ->
+                    byId[r.exerciseId]?.let { SavedWorkoutEntry(it, r.reps, r.sets, r.circuitId) }
+                }
+            ),
         )
 
     /** Inserts (id == null) or fully replaces (id != null) a saved workout in one transaction. */
@@ -330,8 +334,12 @@ class WorkoutRepository(
             dao.deleteExerciseRows(id)
             id
         }
-        dao.insertExerciseRows(entries.mapIndexed { i, e ->
-            SavedWorkoutExercise(workoutId = workoutId, exerciseId = e.exercise.id, position = i, reps = e.reps)
+        dao.insertExerciseRows(CircuitStructure.normalize(entries).mapIndexed { i, e ->
+            SavedWorkoutExercise(
+                workoutId = workoutId, exerciseId = e.exercise.id, position = i, reps = e.reps,
+                sets = e.sets.coerceIn(CircuitStructure.MIN_SETS, CircuitStructure.MAX_SETS),
+                circuitId = e.circuitId,
+            )
         })
         workoutId
     }
@@ -342,16 +350,25 @@ class WorkoutRepository(
     }
 
     /**
-     * Captures a completed session as a saved workout: distinct exercises in order of first set,
-     * each with the first set's target reps (the reps the session was prescribed at).
+     * Captures a completed session as a saved workout: exercises in order of first set, each with
+     * the first set's target reps, its logged set count, and its circuit. A circuit's rounds are its
+     * longest member's count, so a member cut short (HURT, ended early) doesn't shrink the circuit.
      */
     suspend fun saveSessionAsWorkout(sessionId: Long, name: String): Long {
-        val sets = db.workoutSetDao().getSetsForSession(sessionId)
-        val firstSetByExercise = sets.sortedWith(compareBy({ it.completedAt ?: Long.MAX_VALUE }, { it.id }))
-            .distinctBy { it.exerciseId }
-        val byId = db.exerciseDao().getByIds(firstSetByExercise.map { it.exerciseId }).associateBy { it.id }
-        val entries = firstSetByExercise.mapNotNull { s -> byId[s.exerciseId]?.let { SavedWorkoutEntry(it, s.targetReps) } }
-        return saveWorkout(null, name, entries)
+        val setsByExercise = db.workoutSetDao().getSetsForSession(sessionId)
+            .sortedWith(compareBy({ it.completedAt ?: Long.MAX_VALUE }, { it.id }))
+            .groupBy { it.exerciseId } // first-appearance order
+        val byId = db.exerciseDao().getByIds(setsByExercise.keys.toList()).associateBy { it.id }
+        val entries = setsByExercise.mapNotNull { (exerciseId, rows) ->
+            byId[exerciseId]?.let {
+                SavedWorkoutEntry(
+                    exercise = it, reps = rows.first().targetReps,
+                    sets = rows.size.coerceIn(CircuitStructure.MIN_SETS, CircuitStructure.MAX_SETS),
+                    circuitId = rows.first().circuitId,
+                )
+            }
+        }
+        return saveWorkout(null, name, CircuitStructure.equalizeRounds(CircuitStructure.normalize(entries)))
     }
 
     // History

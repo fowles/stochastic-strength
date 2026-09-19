@@ -26,6 +26,7 @@ class SavedWorkoutRepositoryTest {
     private lateinit var repo: WorkoutRepository
     private lateinit var bench: Exercise
     private lateinit var squat: Exercise
+    private lateinit var row: Exercise
 
     @Before
     fun setUp() = runBlocking {
@@ -34,8 +35,10 @@ class SavedWorkoutRepositoryTest {
         repo = WorkoutRepository(db)
         val benchId = db.exerciseDao().insert(Exercise(name = "Bench", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL))
         val squatId = db.exerciseDao().insert(Exercise(name = "Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL))
+        val rowId = db.exerciseDao().insert(Exercise(name = "Row", primaryMuscle = MuscleGroup.BACK, equipment = Equipment.BARBELL))
         bench = db.exerciseDao().getById(benchId)!!
         squat = db.exerciseDao().getById(squatId)!!
+        row = db.exerciseDao().getById(rowId)!!
     }
 
     @After
@@ -86,5 +89,50 @@ class SavedWorkoutRepositoryTest {
         val detail = repo.getSavedWorkout(id)!!
         assertEquals(listOf(squat.id, bench.id), detail.entries.map { it.exercise.id })
         assertEquals(listOf(5, 8), detail.entries.map { it.reps })
+    }
+
+    @Test
+    fun saveWorkout_roundTripsSetsAndCircuits_normalized() = runBlocking {
+        val id = repo.saveWorkout(null, "Arms", listOf(
+            SavedWorkoutEntry(bench, reps = 5, sets = 2, circuitId = 7),
+            SavedWorkoutEntry(squat, reps = 5, sets = 2, circuitId = 7),
+            SavedWorkoutEntry(row, reps = null, sets = 4),
+        ))
+        val entries = repo.getSavedWorkout(id)!!.entries
+        assertEquals(listOf(2, 2, 4), entries.map { it.sets })
+        assertEquals(listOf(0, 0, null), entries.map { it.circuitId })
+    }
+
+    @Test
+    fun getSavedWorkout_circuitThatLosesAMemberCollapsesToSolo() = runBlocking {
+        val id = repo.saveWorkout(null, "Pair", listOf(
+            SavedWorkoutEntry(bench, reps = null, sets = 2, circuitId = 0),
+            SavedWorkoutEntry(squat, reps = null, sets = 2, circuitId = 0),
+        ))
+        db.exerciseDao().deleteAll()
+        db.exerciseDao().insert(bench)   // only bench survives, with its original id
+        val entries = repo.getSavedWorkout(id)!!.entries
+        assertEquals(listOf(bench.id), entries.map { it.exercise.id })
+        assertEquals(listOf<Int?>(null), entries.map { it.circuitId })
+        assertEquals(listOf(2), entries.map { it.sets })
+    }
+
+    @Test
+    fun saveSessionAsWorkout_rebuildsSetCountsAndCircuits() = runBlocking {
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1L))
+        var t = 1000L
+        suspend fun log(ex: Exercise, setNumber: Int, circuit: Int?) = db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = ex.id, setNumber = setNumber, targetWeight = 20f,
+            targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = t++, circuitId = circuit,
+        ))
+        // 2 × (bench, squat) where squat was cut short in round 2, then 4 straight sets of row.
+        log(bench, 1, 0); log(squat, 1, 0); log(bench, 2, 0)
+        repeat(4) { log(row, it + 1, null) }
+
+        val id = repo.saveSessionAsWorkout(sessionId, "From session")
+        val entries = repo.getSavedWorkout(id)!!.entries
+        assertEquals(listOf(bench.id, squat.id, row.id), entries.map { it.exercise.id })
+        assertEquals("a circuit's rounds are its longest member's", listOf(2, 2, 4), entries.map { it.sets })
+        assertEquals(listOf(0, 0, null), entries.map { it.circuitId })
     }
 }
