@@ -15,4 +15,6 @@ data class WorkoutSet(
     val feedback: SetFeedback? = null,
     val completedAt: Long? = null,
     val durationSeconds: Int? = null,
+    /** Session-local circuit tag; null for a straight set (and for all history before DB v21). */
+    val circuitId: Int? = null,
 )

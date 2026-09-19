@@ -58,4 +58,17 @@ class SavedWorkoutDaoTest {
         assertEquals(1, dao.getExerciseRows(keep).size)
         assertEquals(listOf("Keep"), dao.getAll().map { it.name })
     }
+
+    @Test
+    fun exerciseRows_roundTripSetsAndCircuitId() = runBlocking {
+        val dao = db.savedWorkoutDao()
+        val workoutId = dao.insert(SavedWorkout(name = "Arms", createdAt = 1L))
+        dao.insertExerciseRows(listOf(
+            SavedWorkoutExercise(workoutId = workoutId, exerciseId = 1, position = 0, reps = 5, sets = 2, circuitId = 0),
+            SavedWorkoutExercise(workoutId = workoutId, exerciseId = 2, position = 1, reps = null),
+        ))
+        val rows = dao.getExerciseRows(workoutId)
+        assertEquals(listOf(2, 3), rows.map { it.sets })
+        assertEquals(listOf(0, null), rows.map { it.circuitId })
+    }
 }

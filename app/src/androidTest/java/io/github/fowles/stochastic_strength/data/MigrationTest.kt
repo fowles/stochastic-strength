@@ -148,6 +148,7 @@ class MigrationTest {
                 AppDatabase.MIGRATION_15_16,
                 AppDatabase.MIGRATION_16_17,
                 AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20,
+                AppDatabase.MIGRATION_20_21,
             )
             .allowMainThreadQueries()
             .build()
@@ -252,7 +253,7 @@ class MigrationTest {
 
         // Walk all migrations forward to the current entity version.
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName10)
-            .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20)
+            .addMigrations(AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20, AppDatabase.MIGRATION_20_21)
             .allowMainThreadQueries()
             .build()
 
@@ -507,7 +508,7 @@ class MigrationTest {
 
         // Open through Room so MIGRATION_14_15 fires.
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName14)
-            .addMigrations(AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20)
+            .addMigrations(AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20, AppDatabase.MIGRATION_20_21)
             .build()
         try {
             runBlocking {
@@ -611,7 +612,7 @@ class MigrationTest {
         helper.close()
 
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName11)
-            .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20)
+            .addMigrations(AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20, AppDatabase.MIGRATION_20_21)
             .allowMainThreadQueries()
             .build()
 
@@ -655,7 +656,7 @@ class MigrationTest {
         )
         helper.writableDatabase.close()
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName17)
-            .addMigrations(AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20)
+            .addMigrations(AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20, AppDatabase.MIGRATION_20_21)
             .allowMainThreadQueries()
             .build()
         try {
@@ -712,7 +713,7 @@ class MigrationTest {
         helper.writableDatabase.close()
 
         val db = Room.databaseBuilder(context, AppDatabase::class.java, dbName18)
-            .addMigrations(AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20)
+            .addMigrations(AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20, AppDatabase.MIGRATION_20_21)
             .build()
         db.openHelper.writableDatabase.use { raw ->
             raw.query("SELECT name FROM sqlite_master WHERE type='table' AND name='exercise_strength_override'").use {
