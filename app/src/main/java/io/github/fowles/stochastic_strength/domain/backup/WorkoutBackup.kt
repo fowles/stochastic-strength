@@ -30,7 +30,9 @@ data class WorkoutBackup(
     companion object {
         const val FORMAT = "stochastic-strength-backup"
         const val FORMAT_VERSION = 1
-        const val DB_VERSION = 20
+        const val DB_VERSION = 21
+        /** Oldest export this build can read; fields added since are defaulted by the parser. */
+        const val MIN_DB_VERSION = 20
     }
 }
 

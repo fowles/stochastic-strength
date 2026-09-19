@@ -89,7 +89,7 @@ object BackupJsonBuilder {
         "setNumber" to s.setNumber, "targetWeight" to s.targetWeight.toDouble(),
         "targetReps" to s.targetReps, "actualReps" to s.actualReps,
         "feedback" to s.feedback?.name, "completedAt" to s.completedAt,
-        "durationSeconds" to s.durationSeconds,
+        "durationSeconds" to s.durationSeconds, "circuitId" to s.circuitId,
     )
 
     private fun profileObj(p: UserProfile) = obj(
@@ -112,6 +112,7 @@ object BackupJsonBuilder {
     private fun savedWorkoutExerciseObj(r: SavedWorkoutExercise) = obj(
         "id" to r.id, "workoutId" to r.workoutId, "exerciseId" to r.exerciseId,
         "position" to r.position, "reps" to r.reps,
+        "sets" to r.sets, "circuitId" to r.circuitId,
     )
 }
 
@@ -127,7 +128,7 @@ object BackupJsonParser {
             throw BackupFormatException("Unrecognized file (format=\"$format\").")
         }
         val dbVersion = root.optInt("dbVersion", -1)
-        if (dbVersion != WorkoutBackup.DB_VERSION) {
+        if (dbVersion !in WorkoutBackup.MIN_DB_VERSION..WorkoutBackup.DB_VERSION) {
             throw BackupFormatException(
                 "This export is from DB v$dbVersion but the app is on v${WorkoutBackup.DB_VERSION}. " +
                     "Update the app, or re-export."
@@ -186,6 +187,7 @@ object BackupJsonParser {
         targetReps = o.getInt("targetReps"), actualReps = o.intOrNull("actualReps"),
         feedback = if (o.isNull("feedback")) null else SetFeedback.valueOf(o.getString("feedback")),
         completedAt = o.longOrNull("completedAt"), durationSeconds = o.intOrNull("durationSeconds"),
+        circuitId = o.intOrNull("circuitId"),
     )
 
     private fun profile(o: JSONObject) = UserProfile(
@@ -214,5 +216,6 @@ object BackupJsonParser {
     private fun savedWorkoutExercise(o: JSONObject) = SavedWorkoutExercise(
         id = o.getLong("id"), workoutId = o.getLong("workoutId"), exerciseId = o.getLong("exerciseId"),
         position = o.getInt("position"), reps = o.intOrNull("reps"),
+        sets = o.optInt("sets", 3), circuitId = o.intOrNull("circuitId"),
     )
 }

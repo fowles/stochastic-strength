@@ -16,6 +16,7 @@ import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -184,5 +185,44 @@ class BackupManagerTest {
         assertEquals(1, rows.size)
         assertEquals(localBench, rows[0].exerciseId)
         assertEquals(8, rows[0].reps)
+    }
+
+    @Test
+    fun additiveImport_circuitThatLosesAMember_importsAsSolo() = runBlocking {
+        // Arrange exactly as additiveImport_remapsSavedWorkoutExercisesByName_andSkipsSameName does
+        // for its unresolvable row, but tag both backup rows sets = 2, circuitId = 0.
+        db.exerciseDao().insert(Exercise(id = 0, name = "Bench Press",
+            primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL))
+        db.savedWorkoutDao().insert(SavedWorkout(name = "Already here", createdAt = 1))
+
+        val backup = WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION, dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = 0,
+            exercises = listOf(
+                Exercise(id = 5, name = "Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            ),
+            knownLocations = emptyList(), locationExcludedExercises = emptyList(),
+            workoutSessions = emptyList(), workoutSets = emptyList(), userProfile = emptyList(),
+            baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
+            savedWorkouts = listOf(
+                SavedWorkout(id = 9, name = "Already here", createdAt = 2),
+                SavedWorkout(id = 10, name = "New one", createdAt = 3),
+            ),
+            savedWorkoutExercises = listOf(
+                SavedWorkoutExercise(workoutId = 10, exerciseId = 5, position = 0, reps = 8,
+                    sets = 2, circuitId = 0),
+                SavedWorkoutExercise(workoutId = 10, exerciseId = 999, position = 1, reps = null,
+                    sets = 2, circuitId = 0), // unresolvable
+            ),
+        )
+
+        // Act
+        manager.importAdditive(backup)
+
+        // Assert on the imported workout's rows:
+        val rows = db.savedWorkoutDao().getAllExerciseRows()
+        assertEquals(1, rows.size)
+        assertNull(rows.single().circuitId)
+        assertEquals(2, rows.single().sets)
     }
 }

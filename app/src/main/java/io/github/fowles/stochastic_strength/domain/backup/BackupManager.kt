@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.domain.backup
 
 import androidx.room.withTransaction
 import io.github.fowles.stochastic_strength.data.AppDatabase
+import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 
 data class AdditiveResult(
@@ -135,6 +136,7 @@ class BackupManager(
                         val exerciseId = resolveExerciseId(r.exerciseId) ?: return@mapNotNull null
                         r.copy(id = 0, workoutId = newId, exerciseId = exerciseId)
                     }
+                    .let { CircuitStructure.normalize(it) } // a dropped member must not leave a 1-row circuit
                     .mapIndexed { i, r -> r.copy(position = i) }
                 db.savedWorkoutDao().insertExerciseRows(rows)
             }
