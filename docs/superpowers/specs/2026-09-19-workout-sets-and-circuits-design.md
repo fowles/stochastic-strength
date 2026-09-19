@@ -134,15 +134,14 @@ rest accounting (rest follows every set).
 ### List shape
 
 The lazy list is **one item per block**; the existing reorderable `LazyColumn` reorders blocks.
-Item key = smallest exercise id in the block (stable under block drag and member reorder).
+Item key = smallest exercise id in the block (stable under block drag).
 
 - Solo block: today's row, with `sets − n +` and `reps − n +` (generalize `RepsStepper` →
   `CountStepper`; name on line 1, steppers on line 2).
 - Circuit block: a card — header (drag handle · "Circuit" · `rounds − n +`) and a `Column` of
   member rows (reps stepper only). Dragging the header moves the whole circuit.
-- Member order within a circuit: per-member handle + nested `ReorderableColumn`
-  (sh.calvin.reorderable), constrained to the card. **Unverified** that nesting inside a lazy item
-  works — first UI task is a spike; fallback is ↑/↓ buttons on member rows.
+- Member rows have no drag handle. To reorder within a circuit: unlink, reorder the solo rows,
+  relink. No nested drag.
 - ⛓ link toggles: one at the bottom of each block (links its last row to the next block's first
   row → merge / pull a solo in); one between members (tap → split). Drags never change membership.
 - Swipe-to-remove (editor) and swipe-to-replace with the 4 s auto-skip (preview) stay per row,
@@ -155,7 +154,7 @@ Over anything with `sets` + `circuitId`:
 - `link(i)`: join row *i* with *i+1*. Neither in a circuit → new circuit, rounds = upper row's
   sets. One in a circuit → the other joins and adopts its rounds. Both → merge, upper's rounds win.
 - `unlink(i)`: split there; a side left with one member becomes solo with `sets = rounds`.
-- `moveBlock(from, to)`, `moveWithin(block, from, to)`, `remove(i)`.
+- `moveBlock(from, to)`, `remove(i)`.
 - `setRounds(i, n)` writes `n` to every member of the block; `setSets(i, n)` for solo rows.
 - Each ends in `CircuitStructure.normalize`.
 
@@ -201,7 +200,7 @@ helper text updated.
 
 Pure JVM:
 - `CircuitStructureTest` — contiguity, gap splits, single-member collapse, renumbering, `blocks`.
-- `CircuitEditsTest` — link (new / join / merge), unlink, moveBlock, moveWithin, remove dissolves,
+- `CircuitEditsTest` — link (new / join / merge), unlink, moveBlock, remove dissolves,
   setRounds writes all members.
 - `WorkoutSequenceTest` — solo only, circuit interleave, mixed blocks, uneven `sets`/`done` after
   swap / HURT / end keeps slot order, finish.
