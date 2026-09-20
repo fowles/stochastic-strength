@@ -59,7 +59,7 @@ Modify: `SavedWorkout.kt`, `WorkoutSet.kt`, `AppDatabase.kt`, `SavedWorkoutDetai
   - `object CircuitStructure { MIN_SETS; MAX_SETS; blocks(rows); normalize(rows); concat(head, tail); equalizeRounds(rows); circuitCount(rows) }` — all generic over `T : CircuitRow<T>`, all take/return `List<T>` (except `blocks` → `List<Block>`, `circuitCount` → `Int`).
   - `PlannedExercise.sets: Int`, `PlannedExercise.circuitId: Int?`; `SavedWorkoutEntry.sets: Int`, `SavedWorkoutEntry.circuitId: Int?`.
 
-- [ ] **Step 1: Write the failing test** — `TEST/domain/CircuitStructureTest.kt`
+- [x] **Step 1: Write the failing test** — `TEST/domain/CircuitStructureTest.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -131,12 +131,12 @@ class CircuitStructureTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CircuitStructureTest"`
 Expected: compilation FAILS — `CircuitRow`, `CircuitStructure`, `Block` unresolved.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `MAIN/data/model/CircuitRow.kt`:
 ```kotlin
@@ -241,12 +241,12 @@ data class SavedWorkoutEntry(
 }
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CircuitStructureTest"`
 Expected: PASS (8 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(circuits): CircuitRow trait and CircuitStructure blocks/normalize
@@ -265,7 +265,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Consumes: `CircuitRow<T>`, `CircuitStructure.blocks/normalize/MIN_SETS/MAX_SETS`, `TestRow` (from `CircuitStructureTest.kt`, same package).
 - Produces: `object CircuitEdits { link(rows, i); unlink(rows, i); moveBlock(rows, fromBlock, toBlock); remove(rows, i); setRounds(rows, i, n) }` — all `(List<T>, …) -> List<T>`, all return a normalized list, all return the input unchanged on out-of-range indices. `i` is a **row** index; `fromBlock`/`toBlock` are **block** indices. `setRounds` on a solo row sets its `sets` (the spec's `setSets` — one function covers both).
 
-- [ ] **Step 1: Write the failing test** — `TEST/domain/CircuitEditsTest.kt`
+- [x] **Step 1: Write the failing test** — `TEST/domain/CircuitEditsTest.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -354,12 +354,12 @@ class CircuitEditsTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CircuitEditsTest"`
 Expected: compilation FAILS — `CircuitEdits` unresolved.
 
-- [ ] **Step 3: Implement** — `MAIN/domain/CircuitEdits.kt`
+- [x] **Step 3: Implement** — `MAIN/domain/CircuitEdits.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -426,12 +426,12 @@ object CircuitEdits {
 }
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.CircuitEditsTest"`
 Expected: PASS (11 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(circuits): CircuitEdits link/unlink/moveBlock/remove/setRounds
@@ -453,7 +453,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - `WorkoutSequence.next(exercises: List<PlannedExercise>, done: Map<Long, Int>): Step?` — `done` is completed working sets keyed by `exercise.id`; `null` means the workout is finished.
   - `WorkoutSequence.positionLabel(exercises: List<PlannedExercise>, exerciseIndex: Int, setIndex: Int): String` — `"Set 2 of 4"` or `"Round 2 of 2"`.
 
-- [ ] **Step 1: Write the failing test** — `TEST/domain/WorkoutSequenceTest.kt`
+- [x] **Step 1: Write the failing test** — `TEST/domain/WorkoutSequenceTest.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -545,12 +545,12 @@ class WorkoutSequenceTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutSequenceTest"`
 Expected: compilation FAILS — `WorkoutSequence` unresolved.
 
-- [ ] **Step 3: Implement** — `MAIN/domain/WorkoutSequence.kt`
+- [x] **Step 3: Implement** — `MAIN/domain/WorkoutSequence.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.domain
@@ -590,12 +590,12 @@ object WorkoutSequence {
 ```
 (`maxByOrNull` returns the first maximal element, which is the "earliest on ties" rule.)
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutSequenceTest"`
 Expected: PASS (9 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(circuits): WorkoutSequence.next and positionLabel
@@ -614,7 +614,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Interfaces:**
 - Produces: `SavedWorkoutExercise.sets: Int` (default 3), `SavedWorkoutExercise.circuitId: Int?`, `WorkoutSet.circuitId: Int?`, `AppDatabase.MIGRATION_20_21` (`internal`), DB `version = 21`. `SavedWorkoutExercise` implements `CircuitRow<SavedWorkoutExercise>`.
 
-- [ ] **Step 1: Write the failing migration test** — `ATEST/data/Migration20To21Test.kt`
+- [x] **Step 1: Write the failing migration test** — `ATEST/data/Migration20To21Test.kt`
 
 ```kotlin
 package io.github.fowles.stochastic_strength.data
@@ -664,7 +664,7 @@ class Migration20To21Test {
 }
 ```
 
-- [ ] **Step 2: Implement entities + migration**
+- [x] **Step 2: Implement entities + migration**
 
 `MAIN/data/model/SavedWorkout.kt` — replace `SavedWorkoutExercise` (add imports `androidx.room.ColumnInfo`):
 ```kotlin
@@ -705,16 +705,16 @@ data class SavedWorkoutExercise(
 ```
 and append `MIGRATION_20_21` to the `.addMigrations(...)` list in `buildDatabase`.
 
-- [ ] **Step 3: Generate the v21 schema**
+- [x] **Step 3: Generate the v21 schema**
 
 Run: `./gradlew :app:assembleDebug`
 Expected: BUILD SUCCESSFUL and a new `app/schemas/io.github.fowles.stochastic_strength.data.AppDatabase/21.json`. Verify with `ls app/schemas/*/21.json`. This file is committed.
 
-- [ ] **Step 4: Update the forward-migration lists in `MigrationTest`**
+- [x] **Step 4: Update the forward-migration lists in `MigrationTest`**
 
 In `ATEST/data/MigrationTest.kt`, every `.addMigrations(... AppDatabase.MIGRATION_19_20)` and every `runMigrationsAndValidate(..., AppDatabase.MIGRATION_19_20)` that migrates to the *current* version must end with `, AppDatabase.MIGRATION_20_21`, and any literal target version `20` passed to `runMigrationsAndValidate` in those same calls becomes `21`. Find them with Grep pattern `MIGRATION_19_20` in that file (6 sites at the time of writing). Do not change `Migration19To20Test`, which deliberately stops at 20.
 
-- [ ] **Step 5: Extend the DAO round-trip test**
+- [x] **Step 5: Extend the DAO round-trip test**
 
 In `ATEST/data/SavedWorkoutDaoTest.kt` add (use the file's existing `db`/`dao` fixture names):
 ```kotlin
@@ -731,7 +731,7 @@ In `ATEST/data/SavedWorkoutDaoTest.kt` add (use the file's existing `db`/`dao` f
     }
 ```
 
-- [ ] **Step 6: Run the instrumented tests**
+- [x] **Step 6: Run the instrumented tests**
 
 Run each:
 `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.data.Migration20To21Test`
@@ -739,7 +739,7 @@ Run each:
 `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.data.SavedWorkoutDaoTest`
 Expected: all PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 jj commit -m "feat(db): v21 adds sets/circuitId to saved rows and circuitId to workout_sets
@@ -758,7 +758,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Consumes: `CircuitStructure.normalize/equalizeRounds/MIN_SETS/MAX_SETS`, `SavedWorkoutEntry.sets/circuitId`, `SavedWorkoutExercise.sets/circuitId`, `WorkoutSet.circuitId`.
 - Produces: `getSavedWorkout`/`observeSavedWorkouts` return normalized entries carrying `sets`/`circuitId`; `saveWorkout` persists them (normalized); `saveSessionAsWorkout` rebuilds sets + circuits. Signatures unchanged.
 
-- [ ] **Step 1: Write the failing tests** — add to `ATEST/domain/SavedWorkoutRepositoryTest.kt` (reuse the file's existing fixture for `db`, `repository`, and its way of inserting exercises; the three exercise ids below are whatever that fixture yields — bind them to `a`, `b`, `c` as `Exercise` values)
+- [x] **Step 1: Write the failing tests** — add to `ATEST/domain/SavedWorkoutRepositoryTest.kt` (reuse the file's existing fixture for `db`, `repository`, and its way of inserting exercises; the three exercise ids below are whatever that fixture yields — bind them to `a`, `b`, `c` as `Exercise` values)
 
 ```kotlin
     @Test
@@ -807,12 +807,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 (If the exercise DAO has no delete method, grep `ExerciseDao` for the delete it does have — the existing test `observeSavedWorkouts_dropsRowsWhoseExerciseIsGone` in this same file already removes an exercise; copy its call.)
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.domain.SavedWorkoutRepositoryTest`
 Expected: the three new tests FAIL (sets come back 3 / circuitId null).
 
-- [ ] **Step 3: Implement** — in `MAIN/domain/WorkoutRepository.kt`
+- [x] **Step 3: Implement** — in `MAIN/domain/WorkoutRepository.kt`
 
 Replace `toDetail`:
 ```kotlin
@@ -863,11 +863,11 @@ Replace `saveSessionAsWorkout`:
     }
 ```
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run the same command as Step 2. Expected: whole class PASSES, including the pre-existing `saveSessionAsWorkout_ordersByFirstSet_andRecordsFirstSetTargetReps`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(saved-workouts): persist sets and circuits; rebuild them from a session
@@ -885,7 +885,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Interfaces:**
 - Produces: `WorkoutBackup.DB_VERSION = 21`, `WorkoutBackup.MIN_DB_VERSION = 20`. JSON keys `"sets"` and `"circuitId"` on `savedWorkoutExercises`, `"circuitId"` on `workoutSets`.
 
-- [ ] **Step 1: Write the failing tests** — add to `ATEST/domain/backup/BackupJsonTest.kt`
+- [x] **Step 1: Write the failing tests** — add to `ATEST/domain/backup/BackupJsonTest.kt`
 
 ```kotlin
     /** A v20 export: no `sets`/`circuitId` keys anywhere. */
@@ -935,12 +935,12 @@ Add to `ATEST/domain/backup/BackupManagerTest.kt` (model it on the existing `add
 ```
 Write the Arrange/Act lines concretely by copying that existing test's body; only the two tags and the assertions differ. If that existing test has no unresolvable row (every name resolves), build one by pointing a backup row at an `exerciseId` absent from `backup.exercises`.
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.domain.backup.BackupJsonTest`
 Expected: `parse_acceptsV20File…` FAILS with "This export is from DB v20 but the app is on v21"; round-trip fails on the new fields.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `WorkoutBackup.kt` companion:
 ```kotlin
@@ -968,11 +968,11 @@ Expected: `parse_acceptsV20File…` FAILS with "This export is from DB v20 but t
 
 Update the existing `parse_rejectsWrongDbVersion` only if it now fails (it uses v16, still outside the window — it should pass untouched).
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run `BackupJsonTest` and `BackupManagerTest` (same command form). Expected: both classes PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(backup): export sets/circuits; accept v20 files with defaults
@@ -994,7 +994,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - `WorkoutPlanner.restampDuration(pe: PlannedExercise): PlannedExercise` — recomputes `estimatedSeconds` from `pe.sets`; call after anything changes a row's `sets`.
   - `withWeight` / `recomputeExercise` preserve `pe.sets`/`pe.circuitId` (they already `copy`) and price duration from `pe.sets`.
 
-- [ ] **Step 1: Write the failing test** — add to `TEST/domain/WorkoutPlannerTest.kt` (use the file's existing planner-construction helper; the existing test ``generated plan stamps estimated seconds using learned secondsPerRep`` shows how a planner and an exercise are built — reuse that setup, binding the planner to `planner`, an exercise to `exercise`, and an empty plan to `plan`)
+- [x] **Step 1: Write the failing test** — add to `TEST/domain/WorkoutPlannerTest.kt` (use the file's existing planner-construction helper; the existing test ``generated plan stamps estimated seconds using learned secondsPerRep`` shows how a planner and an exercise are built — reuse that setup, binding the planner to `planner`, an exercise to `exercise`, and an empty plan to `plan`)
 
 ```kotlin
     @Test
@@ -1015,12 +1015,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
     }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.WorkoutPlannerTest"`
 Expected: compilation FAILS — no `sets` parameter, no `restampDuration`.
 
-- [ ] **Step 3: Implement** — in `MAIN/domain/WorkoutPlanner.kt`
+- [x] **Step 3: Implement** — in `MAIN/domain/WorkoutPlanner.kt`
 
 Add one private helper and use it at all three existing `DurationCalculator.estimate` sites (this removes the three `PlannedExercise.DEFAULT_SETS` reads):
 ```kotlin
@@ -1052,11 +1052,11 @@ Add one private helper and use it at all three existing `DurationCalculator.esti
 ```
 (Keep its existing KDoc.)
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run the Step 2 command. Expected: whole `WorkoutPlannerTest` PASSES (existing duration tests unchanged, since default `sets` is 3).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(planner): price duration from per-row sets; planExplicit carries structure
@@ -1079,7 +1079,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - `setExerciseSets(exerciseId: Long, sets: Int)` — sets the rounds of that row's block.
   - `loadSavedWorkout`/`appendSavedWorkout` carry structure; `saveCurrentPlan` writes it; trim / swipe-replace / location refresh keep it valid.
 
-- [ ] **Step 1: Write the failing tests** — add to `ATEST/ui/workout/WorkoutSessionControllerTest.kt` (these use the file's existing `previewFixture`, `preview`, `awaitPreview`)
+- [x] **Step 1: Write the failing tests** — add to `ATEST/ui/workout/WorkoutSessionControllerTest.kt` (these use the file's existing `previewFixture`, `preview`, `awaitPreview`)
 
 ```kotlin
     @Test
@@ -1169,12 +1169,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 Also rename-and-keep the existing `saveCurrentPlan_writesOrderWithNullReps`: it must still pass unchanged.
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionControllerTest`
 Expected: compilation FAILS — `linkExercises`, `unlinkExercises`, `setExerciseSets` unresolved.
 
-- [ ] **Step 3: Implement** — in `WorkoutSessionController.kt` (add imports `io.github.fowles.stochastic_strength.domain.CircuitEdits`, `io.github.fowles.stochastic_strength.domain.CircuitStructure`)
+- [x] **Step 3: Implement** — in `WorkoutSessionController.kt` (add imports `io.github.fowles.stochastic_strength.domain.CircuitEdits`, `io.github.fowles.stochastic_strength.domain.CircuitStructure`)
 
 Add one private helper used by every structure edit:
 ```kotlin
@@ -1246,11 +1246,11 @@ and update its KDoc first line to `/** Saves the current preview rows — order,
     fun setExerciseSets(exerciseId: Long, sets: Int) = controller.setExerciseSets(exerciseId, sets)
 ```
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run the Step 2 command. Expected: whole class PASSES, including the pre-existing `moveExercise_swapsExerciseOrder`, `loadSavedWorkout_replacesRows_clearsOverrides_keepsTarget`, `appendSavedWorkout_keepsExisting_andReplacesDuplicateWithLoadedRow`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(workout): plan-preview link/unlink/sets; load, append, save carry structure
@@ -1272,7 +1272,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - `ActiveSet.totalSets` = `plannedExercise.sets`; new `ActiveSet.positionLabel: String`.
   - For a staged rest, `Resting.done` is the **commit target's** `done`.
 
-- [ ] **Step 1: Write the failing tests** — add to `ATEST/ui/workout/WorkoutSessionControllerTest.kt`
+- [x] **Step 1: Write the failing tests** — add to `ATEST/ui/workout/WorkoutSessionControllerTest.kt`
 
 Helpers (controller-parameterized, unlike the older `toWorkingSet`):
 ```kotlin
@@ -1411,12 +1411,12 @@ Tests:
     }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionControllerTest`
 Expected: compilation FAILS — `positionLabel`, `done` unresolved.
 
-- [ ] **Step 3: Implement `WorkoutState`**
+- [x] **Step 3: Implement `WorkoutState`**
 
 ```kotlin
     data class ActiveSet(
@@ -1441,7 +1441,7 @@ Expected: compilation FAILS — `positionLabel`, `done` unresolved.
         val done: Map<Long, Int> = emptyMap(),
 ```
 
-- [ ] **Step 4: Implement the controller** (import `io.github.fowles.stochastic_strength.domain.WorkoutSequence`)
+- [x] **Step 4: Implement the controller** (import `io.github.fowles.stochastic_strength.domain.WorkoutSequence`)
 
 Add the single "where are we" helper:
 ```kotlin
@@ -1560,11 +1560,11 @@ Add the single "where are we" helper:
     (restructure the `when` so the staged case stays first and this is its `else`).
 - Remove the now-unused `PlannedExercise` import only if nothing else in the file uses it (it still does — `editStructure`).
 
-- [ ] **Step 5: Run to verify they pass**
+- [x] **Step 5: Run to verify they pass**
 
 Run the Step 2 command. Expected: whole class PASSES. The one pre-existing test whose *meaning* changed, `swap_hasLoggedSets_keepsOriginalAndInsertsAfter`, asserts only indices and size, so it passes unchanged. `finalSetTransitionsThroughResting`, `undoFromResting_deletesRowIncludingActualReps`, `tooHardOnFinalSetOfExercise_doesNotChangeWeight` and the `endExercise_*`/`swap_*` tests must all still pass — if one fails, the cause is a missed `done =` on a constructed `ActiveSet`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 jj commit -m "feat(workout): sequence sets through WorkoutSequence; circuits, per-row sets, remaining-sets swap
@@ -1585,11 +1585,11 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 This task is Compose-only; it is verified by the build plus a manual emulator check (Step 3).
 
-- [ ] **Step 1: Implement `ActiveSetContent.kt`**
+- [x] **Step 1: Implement `ActiveSetContent.kt`**
 
 Both occurrences of `"Set ${state.setIndex + 1} of ${state.totalSets}"` → `state.positionLabel`.
 
-- [ ] **Step 2: Implement `RestingContent.kt`** (import `io.github.fowles.stochastic_strength.domain.WorkoutSequence`)
+- [x] **Step 2: Implement `RestingContent.kt`** (import `io.github.fowles.stochastic_strength.domain.WorkoutSequence`)
 
 - Delete `val totalSets = PlannedExercise.DEFAULT_SETS` and `val nextSet = …` at the top; add
   `val nextStep = WorkoutSequence.next(plan.exercises, state.done)`.
@@ -1645,13 +1645,13 @@ private fun RemainingExerciseList(
 ```
 - Remove the `PlannedExercise` import only if unused (it is still the list's element type — keep it).
 
-- [ ] **Step 3: Build and check on the emulator**
+- [x] **Step 3: Build and check on the emulator**
 
 Run: `./gradlew :app:assembleDebug` → BUILD SUCCESSFUL.
 Run Grep for `DEFAULT_SETS` in `MAIN/ui/workout/RestingContent.kt` and `ActiveSetContent.kt` → no matches.
 If an emulator is already running, install and start a workout; confirm a plain 3-set exercise still reads "Set 1 of 3", rests show "N left", and the final rest shows no "Next up" card. (Circuits become reachable from the UI in Task 12.) If no emulator is running, say so in the task report — do not start one.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "feat(workout): rest and active-set screens derive next-up and remaining from the sequence
@@ -1676,7 +1676,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - `fun workoutSubtitle(entries: List<SavedWorkoutEntry>): String`
   - Editor VM: `move(fromBlock: Int, toBlock: Int)` (now block indices), `link(rowIndex: Int)`, `unlink(rowIndex: Int)`, `setSets(exerciseId: Long, sets: Int)`; `removeExercise` normalizes.
 
-- [ ] **Step 1: Write the failing VM tests** — add to `ATEST/ui/savedworkouts/SavedWorkoutsViewModelsTest.kt` (use the file's existing way of building a `SavedWorkoutEditViewModel` for `NEW_WORKOUT_ID` and of waiting for `allExercises`; the existing `hasUnsavedChanges_tracksEditsAndSaves` shows both — bind the VM to `vm` and three exercise ids to `a`, `b`, `c`)
+- [x] **Step 1: Write the failing VM tests** — add to `ATEST/ui/savedworkouts/SavedWorkoutsViewModelsTest.kt` (use the file's existing way of building a `SavedWorkoutEditViewModel` for `NEW_WORKOUT_ID` and of waiting for `allExercises`; the existing `hasUnsavedChanges_tracksEditsAndSaves` shows both — bind the VM to `vm` and three exercise ids to `a`, `b`, `c`)
 
 ```kotlin
     @Test
@@ -1701,12 +1701,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
     }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.fowles.stochastic_strength.ui.savedworkouts.SavedWorkoutsViewModelsTest`
 Expected: compilation FAILS — `link`, `setSets` unresolved.
 
-- [ ] **Step 3: Implement the VM** — in `SavedWorkoutEditViewModel.kt` (import `io.github.fowles.stochastic_strength.domain.CircuitEdits`)
+- [x] **Step 3: Implement the VM** — in `SavedWorkoutEditViewModel.kt` (import `io.github.fowles.stochastic_strength.domain.CircuitEdits`)
 
 ```kotlin
     private fun editEntries(edit: (List<SavedWorkoutEntry>) -> List<SavedWorkoutEntry>) {
@@ -1731,7 +1731,7 @@ Expected: compilation FAILS — `link`, `setSets` unresolved.
 ```
 (these replace the old `removeExercise` and `move`; `setReps` and `addExercise` stay).
 
-- [ ] **Step 4: Implement `CircuitChrome.kt`**
+- [x] **Step 4: Implement `CircuitChrome.kt`**
 
 ```kotlin
 package io.github.fowles.stochastic_strength.ui.components
@@ -1840,7 +1840,7 @@ fun CircuitHeader(
 }
 ```
 
-- [ ] **Step 5: Implement the editor screen** — in `SavedWorkoutEditScreen.kt`
+- [x] **Step 5: Implement the editor screen** — in `SavedWorkoutEditScreen.kt`
 
 Helper text becomes:
 ```kotlin
@@ -1951,7 +1951,7 @@ private fun StepperLabel(text: String) = Text(
 ```
 Delete the old `RepsStepper`, the old "Session default reps" subtitle, and the file-local `DISABLED_ALPHA` (now in `CircuitChrome.kt`). Keep `MAX_REPS`. Add imports `androidx.compose.foundation.layout.Spacer`, `androidx.compose.foundation.layout.width`.
 
-- [ ] **Step 6: Library and picker subtitle**
+- [x] **Step 6: Library and picker subtitle**
 
 In `SavedWorkoutPickerDialog.kt`, under `exerciseCountLabel` add:
 ```kotlin
@@ -1967,12 +1967,12 @@ fun workoutSubtitle(entries: List<SavedWorkoutEntry>): String {
 ```
 and change both call sites (`SavedWorkoutPickerDialog.kt:70`, `SavedWorkoutsScreen.kt:104`) from `exerciseCountLabel(w.entries.size)` to `workoutSubtitle(w.entries)`.
 
-- [ ] **Step 7: Run tests and build**
+- [x] **Step 7: Run tests and build**
 
 Run the Step 2 command → whole class PASSES. Run `./gradlew :app:assembleDebug` → BUILD SUCCESSFUL.
 If an emulator is already running: open Workouts → +, add three exercises, tap the ⛓ between the first two, confirm the card + rounds stepper appear, drag the card by its header below the third row, tap the filled ⛓ to split, Done, reopen and confirm it persisted. If none is running, say so in the report.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 jj commit -m "feat(saved-workouts): editor sets steppers, link toggles, whole-circuit drag
@@ -1993,7 +1993,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 Compose-only; verified by the build and a manual check.
 
-- [ ] **Step 1: Implement `PlanPreviewContent`**
+- [x] **Step 1: Implement `PlanPreviewContent`**
 
 - Add the three parameters after `onMove`.
 - `val totalSets = plan.exercises.sumOf { it.sets }`.
@@ -2065,7 +2065,7 @@ Compose-only; verified by the build and a manual check.
 ```
 - Remove the `PlannedExercise` import if now unused; add imports for `key`, `CircuitStructure`, `CircuitHeader`, `CountStepper`, `LinkToggle`, `Spacer`/`width` as needed.
 
-- [ ] **Step 2: Wire `WorkoutScreen.kt`**
+- [x] **Step 2: Wire `WorkoutScreen.kt`**
 
 Beside `onMove = viewModel::moveExercise,` add:
 ```kotlin
@@ -2074,12 +2074,12 @@ Beside `onMove = viewModel::moveExercise,` add:
                         onSetSets = viewModel::setExerciseSets,
 ```
 
-- [ ] **Step 3: Build and check**
+- [x] **Step 3: Build and check**
 
 Run: `./gradlew :app:assembleDebug` → BUILD SUCCESSFUL. Grep `DEFAULT_SETS` under `MAIN/ui/` → no matches.
 If an emulator is already running: on plan preview link two rows, set rounds to 2, confirm the header's set total and minutes change; start the workout and confirm "Round 1 of 2" alternates between the two exercises with a rest after each, then "Round 2 of 2". Swipe-replace a circuit member on the preview and confirm the replacement stays inside the card. If none is running, say so in the report.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 jj commit -m "feat(workout): plan preview sets steppers, link toggles, whole-circuit drag
@@ -2102,7 +2102,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - `fun summaryBlocks(exercises: List<SummaryExercise>): List<SummaryBlock>`; `WorkoutSummaryData.blocks: List<SummaryBlock>`
   - `ExerciseSetSection(name, sets, weightUnit, setWord: String = "Set")`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `TEST/domain/ExercisePacingEstimatorTest.kt` — add (the file's `set(...)` helper builds a `WorkoutSet`; `.copy(circuitId = 0)` tags it):
 ```kotlin
@@ -2168,13 +2168,13 @@ class SummaryBlocksTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run:
 `./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.domain.ExercisePacingEstimatorTest" --tests "io.github.fowles.stochastic_strength.domain.strava.StravaDescriptionTest" --tests "io.github.fowles.stochastic_strength.ui.SummaryBlocksTest"`
 Expected: `SummaryBlocksTest` fails to compile; the pacing test FAILS (returns 11.25); the Strava test FAILS (no heading).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `ExercisePacingEstimator.appearanceAverage` — after the HURT `continue`:
 ```kotlin
@@ -2251,11 +2251,11 @@ add to `WorkoutSummaryData`: `val blocks: List<SummaryBlock> get() = summaryBloc
 ```
 Place these lines **after** the `val exercise = exerciseById[id] ?: continue` line. Update the function's KDoc sentence to "…then each exercise (in workout order — [sets] is grouped by first appearance, circuit members under one "Circuit ×N" heading), then duration and footer."
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run the Step 2 command. Expected: all three classes PASS (including `exercisesListInWorkoutOrderNotMapOrder`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "feat(circuits): summary and Strava group circuits; pacing skips circuit gaps
@@ -2270,15 +2270,15 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Files:**
 - Modify: `app/src/debug/**/DebugSeeder.kt:62,65`, `CLAUDE.md`
 
-- [ ] **Step 1: `DebugSeeder`**
+- [x] **Step 1: `DebugSeeder`**
 
 Find it with Glob `app/src/debug/**/DebugSeeder.kt`. It loops `PlannedExercise.DEFAULT_SETS` times per planned exercise; change both reads to that planned exercise's `.sets` (the loop variable holding the `PlannedExercise` is in scope at both lines). If the seeder builds sets from a bare `Exercise` rather than a `PlannedExercise`, leave `DEFAULT_SETS` — it is then the legitimate "rows the app adds on its own" default.
 
-- [ ] **Step 2: Confirm the remaining `DEFAULT_SETS` reads are all defaults**
+- [x] **Step 2: Confirm the remaining `DEFAULT_SETS` reads are all defaults**
 
 Grep `DEFAULT_SETS` across `app/src/main` and `app/src/debug`. Allowed survivors: the declaration and default parameter values in `PlannedExercise.kt`, `SavedWorkoutDetail.kt`, `WorkoutPlanner.planExplicit`, and (per Step 1) possibly `DebugSeeder`. Anything else is a missed site — fix it to read `planned.sets` or `WorkoutSequence`.
 
-- [ ] **Step 3: Update `CLAUDE.md`**
+- [x] **Step 3: Update `CLAUDE.md`**
 
 - "Workout state machine": after the state list add —
   "Position is derived, never stored: `ActiveSet`/`Resting` carry `done` (completed working sets per exercise id) and `WorkoutSequence.next(plan.exercises, done)` is the single rule for what comes next (controller advance, notification label, rest screen). Rest follows every set."
@@ -2287,14 +2287,14 @@ Grep `DEFAULT_SETS` across `app/src/main` and `app/src/debug`. Allowed survivors
 - "Progression system": replace "All exercises use a fixed `PlannedExercise.DEFAULT_SETS` (3) sets." with "`PlannedExercise.DEFAULT_SETS` (3) is only the default for rows the app adds; each row carries its own `sets`."
 - "Database": "version 20" → "version 21".
 
-- [ ] **Step 4: Full verification**
+- [x] **Step 4: Full verification**
 
 Run, in order, and read the output of each:
 1. `./gradlew :app:testDebugUnitTest` → BUILD SUCCESSFUL; confirm `BeliefScoreTest` and `BeliefPolicyBacktestTest` ran and passed (no re-baseline).
 2. `./gradlew :app:lint` → no new errors.
 3. `./gradlew :app:connectedAndroidTest` → all PASS. If no device is attached, report that this step could not run; do not start an emulator.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 jj commit -m "chore(circuits): seeder uses row sets; CLAUDE.md documents sets and circuits
