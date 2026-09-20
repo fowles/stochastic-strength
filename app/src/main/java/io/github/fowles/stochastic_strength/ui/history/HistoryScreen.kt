@@ -46,13 +46,13 @@ import io.github.fowles.stochastic_strength.domain.history.HistoryRows
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.formatDateTime
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.TextStyle
 import androidx.compose.ui.platform.LocalConfiguration
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     onSessionTap: (Long) -> Unit,
@@ -60,7 +60,45 @@ fun HistoryScreen(
     onBack: () -> Unit,
     viewModel: HistoryViewModel = viewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    HistoryScreenContent(
+        stateFlow = viewModel.state,
+        onSessionTap = onSessionTap,
+        onBack = onBack,
+        onInspireMe = viewModel::inspireMe,
+        onClearMessage = viewModel::clearMessage,
+        onExport = viewModel::exportTo,
+        onImport = viewModel::importFrom,
+        onRequestDelete = viewModel::requestDelete,
+        onCancelDelete = viewModel::cancelDelete,
+        onConfirmDelete = viewModel::confirmDelete,
+    )
+}
+
+/**
+ * The whole history screen, with its state source hoisted to a parameter so a test can drive it
+ * without the app's Room database.
+ *
+ * The seam is the [StateFlow], not a plain [HistoryState] value, deliberately: the delete crash
+ * this screen has already had once lived in how `collectAsState()`'s live delegate interacts with
+ * `LazyColumn`'s key lambda, so `collectAsState` has to stay *inside* the tested composable. A
+ * value parameter would move it into the untested wrapper and hide that class of bug instead of
+ * covering it. See HistoryDeleteTest.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HistoryScreenContent(
+    stateFlow: StateFlow<HistoryState>,
+    onSessionTap: (Long) -> Unit,
+    onBack: () -> Unit,
+    onInspireMe: () -> Unit,
+    onClearMessage: () -> Unit,
+    onExport: (Uri) -> Unit,
+    onImport: (Uri, ImportMode) -> Unit,
+    onRequestDelete: (Long) -> Unit,
+    onCancelDelete: () -> Unit,
+    onConfirmDelete: () -> Unit,
+) {
+    val state by stateFlow.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var menuExpanded by remember { mutableStateOf(false) }
@@ -68,7 +106,7 @@ fun HistoryScreen(
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
-    ) { uri -> if (uri != null) viewModel.exportTo(uri) }
+    ) { uri -> if (uri != null) onExport(uri) }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -77,7 +115,7 @@ fun HistoryScreen(
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)
-            viewModel.clearMessage()
+            onClearMessage()
         }
     }
 
@@ -95,7 +133,7 @@ fun HistoryScreen(
                             text = { Text("Inspire me") },
                             onClick = {
                                 menuExpanded = false
-                                viewModel.inspireMe()
+                                onInspireMe()
                             },
                         )
                         DropdownMenuItem(
@@ -127,7 +165,7 @@ fun HistoryScreen(
                 confirmButton = {
                     TextButton(onClick = {
                         pendingImportUri = null
-                        viewModel.importFrom(importUri, ImportMode.DESTRUCTIVE)
+                        onImport(importUri, ImportMode.DESTRUCTIVE)
                     }) {
                         Text("Replace all", color = MaterialTheme.colorScheme.error)
                     }
@@ -136,7 +174,7 @@ fun HistoryScreen(
                     Row {
                         TextButton(onClick = {
                             pendingImportUri = null
-                            viewModel.importFrom(importUri, ImportMode.ADDITIVE)
+                            onImport(importUri, ImportMode.ADDITIVE)
                         }) { Text("Add") }
                         TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
                     }
@@ -146,16 +184,16 @@ fun HistoryScreen(
 
         if (state.pendingDeleteSessionId != null) {
             AlertDialog(
-                onDismissRequest = { viewModel.cancelDelete() },
+                onDismissRequest = { onCancelDelete() },
                 title = { Text("Delete session?") },
                 text = { Text("This will permanently remove the session and all its recorded sets.") },
                 confirmButton = {
-                    TextButton(onClick = { viewModel.confirmDelete() }) {
+                    TextButton(onClick = { onConfirmDelete() }) {
                         Text("Delete", color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { viewModel.cancelDelete() }) { Text("Cancel") }
+                    TextButton(onClick = { onCancelDelete() }) { Text("Cancel") }
                 },
             )
         }
@@ -213,7 +251,7 @@ fun HistoryScreen(
                                 SessionRow(
                                     item = item,
                                     onClick = { onSessionTap(item.session.id) },
-                                    onDelete = { viewModel.requestDelete(item.session.id) },
+                                    onDelete = { onRequestDelete(item.session.id) },
                                 )
                                 HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                             }

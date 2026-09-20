@@ -68,5 +68,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   layout, swipe-to-reject and swipe-to-remove inside a circuit, and steppers with long exercise names
   at 360dp.
 
-- No UI test covers `HistoryScreen` delete (the 2026-09-19 stale-`rows` key-lambda crash was verified
-  on the emulator only); the screen needs a harness that doesn't use the app's real database.
+- `HistoryScreen`'s `onExerciseTap` parameter is dead — `AppNavigation` passes a real
+  `exercise/{id}` navigation lambda, but nothing in the screen body ever calls it. Either wire the
+  session rows' exercise names to it or drop the parameter and the call-site lambda.
