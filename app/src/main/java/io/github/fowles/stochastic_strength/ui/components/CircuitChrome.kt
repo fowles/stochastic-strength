@@ -67,9 +67,6 @@ fun rowPlace(block: Block, index: Int): RowPlace = when {
     else -> RowPlace.MIDDLE
 }
 
-/** Whether the ⛓ node above a row is linked, and what to do when it's tapped. */
-data class LinkState(val linked: Boolean, val onToggle: () -> Unit)
-
 /**
  * The shared row: [drag handle | circuit rail] [sets chip] name/subtitle … trailing.
  * The handle column shows a drag icon on SOLO/FIRST rows and a vertical rail tracing the
@@ -163,38 +160,47 @@ fun ExerciseRowScaffold(
 /**
  * Overlays the node for the boundary above [content] on its top edge; the later row owns the
  * node so it paints, and is hit, above the row before it. Put the swipe box inside [content].
- * [linkAbove] is `null` on the list's first row.
+ * [linkedAbove] is `null` on the list's first row, which has no boundary above it.
+ *
+ * The node's two inputs stay separate parameters (rather than one holder) so Compose can compare
+ * them: a holder built in composition around a lambda never compares equal, and this host would
+ * then recompose on every pass.
  */
 @Composable
-fun LinkNodeHost(linkAbove: LinkState?, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun LinkNodeHost(
+    linkedAbove: Boolean?,
+    onToggleLink: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
     Box(modifier = modifier) {
         content()
-        if (linkAbove != null) {
+        if (linkedAbove != null) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset(x = (16 - 18).dp, y = (-18).dp)
                     .size(36.dp)
-                    .clickable(onClick = linkAbove.onToggle, role = Role.Button)
+                    .clickable(onClick = onToggleLink, role = Role.Button)
                     .semantics {
                         // TalkBack reads the node after the row it belongs to, so it says which
                         // boundary it moves: the one between this row and the one above.
                         contentDescription =
-                            if (linkAbove.linked) "Split from the row above" else "Link with the row above"
+                            if (linkedAbove) "Split from the row above" else "Link with the row above"
                     },
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = if (linkAbove.linked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                    border = if (linkAbove.linked) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    color = if (linkedAbove) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                    border = if (linkedAbove) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier.size(20.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Icon(
-                            if (linkAbove.linked) Icons.Filled.Link else Icons.Filled.LinkOff,
+                            if (linkedAbove) Icons.Filled.Link else Icons.Filled.LinkOff,
                             contentDescription = null,
-                            tint = if (linkAbove.linked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (linkedAbove) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp),
                         )
                     }
@@ -264,7 +270,7 @@ private fun ExerciseRowScaffoldPreview() {
         var linkAfterPress by remember { mutableStateOf(false) }
 
         Column {
-            LinkNodeHost(linkAbove = null) {
+            LinkNodeHost(linkedAbove = null, onToggleLink = {}) {
                 ExerciseRowScaffold(
                     place = RowPlace.SOLO,
                     sets = soloSets,
@@ -286,7 +292,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(linkAbove = LinkState(linkAfterSquat) { linkAfterSquat = !linkAfterSquat }) {
+            LinkNodeHost(linkedAbove = linkAfterSquat, onToggleLink = { linkAfterSquat = !linkAfterSquat }) {
                 ExerciseRowScaffold(
                     place = RowPlace.FIRST,
                     sets = circuitRounds,
@@ -308,7 +314,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(linkAbove = LinkState(linkAfterCurl) { linkAfterCurl = !linkAfterCurl }) {
+            LinkNodeHost(linkedAbove = linkAfterCurl, onToggleLink = { linkAfterCurl = !linkAfterCurl }) {
                 ExerciseRowScaffold(
                     place = RowPlace.MIDDLE,
                     sets = circuitRounds,
@@ -330,7 +336,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(linkAbove = LinkState(linkAfterKickback) { linkAfterKickback = !linkAfterKickback }) {
+            LinkNodeHost(linkedAbove = linkAfterKickback, onToggleLink = { linkAfterKickback = !linkAfterKickback }) {
                 ExerciseRowScaffold(
                     place = RowPlace.LAST,
                     sets = circuitRounds,
@@ -352,7 +358,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(linkAbove = LinkState(linkAfterPress) { linkAfterPress = !linkAfterPress }) {
+            LinkNodeHost(linkedAbove = linkAfterPress, onToggleLink = { linkAfterPress = !linkAfterPress }) {
                 ExerciseRowScaffold(
                     place = RowPlace.SOLO,
                     sets = tailSoloSets,

@@ -59,7 +59,6 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantit
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
 import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
-import io.github.fowles.stochastic_strength.ui.components.LinkState
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
@@ -215,10 +214,10 @@ internal fun PlanPreviewContent(
                             val planned = plan.exercises[i]
                             key(planned.exercise.id) {
                                 LinkNodeHost(
-                                    linkAbove = if (i == 0) null else LinkState(
-                                        linked = i != block.start,
-                                        onToggle = { if (i != block.start) onUnlink(i - 1) else onLink(i - 1) },
-                                    ),
+                                    linkedAbove = if (i == 0) null else i != block.start,
+                                    onToggleLink = {
+                                        if (i != block.start) onUnlink(i - 1) else onLink(i - 1)
+                                    },
                                 ) {
                                     ExercisePreviewRow(
                                         planned = planned,

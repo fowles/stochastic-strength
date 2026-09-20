@@ -56,7 +56,6 @@ import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.ExercisePickerSheet
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
 import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
-import io.github.fowles.stochastic_strength.ui.components.LinkState
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
@@ -147,10 +146,10 @@ fun SavedWorkoutEditScreen(
                                 val entry = state.entries[i]
                                 key(entry.exercise.id) {
                                     LinkNodeHost(
-                                        linkAbove = if (i == 0) null else LinkState(
-                                            linked = i != block.start,
-                                            onToggle = { if (i != block.start) viewModel.unlink(i - 1) else viewModel.link(i - 1) },
-                                        ),
+                                        linkedAbove = if (i == 0) null else i != block.start,
+                                        onToggleLink = {
+                                            if (i != block.start) viewModel.unlink(i - 1) else viewModel.link(i - 1)
+                                        },
                                     ) {
                                         EntryRow(
                                             entry = entry,
