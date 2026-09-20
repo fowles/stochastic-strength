@@ -24,10 +24,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   coefficients by exercise *name*, so a custom lift not in `ExerciseCoefficients.byName` counts as
   unloadable.
 - Shared row polish (`ui/components/CircuitChrome.kt`), deferred from the unified-row review:
-  - `ValueStepper` −/+ are 32dp `IconButton`s and the reset target is a bare `Text.clickable`
-    (~28×20dp), both under the 48dp minimum. Growing them costs row width (two steppers plus the
-    handle and sets chip on a 360dp row), so it wants a layout decision and an on-device look, not
-    a bare size bump.
   - While a circuit member on Today's workout shows its swipe `ExerciseActionRow`, its rail segment
     disappears and its link node stays floating; the node also does not move with a row mid-swipe.
   - The link node sits ~2dp from the drag handle on a 64dp row, and the hollow (unlinked) node is
