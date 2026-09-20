@@ -118,12 +118,15 @@ class WorkoutSessionController(
     }
 
     private suspend fun maybeNoteDetraining() {
-        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        if (_state.value !is WorkoutState.PlanPreview) return
         val lastCompleted = database.workoutSessionDao().getRecentCompletedSessions(limit = 1)
             .firstOrNull()?.endTime ?: return
         val weeks = DetrainingModel.weeksOff(lastCompleted, System.currentTimeMillis())
         if (!DetrainingModel.qualifies(weeks)) return
-        setState(preview.copy(detraining = DetrainingNotice(weeksOff = weeks)))
+        // The delta this method owns is the notice alone. initializeSession kicks off the count
+        // slider's async grow loop just before calling this, so a plan snapshot taken before the
+        // query above would revert the plan to its pre-grow state on the way back.
+        applyPreviewDelta { it.copy(detraining = DetrainingNotice(weeksOff = weeks)) }
     }
 
     fun dismissDetrainingNotice() {

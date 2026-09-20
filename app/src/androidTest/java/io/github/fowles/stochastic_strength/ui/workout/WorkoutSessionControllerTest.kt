@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executor
@@ -181,9 +182,20 @@ class WorkoutSessionControllerTest {
 
     /**
      * Measures how many DB calls [action] makes in this exact fixture/state by running it once
-     * un-gated, then arms [gated] to block on that same (now known) ordinal — always the method's
-     * true last DB call, by construction, rather than a hardcoded count that could drift out of
-     * sync with the method's internals and silently stop testing anything.
+     * un-gated, then arms [gated] to block on that same (now known) ordinal, rather than on a
+     * hardcoded count that could drift out of sync with the method's internals and silently stop
+     * testing anything.
+     *
+     * The ordinal is **measured, not guaranteed**. Room routes `InvalidationTracker` refresh
+     * runnables through the query executor too, so the count includes asynchronous invalidation
+     * work whose timing isn't guaranteed to be identical between the dry run and the gated run.
+     * Undershooting (the gated run makes fewer calls than measured) fails loudly — the gate is
+     * never entered and [awaitEntered] times out after 2s. Overshooting (the gated run makes
+     * *more* calls) is the quiet failure mode: the gate then lands on a call that isn't the
+     * method's last, so the concurrent edit is staged earlier in the method than intended and the
+     * test can pass without actually covering the suspend window it names. If one of these tests
+     * starts passing suspiciously easily after the method under test grows new DB work, re-check
+     * the measured ordinal before trusting it.
      */
     private suspend fun armGateAtLastCall(gated: GatedDbExecutor, action: suspend () -> Unit): Int {
         gated.resetCount()
@@ -576,8 +588,8 @@ class WorkoutSessionControllerTest {
     // so a concurrent, synchronous edit can be proven to land strictly inside the method's
     // suspend window, then verifies that edit is still present once the method finishes, never
     // silently overwritten by a pre-suspend snapshot. Measuring (rather than hardcoding an
-    // internal DAO call count) means the gate always lands on the true last call by construction,
-    // even if the method's internals grow another DB call later.
+    // internal DAO call count) keeps the gate tracking the method's internals as they grow — but
+    // it is a measurement, not a guarantee; see armGateAtLastCall's KDoc for the overshoot case.
 
     @Test
     fun addExercise_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
@@ -737,6 +749,72 @@ class WorkoutSessionControllerTest {
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
             f.db.close()
+            gated.shutdown()
+        }
+    }
+
+    @Test
+    fun maybeNoteDetraining_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
+        val gated = GatedDbExecutor()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .setQueryExecutor(gated)
+            .setTransactionExecutor(gated)
+            .build()
+        try {
+            freshDb.userProfileDao().insert(
+                UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+            )
+            freshDb.exerciseDao().insertAll(listOf(
+                Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+                Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
+            ))
+            val freshRepo = WorkoutRepository(freshDb)
+            seedDerivedStrength(freshDb, freshRepo)
+            // Old enough that DetrainingModel.qualifies is true, so maybeNoteDetraining actually
+            // reaches its setState instead of returning early.
+            val threeWeeksAgo = System.currentTimeMillis() - 3L * DetrainingModel.WEEK_MILLIS - 60_000
+            freshDb.workoutSessionDao().insert(
+                WorkoutSession(startTime = threeWeeksAgo, endTime = threeWeeksAgo + 1000)
+            )
+
+            // Dry run on a throwaway controller over the same DB, to measure initializeSession's
+            // DB-call count in this exact fixture (see armGateAtLastCall).
+            val ordinal = armGateAtLastCall(gated) {
+                WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
+                    .initializeSession(
+                        locationId = null, locationName = null, preferredExerciseCount = 1,
+                        preferredRepMin = 5, preferredRepMax = 10, weightUnit = WeightUnit.KG,
+                    )
+            }
+
+            val c = WorkoutSessionController(freshDb, freshRepo, WorkoutSessionBus(), scope)
+            val init = scope.launch {
+                c.initializeSession(
+                    locationId = null, locationName = null, preferredExerciseCount = 1,
+                    preferredRepMin = 5, preferredRepMax = 10, weightUnit = WeightUnit.KG,
+                )
+            }
+            gated.awaitEntered(ordinal)
+            // The preview is already on screen at this point (initializeSession publishes it
+            // before the detraining query), so a user edit here is exactly what the notice's
+            // write-back used to clobber.
+            val editedId = preview(c).plan.exercises[0].exercise.id
+            c.setExerciseSets(editedId, 4)
+            gated.unblock()
+            init.join()
+
+            awaitPreview(c) { it.detraining != null }
+            val p = preview(c)
+            assertEquals(3, p.detraining!!.weeksOff)
+            assertEquals(
+                "a structure edit made during maybeNoteDetraining's suspend must survive",
+                4, p.plan.exercises.first { it.exercise.id == editedId }.sets,
+            )
+        } finally {
+            gated.unblock() // safety net — see the comment in addExercise's version of this test
+            freshDb.close()
             gated.shutdown()
         }
     }
