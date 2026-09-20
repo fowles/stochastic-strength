@@ -6,29 +6,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 
 ## Open — needs triage
 
-- `WorkoutSessionControllerTest` (the whole class) intermittently fails
-  `hurtMidCircuit_dropsThatMemberFromLaterRounds` with `IllegalStateException: attempt to
-  re-open an already-closed object: SQLiteDatabase: :memory:` when the full class is run
-  repeatedly back to back (~1 in 6-12 runs observed 2026-09-20, task-6 review-fix pass). The
-  failing test itself never flakes in isolation (8/8 clean solo runs) and doesn't touch a
-  gated/fresh fixture db, so this is cross-test contention/teardown timing under load, not a
-  bug in that test's own logic. Structural root (per re-review, 2026-09-20): `previewFixture`
-  (`WorkoutSessionControllerTest.kt:195-242`) builds its own in-memory DB, shares the
-  class-level `scope`, and closes that DB inline while its controller's coroutines may still be
-  in flight — `tearDown` (:90-96) only cancels `scope` *after* each test method returns. Any
-  test that throws before reaching its own `f.db.close()` leaks an in-memory DB plus its
-  pending invalidation-tracker work into the shared executor pool, which can surface later as
-  "attempt to re-open an already-closed object" attributed to whatever test happens to be
-  running next. Suggested fix (not implemented — out of scope for task 6): track every fixture
-  DB created during a test in a list, and close them all in `tearDown`, after
-  `cancelAndJoin()`, instead of inline in each test body. Reproduces identically on the
-  pre-review-fix commit (`111fb4a8`, 2/6 runs) so it predates the task-6 review-fix pass, but
-  that pass's own exposure is **not established either way**: the measured-ordinal conversion
-  makes each converted test run the controller method twice (a dry run plus the gated run —
-  roughly double the writes/invalidations), and the pass added two more fixture DBs (for
-  `replaceExercise` and the drop-path test), so the flake rate plausibly went up. A 2/6 vs.
-  ~1/6-12 sample is too small to distinguish "unchanged" from "worse" — do not cite this as
-  "pre-existing and unaffected" without a larger controlled comparison.
 - `LinkNodeHost`'s new `isTraversalGroup`/`traversalIndex = -1f` (added to place the circuit
   link-node between the two rows it links, task 4 of the 2026-09-19 todo sweep) is unverified on a
   real device — no TalkBack run was possible off-device. Needs a human to run the checklist in

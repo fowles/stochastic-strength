@@ -53,6 +53,20 @@ class WorkoutSessionControllerTest {
     private lateinit var controller: WorkoutSessionController
     private lateinit var repository: WorkoutRepository
 
+    /**
+     * Every extra in-memory database and gated executor a test body builds, closed centrally in
+     * [tearDown]. Closing them inline at the end of each test body was the old habit, and it leaked
+     * on any test that threw first: the database stayed open, its invalidation-tracker work stayed
+     * queued on the shared executor pool, and it surfaced later as "attempt to re-open an
+     * already-closed object" attributed to whatever test happened to run next.
+     */
+    private val fixtureDbs = mutableListOf<AppDatabase>()
+    private val fixtureExecutors = mutableListOf<GatedDbExecutor>()
+
+    private fun track(database: AppDatabase): AppDatabase = database.also { fixtureDbs += it }
+
+    private fun gatedExecutor(): GatedDbExecutor = GatedDbExecutor().also { fixtureExecutors += it }
+
     @Before
     fun setUp() {
         runBlocking {
@@ -94,6 +108,9 @@ class WorkoutSessionControllerTest {
         // coroutine still in flight would keep querying a closed database and fail whichever test
         // runs next. Cancel first, then close.
         runBlocking { scope.coroutineContext.job.cancelAndJoin() }
+        // Databases first, then the executors they may still post invalidation work to.
+        fixtureDbs.forEach { runCatching { it.close() } }
+        fixtureExecutors.forEach { runCatching { it.shutdown() } }
         db.close()
     }
 
@@ -220,7 +237,7 @@ class WorkoutSessionControllerTest {
         val builder = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
         if (queryExecutor != null) builder.setQueryExecutor(queryExecutor).setTransactionExecutor(queryExecutor)
-        val freshDb = builder.build()
+        val freshDb = track(builder.build())
         freshDb.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
         )
@@ -345,7 +362,6 @@ class WorkoutSessionControllerTest {
         )
         assertEquals(listOf(1, 1, 2, 2, 1), rows.map { it.setNumber })
         assertEquals(listOf(0, 0, 0, 0, null), rows.map { it.circuitId })
-        f.db.close()
     }
 
     @Test
@@ -358,7 +374,6 @@ class WorkoutSessionControllerTest {
         assertEquals(4, last.setIndex)
         assertEquals(5, last.totalSets)
         assertEquals("Set 5 of 5", last.positionLabel)
-        f.db.close()
     }
 
     @Test
@@ -368,7 +383,6 @@ class WorkoutSessionControllerTest {
         val order = mutableListOf<Long>()
         repeat(3) { order += performSet(f.controller); f.controller.skipRest() }
         assertEquals(listOf(ids[1], ids[1], ids[2]), order)
-        f.db.close()
     }
 
     @Test
@@ -382,7 +396,6 @@ class WorkoutSessionControllerTest {
         assertEquals("Round 1 of 2", back.positionLabel)
         assertEquals(1, back.done[ids[0]])
         assertEquals(0, back.done[ids[1]] ?: 0)
-        f.db.close()
     }
 
     @Test
@@ -396,7 +409,6 @@ class WorkoutSessionControllerTest {
         val next = awaitActive(f.controller) { it.plannedExercise.exercise.id != ids[0] }
         assertEquals(ids[1], next.plannedExercise.exercise.id)
         assertEquals(1, next.setIndex)
-        f.db.close()
     }
 
     /** A fourth loaded exercise, so a 3-row plan still has a swap candidate. */
@@ -418,7 +430,6 @@ class WorkoutSessionControllerTest {
         assertTrue("the original is gone", row.exercise.id != ids[0])
         assertEquals(before.plannedExercise.circuitId, row.circuitId)
         assertEquals(before.plannedExercise.sets, row.sets)
-        f.db.close()
     }
 
     @Test
@@ -442,7 +453,6 @@ class WorkoutSessionControllerTest {
             listOf(inserted.exercise.id, ids[1], inserted.exercise.id, ids[1]),
             order,
         )
-        f.db.close()
     }
 
     @Test
@@ -462,7 +472,6 @@ class WorkoutSessionControllerTest {
             it.plannedExercise.exercise.id == ids[1] && it.setIndex == 1
         }
         assertEquals("Set 2 of 2", second.positionLabel)
-        f.db.close()
     }
 
     @Test
@@ -500,7 +509,6 @@ class WorkoutSessionControllerTest {
         val circuits = loadWorkoutSummary(f.db, sessionId).blocks.filter { it.isCircuit }
         assertEquals(1, circuits.size)
         assertEquals(listOf(ids[2], ids[3]), circuits.single().exercises.map { it.exerciseId })
-        f.db.close()
     }
 
     @Test
@@ -547,7 +555,6 @@ class WorkoutSessionControllerTest {
             p.plan.exercises.any { it.exercise.id == excludedId },
         )
         assertEquals(RowFlag.NOT_AT_LOCATION, p.rowFlags[excludedId])
-        f.db.close()
     }
 
     @Test
@@ -578,7 +585,6 @@ class WorkoutSessionControllerTest {
             "Explicitly added row must survive the refresh",
             p.plan.exercises.any { it.exercise.id == addedId },
         )
-        f.db.close()
     }
 
     // --- Task 6: plan-preview edits must survive a concurrent suspend --------------------------
@@ -594,7 +600,7 @@ class WorkoutSessionControllerTest {
     @Test
     fun addExercise_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
         var locationId = 0L
-        val gated = GatedDbExecutor()
+        val gated = gatedExecutor()
         val f = previewFixture(count = 1, queryExecutor = gated) { freshDb, _ ->
             locationId = freshDb.knownLocationDao().insert(
                 KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
@@ -631,15 +637,13 @@ class WorkoutSessionControllerTest {
             // tearDown's cancelAndJoin() would hang the whole instrumentation run instead of
             // just failing this one test.
             gated.unblock()
-            f.db.close()
-            gated.shutdown()
         }
     }
 
     @Test
     fun loadSavedWorkout_survivesAConcurrentLocationNameEdit_duringItsSuspend() = runBlocking {
         var locationId = 0L
-        val gated = GatedDbExecutor()
+        val gated = gatedExecutor()
         // count = 1, not 2: the dry run's completion signal is "the plan reached 2 rows", which
         // must not already be true before the dry run's load actually runs.
         val f = previewFixture(count = 1, queryExecutor = gated) { freshDb, _ ->
@@ -677,15 +681,13 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
-            f.db.close()
-            gated.shutdown()
         }
     }
 
     @Test
     fun onLocationRefreshed_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
         var locationId = 0L
-        val gated = GatedDbExecutor()
+        val gated = gatedExecutor()
         val f = previewFixture(count = 2, queryExecutor = gated) { freshDb, _ ->
             locationId = freshDb.knownLocationDao().insert(
                 KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
@@ -715,14 +717,12 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
-            f.db.close()
-            gated.shutdown()
         }
     }
 
     @Test
     fun replaceExercise_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
-        val gated = GatedDbExecutor()
+        val gated = gatedExecutor()
         val f = previewFixture(count = 3, queryExecutor = gated)
         try {
             val rows = preview(f.controller).plan.exercises
@@ -748,20 +748,18 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
-            f.db.close()
-            gated.shutdown()
         }
     }
 
     @Test
     fun maybeNoteDetraining_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
-        val gated = GatedDbExecutor()
+        val gated = gatedExecutor()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+        val freshDb = track(Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .setQueryExecutor(gated)
             .setTransactionExecutor(gated)
-            .build()
+            .build())
         try {
             freshDb.userProfileDao().insert(
                 UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
@@ -814,14 +812,12 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
-            freshDb.close()
-            gated.shutdown()
         }
     }
 
     @Test
     fun addExercise_dropsItsUpdate_whenThePreviewIsGoneByTheTimeItsSuspendReturns() = runBlocking {
-        val gated = GatedDbExecutor()
+        val gated = gatedExecutor()
         val f = previewFixture(count = 1, queryExecutor = gated)
         try {
             val newId = f.db.exerciseDao().getActive().first { ex ->
@@ -851,8 +847,6 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in the first test in this section
-            f.db.close()
-            gated.shutdown()
         }
     }
 
@@ -877,7 +871,6 @@ class WorkoutSessionControllerTest {
         val p = preview(f.controller)
         assertTrue("trimmed row still in plan", p.plan.exercises.none { it.exercise.id == excludedId })
         assertNull("flag for a trimmed row was not pruned", p.rowFlags[excludedId])
-        f.db.close()
     }
 
     @Test
@@ -896,7 +889,6 @@ class WorkoutSessionControllerTest {
             all.take(2).map { it.id },
             preview(f.controller).plan.exercises.map { it.exercise.id },
         )
-        f.db.close()
     }
 
     @Test
@@ -910,7 +902,6 @@ class WorkoutSessionControllerTest {
         val ids = preview(f.controller).plan.exercises.map { it.exercise.id }
         assertTrue(removedId !in ids)
         assertEquals(2, ids.size)
-        f.db.close()
     }
 
     @Test
@@ -927,7 +918,6 @@ class WorkoutSessionControllerTest {
         awaitPreviewSize(f.controller, 2)
         delay(100)
         assertEquals(2, preview(f.controller).plan.exercises.size)
-        f.db.close()
     }
 
     @Test
@@ -952,7 +942,6 @@ class WorkoutSessionControllerTest {
         assertTrue("reps pin must survive replacing a sibling row", kept.repsPinned)
         assertEquals(pinned.sessionWeight, kept.sessionWeight)
         assertEquals(pinned.sessionReps, kept.sessionReps)
-        f.db.close()
     }
 
     @Test
@@ -971,7 +960,6 @@ class WorkoutSessionControllerTest {
         f.controller.addExercise(other.id)
         delay(150)
         assertEquals(2, preview(f.controller).plan.exercises.size)
-        f.db.close()
     }
 
     @Test
@@ -992,7 +980,6 @@ class WorkoutSessionControllerTest {
         assertTrue(p.plan.exercises.all { it.repsPinned })
         assertEquals(2, p.targetCount)
         assertTrue(p.edited)
-        f.db.close()
     }
 
     @Test
@@ -1007,7 +994,6 @@ class WorkoutSessionControllerTest {
         val after = preview(f.controller).plan.exercises
         assertEquals(nudged.sessionWeight, after[0].sessionWeight)
         assertEquals(listOf(3, 3), after.map { it.sessionReps })
-        f.db.close()
     }
 
     @Test
@@ -1024,7 +1010,6 @@ class WorkoutSessionControllerTest {
         f.controller.resetExerciseReps(before.exercise.id)
         val reset = preview(f.controller).plan.exercises[0]
         assertFalse(reset.repsPinned); assertEquals(8, reset.sessionReps)
-        f.db.close()
     }
 
     @Test
@@ -1035,7 +1020,6 @@ class WorkoutSessionControllerTest {
         f.controller.resetExerciseWeight(row.exercise.id)
         val reset = preview(f.controller).plan.exercises[0]
         assertFalse(reset.weightPinned); assertEquals(row.sessionWeight, reset.sessionWeight)
-        f.db.close()
     }
 
     /** Adds [exerciseId] unless generation already picked it (a small pool often does). */
@@ -1061,7 +1045,6 @@ class WorkoutSessionControllerTest {
         val after = preview(f.controller).plan.exercises.first { it.exercise.id == added.id }
         assertEquals(0f, after.sessionWeight)
         assertFalse(after.weightPinned)
-        f.db.close()
     }
 
     @Test
@@ -1079,7 +1062,6 @@ class WorkoutSessionControllerTest {
         val after = preview(f.controller).plan.exercises.first { it.exercise.id == added.id }
         assertEquals(60, after.sessionReps)
         assertFalse(after.repsPinned)
-        f.db.close()
     }
 
     @Test
@@ -1098,7 +1080,6 @@ class WorkoutSessionControllerTest {
         val resaved = f.controller.saveCurrentPlan("Again")!!.entries
         assertEquals(listOf(6, null), resaved.map { it.reps })
         assertEquals(listOf(40f, null), resaved.map { it.weight })
-        f.db.close()
     }
 
     @Test
@@ -1113,7 +1094,6 @@ class WorkoutSessionControllerTest {
         val ids = preview(f.controller).plan.exercises.map { it.exercise.id }
         assertEquals(listOf(before[1].exercise.id, other.id, dup.id), ids)
         assertEquals(3, preview(f.controller).plan.exercises.last().sessionReps)
-        f.db.close()
     }
 
     @Test
@@ -1124,7 +1104,6 @@ class WorkoutSessionControllerTest {
         assertEquals("Snapshot", detail.name)
         assertEquals(ids, detail.entries.map { it.exercise.id })
         assertTrue(detail.entries.all { it.reps == null })
-        f.db.close()
     }
 
     @Test
@@ -1143,7 +1122,6 @@ class WorkoutSessionControllerTest {
 
         f.controller.unlinkExercises(0)
         assertEquals(listOf(null, null, null), preview(f.controller).plan.exercises.map { it.circuitId })
-        f.db.close()
     }
 
     @Test
@@ -1155,7 +1133,6 @@ class WorkoutSessionControllerTest {
         val after = preview(f.controller).plan.exercises
         assertEquals(listOf(ids[1], ids[2], ids[0]), after.map { it.exercise.id })
         assertEquals(listOf(0, 0, null), after.map { it.circuitId })
-        f.db.close()
     }
 
     @Test
@@ -1165,7 +1142,6 @@ class WorkoutSessionControllerTest {
         f.controller.adjustExerciseCount(2)
         awaitPreviewSize(f.controller, 2)
         assertEquals(listOf(null, null), preview(f.controller).plan.exercises.map { it.circuitId })
-        f.db.close()
     }
 
     @Test
@@ -1194,7 +1170,6 @@ class WorkoutSessionControllerTest {
         val p = preview(f.controller).plan.exercises
         assertEquals(listOf(0, 0, null), p.map { it.circuitId })
         assertEquals(listOf(2, 2, 5), p.map { it.sets })
-        f.db.close()
     }
 
     @Test
@@ -1209,7 +1184,6 @@ class WorkoutSessionControllerTest {
         assertEquals(2, p.size)
         assertEquals(listOf(0, 0), p.map { it.circuitId })
         assertEquals(listOf(2, 2), p.map { it.sets })
-        f.db.close()
     }
 
     @Test
@@ -1221,7 +1195,6 @@ class WorkoutSessionControllerTest {
         f.controller.adjustExerciseCount(1)
         awaitPreviewSize(f.controller, 1)
         assertEquals(1, preview(f.controller).targetCount)
-        f.db.close()
     }
 
     private suspend inline fun <reified T : WorkoutState> awaitState(
@@ -1512,9 +1485,9 @@ class WorkoutSessionControllerTest {
         // Fresh controller (setUp already ran startSession, which inserts a recent session).
         // We need a fresh DB with only a 3-weeks-old session.
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+        val freshDb = track(Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
-            .build()
+            .build())
         freshDb.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
         )
@@ -1536,7 +1509,6 @@ class WorkoutSessionControllerTest {
         val preview = freshController.state.value as WorkoutState.PlanPreview
         val notice = preview.detraining!!
         assertEquals(3, notice.weeksOff)
-        freshDb.close()
     }
 
     @Test
@@ -1555,9 +1527,9 @@ class WorkoutSessionControllerTest {
     @Test
     fun dismissDetrainingNotice_clearsNoticeWithoutTouchingWeights() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+        val freshDb = track(Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
-            .build()
+            .build())
         freshDb.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
         )
@@ -1584,16 +1556,15 @@ class WorkoutSessionControllerTest {
         val after = (freshController.state.value as WorkoutState.PlanPreview)
         assertNull(after.detraining)
         assertEquals(before.map { it.sessionWeight }, after.plan.exercises.map { it.sessionWeight })
-        freshDb.close()
     }
 
     @Test
     fun moveExercise_swapsExerciseOrder() = runBlocking {
         // Use a fresh DB so setUp's active session doesn't interfere.
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+        val freshDb = track(Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
-            .build()
+            .build())
         freshDb.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
         )
@@ -1621,7 +1592,6 @@ class WorkoutSessionControllerTest {
         assertEquals(secondId, after[0].exercise.id)
         assertEquals(firstId, after[1].exercise.id)
 
-        freshDb.close()
     }
 
     @Test
