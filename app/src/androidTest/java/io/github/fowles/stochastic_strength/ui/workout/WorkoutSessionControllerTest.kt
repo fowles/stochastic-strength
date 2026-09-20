@@ -28,6 +28,10 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.Semaphore
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -114,16 +118,65 @@ class WorkoutSessionControllerTest {
         val db: AppDatabase, val repo: WorkoutRepository, val controller: WorkoutSessionController,
     )
 
+    /**
+     * A single-threaded Room query/transaction executor that can be armed to block one specific
+     * call — by 1-based ordinal since the last [resetCount] — until [unblock] is called.
+     *
+     * This is the deterministic seam the interleaving tests use to land a concurrent edit inside
+     * a controller method's suspend window: arm the executor at the ordinal of the method's last
+     * DB call (measured, not guessed — see the onLocationRefreshed test), trigger the method,
+     * wait for [entered] (proof the method is now parked on that exact call), perform the
+     * concurrent edit synchronously, then [unblock]. Because the executor is single-threaded and
+     * FIFO, no amount of real-thread scheduling jitter can reorder this — the method's remaining
+     * work provably cannot run until after the edit has landed.
+     */
+    private class GatedDbExecutor : Executor {
+        private val delegate = Executors.newSingleThreadExecutor()
+        private val count = AtomicInteger(0)
+        @Volatile private var blockAt: Int? = null
+        private val release = Semaphore(0)
+        val entered = Semaphore(0)
+
+        fun resetCount() {
+            blockAt = null
+            count.set(0)
+        }
+
+        fun callCount(): Int = count.get()
+
+        fun armBlockAt(ordinal: Int) {
+            blockAt = ordinal
+        }
+
+        fun unblock() = release.release()
+
+        override fun execute(command: Runnable) {
+            val ordinal = count.incrementAndGet()
+            delegate.execute {
+                if (ordinal == blockAt) {
+                    entered.release()
+                    release.acquire()
+                }
+                command.run()
+            }
+        }
+    }
+
     private suspend fun previewFixture(
         count: Int,
         // Loaded alongside the three staples, for plans that need a fourth row or a swap candidate.
         extraExercises: List<Exercise> = emptyList(),
+        // Routes every Room suspend DAO call through this executor instead of Room's default pool —
+        // lets a test gate a specific call deterministically (see GatedDbExecutor).
+        queryExecutor: Executor? = null,
         // Runs once the exercises exist; returns the location to start the session at.
         locationSetup: (suspend (AppDatabase, WorkoutRepository) -> Long)? = null,
     ): PreviewFixture {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val freshDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries().build()
+        val builder = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+        if (queryExecutor != null) builder.setQueryExecutor(queryExecutor).setTransactionExecutor(queryExecutor)
+        val freshDb = builder.build()
         freshDb.userProfileDao().insert(
             UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
         )
@@ -480,6 +533,119 @@ class WorkoutSessionControllerTest {
         assertTrue(
             "Explicitly added row must survive the refresh",
             p.plan.exercises.any { it.exercise.id == addedId },
+        )
+        f.db.close()
+    }
+
+    // --- Task 6: plan-preview edits must survive a concurrent suspend --------------------------
+    //
+    // Each of these gates the controller method's LAST DB call (the row-flags lookup, always the
+    // final suspend before the old code's stale setState) so a concurrent, synchronous edit can be
+    // proven to land strictly inside the method's suspend window, then verifies that edit is still
+    // present once the method finishes — never silently overwritten by a pre-suspend snapshot.
+
+    @Test
+    fun addExercise_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
+        var locationId = 0L
+        val gated = GatedDbExecutor()
+        val f = previewFixture(count = 2, queryExecutor = gated) { freshDb, _ ->
+            locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            locationId
+        }
+        val existingId = preview(f.controller).plan.exercises[0].exercise.id
+        val newId = f.db.exerciseDao().getActive().first { ex ->
+            preview(f.controller).plan.exercises.none { it.exercise.id == ex.id }
+        }.id
+
+        // addExercise makes exactly two DB calls with a location set: getExerciseById, then the
+        // excluded-ids lookup for row flags. Gate the second (last) one.
+        gated.resetCount()
+        gated.armBlockAt(2)
+        f.controller.addExercise(newId)
+        gated.entered.acquire()
+        f.controller.setExerciseSets(existingId, 4) // concurrent structural edit, mid-suspend
+        gated.unblock()
+
+        awaitPreviewSize(f.controller, 3)
+        val p = preview(f.controller)
+        assertTrue("the appended row must still land", p.plan.exercises.any { it.exercise.id == newId })
+        assertEquals(
+            "a structure edit made during addExercise's suspend must survive",
+            4, p.plan.exercises.first { it.exercise.id == existingId }.sets,
+        )
+        f.db.close()
+    }
+
+    @Test
+    fun loadSavedWorkout_survivesAConcurrentLocationNameEdit_duringItsSuspend() = runBlocking {
+        var locationId = 0L
+        val gated = GatedDbExecutor()
+        val f = previewFixture(count = 2, queryExecutor = gated) { freshDb, _ ->
+            locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            locationId
+        }
+        val all = f.db.exerciseDao().getActive()
+        val savedId = f.repo.saveWorkout(null, "Trio", all.map { SavedWorkoutEntry(it, null) })
+
+        // getSavedWorkout makes three DB calls (workout, its rows, their exercises), then the
+        // excluded-ids lookup for row flags. Gate the fourth (last) one.
+        gated.resetCount()
+        gated.armBlockAt(4)
+        f.controller.loadSavedWorkout(savedId)
+        gated.entered.acquire()
+        // A load replaces the exercise list wholesale by design — what must survive is state
+        // OUTSIDE the list, so the concurrent edit here targets the location label, not a row.
+        f.controller.updateLocationName("Concurrent Gym")
+        gated.unblock()
+
+        awaitPreviewSize(f.controller, all.size)
+        val p = preview(f.controller)
+        assertEquals(all.map { it.id }, p.plan.exercises.map { it.exercise.id })
+        assertEquals(
+            "a locationName update made during the load's suspend must survive",
+            "Concurrent Gym", p.locationName,
+        )
+        f.db.close()
+    }
+
+    @Test
+    fun onLocationRefreshed_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
+        var locationId = 0L
+        val gated = GatedDbExecutor()
+        val f = previewFixture(count = 2, queryExecutor = gated) { freshDb, _ ->
+            locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            locationId
+        }
+        val existingId = preview(f.controller).plan.exercises[0].exercise.id
+
+        // buildPlanner's own call count isn't a stable constant to hardcode, so measure it: run
+        // one un-gated refresh first and count how many DB calls it took in this exact fixture
+        // state, then gate the true last call (the row-flags lookup) on the next refresh.
+        f.db.knownLocationDao().updateName(locationId, "Home 2")
+        gated.resetCount()
+        f.controller.onLocationRefreshed()
+        awaitPreview(f.controller) { it.locationName == "Home 2" }
+        val totalCalls = gated.callCount()
+
+        f.db.knownLocationDao().updateName(locationId, "Home 3")
+        gated.resetCount()
+        gated.armBlockAt(totalCalls)
+        f.controller.onLocationRefreshed()
+        gated.entered.acquire()
+        f.controller.setExerciseSets(existingId, 4) // concurrent structural edit, mid-suspend
+        gated.unblock()
+
+        awaitPreview(f.controller) { it.locationName == "Home 3" }
+        val p = preview(f.controller)
+        assertEquals(
+            "a structure edit made during onLocationRefreshed's suspend must survive",
+            4, p.plan.exercises.first { it.exercise.id == existingId }.sets,
         )
         f.db.close()
     }

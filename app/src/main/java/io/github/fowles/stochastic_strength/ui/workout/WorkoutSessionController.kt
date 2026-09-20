@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
@@ -295,15 +296,25 @@ class WorkoutSessionController(
         scope.launch {
             val p = planner ?: return@launch
             val exercise = repository.getExerciseById(exerciseId) ?: return@launch
-            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-            if (current.plan.exercises.any { it.exercise.id == exerciseId }) return@launch
-            val planned = p.planExplicit(exercise, reps = null, plan = current.plan)
-            explicitIds += exerciseId
-            val newPlan = current.plan.copy(
-                exercises = current.plan.exercises + planned,
-                sessionRejectedIds = current.plan.sessionRejectedIds - exerciseId,
-            )
-            setState(withRowFlags(current.copy(plan = newPlan, edited = true)))
+            val excluded = sessionLocationId?.let { repository.getExcludedExerciseIds(it) } ?: emptySet()
+            // The delta this method owns is only the appended row: price and flag it against
+            // whatever the live preview looks like now, and fold it into that live state — never
+            // a plan snapshot taken before these suspends.
+            applyPreviewDelta { live ->
+                if (live.plan.exercises.any { it.exercise.id == exerciseId }) return@applyPreviewDelta null
+                val planned = p.planExplicit(exercise, reps = null, plan = live.plan)
+                explicitIds += exerciseId
+                val newPlan = live.plan.copy(
+                    exercises = live.plan.exercises + planned,
+                    sessionRejectedIds = live.plan.sessionRejectedIds - exerciseId,
+                )
+                val flag = rowFlagFor(exercise, excluded, p)
+                live.copy(
+                    plan = newPlan,
+                    rowFlags = if (flag != null) live.rowFlags + (exerciseId to flag) else live.rowFlags,
+                    edited = true,
+                )
+            }
         }
     }
 
@@ -317,22 +328,29 @@ class WorkoutSessionController(
             val saved = repository.getSavedWorkout(id) ?: return@launch
             val entries = saved.entries.distinctBy { it.exercise.id }
             val loadedIds = entries.map { it.exercise.id }.toSet()
-            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
             // Both paths price against the planner the preview already holds: a load replaces the
             // plan's rows, not anything the planner reads.
             val p = planner ?: return@launch
-            val basePlan = current.plan
-            // A loaded row wins over an existing row for the same exercise.
-            val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
-            val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan, it.sets, it.circuitId, it.weight) }
-            explicitIds += loadedIds
-            val newPlan = basePlan.copy(
-                // concat keeps a kept circuit and a loaded one distinct even when their ids collide.
-                exercises = CircuitStructure.concat(CircuitStructure.normalize(kept), loaded),
-                sessionRejectedIds = basePlan.sessionRejectedIds - loadedIds,
-            )
-            // A load replaces the plan wholesale, so rows that were explicit before can depart here.
-            setState(withRowFlags(prunedToPlanRows(current.copy(plan = newPlan, edited = true))))
+            val excluded = sessionLocationId?.let { repository.getExcludedExerciseIds(it) } ?: emptySet()
+            // This method's delta IS the whole exercise list — a load/append replaces the rows
+            // wholesale. What must survive is everything outside the exercise list (location name,
+            // slider target, detraining notice, …), so fold the new list into the live preview
+            // rather than writing back a plan snapshot taken before these suspends.
+            applyPreviewDelta { live ->
+                val basePlan = live.plan
+                // A loaded row wins over an existing row for the same exercise.
+                val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
+                val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan, it.sets, it.circuitId, it.weight) }
+                explicitIds += loadedIds
+                val newPlan = basePlan.copy(
+                    // concat keeps a kept circuit and a loaded one distinct even when their ids collide.
+                    exercises = CircuitStructure.concat(CircuitStructure.normalize(kept), loaded),
+                    sessionRejectedIds = basePlan.sessionRejectedIds - loadedIds,
+                )
+                // A load replaces the plan wholesale, so rows that were explicit before can depart here.
+                val pruned = prunedToPlanRows(live.copy(plan = newPlan, edited = true))
+                pruned.copy(rowFlags = computeRowFlags(pruned.plan, excluded, p))
+            }
         }
     }
 
@@ -366,19 +384,28 @@ class WorkoutSessionController(
         return preview.copy(rowFlags = preview.rowFlags.filterKeys { it in presentIds })
     }
 
-    /** Flags rows the generator would have filtered: location-excluded first, then unrested muscle. */
-    private suspend fun withRowFlags(preview: WorkoutState.PlanPreview): WorkoutState.PlanPreview {
-        val excluded = sessionLocationId?.let { repository.getExcludedExerciseIds(it) } ?: emptySet()
-        val p = planner
-        val flags = preview.plan.exercises.mapNotNull { pe ->
-            val ex = pe.exercise
-            when {
-                ex.id in excluded -> ex.id to RowFlag.NOT_AT_LOCATION
-                p != null && !p.isMuscleRested(ex) -> ex.id to RowFlag.TRAINED_RECENTLY
-                else -> null
-            }
-        }.toMap()
-        return preview.copy(rowFlags = flags)
+    /** The flag the generator would have filtered [exercise] on: location-excluded first, then unrested muscle. */
+    private fun rowFlagFor(exercise: Exercise, excluded: Set<Long>, p: WorkoutPlanner?): RowFlag? = when {
+        exercise.id in excluded -> RowFlag.NOT_AT_LOCATION
+        p != null && !p.isMuscleRested(exercise) -> RowFlag.TRAINED_RECENTLY
+        else -> null
+    }
+
+    /** [rowFlagFor] applied to every row currently in [plan]. */
+    private fun computeRowFlags(plan: WorkoutPlan, excluded: Set<Long>, p: WorkoutPlanner?): Map<Long, RowFlag> =
+        plan.exercises.mapNotNull { pe -> rowFlagFor(pe.exercise, excluded, p)?.let { pe.exercise.id to it } }.toMap()
+
+    /**
+     * Re-reads the live [WorkoutState.PlanPreview] after a suspend and folds in only the delta
+     * [transform] computes from it, instead of writing back a plan snapshot taken before that
+     * suspend (which would silently discard any edit the user made in the meantime). Drops the
+     * update — leaving the live state exactly as it is — when the user has since left the preview,
+     * or when [transform] finds nothing to apply (it returns null).
+     */
+    private fun applyPreviewDelta(transform: (WorkoutState.PlanPreview) -> WorkoutState.PlanPreview?) {
+        val live = _state.value as? WorkoutState.PlanPreview ?: return
+        val updated = transform(live) ?: return
+        setState(updated)
     }
 
     fun completeWarmupSet() {
@@ -557,29 +584,33 @@ class WorkoutSessionController(
         scope.launch {
             val locationName = database.knownLocationDao().getById(locationId)?.name
             val freshPlanner = repository.buildPlanner(locationId, weightUnit)
-            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
+            val excluded = repository.getExcludedExerciseIds(locationId)
             planner = freshPlanner
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
-            var plan = current.plan
-            var i = 0
-            while (i < plan.exercises.size) {
-                val id = plan.exercises[i].exercise.id
-                // An explicitly chosen row is flagged, not dropped, even where it's unavailable.
-                if (id !in availableIds && id !in explicitIds) {
-                    val replacement = freshPlanner.pickReplacement(plan, i)
-                    val updated = if (replacement != null)
-                        plan.exercises.toMutableList().also { it[i] = replacement.inSlotOf(plan.exercises[i], freshPlanner) }
-                    else CircuitEdits.remove(plan.exercises, i).also { i-- }
-                    plan = plan.copy(exercises = updated)
+            // This method's delta is only the location-derived row flags (and the availability
+            // swaps/removals that follow from them) — apply them to the live preview's rows, not
+            // to a plan snapshot taken before these suspends.
+            applyPreviewDelta { live ->
+                var plan = live.plan
+                var i = 0
+                while (i < plan.exercises.size) {
+                    val id = plan.exercises[i].exercise.id
+                    // An explicitly chosen row is flagged, not dropped, even where it's unavailable.
+                    if (id !in availableIds && id !in explicitIds) {
+                        val replacement = freshPlanner.pickReplacement(plan, i)
+                        val updated = if (replacement != null)
+                            plan.exercises.toMutableList().also { it[i] = replacement.inSlotOf(plan.exercises[i], freshPlanner) }
+                        else CircuitEdits.remove(plan.exercises, i).also { i-- }
+                        plan = plan.copy(exercises = updated)
+                    }
+                    i++
                 }
-                i++
+                // Flags can change even when the rows don't (this location now excludes an explicit
+                // row, or no longer does), so compare the fully rebuilt preview.
+                val pruned = prunedToPlanRows(live.copy(plan = plan, locationName = locationName))
+                val refreshed = pruned.copy(rowFlags = computeRowFlags(pruned.plan, excluded, freshPlanner))
+                if (refreshed == live) null else refreshed
             }
-            // Flags can change even when the rows don't (this location now excludes an explicit
-            // row, or no longer does), so compare the fully rebuilt preview.
-            val refreshed = withRowFlags(
-                prunedToPlanRows(current.copy(plan = plan, locationName = locationName))
-            )
-            if (refreshed != current) setState(refreshed)
         }
     }
 
