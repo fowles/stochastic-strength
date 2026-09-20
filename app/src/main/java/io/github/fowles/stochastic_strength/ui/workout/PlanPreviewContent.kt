@@ -2,7 +2,6 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,14 +16,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
-import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -42,31 +36,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.components.CircuitBlockList
 import io.github.fowles.stochastic_strength.ui.components.CircuitRailGutter
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowBody
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
-import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
 import io.github.fowles.stochastic_strength.ui.components.WeightOrBodyweightTrailing
-import io.github.fowles.stochastic_strength.ui.components.keyedBlocks
-import io.github.fowles.stochastic_strength.ui.components.linkAbove
-import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import kotlin.math.roundToInt
 
 @Composable
@@ -202,64 +191,33 @@ internal fun PlanPreviewContent(
             modifier = Modifier.padding(vertical = 4.dp),
         )
         HorizontalDivider()
-        val lazyListState = rememberLazyListState()
-        val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
-            onMove(from.index, to.index)
-        }
-
-        val blocks = remember(plan.exercises) { keyedBlocks(plan.exercises) { it.exercise.id } }
-        LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
-            items(blocks, key = { it.key }) { keyed ->
-                val block = keyed.block
-                ReorderableItem(reorderState, key = keyed.key) { isDragging ->
-                    val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
-                    // draggableHandle() builds an unkeyed Modifier.composed { … }, which has no
-                    // equals — a fresh one per composition is a never-equal parameter that stops
-                    // ExercisePreviewRow ever skipping. The item scope it captures is itself
-                    // remember(state, key)-stable, and composed { … } re-materializes its own
-                    // state at each application site, so one remembered instance serves every row
-                    // in the block.
-                    val dragHandle = remember { Modifier.draggableHandle() }
-                    Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
-                        for (i in block.indices) {
-                            val planned = keyed.rows[i - block.start]
-                            key(planned.exercise.id) {
-                                // Memoized: `linkAbove` is a plain function, so its toggle lambda
-                                // would otherwise be a fresh, never-equal instance every
-                                // composition and stop ExercisePreviewRow ever skipping. `block`
-                                // is an all-Int data class and `i` an Int, so they compare
-                                // properly; onLink/onUnlink are bound references to the screen's
-                                // view model, so pinning them here can't capture a stale callback.
-                                val (linkedAbove, toggleLink) = remember(block, i) {
-                                    linkAbove(block, i, onLink = onLink, onUnlink = onUnlink)
-                                }
-                                ExercisePreviewRow(
-                                    planned = planned,
-                                    weightUnit = weightUnit,
-                                    place = rowPlace(block, i),
-                                    sets = block.rounds,
-                                    dragHandleModifier = dragHandle,
-                                    // Only a pinned row can show a suggestion, so only a
-                                    // pinned row pays for one on every recomposition.
-                                    suggestedWeight =
-                                        if (planned.weightPinned) suggestWeight(planned) else 0f,
-                                    onReplace = { reason -> onReplace(planned.exercise.id, reason) },
-                                    onAdjustWeight = { steps -> onAdjustWeight(planned.exercise.id, steps) },
-                                    onRepsChange = { onSetReps(planned.exercise.id, it) },
-                                    onResetReps = { onResetReps(planned.exercise.id) },
-                                    onResetWeight = { onResetWeight(planned.exercise.id) },
-                                    onTap = { onExerciseTap(planned.exercise.id) },
-                                    onSetsChange = { onSetSets(planned.exercise.id, it) },
-                                    flag = state.rowFlags[planned.exercise.id],
-                                    linkedAbove = linkedAbove,
-                                    onToggleLink = toggleLink,
-                                )
-                            }
-                        }
-                        HorizontalDivider()
-                    }
-                }
-            }
+        CircuitBlockList(
+            rows = plan.exercises,
+            rowId = { it.exercise.id },
+            onMove = onMove,
+            onLink = onLink,
+            onUnlink = onUnlink,
+            modifier = Modifier.weight(1f),
+        ) { planned, place, rounds, dragHandle, reportSwipeOffset ->
+            ExercisePreviewRow(
+                planned = planned,
+                weightUnit = weightUnit,
+                place = place,
+                sets = rounds,
+                dragHandleModifier = dragHandle,
+                // Only a pinned row can show a suggestion, so only a
+                // pinned row pays for one on every recomposition.
+                suggestedWeight = if (planned.weightPinned) suggestWeight(planned) else 0f,
+                onReplace = { reason -> onReplace(planned.exercise.id, reason) },
+                onAdjustWeight = { steps -> onAdjustWeight(planned.exercise.id, steps) },
+                onRepsChange = { onSetReps(planned.exercise.id, it) },
+                onResetReps = { onResetReps(planned.exercise.id) },
+                onResetWeight = { onResetWeight(planned.exercise.id) },
+                onTap = { onExerciseTap(planned.exercise.id) },
+                onSetsChange = { onSetSets(planned.exercise.id, it) },
+                flag = state.rowFlags[planned.exercise.id],
+                reportSwipeOffset = reportSwipeOffset,
+            )
         }
         Spacer(Modifier.height(16.dp))
         Button(onClick = onStart, enabled = plan.exercises.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
@@ -285,8 +243,7 @@ private fun ExercisePreviewRow(
     onTap: () -> Unit,
     onSetsChange: (Int) -> Unit,
     flag: RowFlag?,
-    linkedAbove: Boolean?,
-    onToggleLink: () -> Unit,
+    reportSwipeOffset: (() -> Float) -> Unit,
 ) {
     var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
 
@@ -296,132 +253,130 @@ private fun ExercisePreviewRow(
             .collect { if (it != SwipeToDismissBoxValue.Settled) showActions = true }
     }
 
-    // The node lives outside the swipe box below, so it never sees that box's own internal
-    // translation; feed it the same live offset directly. Once the action row takes over, the
-    // row's content is no longer translated (the swipe box itself is gone), so the node offset
-    // resets to 0 rather than dragging the stale swiped-away distance along with it.
-    val swipeOffsetPx = {
+    // The link node lives outside the swipe box below, so it never sees that box's own internal
+    // translation; report the same live offset so the node tracks it. Once the action row takes
+    // over, the row's content is no longer translated (the swipe box itself is gone), so the node
+    // offset resets to 0 rather than dragging the stale swiped-away distance along with it.
+    reportSwipeOffset {
         // requireOffset() throws until the swipe box's anchors have been initialized by its first
         // measurement, and this lambda can be read before then (first frame, or a row recomposed
         // into the list); 0 is the right offset in that window anyway.
         linkNodeSwipeOffsetPx(showActions, runCatching { dismissState.requireOffset() }.getOrDefault(0f))
     }
 
-    LinkNodeHost(linkedAbove = linkedAbove, onToggleLink = onToggleLink, swipeOffsetPx = swipeOffsetPx) {
-        if (showActions) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-            ) {
-                // Only a circuit member needs the gutter — it's what keeps the rail continuous
-                // through a swiped row. A SOLO row draws no rail, and while it can still carry an
-                // unlinked node, that node sits at a fixed offset from the host Box and does not
-                // depend on the gutter. So a gutter there would just cost the action row (its
-                // three buttons and progress bar) 36dp of width for nothing.
-                if (place != RowPlace.SOLO) CircuitRailGutter(place)
-                ExerciseActionRow(
-                    name = planned.exercise.name,
-                    onAction = { reason ->
-                        showActions = false
-                        onReplace(reason)
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        } else {
-            SwipeToDismissBox(
-                state = dismissState,
-                backgroundContent = {
-                    val alpha = dismissState.progress.coerceIn(0f, 1f)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.error.copy(alpha = alpha)),
-                        contentAlignment = Alignment.CenterEnd,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onError.copy(alpha = alpha),
-                            modifier = Modifier
-                                .padding(end = 24.dp)
-                                .size(36.dp),
-                        )
-                    }
+    if (showActions) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        ) {
+            // Only a circuit member needs the gutter — it's what keeps the rail continuous
+            // through a swiped row. A SOLO row draws no rail, and while it can still carry an
+            // unlinked node, that node sits at a fixed offset from the host Box and does not
+            // depend on the gutter. So a gutter there would just cost the action row (its
+            // three buttons and progress bar) 36dp of width for nothing.
+            if (place != RowPlace.SOLO) CircuitRailGutter(place)
+            ExerciseActionRow(
+                name = planned.exercise.name,
+                onAction = { reason ->
+                    showActions = false
+                    onReplace(reason)
                 },
-                enableDismissFromStartToEnd = false,
-            ) {
-                ExerciseRowScaffold(
-                    place = place,
-                    sets = sets,
-                    onSetsChange = onSetsChange,
-                    dragHandleModifier = dragHandleModifier,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    } else {
+        SwipeToDismissBox(
+            state = dismissState,
+            backgroundContent = {
+                val alpha = dismissState.progress.coerceIn(0f, 1f)
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable(onClick = onTap)
-                        .padding(vertical = 8.dp),
-                    trailing = {
-                        // The note sits under the weight, in the height the trailing column already
-                        // has spare (the body's name + reps stepper is taller than the stepper
-                        // alone), so a pinned weight never makes the row grow.
-                        WeightOrBodyweightTrailing(
-                            showWeight = planned.sessionWeight > 0f,
-                            isBodyweight = planned.exercise.equipment == Equipment.BODYWEIGHT,
-                            stepper = {
-                                ValueStepper(
-                                    text = WeightFormatter.format(planned.sessionWeight, weightUnit),
-                                    pinned = planned.weightPinned,
-                                    unit = null,
-                                    onDecrement = { onAdjustWeight(-1) },
-                                    onIncrement = { onAdjustWeight(+1) },
-                                    onReset = onResetWeight,
-                                    fewerDescription = "Less weight",
-                                    moreDescription = "More weight",
-                                    canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
-                                )
-                            },
-                            note = {
-                                SuggestionNote(
-                                    pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
-                                    suggestedKg = suggestedWeight,
-                                    unit = weightUnit,
-                                )
-                            },
-                        )
-                    },
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = alpha)),
+                    contentAlignment = Alignment.CenterEnd,
                 ) {
-                    ExerciseRowBody(
-                        name = planned.exercise.name,
-                        timedText = if (planned.exercise.isTimed) formatQuantity(planned.sessionReps, true) else null,
-                        reps = {
-                            ValueStepper(
-                                text = "${planned.sessionReps}",
-                                pinned = planned.repsPinned,
-                                unit = "reps",
-                                onDecrement = { onRepsChange(planned.sessionReps - 1) },
-                                onIncrement = { onRepsChange(planned.sessionReps + 1) },
-                                onReset = onResetReps,
-                                fewerDescription = "One rep fewer",
-                                moreDescription = "One rep more",
-                                canDecrement = planned.sessionReps > PlannedExercise.PINNED_REPS.first,
-                                canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
-                            )
-                        },
-                        extra = {
-                            flag?.let {
-                                Text(
-                                    when (it) {
-                                        RowFlag.NOT_AT_LOCATION -> "Missing equipment"
-                                        RowFlag.TRAINED_RECENTLY -> "Trained recently"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                )
-                            }
-                        },
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onError.copy(alpha = alpha),
+                        modifier = Modifier
+                            .padding(end = 24.dp)
+                            .size(36.dp),
                     )
                 }
+            },
+            enableDismissFromStartToEnd = false,
+        ) {
+            ExerciseRowScaffold(
+                place = place,
+                sets = sets,
+                onSetsChange = onSetsChange,
+                dragHandleModifier = dragHandleModifier,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable(onClick = onTap)
+                    .padding(vertical = 8.dp),
+                trailing = {
+                    // The note sits under the weight, in the height the trailing column already
+                    // has spare (the body's name + reps stepper is taller than the stepper
+                    // alone), so a pinned weight never makes the row grow.
+                    WeightOrBodyweightTrailing(
+                        showWeight = planned.sessionWeight > 0f,
+                        isBodyweight = planned.exercise.equipment == Equipment.BODYWEIGHT,
+                        stepper = {
+                            ValueStepper(
+                                text = WeightFormatter.format(planned.sessionWeight, weightUnit),
+                                pinned = planned.weightPinned,
+                                unit = null,
+                                onDecrement = { onAdjustWeight(-1) },
+                                onIncrement = { onAdjustWeight(+1) },
+                                onReset = onResetWeight,
+                                fewerDescription = "Less weight",
+                                moreDescription = "More weight",
+                                canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
+                            )
+                        },
+                        note = {
+                            SuggestionNote(
+                                pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
+                                suggestedKg = suggestedWeight,
+                                unit = weightUnit,
+                            )
+                        },
+                    )
+                },
+            ) {
+                ExerciseRowBody(
+                    name = planned.exercise.name,
+                    timedText = if (planned.exercise.isTimed) formatQuantity(planned.sessionReps, true) else null,
+                    reps = {
+                        ValueStepper(
+                            text = "${planned.sessionReps}",
+                            pinned = planned.repsPinned,
+                            unit = "reps",
+                            onDecrement = { onRepsChange(planned.sessionReps - 1) },
+                            onIncrement = { onRepsChange(planned.sessionReps + 1) },
+                            onReset = onResetReps,
+                            fewerDescription = "One rep fewer",
+                            moreDescription = "One rep more",
+                            canDecrement = planned.sessionReps > PlannedExercise.PINNED_REPS.first,
+                            canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
+                        )
+                    },
+                    extra = {
+                        flag?.let {
+                            Text(
+                                when (it) {
+                                    RowFlag.NOT_AT_LOCATION -> "Missing equipment"
+                                    RowFlag.TRAINED_RECENTLY -> "Trained recently"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    },
+                )
             }
         }
     }

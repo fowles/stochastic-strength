@@ -1,7 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.savedworkouts
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,9 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
@@ -32,7 +28,6 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -53,20 +47,15 @@ import io.github.fowles.stochastic_strength.domain.model.PlannedExercise.Compani
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
+import io.github.fowles.stochastic_strength.ui.components.CircuitBlockList
 import io.github.fowles.stochastic_strength.ui.components.ExercisePickerSheet
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowBody
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
-import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
 import io.github.fowles.stochastic_strength.ui.components.WeightOrBodyweightTrailing
-import io.github.fowles.stochastic_strength.ui.components.keyedBlocks
-import io.github.fowles.stochastic_strength.ui.components.linkAbove
-import io.github.fowles.stochastic_strength.ui.components.rowPlace
-import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,50 +122,27 @@ fun SavedWorkoutEditScreen(
                 modifier = Modifier.padding(vertical = 8.dp),
             )
             HorizontalDivider()
-            val blocks = remember(state.entries) { keyedBlocks(state.entries) { it.exercise.id } }
-            val lazyListState = rememberLazyListState()
-            val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
-                viewModel.move(from.index, to.index)
-            }
-            LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
-                // One item per block, so a drag carries a whole circuit. The smallest member id is a
-                // key that survives the drag.
-                items(blocks, key = { it.key }) { keyed ->
-                    val block = keyed.block
-                    ReorderableItem(reorderState, key = keyed.key) { isDragging ->
-                        val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
-                        // Remembered for the same reason as plan preview's: see PlanPreviewContent.
-                        val dragHandle = remember { Modifier.draggableHandle() }
-                        Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
-                            for (i in block.indices) {
-                                val entry = keyed.rows[i - block.start]
-                                key(entry.exercise.id) {
-                                    // Memoized so LinkNodeHost can actually skip — see linkAbove's
-                                    // KDoc. `viewModel` outlives every recomposition here, so
-                                    // pinning its bound references can't go stale.
-                                    val (linkedAbove, toggleLink) = remember(block, i) {
-                                        linkAbove(block, i, onLink = viewModel::link, onUnlink = viewModel::unlink)
-                                    }
-                                    LinkNodeHost(linkedAbove = linkedAbove, onToggleLink = toggleLink) {
-                                        EntryRow(
-                                            entry = entry,
-                                            place = rowPlace(block, i),
-                                            sets = block.rounds,
-                                            dragHandleModifier = dragHandle,
-                                            suggester = suggester,
-                                            weightUnit = weightUnit,
-                                            onRemove = { viewModel.removeExercise(entry.exercise.id) },
-                                            onRepsChange = { reps -> viewModel.setReps(entry.exercise.id, reps) },
-                                            onWeightChange = { weight -> viewModel.setWeight(entry.exercise.id, weight) },
-                                            onSetsChange = { sets -> viewModel.setSets(entry.exercise.id, sets) },
-                                        )
-                                    }
-                                }
-                            }
-                            HorizontalDivider()
-                        }
-                    }
-                }
+            CircuitBlockList(
+                rows = state.entries,
+                rowId = { it.exercise.id },
+                onMove = viewModel::move,
+                onLink = viewModel::link,
+                onUnlink = viewModel::unlink,
+                modifier = Modifier.weight(1f),
+            ) { entry, place, rounds, dragHandle, reportSwipeOffset ->
+                EntryRow(
+                    entry = entry,
+                    place = place,
+                    sets = rounds,
+                    dragHandleModifier = dragHandle,
+                    suggester = suggester,
+                    weightUnit = weightUnit,
+                    onRemove = { viewModel.removeExercise(entry.exercise.id) },
+                    onRepsChange = { reps -> viewModel.setReps(entry.exercise.id, reps) },
+                    onWeightChange = { weight -> viewModel.setWeight(entry.exercise.id, weight) },
+                    onSetsChange = { sets -> viewModel.setSets(entry.exercise.id, sets) },
+                    reportSwipeOffset = reportSwipeOffset,
+                )
             }
             OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 Text("Add exercise")
@@ -213,11 +179,19 @@ private fun EntryRow(
     onRepsChange: (Int?) -> Unit,
     onWeightChange: (Float?) -> Unit,
     onSetsChange: (Int) -> Unit,
+    reportSwipeOffset: (() -> Float) -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
     LaunchedEffect(dismissState) {
         snapshotFlow { dismissState.currentValue }
             .collect { if (it == SwipeToDismissBoxValue.EndToStart) onRemove() }
+    }
+    // The link node is a sibling of the swipe box, so it never sees that box's own translation;
+    // report the live offset so the node slides away with the row instead of staying put.
+    reportSwipeOffset {
+        // requireOffset() throws until the swipe box's anchors have been initialized by its first
+        // measurement, and this lambda can be read before then; 0 is the right offset until then.
+        runCatching { dismissState.requireOffset() }.getOrDefault(0f)
     }
     SwipeToDismissBox(
         state = dismissState,

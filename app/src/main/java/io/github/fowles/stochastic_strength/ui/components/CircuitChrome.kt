@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -27,6 +31,7 @@ import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -57,6 +64,8 @@ import io.github.fowles.stochastic_strength.data.model.CircuitRow
 import io.github.fowles.stochastic_strength.domain.Block
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.math.roundToInt
 
 /** Material 3's disabled-content alpha, so a dimmed value matches the disabled "−" beside it. */
@@ -293,6 +302,112 @@ fun LinkNodeHost(
                             modifier = Modifier.size(14.dp),
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One row's live horizontal swipe translation, shared between the row — which owns the swipe
+ * gesture, and whose two screens swipe for different reasons — and the [LinkNodeHost] node above
+ * it. The node is a *sibling* of the row's content, not an ancestor, so it never sees the row's own
+ * translation; the row reports it here instead.
+ *
+ * Deliberately not snapshot state: [read] is only ever called from the node's layout-phase
+ * `offset { }`, and a row [report]s its lambda during composition, where writing observable state
+ * would be a recomposition hazard for no gain. Both lambdas are allocated once per instance, so
+ * handing [report] to a row composable keeps that row skippable — which a mutable holder passed as
+ * a parameter would not.
+ */
+private class SwipeOffsetRelay {
+    private var offsetPx: () -> Float = ZERO
+
+    /** The node's side: the row's current offset, or 0 before any row has reported one. */
+    val read: () -> Float = { offsetPx() }
+
+    /** The row's side: publish a lambda that reads the row's live offset when asked. */
+    val report: (() -> Float) -> Unit = { offsetPx = it }
+
+    private companion object {
+        val ZERO: () -> Float = { 0f }
+    }
+}
+
+/**
+ * The reorderable list of circuit blocks shared by Today's workout and the saved-workout editor:
+ * one [LazyColumn] item per block (so a drag carries a whole circuit), with the drag elevation,
+ * the per-row [LinkNodeHost] wiring and the trailing divider all handled here. Only the row body
+ * differs between the two screens, and that is [row].
+ *
+ * [row] receives its [T], where it sits in its block, the block's rounds (the count the block head
+ * displays), the drag-handle modifier, and a [SwipeOffsetRelay.report] it calls to keep its link
+ * node tracking it while it is swiped. [onLink]/[onUnlink] are indexed by the row *above* the
+ * boundary, matching [io.github.fowles.stochastic_strength.domain.CircuitEdits]; [onMove] moves a
+ * whole block.
+ *
+ * Both call sites keep their headers and footers outside this list, in the [Column] around it, so
+ * this takes no header/footer slot — add one here rather than growing a second list if that
+ * changes.
+ */
+@Composable
+fun <T : CircuitRow<T>> CircuitBlockList(
+    rows: List<T>,
+    rowId: (T) -> Long,
+    onMove: (from: Int, to: Int) -> Unit,
+    onLink: (rowIndex: Int) -> Unit,
+    onUnlink: (rowIndex: Int) -> Unit,
+    modifier: Modifier = Modifier,
+    row: @Composable (
+        row: T,
+        place: RowPlace,
+        rounds: Int,
+        dragHandleModifier: Modifier,
+        reportSwipeOffset: (() -> Float) -> Unit,
+    ) -> Unit,
+) {
+    val lazyListState = rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        onMove(from.index, to.index)
+    }
+    val blocks = remember(rows) { keyedBlocks(rows, rowId) }
+    LazyColumn(state = lazyListState, modifier = modifier) {
+        // One item per block, so a drag carries a whole circuit. The smallest member id is a key
+        // that survives the drag.
+        items(blocks, key = { it.key }) { keyed ->
+            val block = keyed.block
+            ReorderableItem(reorderState, key = keyed.key) { isDragging ->
+                val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
+                // draggableHandle() builds an unkeyed Modifier.composed { … }, which has no
+                // equals — a fresh one per composition is a never-equal parameter that stops the
+                // row composable ever skipping. The item scope it captures is itself
+                // remember(state, key)-stable, and composed { … } re-materializes its own state at
+                // each application site, so one remembered instance serves every row in the block.
+                val dragHandle = remember { Modifier.draggableHandle() }
+                Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
+                    for (i in block.indices) {
+                        val blockRow = keyed.rows[i - block.start]
+                        key(rowId(blockRow)) {
+                            // Memoized: `linkAbove` is a plain function, so its toggle lambda would
+                            // otherwise be a fresh, never-equal instance every composition and stop
+                            // LinkNodeHost ever skipping. `block` is an all-Int data class and `i`
+                            // an Int, so they compare properly; both screens pass bound view-model
+                            // references for onLink/onUnlink, so pinning them here can't capture a
+                            // stale callback.
+                            val (linkedAbove, toggleLink) = remember(block, i) {
+                                linkAbove(block, i, onLink = onLink, onUnlink = onUnlink)
+                            }
+                            val swipeOffset = remember { SwipeOffsetRelay() }
+                            LinkNodeHost(
+                                linkedAbove = linkedAbove,
+                                onToggleLink = toggleLink,
+                                swipeOffsetPx = swipeOffset.read,
+                            ) {
+                                row(blockRow, rowPlace(block, i), block.rounds, dragHandle, swipeOffset.report)
+                            }
+                        }
+                    }
+                    HorizontalDivider()
                 }
             }
         }

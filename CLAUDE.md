@@ -123,7 +123,12 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
   Circuits may be uneven (`saveSessionAsWorkout` saves each member at the rounds it got); the
   round chip shows the block maximum and `setRounds` re-levels the block.
 - The shared row is `ui/components/CircuitChrome.kt` (`ExerciseRowScaffold`, `LinkNodeHost`,
-  `ValueStepper`, `keyedBlocks`); reordering uses `sh.calvin.reorderable`.
+  `ValueStepper`, `keyedBlocks`); reordering uses `sh.calvin.reorderable`. `CircuitBlockList` is
+  the one list both the editor and the plan preview render: it owns the reorder state, the
+  block-per-item structure, the drag elevation and the link-node wiring, and each screen supplies
+  only its row body. A swiped row reports its live offset back through `SwipeOffsetRelay` so its
+  link node follows it; the two screens' swipe *meanings* (preview: reveal the reason row; editor:
+  remove) stay in the row body.
 - `PlannedExercise.repsPinned` / `weightPinned` mark user-set values. `WorkoutPlanner.reprice`
   (private `withWeight`) is the **single pricing rule** and the only place that honours pins: a
   pinned weight bypasses `PrescriptionPolicy` and nothing reprices it; the rep-range slider
