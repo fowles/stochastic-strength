@@ -2,6 +2,7 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
+import io.github.fowles.stochastic_strength.domain.WorkoutSequence
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 
@@ -16,9 +17,12 @@ sealed interface WorkoutState {
         val sessionId: Long,
         val warmupSetIndex: Int? = null,
         val timerSecondsRemaining: Int? = null,
+        /** Completed working sets per exercise id. [setIndex] is always this exercise's entry. */
+        val done: Map<Long, Int> = emptyMap(),
     ) : WorkoutState {
         val plannedExercise: PlannedExercise get() = plan.exercises[exerciseIndex]
-        val totalSets: Int get() = PlannedExercise.DEFAULT_SETS
+        val totalSets: Int get() = plannedExercise.sets
+        val positionLabel: String get() = WorkoutSequence.positionLabel(plan.exercises, exerciseIndex, setIndex)
         val currentWarmupSet get() = warmupSetIndex?.let { plannedExercise.warmupSets[it] }
     }
 
@@ -48,6 +52,8 @@ sealed interface WorkoutState {
         val currentSetRowId: Long,
         val staged: StagedAction? = null,
         val restQuip: String? = null,
+        /** Progress once this rest ends: after the logged set, or — for a staged rest — the commit target's. */
+        val done: Map<Long, Int> = emptyMap(),
     ) : WorkoutState
 
     data class Done(

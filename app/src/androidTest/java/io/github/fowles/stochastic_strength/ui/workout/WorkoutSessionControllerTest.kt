@@ -170,6 +170,138 @@ class WorkoutSessionControllerTest {
 
     private fun preview(c: WorkoutSessionController) = c.state.value as WorkoutState.PlanPreview
 
+    private suspend fun awaitActive(
+        c: WorkoutSessionController, timeoutMs: Long = 2000,
+        predicate: (WorkoutState.ActiveSet) -> Boolean = { true },
+    ): WorkoutState.ActiveSet {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val s = c.state.value
+            if (s is WorkoutState.ActiveSet && predicate(s)) return s
+            delay(20)
+        }
+        error("No matching ActiveSet; was ${c.state.value}")
+    }
+
+    private suspend fun awaitLoggedRest(c: WorkoutSessionController, timeoutMs: Long = 2000): WorkoutState.Resting {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val s = c.state.value
+            if (s is WorkoutState.Resting && s.staged == null) return s
+            delay(20)
+        }
+        error("No logged-set rest; was ${c.state.value}")
+    }
+
+    /** Walks any warmups, logs one working set, and leaves the controller resting. Returns the exercise id. */
+    private suspend fun performSet(c: WorkoutSessionController, feedback: SetFeedback = SetFeedback.RIR_2_4): Long {
+        var s = awaitActive(c)
+        while (s.warmupSetIndex != null) {
+            c.completeWarmupSet()
+            s = when (val now = c.state.value) {
+                is WorkoutState.Resting -> { c.skipRest(); awaitActive(c) { it.warmupSetIndex == null } }
+                else -> now as WorkoutState.ActiveSet
+            }
+        }
+        val id = s.plannedExercise.exercise.id
+        c.recordFeedback(feedback)
+        awaitLoggedRest(c)
+        return id
+    }
+
+    /** Preview of 3 rows → rows 0+1 linked as a [rounds]-round circuit, row 2 solo with 1 set → started. */
+    private suspend fun circuitSession(rounds: Int): Pair<PreviewFixture, List<Long>> {
+        val f = previewFixture(count = 3)
+        f.controller.linkExercises(0)
+        val rows = preview(f.controller).plan.exercises
+        f.controller.setExerciseSets(rows[0].exercise.id, rounds)
+        f.controller.setExerciseSets(rows[2].exercise.id, 1)
+        f.controller.startFirstExercise()
+        awaitActive(f.controller)
+        return f to rows.map { it.exercise.id }
+    }
+
+    @Test
+    fun circuit_runsRoundRobin_thenTheNextBlock_andTagsLoggedRows() = runBlocking {
+        val (f, ids) = circuitSession(rounds = 2)
+        val order = mutableListOf<Long>()
+        repeat(5) { order += performSet(f.controller); f.controller.skipRest() }
+        assertEquals(listOf(ids[0], ids[1], ids[0], ids[1], ids[2]), order)
+
+        val rows = f.db.workoutSetDao().getSetsForSession(
+            f.db.workoutSessionDao().getAll().single().id
+        )
+        assertEquals(listOf(1, 1, 2, 2, 1), rows.map { it.setNumber })
+        assertEquals(listOf(0, 0, 0, 0, null), rows.map { it.circuitId })
+        f.db.close()
+    }
+
+    @Test
+    fun soloRow_honoursItsSetCount() = runBlocking {
+        val f = previewFixture(count = 1)
+        f.controller.setExerciseSets(preview(f.controller).plan.exercises[0].exercise.id, 5)
+        f.controller.startFirstExercise()
+        repeat(4) { performSet(f.controller); f.controller.skipRest() }
+        val last = awaitActive(f.controller)
+        assertEquals(4, last.setIndex)
+        assertEquals(5, last.totalSets)
+        assertEquals("Set 5 of 5", last.positionLabel)
+        f.db.close()
+    }
+
+    @Test
+    fun hurtMidCircuit_dropsThatMemberFromLaterRounds() = runBlocking {
+        val (f, ids) = circuitSession(rounds = 2)
+        performSet(f.controller, SetFeedback.HURT); f.controller.skipRest() // ids[0] out
+        val order = mutableListOf<Long>()
+        repeat(3) { order += performSet(f.controller); f.controller.skipRest() }
+        assertEquals(listOf(ids[1], ids[1], ids[2]), order)
+        f.db.close()
+    }
+
+    @Test
+    fun undoAcrossCircuitMembers_returnsToTheSetJustLogged() = runBlocking {
+        val (f, ids) = circuitSession(rounds = 2)
+        performSet(f.controller); f.controller.skipRest()      // ids[0] round 1
+        performSet(f.controller)                               // ids[1] round 1, now resting
+        f.controller.undoLastSet()
+        val back = awaitActive(f.controller) { it.plannedExercise.exercise.id == ids[1] }
+        assertEquals(0, back.setIndex)
+        assertEquals("Round 1 of 2", back.positionLabel)
+        assertEquals(1, back.done[ids[0]])
+        assertEquals(0, back.done[ids[1]] ?: 0)
+        f.db.close()
+    }
+
+    @Test
+    fun endExercise_inACircuitWithLoggedSets_finishesOnlyThatMember() = runBlocking {
+        val (f, ids) = circuitSession(rounds = 2)
+        performSet(f.controller); f.controller.skipRest()      // ids[0] r1
+        performSet(f.controller); f.controller.skipRest()      // ids[1] r1
+        awaitActive(f.controller) { it.plannedExercise.exercise.id == ids[0] && it.setIndex == 1 }
+        f.controller.endCurrentExercise()
+        f.controller.skipRest()                                 // commit the staged end
+        val next = awaitActive(f.controller) { it.plannedExercise.exercise.id != ids[0] }
+        assertEquals(ids[1], next.plannedExercise.exercise.id)
+        assertEquals(1, next.setIndex)
+        f.db.close()
+    }
+
+    @Test
+    fun swap_withLoggedSets_givesTheReplacementOnlyTheRemainingSets() = runBlocking {
+        toWorkingSet()
+        controller.recordFeedback(SetFeedback.RIR_2_4)
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+        val active = awaitState<WorkoutState.ActiveSet>() // set 2 of 3
+        controller.swapCurrentExercise(ExerciseRemovalReason.SKIP_TODAY)
+        val target = awaitState<WorkoutState.Resting>().staged!!.commitTarget!!
+        assertEquals(1, target.exerciseIndex)
+        assertEquals(0, target.setIndex)
+        assertEquals("1 done of 3 → 2 owed", 2, target.plannedExercise.sets)
+        assertEquals(3, target.done[active.plannedExercise.exercise.id])
+    }
+
     @Test
     fun locationRefresh_keepsExplicitlyAddedExcludedRow() = runBlocking {
         var excludedId = 0L

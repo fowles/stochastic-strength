@@ -19,6 +19,7 @@ import io.github.fowles.stochastic_strength.domain.TimedSet
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
+import io.github.fowles.stochastic_strength.domain.WorkoutSequence
 import io.github.fowles.stochastic_strength.domain.history.RestQuips
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
@@ -134,21 +135,28 @@ class WorkoutSessionController(
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         if (preview.plan.exercises.isEmpty()) return
         val plan = preview.plan
-        val firstExercise = plan.exercises[0]
         scope.launch {
             val now = System.currentTimeMillis()
             sessionStartTime = now
             val sessionId = database.workoutSessionDao().insert(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
-            setState(WorkoutState.ActiveSet(
-                plan = plan,
-                exerciseIndex = 0,
-                setIndex = 0,
-                sessionId = sessionId,
-                warmupSetIndex = if (firstExercise.warmupSets.isNotEmpty()) 0 else null,
-            ))
+            activeSetFor(plan, emptyMap(), sessionId)?.let(::setState)
         }
+    }
+
+    /** The set [WorkoutSequence] says is next, warmups first when it is that exercise's first. Null = finished. */
+    private fun activeSetFor(plan: WorkoutPlan, done: Map<Long, Int>, sessionId: Long): WorkoutState.ActiveSet? {
+        val step = WorkoutSequence.next(plan.exercises, done) ?: return null
+        val ex = plan.exercises[step.exerciseIndex]
+        return WorkoutState.ActiveSet(
+            plan = plan,
+            exerciseIndex = step.exerciseIndex,
+            setIndex = step.setIndex,
+            sessionId = sessionId,
+            warmupSetIndex = if (step.setIndex == 0 && ex.warmupSets.isNotEmpty()) 0 else null,
+            done = done,
+        )
     }
 
     fun replaceExercise(exerciseId: Long, reason: ExerciseRemovalReason) {
@@ -377,6 +385,7 @@ class WorkoutSessionController(
                 setIndex = 0,
                 sessionId = current.sessionId,
                 warmupSetIndex = null,
+                done = current.done,
             )
             stageRest(current, StagedAction(
                 kind = StagedKind.WARMUP_DONE,
@@ -423,6 +432,7 @@ class WorkoutSessionController(
                     setNumber = current.setIndex + 1,
                     targetWeight = planned.sessionWeight,
                     targetReps = planned.sessionReps,
+                    circuitId = planned.circuitId,
                     actualReps = initialActualReps,
                     feedback = feedback,
                     completedAt = System.currentTimeMillis(),
@@ -442,7 +452,10 @@ class WorkoutSessionController(
                     )
                 )
             }
-            val completedSetIndex = if (feedback == SetFeedback.HURT) current.totalSets - 1 else current.setIndex
+            val isHurt = feedback == SetFeedback.HURT
+            val completedSetIndex = if (isHurt) current.totalSets - 1 else current.setIndex
+            // HURT ends the exercise: it drops out of any remaining rounds.
+            val done = current.done + (planned.exercise.id to if (isHurt) planned.sets else current.setIndex + 1)
             setState(WorkoutState.Resting(
                 plan = current.plan,
                 exerciseIndex = current.exerciseIndex,
@@ -452,10 +465,8 @@ class WorkoutSessionController(
                 lastFeedback = feedback,
                 weightAtSetStart = current.plannedExercise.sessionWeight,
                 currentSetRowId = rowId,
-                restQuip = RestQuips.pick(
-                    upcomingMusclesAfterRest(current.plan, current.exerciseIndex, completedSetIndex),
-                    Random.Default,
-                ),
+                restQuip = RestQuips.pick(upcomingMusclesAfterRest(current.plan, done), Random.Default),
+                done = done,
             ))
             startRestTimer()
         }
@@ -474,14 +485,15 @@ class WorkoutSessionController(
         val restoredPlan = resting.plan.copy(exercises = restoredExercises)
         scope.launch {
             val row = database.workoutSetDao().getById(resting.currentSetRowId)
-            val setIndex = row?.let { it.setNumber - 1 }
-                ?: resting.completedSetIndex.coerceAtMost(PlannedExercise.DEFAULT_SETS - 1)
+            val exerciseId = restoredPlan.exercises[resting.exerciseIndex].exercise.id
+            val setIndex = row?.let { it.setNumber - 1 } ?: resting.completedSetIndex
             database.workoutSetDao().deleteById(resting.currentSetRowId)
             setState(WorkoutState.ActiveSet(
                 plan = restoredPlan,
                 exerciseIndex = resting.exerciseIndex,
                 setIndex = setIndex,
                 sessionId = resting.sessionId,
+                done = resting.done + (exerciseId to setIndex),
             ))
         }
     }
@@ -496,9 +508,8 @@ class WorkoutSessionController(
         scope.launch {
             database.workoutSetDao().updateActualReps(resting.currentSetRowId, completedReps)
         }
-        val moreSetsForThisExercise =
-            resting.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
         val exercise = resting.plan.exercises[resting.exerciseIndex]
+        val moreSetsForThisExercise = (resting.done[exercise.exercise.id] ?: 0) < exercise.sets
         if (!moreSetsForThisExercise || exercise.sessionWeight <= 0f) {
             setState(resting.copy(weightReductionApplied = true))
             return
@@ -594,6 +605,7 @@ class WorkoutSessionController(
             setIndex = current.setIndex,
             sessionId = current.sessionId,
             warmupSetIndex = current.warmupSetIndex,
+            done = current.done,
         )
         stageRest(current, StagedAction(
             kind = StagedKind.ADJUST_WEIGHT,
@@ -612,33 +624,33 @@ class WorkoutSessionController(
         val rejectedPlan = current.plan.copy(
             sessionRejectedIds = current.plan.sessionRejectedIds + original.id,
         )
-        val replacementRaw = p.pickReplacement(
+        val replacement = p.pickReplacement(
             rejectedPlan, i,
             listOf(ReplacementTier.WEIGHTED_MUSCLE, ReplacementTier.MUSCLE, ReplacementTier.ANY),
         )
-        val replacement = replacementRaw
 
-        val exercises = rejectedPlan.exercises.toMutableList()
-        val commitIndex: Int
-        when {
+        val old = current.plannedExercise
+        val loggedSets = current.done[original.id] ?: 0
+        var done = current.done
+        val exercises: List<PlannedExercise> = when {
             replacement == null && hasLogged -> {
-                commitIndex = i + 1 // keep original, advance past it
+                done = done + (original.id to old.sets) // keep original, advance past it
+                rejectedPlan.exercises
             }
-            replacement == null -> {
-                exercises.removeAt(i)
-                commitIndex = i
-            }
+            replacement == null -> CircuitEdits.remove(rejectedPlan.exercises, i)
             hasLogged -> {
-                exercises.add(i + 1, replacement)
-                commitIndex = i + 1
+                // The replacement owes only what the original had left, in the same block.
+                done = done + (original.id to old.sets)
+                rejectedPlan.exercises.toMutableList().also {
+                    it.add(i + 1, replacement.withStructure(old.sets - loggedSets, old.circuitId))
+                }
             }
-            else -> {
-                exercises[i] = replacement
-                commitIndex = i
+            else -> rejectedPlan.exercises.toMutableList().also {
+                it[i] = replacement.withStructure(old.sets, old.circuitId)
             }
         }
         val newPlan = rejectedPlan.copy(exercises = exercises)
-        val commitTarget = nextExerciseActiveSet(newPlan, commitIndex, current.sessionId)
+        val commitTarget = activeSetFor(newPlan, done, current.sessionId)
 
         stageRest(current, StagedAction(
             kind = StagedKind.SWAP,
@@ -661,11 +673,12 @@ class WorkoutSessionController(
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         val i = current.exerciseIndex
         val hasLogged = current.warmupSetIndex == null && current.setIndex > 0
+        val id = current.plannedExercise.exercise.id
         val commitTarget = if (hasLogged) {
-            nextExerciseActiveSet(current.plan, i + 1, current.sessionId)
+            activeSetFor(current.plan, current.done + (id to current.plannedExercise.sets), current.sessionId)
         } else {
-            val trimmed = current.plan.exercises.toMutableList().also { it.removeAt(i) }
-            nextExerciseActiveSet(current.plan.copy(exercises = trimmed), i, current.sessionId)
+            val trimmed = CircuitEdits.remove(current.plan.exercises, i)
+            activeSetFor(current.plan.copy(exercises = trimmed), current.done, current.sessionId)
         }
         stageRest(current, StagedAction(
             kind = StagedKind.END_EXERCISE,
@@ -686,24 +699,9 @@ class WorkoutSessionController(
             weightAtSetStart = current.plannedExercise.sessionWeight,
             currentSetRowId = NO_ROW,
             staged = staged,
+            done = target?.done ?: current.done,
         ))
         startRestTimer()
-    }
-
-    private fun nextExerciseActiveSet(
-        plan: WorkoutPlan,
-        index: Int,
-        sessionId: Long,
-    ): WorkoutState.ActiveSet? {
-        if (index !in plan.exercises.indices) return null
-        val ex = plan.exercises[index]
-        return WorkoutState.ActiveSet(
-            plan = plan,
-            exerciseIndex = index,
-            setIndex = 0,
-            sessionId = sessionId,
-            warmupSetIndex = if (ex.warmupSets.isNotEmpty()) 0 else null,
-        )
     }
 
     private suspend fun persistSwap(swap: PendingSwap, overrides: Map<Long, Float>) {
@@ -738,16 +736,9 @@ class WorkoutSessionController(
     }
 
     /** Muscles of the exercise the upcoming rest precedes; null when the rest is the workout's last. */
-    private fun upcomingMusclesAfterRest(
-        plan: WorkoutPlan,
-        exerciseIndex: Int,
-        completedSetIndex: Int,
-    ): Set<MuscleGroup>? {
-        val exercise = when {
-            completedSetIndex + 1 < PlannedExercise.DEFAULT_SETS -> plan.exercises[exerciseIndex]
-            exerciseIndex + 1 < plan.exercises.size -> plan.exercises[exerciseIndex + 1]
-            else -> return null
-        }.exercise
+    private fun upcomingMusclesAfterRest(plan: WorkoutPlan, done: Map<Long, Int>): Set<MuscleGroup>? {
+        val step = WorkoutSequence.next(plan.exercises, done) ?: return null
+        val exercise = plan.exercises[step.exerciseIndex].exercise
         return setOf(exercise.primaryMuscle) + exercise.secondaryMuscles
     }
 
@@ -762,27 +753,8 @@ class WorkoutSessionController(
             }
             return
         }
-        val plan = current.plan
-        val nextSet = current.completedSetIndex + 1
-        when {
-            nextSet < PlannedExercise.DEFAULT_SETS -> setState(WorkoutState.ActiveSet(
-                plan = plan,
-                exerciseIndex = current.exerciseIndex,
-                setIndex = nextSet,
-                sessionId = current.sessionId,
-            ))
-            current.exerciseIndex + 1 < plan.exercises.size -> {
-                val nextExercise = plan.exercises[current.exerciseIndex + 1]
-                setState(WorkoutState.ActiveSet(
-                    plan = plan,
-                    exerciseIndex = current.exerciseIndex + 1,
-                    setIndex = 0,
-                    sessionId = current.sessionId,
-                    warmupSetIndex = if (nextExercise.warmupSets.isNotEmpty()) 0 else null,
-                ))
-            }
-            else -> finishWorkout(plan, current.sessionId)
-        }
+        activeSetFor(current.plan, current.done, current.sessionId)?.let(::setState)
+            ?: finishWorkout(current.plan, current.sessionId)
     }
 
     private fun finishWorkout(
@@ -817,7 +789,7 @@ class WorkoutSessionController(
             } else if (planned.exercise.isTimed) {
                 WorkoutNotificationState.TimedActiveSet(
                     exerciseName = planned.exercise.name,
-                    setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
+                    setLabel = state.positionLabel,
                     secondsRemaining = state.timerSecondsRemaining,
                     progressMax = timedSetSeconds,
                 )
@@ -829,7 +801,7 @@ class WorkoutSessionController(
                     else
                         WeightFormatter.format(planned.sessionWeight, weightUnit),
                     repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed),
-                    setLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
+                    setLabel = state.positionLabel,
                 )
             }
         }
@@ -846,11 +818,19 @@ class WorkoutSessionController(
                         ?.let { "Next: ${it.plannedExercise.exercise.name}" }
                         ?: "Last set — almost done!"
                 }
-                state.completedSetIndex + 1 < PlannedExercise.DEFAULT_SETS ->
-                    "Next: Set ${state.completedSetIndex + 2} · ${plan.exercises[state.exerciseIndex].exercise.name}"
-                state.exerciseIndex + 1 < plan.exercises.size ->
-                    "Next: ${plan.exercises[state.exerciseIndex + 1].exercise.name}"
-                else -> "Last set — almost done!"
+                else -> when (val step = WorkoutSequence.next(plan.exercises, state.done)) {
+                    null -> "Last set — almost done!"
+                    else -> {
+                        val name = plan.exercises[step.exerciseIndex].exercise.name
+                        val position = WorkoutSequence.positionLabel(plan.exercises, step.exerciseIndex, step.setIndex)
+                            .substringBefore(" of")
+                        when {
+                            step.exerciseIndex == state.exerciseIndex -> "Next: $position · $name"
+                            plan.exercises[step.exerciseIndex].circuitId != null -> "Next: $name · $position"
+                            else -> "Next: $name"
+                        }
+                    }
+                }
             }
             WorkoutNotificationState.Resting(
                 secondsRemaining = state.secondsRemaining,
