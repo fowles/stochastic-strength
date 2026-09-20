@@ -87,7 +87,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             preferredRepMin = profile?.preferredRepMin ?: DEFAULT_REP_MIN
             preferredRepMax = profile?.preferredRepMax ?: DEFAULT_REP_MAX
             val resolved = resolveLocation()
-            controller.initializeSession(
+            val routine = controller.initializeSession(
                 locationId = resolved.locationId,
                 locationName = resolved.locationName,
                 preferredExerciseCount = preferredExerciseCount,
@@ -95,6 +95,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 preferredRepMax = preferredRepMax,
                 weightUnit = _weightUnit.value,
             )
+            // The routine heuristic acted on the user's behalf, so say so — and transiently, since
+            // there is nothing here for them to decide.
+            if (routine != null) _message.value = "Loaded \"${routine.displayName}\""
             // Reverse geocoding is a (slow, sometimes-stalling) network call and only supplies the
             // location's display name — it never affects equipment filtering, which keys off the
             // locationId resolved above. So never block workout start on it: fill the name in later.
@@ -179,6 +182,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun addExercise(exerciseId: Long) = controller.addExercise(exerciseId)
     fun loadSavedWorkout(id: Long) = controller.loadSavedWorkout(id)
+    fun randomizeWorkout() = controller.randomizeWorkout()
     fun appendSavedWorkout(id: Long) = controller.appendSavedWorkout(id)
 
     fun saveCurrentPlan(name: String) {

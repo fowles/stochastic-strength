@@ -109,6 +109,11 @@ class WorkoutSessionController(
         }
     }
 
+    /**
+     * Opens the plan preview. Returns the saved workout the user's routine says is due and that
+     * this session therefore opened with, or null when the plan was generated at random — the
+     * caller announces it, because a self-dismissing message is the ViewModel's to show.
+     */
     suspend fun initializeSession(
         locationId: Long?,
         locationName: String?,
@@ -116,7 +121,7 @@ class WorkoutSessionController(
         preferredRepMin: Int,
         preferredRepMax: Int,
         weightUnit: WeightUnit,
-    ) {
+    ): SavedWorkoutDetail? {
         this.weightUnit = weightUnit
         this.sessionLocationId = locationId
         explicitIds.clear()
@@ -124,8 +129,12 @@ class WorkoutSessionController(
         this.preferredRepMax = preferredRepMax
         val p = repository.buildPlanner(locationId, weightUnit)
         adoptPlanner(p)
-        val plan = p.generateWorkout(repMin = preferredRepMin, repMax = preferredRepMax)
         targetCount = preferredExerciseCount
+        val routine = repository.suggestRoutineWorkout()
+        // Generated either way: everything about a plan that is not its exercises — the location,
+        // the session's rep pick — is the generator's to decide, routine or no routine.
+        val generated = p.generateWorkout(repMin = preferredRepMin, repMax = preferredRepMax)
+        val plan = if (routine != null) planFromSaved(routine, generated, p) else generated
         setState(WorkoutState.PlanPreview(
             plan = plan,
             locationName = locationName,
@@ -133,8 +142,41 @@ class WorkoutSessionController(
             repMax = preferredRepMax,
             targetCount = preferredExerciseCount,
         ))
-        adjustExerciseCount(preferredExerciseCount)
+        // The count slider is a minimum for a *random* plan. A routine's workout is exactly what
+        // the user wrote down, so padding it to the slider would be the app second-guessing them.
+        if (routine == null) adjustExerciseCount(preferredExerciseCount)
         maybeNoteDetraining()
+        return routine
+    }
+
+    /**
+     * Prices a saved workout's rows into a plan of its own. The rows are explicit — the user chose
+     * them, by following this routine — so nothing may drop them.
+     */
+    private fun planFromSaved(saved: SavedWorkoutDetail, base: WorkoutPlan, p: WorkoutPlanner): WorkoutPlan {
+        val entries = saved.entries.distinctBy { it.exercise.id }
+        val empty = base.copy(exercises = emptyList())
+        val rows = entries.map { p.planExplicit(it.exercise, it.reps, empty, it.sets, it.circuitId, it.weight) }
+        explicitIds += entries.map { it.exercise.id }
+        return empty.copy(exercises = CircuitStructure.normalize(rows))
+    }
+
+    /**
+     * "Randomize me!" — throws the current plan away for a freshly generated one. The user's
+     * location, rep range and exercise count stand; everything they or the routine heuristic put
+     * in the plan does not.
+     */
+    fun randomizeWorkout() {
+        addExerciseJob?.cancel()
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
+        val p = planner ?: return
+        explicitIds.clear()
+        setState(preview.copy(
+            plan = p.generateWorkout(repMin = preview.repMin, repMax = preview.repMax),
+            rowFlags = emptyMap(),
+            edited = true,
+        ))
+        adjustExerciseCount(targetCount)
     }
 
     private suspend fun maybeNoteDetraining() {

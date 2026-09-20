@@ -85,6 +85,7 @@ internal fun PlanPreviewContent(
     onLoadWorkout: () -> Unit,
     onAppendWorkout: () -> Unit,
     onSaveWorkout: () -> Unit,
+    onRandomize: () -> Unit,
 ) {
     val plan = state.plan
     val totalSets = plan.exercises.sumOf { it.sets }
@@ -108,6 +109,7 @@ internal fun PlanPreviewContent(
                 onLoadWorkout = onLoadWorkout,
                 onAppendWorkout = onAppendWorkout,
                 onSaveWorkout = onSaveWorkout,
+                onRandomize = onRandomize,
             )
         }
         Spacer(Modifier.height(4.dp))

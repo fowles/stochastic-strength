@@ -149,6 +149,7 @@ fun WorkoutScreen(
                         onLoadWorkout = { dialog = PreviewDialog.LOAD },
                         onAppendWorkout = { dialog = PreviewDialog.APPEND },
                         onSaveWorkout = { dialog = PreviewDialog.SAVE },
+                        onRandomize = viewModel::randomizeWorkout,
                     )
                     when (dialog) {
                         PreviewDialog.ADD -> ExercisePickerSheet(

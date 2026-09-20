@@ -22,6 +22,7 @@ internal fun PlanPreviewMenu(
     onLoadWorkout: () -> Unit,
     onAppendWorkout: () -> Unit,
     onSaveWorkout: () -> Unit,
+    onRandomize: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -48,6 +49,7 @@ internal fun PlanPreviewMenu(
                 )
             }
             DropdownMenuItem(text = { Text("Save as workout...") }, onClick = { expanded = false; onSaveWorkout() })
+            DropdownMenuItem(text = { Text("Randomize me!") }, onClick = { expanded = false; onRandomize() })
         }
     }
 }

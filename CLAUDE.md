@@ -157,6 +157,16 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
   of the stored row, and saves back onto the id it already wrote (or it would insert a duplicate).
 - `workout_sets.circuitId` records a finished session's structure (summary, Strava description,
   save-as-workout); `setNumber` stays per-exercise and dense.
+- **Starting a workout follows a routine when one is evident**, otherwise it is random.
+  `WorkoutRoutine` labels each recent session by the *set of exercise ids it logged*, matched
+  against a saved workout's — sessions store no origin, so this reads history that predates the
+  feature and an edited session simply reads as unlabeled. The smallest period 1..3 whose last two
+  cycles agree wins, and must contain one real repeat: `AA`→A, `ABA`→B, `ABCA`→B, but `AB`→random.
+  An unlabeled session ends the run. `initializeSession` returns the workout it opened with (the
+  ViewModel announces it in the existing snackbar) and **skips `adjustExerciseCount`** — the count
+  slider is a minimum for a generated plan, not a licence to pad what the user wrote down. The ⋮
+  menu's "Randomize me!" (`randomizeWorkout`) opts back out: fresh generation, `explicitIds`
+  cleared, rep range and target kept.
 - Location: `LocationService` resolves GPS to the nearest `KnownLocation`; `buildPlanner` filters
   out that location's `LocationExcludedExercise` rows (none when unknown). Excluded siblings still
   vote in pooling, so a prescription never depends on where the user stands.
