@@ -60,7 +60,6 @@ fun AppNavigation() {
         composable("history") {
             HistoryScreen(
                 onSessionTap = { sessionId -> navController.navigate("summary/$sessionId") },
-                onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
                 onBack = { navController.popBackStackIfResumed() },
             )
         }

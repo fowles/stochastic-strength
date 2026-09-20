@@ -66,9 +66,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   the rest of the workout. `applyPreviewDelta` does not fit (this is a deliberate exit *from*
   `PlanPreview`), but re-reading the live preview's plan after the insert would. Narrow window and
   pre-existing; deliberately left unchanged by the 2026-09-19 whole-branch fix pass.
-- `HistoryScreen`'s `onExerciseTap` parameter is dead — `AppNavigation` passes a real
-  `exercise/{id}` navigation lambda, but nothing in the screen body ever calls it. Either wire the
-  session rows' exercise names to it or drop the parameter and the call-site lambda.
 - `ExercisePreviewRow` still recomposes on every pass, so the `remember(block, i) { linkAbove(...) }`
   memoization added in the 2026-09-19 sweep buys subtree skipping (`LinkNodeHost`) rather than the
   whole-row skipping it was aimed at. The remaining never-equal parameter is

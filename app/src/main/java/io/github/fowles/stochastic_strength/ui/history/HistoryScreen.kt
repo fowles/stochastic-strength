@@ -55,7 +55,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 @Composable
 fun HistoryScreen(
     onSessionTap: (Long) -> Unit,
-    onExerciseTap: (Long) -> Unit,
     onBack: () -> Unit,
     viewModel: HistoryViewModel = viewModel(),
 ) {
