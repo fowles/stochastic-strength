@@ -22,10 +22,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
+import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 
 /** "1 exercise" / "3 exercises" — shared by every saved-workout list. */
 fun exerciseCountLabel(n: Int): String = "$n exercise" + if (n == 1) "" else "s"
+
+/** "5 exercises", plus " · 1 circuit" when the workout has any. */
+fun workoutSubtitle(entries: List<SavedWorkoutEntry>): String {
+    val base = exerciseCountLabel(entries.size)
+    return when (val circuits = CircuitStructure.circuitCount(entries)) {
+        0 -> base
+        1 -> "$base · 1 circuit"
+        else -> "$base · $circuits circuits"
+    }
+}
 
 @Composable
 fun SavedWorkoutPickerDialog(
@@ -67,7 +79,7 @@ fun SavedWorkoutPickerDialog(
                                         color = MaterialTheme.colorScheme.onSurface,
                                     )
                                     Text(
-                                        exerciseCountLabel(w.entries.size),
+                                        workoutSubtitle(w.entries),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

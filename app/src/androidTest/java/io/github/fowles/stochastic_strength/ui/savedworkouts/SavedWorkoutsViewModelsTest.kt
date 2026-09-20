@@ -194,4 +194,38 @@ class SavedWorkoutsViewModelsTest {
         assertEquals("stored unnamed so the derived name keeps tracking the exercises", "", detail.name)
         assertEquals(bench.name, detail.displayName)
     }
+
+    @Test
+    fun structureEdits_trackUnsavedChanges_andRoundTripThroughSave() = runBlocking {
+        val squatId = db.exerciseDao().insert(
+            Exercise(name = "Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL)
+        )
+        val rowId = db.exerciseDao().insert(
+            Exercise(name = "Row", primaryMuscle = MuscleGroup.BACK, equipment = Equipment.BARBELL)
+        )
+        val a = bench.id
+        val b = squatId
+        val c = rowId
+        val repository = repo
+        val vm = newEditor()
+        runBlocking { vm.allExercises.first { it.size >= 3 } }
+
+        onMain { vm.addExercise(a); vm.addExercise(b); vm.addExercise(c) }
+        onMain { vm.link(0) }
+        onMain { vm.setSets(b, 2) }
+        assertEquals(listOf(2, 2, 3), vm.state.value.entries.map { it.sets })
+        assertEquals(listOf(0, 0, null), vm.state.value.entries.map { it.circuitId })
+        assertEquals(true, vm.hasUnsavedChanges())
+
+        onMain { vm.move(1, 0) } // block 1 (solo c) above block 0 (the circuit)
+        assertEquals(listOf(c, a, b), vm.state.value.entries.map { it.exercise.id })
+
+        onMain { vm.removeExercise(a) }
+        assertEquals("a circuit of one is a solo row", listOf(null, null), vm.state.value.entries.map { it.circuitId })
+
+        onMain { vm.save() }
+        await("saved") { savedCount() == 1 }
+        val saved = repository.observeSavedWorkouts().first().single()
+        assertEquals(listOf(3, 2), saved.entries.map { it.sets })
+    }
 }

@@ -36,7 +36,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
-import io.github.fowles.stochastic_strength.ui.components.exerciseCountLabel
+import io.github.fowles.stochastic_strength.ui.components.workoutSubtitle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,7 +101,7 @@ fun SavedWorkoutsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(w.displayName, style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    exerciseCountLabel(w.entries.size),
+                                    workoutSubtitle(w.entries),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )

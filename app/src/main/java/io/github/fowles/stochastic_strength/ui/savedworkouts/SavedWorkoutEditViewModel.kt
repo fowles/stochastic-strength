@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.domain.CircuitEdits
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
@@ -82,20 +83,30 @@ class SavedWorkoutEditViewModel(
         _state.value = _state.value.copy(entries = _state.value.entries + SavedWorkoutEntry(exercise, null))
     }
 
-    fun removeExercise(exerciseId: Long) {
-        _state.value = _state.value.copy(entries = _state.value.entries.filterNot { it.exercise.id == exerciseId })
-    }
-
     fun setReps(exerciseId: Long, reps: Int?) {
         _state.value = _state.value.copy(entries = _state.value.entries.map {
             if (it.exercise.id == exerciseId) it.copy(reps = reps) else it
         })
     }
 
-    fun move(from: Int, to: Int) {
-        val list = _state.value.entries.toMutableList()
-        list.add(to, list.removeAt(from))
-        _state.value = _state.value.copy(entries = list)
+    private fun editEntries(edit: (List<SavedWorkoutEntry>) -> List<SavedWorkoutEntry>) {
+        _state.value = _state.value.copy(entries = edit(_state.value.entries))
+    }
+
+    fun removeExercise(exerciseId: Long) = editEntries { rows ->
+        CircuitEdits.remove(rows, rows.indexOfFirst { it.exercise.id == exerciseId })
+    }
+
+    /** Block indices: a circuit moves as a unit. */
+    fun move(fromBlock: Int, toBlock: Int) = editEntries { CircuitEdits.moveBlock(it, fromBlock, toBlock) }
+
+    fun link(rowIndex: Int) = editEntries { CircuitEdits.link(it, rowIndex) }
+
+    fun unlink(rowIndex: Int) = editEntries { CircuitEdits.unlink(it, rowIndex) }
+
+    /** Sets the rounds of the row's block — for a solo row, its set count. */
+    fun setSets(exerciseId: Long, sets: Int) = editEntries { rows ->
+        CircuitEdits.setRounds(rows, rows.indexOfFirst { it.exercise.id == exerciseId }, sets)
     }
 
     private var saveJob: Job? = null
