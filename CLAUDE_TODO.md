@@ -75,7 +75,3 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   `dragHandleModifier = Modifier.draggableHandle()` (reorderable 2.4.0), which is built with an
   unkeyed `Modifier.composed { … }` and so has no `equals`. Fixing it means keying the composed
   modifier or hoisting the handle out of the row's parameter list.
-- `PlanPreviewContent.kt:311`'s comment ("A SOLO row draws no rail and has no node") is inaccurate:
-  a solo row at index > 0 does get an unlinked node from `LinkNodeHost`. The code is correct — the
-  node is positioned at a fixed offset from the host `Box`, independent of the gutter — so this is a
-  misleading rationale, not a defect. Reword it.

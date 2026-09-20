@@ -307,8 +307,9 @@ private fun ExercisePreviewRow(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
             ) {
                 // Only a circuit member needs the gutter — it's what keeps the rail continuous
-                // through a swiped row and the link node above it lined up. A SOLO row draws no
-                // rail and has no node, so a gutter there would just cost the action row (its
+                // through a swiped row. A SOLO row draws no rail, and while it can still carry an
+                // unlinked node, that node sits at a fixed offset from the host Box and does not
+                // depend on the gutter. So a gutter there would just cost the action row (its
                 // three buttons and progress bar) 36dp of width for nothing.
                 if (place != RowPlace.SOLO) CircuitRailGutter(place)
                 ExerciseActionRow(
