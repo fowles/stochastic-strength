@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.CircuitStructure
 
 data class SummarySet(
     val setNumber: Int,
@@ -42,14 +43,9 @@ data class SummaryBlock(val exercises: List<SummaryExercise>) {
 }
 
 /** Groups consecutive exercises that share a non-null circuit id. */
-fun summaryBlocks(exercises: List<SummaryExercise>): List<SummaryBlock> {
-    val out = mutableListOf<MutableList<SummaryExercise>>()
-    for (ex in exercises) {
-        val open = out.lastOrNull()
-        if (ex.circuitId != null && open?.last()?.circuitId == ex.circuitId) open.add(ex) else out += mutableListOf(ex)
-    }
-    return out.map(::SummaryBlock)
-}
+fun summaryBlocks(exercises: List<SummaryExercise>): List<SummaryBlock> =
+    CircuitStructure.blocksBy(exercises, { it.circuitId }, { it.sets.size })
+        .map { block -> SummaryBlock(block.indices.map { exercises[it] }) }
 
 data class WorkoutSummaryData(
     val startTime: Long,

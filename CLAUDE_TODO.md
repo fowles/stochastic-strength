@@ -11,8 +11,6 @@ From the 2026-09-20 whole-project review. Each needs a decision or is bigger tha
 - **Count slider can cut a circuit.** `adjustExerciseCount` trims with `take(targetCount)`, which
   can drop explicit/pinned rows and split a block (`normalize` then dissolves the remainder).
 - **Undoing a HURT set leaves `ExerciseHurtState` set** (display-only; policy reads the set log).
-- **`ExercisePacingEstimator` tests `circuitId != null`** rather than block membership, so a lone
-  tagged row (legal mid-session) loses its pacing samples.
 
 ## UI
 - **Editor state is lost on process death** (`SavedWorkoutEditViewModel` has no
@@ -25,12 +23,9 @@ From the 2026-09-20 whole-project review. Each needs a decision or is bigger tha
   swiped row slides away.
 - **Swipe and drag have no accessible alternative**: add `customActions` (Remove / Move up /
   Move down) wired to `CircuitEdits`.
-- **`summaryBlocks` re-derives block grouping** instead of reading `CircuitStructure.blocks`.
 - **The exercise-detail chart re-derives prescription math**: `buildPrescribedPoints` plots
   baseline × coefficient (the old model) and scales sibling dots by seed coefficients. Plot
   `series.merged` / `series.siblingObservations` from the pipeline, as the debug chart does.
-- **Strava description doesn't mark where a circuit ends**: "Circuit ×3 / Curl / Kickback / Squat"
-  reads as three members when Squat is solo. Needs a wording decision (indent members?).
 - Screens use `collectAsState()`; `collectAsStateWithLifecycle` would stop DB observation in the
   background.
 

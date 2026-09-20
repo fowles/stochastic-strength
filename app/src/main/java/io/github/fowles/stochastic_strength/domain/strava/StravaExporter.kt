@@ -17,6 +17,7 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
@@ -170,8 +171,8 @@ class StravaExporter(
         /**
          * Pure builder for the Strava activity description: an optional inspirational
          * highlight at the top, then each exercise (in workout order — [sets] is grouped by
-         * first appearance, circuit members under one "Circuit ×N" heading), then duration
-         * and footer.
+         * first appearance, circuit members under one "Circuit ×N: A + B" heading naming them),
+         * then duration and footer.
          */
         internal fun buildDescription(
             highlight: String,
@@ -181,33 +182,34 @@ class StravaExporter(
             weightUnit: WeightUnit,
         ): String {
             // groupBy preserves first-appearance order, so exercises list in workout order.
-            val setsByExercise = sets.groupBy { it.exerciseId }
+            val setsByExercise = sets.groupBy { it.exerciseId }.entries.toList()
             val sb = StringBuilder()
 
             if (highlight.isNotBlank()) {
                 sb.append(highlight).append("\n\n")
             }
 
-            var openCircuit: Int? = null
-            for ((id, exerciseSets) in setsByExercise) {
-                val exercise = exerciseById[id] ?: continue
-                val circuit = exerciseSets.first().circuitId
-                if (circuit != null && circuit != openCircuit) {
-                    val members = setsByExercise.values.filter { it.first().circuitId == circuit }
-                    // A single member left (stopped mid-round, or the others ended early) is not a circuit.
-                    if (members.size > 1) sb.append("Circuit ×${members.maxOf { it.size }}\n")
+            val blocks = CircuitStructure.blocksBy(setsByExercise, { it.value.first().circuitId }, { it.value.size })
+            for (block in blocks) {
+                // A single member left (stopped mid-round, or the others ended early) is not a circuit.
+                if (block.isCircuit) {
+                    val names = block.indices.mapNotNull { exerciseById[setsByExercise[it].key]?.name }
+                    sb.append("Circuit ×${block.rounds}: ${names.joinToString(" + ")}\n")
                 }
-                openCircuit = circuit
-                sb.append(exercise.name).append('\n')
-                for (set in exerciseSets) {
-                    val quantity = if (set.durationSeconds != null) "${set.durationSeconds}s"
-                        else formatQuantity(set.actualReps ?: set.targetReps, exercise.isTimed)
-                    val weightSuffix = if (set.targetWeight > 0f)
-                        " @ ${WeightFormatter.format(set.targetWeight, weightUnit)}"
-                    else ""
-                    sb.append("$quantity$weightSuffix - ${feedbackEmoji(set.feedback)}\n")
+                for (i in block.indices) {
+                    val (id, exerciseSets) = setsByExercise[i]
+                    val exercise = exerciseById[id] ?: continue
+                    sb.append(exercise.name).append('\n')
+                    for (set in exerciseSets) {
+                        val quantity = if (set.durationSeconds != null) "${set.durationSeconds}s"
+                            else formatQuantity(set.actualReps ?: set.targetReps, exercise.isTimed)
+                        val weightSuffix = if (set.targetWeight > 0f)
+                            " @ ${WeightFormatter.format(set.targetWeight, weightUnit)}"
+                        else ""
+                        sb.append("$quantity$weightSuffix - ${feedbackEmoji(set.feedback)}\n")
+                    }
+                    sb.append('\n')
                 }
-                sb.append('\n')
             }
 
             val totalSec = durationMs / 1000

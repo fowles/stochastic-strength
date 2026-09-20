@@ -20,19 +20,26 @@ object CircuitStructure {
     const val MIN_SETS = 1
     const val MAX_SETS = 10
 
-    /** Contiguous rows sharing a non-null `circuitId` are one block; `rounds` is the largest member `sets`. */
-    fun <T : CircuitRow<T>> blocks(rows: List<T>): List<Block> {
+    /**
+     * Contiguous rows sharing a non-null id (from [circuitIdOf]) are one block; `rounds` is the
+     * largest member's [roundsOf] (default 1, for callers that don't care about round counts).
+     * The adjacency rule lives here so every reader of logged/planned rows shares it.
+     */
+    fun <T> blocksBy(rows: List<T>, circuitIdOf: (T) -> Int?, roundsOf: (T) -> Int = { 1 }): List<Block> {
         val out = mutableListOf<Block>()
         var start = 0
         while (start < rows.size) {
-            val id = rows[start].circuitId
+            val id = circuitIdOf(rows[start])
             var end = start + 1
-            if (id != null) while (end < rows.size && rows[end].circuitId == id) end++
-            out += Block(start, end - start, (start until end).maxOf { rows[it].sets })
+            if (id != null) while (end < rows.size && circuitIdOf(rows[end]) == id) end++
+            out += Block(start, end - start, (start until end).maxOf { roundsOf(rows[it]) })
             start = end
         }
         return out
     }
+
+    /** Contiguous rows sharing a non-null `circuitId` are one block; `rounds` is the largest member `sets`. */
+    fun <T : CircuitRow<T>> blocks(rows: List<T>): List<Block> = blocksBy(rows, { it.circuitId }, { it.sets })
 
     /** Solo rows get a null id; circuits are renumbered 0, 1, 2… in list order. Never touches `sets`. */
     fun <T : CircuitRow<T>> normalize(rows: List<T>): List<T> {

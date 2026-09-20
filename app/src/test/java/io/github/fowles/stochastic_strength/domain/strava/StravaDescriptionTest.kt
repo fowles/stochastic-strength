@@ -86,17 +86,16 @@ class StravaDescriptionTest {
     }
 
     @Test
-    fun circuitMembersListUnderOneCircuitHeading_withItsRounds() {
+    fun circuitHeadingNamesItsMembers_trailingSoloExerciseNotIncluded() {
         val circuitSets = listOf(
             set(1L, 1).copy(circuitId = 0), set(2L, 1).copy(circuitId = 0),
             set(1L, 2).copy(circuitId = 0), set(2L, 2).copy(circuitId = 0),
             set(3L, 1),
         )
         val desc = StravaExporter.buildDescription("", circuitSets, exercises, 0L, WeightUnit.KG)
-        val circuit = desc.indexOf("Circuit ×2")
-        assertTrue("heading present", circuit >= 0)
-        assertEquals("one heading for the whole circuit", circuit, desc.lastIndexOf("Circuit ×"))
-        assertTrue(circuit < desc.indexOf("Bench Press"))
+        val headingLine = desc.lines().single { it.startsWith("Circuit ×") }
+        assertEquals("Circuit ×2: Bench Press + Squat", headingLine)
+        assertTrue(desc.indexOf(headingLine) < desc.indexOf("Bench Press\n"))
         assertTrue(desc.indexOf("Bench Press") < desc.indexOf("Squat"))
         assertTrue(desc.indexOf("Squat") < desc.indexOf("Deadlift"))
     }

@@ -29,6 +29,13 @@ class ExercisePacingEstimator internal constructor(
                 if (sessionSets.isEmpty()) continue
 
                 val byExercise = sessionSets.groupBy { it.exerciseId }
+                // A circuit id only holds other exercises' work in its gaps when another exercise
+                // in this session actually logged sets under it; a lone tagged row is not a circuit.
+                val sharedCircuitIds = sessionSets.filter { it.circuitId != null }
+                    .groupBy { it.circuitId }
+                    .filterValues { rows -> rows.map { it.exerciseId }.distinct().size > 1 }
+                    .keys
+
                 for ((exerciseId, exerciseSets) in byExercise) {
                     val existing = appearancesByExercise[exerciseId]
                     if (existing != null && existing.size >= MAX_APPEARANCES) continue
@@ -40,6 +47,7 @@ class ExercisePacingEstimator internal constructor(
                     val appearanceAvg = appearanceAverage(
                         exerciseSets = exerciseSets,
                         sides = sides,
+                        sharedCircuitIds = sharedCircuitIds,
                     ) ?: continue
 
                     appearancesByExercise.getOrPut(exerciseId) { mutableListOf() }.add(appearanceAvg)
@@ -52,15 +60,20 @@ class ExercisePacingEstimator internal constructor(
             return ExercisePacingEstimator(perExercise)
         }
 
-        private fun appearanceAverage(exerciseSets: List<WorkoutSet>, sides: Int): Float? {
+        private fun appearanceAverage(
+            exerciseSets: List<WorkoutSet>,
+            sides: Int,
+            sharedCircuitIds: Set<Int?>,
+        ): Float? {
             val sorted = exerciseSets.sortedBy { it.setNumber }
             val samples = mutableListOf<Float>()
             for (i in 1 until sorted.size) {
                 val prev = sorted[i - 1]
                 val curr = sorted[i]
                 if (prev.feedback == SetFeedback.HURT || curr.feedback == SetFeedback.HURT) continue
-                // In a circuit the gap between two sets of one exercise also holds the other members' work.
-                if (prev.circuitId != null || curr.circuitId != null) continue
+                // In a real circuit the gap between two sets of one exercise also holds the other
+                // members' work; a lone tagged row (partner removed or never logged) is not one.
+                if (prev.circuitId in sharedCircuitIds || curr.circuitId in sharedCircuitIds) continue
                 val prevAt = prev.completedAt ?: continue
                 val currAt = curr.completedAt ?: continue
                 val workTimeSec = (currAt - prevAt) / 1000.0 - DurationCalculator.REST_SECONDS

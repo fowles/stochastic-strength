@@ -251,13 +251,30 @@ class ExercisePacingEstimatorTest {
 
     @Test
     fun circuitSets_areSkipped_becauseTheGapHoldsOtherExercisesWork() {
-        // Same numbers as singlePair_returnsExpectedSecondsPerRep, but inside a circuit.
+        // Same numbers as singlePair_returnsExpectedSecondsPerRep, but inside a circuit shared
+        // with exercise 2, whose set falls in the gap.
+        val sessions = listOf(session(id = 10L, startTime = 0L))
+        val sets = mapOf(10L to listOf(
+            set(10L, exerciseId = 1L, setNumber = 1, completedAt = 60_000L, targetReps = 8).copy(circuitId = 0),
+            set(10L, exerciseId = 2L, setNumber = 1, completedAt = 150_000L, targetReps = 8).copy(circuitId = 0),
+            set(10L, exerciseId = 1L, setNumber = 2, completedAt = 240_000L, targetReps = 8).copy(circuitId = 0),
+        ))
+        val estimator = ExercisePacingEstimator.build(
+            sessions, sets, mapOf(1L to exercise(1L), 2L to exercise(2L)),
+        )
+        assertNull(estimator.secondsPerRep(1L))
+    }
+
+    @Test
+    fun loneTaggedCircuitRow_contributesPacingSamples() {
+        // Same numbers as singlePair_returnsExpectedSecondsPerRep; circuitId is set but no other
+        // exercise in the session shares it (partner removed, or never logged) — not a real circuit.
         val sessions = listOf(session(id = 10L, startTime = 0L))
         val sets = mapOf(10L to listOf(
             set(10L, exerciseId = 1L, setNumber = 1, completedAt = 60_000L, targetReps = 8).copy(circuitId = 0),
             set(10L, exerciseId = 1L, setNumber = 2, completedAt = 240_000L, targetReps = 8).copy(circuitId = 0),
         ))
         val estimator = ExercisePacingEstimator.build(sessions, sets, mapOf(1L to exercise(1L)))
-        assertNull(estimator.secondsPerRep(1L))
+        assertNear(11.25f, estimator.secondsPerRep(1L))
     }
 }
