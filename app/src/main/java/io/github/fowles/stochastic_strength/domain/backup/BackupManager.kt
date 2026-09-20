@@ -104,8 +104,14 @@ class BackupManager(
                 return newId
             }
 
+            // (startTime, endTime) -> already present locally, so re-importing a file is a no-op.
+            val existingSessionSpans = db.workoutSessionDao().getAll()
+                .map { it.startTime to it.endTime }.toMutableSet()
+
             val setsBySession = backup.workoutSets.groupBy { it.sessionId }
             for (session in backup.workoutSessions) {
+                val span = session.startTime to session.endTime
+                if (!existingSessionSpans.add(span)) continue
                 val newLocationId = resolveLocationId(session.locationId)
                 val newSessionId = db.workoutSessionDao().insert(
                     session.copy(id = 0, locationId = newLocationId)

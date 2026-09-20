@@ -8,9 +8,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 From the 2026-09-20 whole-project review. Each needs a decision or is bigger than a drive-by.
 
 ## Data
-- **Additive backup import duplicates sessions.** `BackupManager` dedups saved workouts by name
-  but sessions not at all: importing the same file twice ("Add") doubles every set, and replay
-  folds each twice. Skip a backup session whose `startTime`+`endTime` already exists locally.
 - **Replay is sessions × sets.** `ReplayEngine`, `ExerciseProgressionSeriesBuilder` and
   `HistoryViewModel` call `getSetsForSession` per session, and `workout_sets` has no index on
   `sessionId`/`exerciseId`. Fetch once and group, or add the indices (needs a v22 migration).

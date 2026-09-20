@@ -109,6 +109,66 @@ class BackupManagerTest {
     }
 
     @Test
+    fun additiveImport_reimportingSameFile_isANoOp() = runBlocking {
+        val backup = WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION, dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = 0,
+            exercises = listOf(
+                Exercise(id = 5, name = "Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            ),
+            knownLocations = emptyList(), locationExcludedExercises = emptyList(),
+            workoutSessions = listOf(WorkoutSession(id = 9, startTime = 1000, endTime = 2000)),
+            workoutSets = listOf(
+                WorkoutSet(id = 1, sessionId = 9, exerciseId = 5, setNumber = 1, targetWeight = 60f, targetReps = 5),
+            ),
+            userProfile = emptyList(), baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
+        )
+
+        val first = manager.importAdditive(backup)
+        assertEquals(1, first.sessionsAdded)
+
+        val second = manager.importAdditive(backup)
+        assertEquals(0, second.sessionsAdded)
+
+        assertEquals(1, db.workoutSessionDao().getAll().size)
+        assertEquals(1, db.workoutSetDao().getAll().size)
+    }
+
+    @Test
+    fun additiveImport_skipsKnownSession_addsOnlyNewOne() = runBlocking {
+        db.exerciseDao().insert(Exercise(id = 0, name = "Bench Press",
+            primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL))
+        val knownSid = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000, endTime = 2000))
+        db.workoutSetDao().insert(WorkoutSet(sessionId = knownSid, exerciseId = 1, setNumber = 1,
+            targetWeight = 60f, targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = 1500))
+
+        val backup = WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION, dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = 0,
+            exercises = listOf(
+                Exercise(id = 5, name = "Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            ),
+            knownLocations = emptyList(), locationExcludedExercises = emptyList(),
+            workoutSessions = listOf(
+                WorkoutSession(id = 9, startTime = 1000, endTime = 2000), // matches the known session
+                WorkoutSession(id = 10, startTime = 3000, endTime = 4000), // new
+            ),
+            workoutSets = listOf(
+                WorkoutSet(id = 1, sessionId = 9, exerciseId = 5, setNumber = 1, targetWeight = 60f, targetReps = 5),
+                WorkoutSet(id = 2, sessionId = 10, exerciseId = 5, setNumber = 1, targetWeight = 60f, targetReps = 5),
+            ),
+            userProfile = emptyList(), baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
+        )
+
+        val result = manager.importAdditive(backup)
+
+        assertEquals(1, result.sessionsAdded)
+        assertEquals(2, db.workoutSessionDao().getAll().size)
+        assertEquals(2, db.workoutSetDao().getAll().size)
+    }
+
+    @Test
     fun additiveImport_leavesProfileUntouched() = runBlocking {
         db.userProfileDao().insert(io.github.fowles.stochastic_strength.data.model.UserProfile(
             id = 1, sex = io.github.fowles.stochastic_strength.data.model.Sex.MALE,
