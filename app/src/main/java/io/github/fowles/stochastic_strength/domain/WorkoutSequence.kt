@@ -28,7 +28,7 @@ object WorkoutSequence {
     fun positionLabel(exercises: List<PlannedExercise>, exerciseIndex: Int, setIndex: Int): String {
         val block = CircuitStructure.blocks(exercises).first { exerciseIndex in it.indices }
         val sets = exercises[exerciseIndex].sets
-        return if (block.isCircuit) "Round ${block.rounds - sets + setIndex + 1} of ${block.rounds}"
+        return if (block.isCircuit) "Round ${block.roundsDone(sets, setIndex) + 1} of ${block.rounds}"
         else "Set ${setIndex + 1} of $sets"
     }
 

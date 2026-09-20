@@ -204,10 +204,13 @@ internal fun buildSessionTrace(
     val factsSets = priorSets.filter { it.completedAt != null && it.completedAt >= windowStart }
     val facts = PolicyFacts.build(sets = factsSets, exerciseMuscle = exerciseMuscle)
     val capFact = facts.capByExercise[targetId]
+    // The fact's timestamp is over this exercise's sets alone, so match it the same way: another
+    // exercise's later set (the usual case in a circuit) must neither hide nor join the citation.
     val capSessionSets = capFact?.let { f ->
-        factsSets.groupBy { it.sessionId }
+        factsSets.filter { it.exerciseId == targetId }
+            .groupBy { it.sessionId }
             .values
-            .firstOrNull { s -> s.maxOf { it.completedAt!! } == f.demonstratedAt }
+            .lastOrNull { s -> s.maxOf { it.completedAt!! } == f.demonstratedAt }
     }.orEmpty()
     return PrescriptionTraceBuilder.build(
         exerciseId = targetId,

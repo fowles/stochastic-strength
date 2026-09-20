@@ -2,11 +2,18 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.CircuitRow
 
-/** A run of rows done round-robin. A solo row is a block of one; everything is a circuit. */
+/** A run of rows done round-robin. A solo row is a block of one, so logic never special-cases it. */
 data class Block(val start: Int, val size: Int, val rounds: Int) {
     val indices: IntRange get() = start until start + size
     val last: Int get() = start + size - 1
     val isCircuit: Boolean get() = size > 1
+
+    /**
+     * Rounds of this block a member with [sets] sets has behind it once [done] of them are logged.
+     * A member with fewer sets than the block's rounds (a swap replacement) joined late, so its
+     * rounds count from the end: every member then agrees on which round this is.
+     */
+    fun roundsDone(sets: Int, done: Int): Int = rounds - sets + done
 }
 
 object CircuitStructure {

@@ -971,6 +971,22 @@ class WorkoutPlannerTest {
     }
 
     @Test
+    fun `planExplicit holds raw stored sets and reps to the editor bounds`() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+        val plan = WorkoutPlan(emptyList(), null, sessionReps = 8)
+
+        // Zero sets would make a row WorkoutSequence never visits.
+        val low = p.planExplicit(chest, reps = 0, plan, sets = 0)
+        assertEquals(CircuitStructure.MIN_SETS, low.sets)
+        assertEquals(PlannedExercise.PINNED_REPS.first, low.sessionReps)
+
+        val high = p.planExplicit(chest, reps = 500, plan, sets = 40)
+        assertEquals(CircuitStructure.MAX_SETS, high.sets)
+        assertEquals(PlannedExercise.PINNED_REPS.last, high.sessionReps)
+    }
+
+    @Test
     fun suggestedWeight_isThePrescription() {
         val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
         val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))

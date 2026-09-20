@@ -102,12 +102,16 @@ class WorkoutPlanner(
         weight: Float? = null,
     ): PlannedExercise {
         // Stored rows arrive raw (backup import writes what it was given): a non-positive weight
-        // is no pin at all, and anything else is snapped to the grid the steppers move on.
+        // is no pin at all, and anything else is snapped to the grid the steppers move on. Sets
+        // and reps are held to the editor's bounds — a row with zero sets would never be visited.
         val pinnedWeight = weight?.takeIf { it > 0f }?.let { WeightFormatter.clampToGrid(it, weightUnit) }
+        val pinnedReps = reps?.coerceIn(PlannedExercise.PINNED_REPS)
         return withWeight(
             PlannedExercise(
-                exercise = exercise, sets = sets, circuitId = circuitId,
-                sessionReps = reps ?: plan.sessionReps, repsPinned = reps != null,
+                exercise = exercise,
+                sets = sets.coerceIn(CircuitStructure.MIN_SETS, CircuitStructure.MAX_SETS),
+                circuitId = circuitId,
+                sessionReps = pinnedReps ?: plan.sessionReps, repsPinned = pinnedReps != null,
                 sessionWeight = pinnedWeight ?: 0f,
                 weightPinned = pinnedWeight != null,
             ),

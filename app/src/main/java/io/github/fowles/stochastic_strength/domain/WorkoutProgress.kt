@@ -27,9 +27,7 @@ object WorkoutProgress {
         fun doneOf(i: Int) = done[exercises[i].exercise.id] ?: 0
         fun remaining(i: Int) = exercises[i].sets - doneOf(i)
         return CircuitStructure.blocks(exercises).flatMap { block ->
-            // A member with fewer sets than the circuit's rounds (a swap replacement) joined late:
-            // count its rounds from the end so every member agrees on which round this is.
-            fun roundsDone(i: Int) = block.rounds - exercises[i].sets + doneOf(i)
+            fun roundsDone(i: Int) = block.roundsDone(exercises[i].sets, doneOf(i))
             val live = block.indices.filter { remaining(it) > 0 }
             val lead = currentIndex.takeIf { it in block.indices } ?: live.maxByOrNull { remaining(it) }
             val round = lead?.let { roundsDone(it) + 1 }

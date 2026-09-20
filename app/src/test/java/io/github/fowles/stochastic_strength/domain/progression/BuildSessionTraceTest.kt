@@ -85,4 +85,25 @@ class BuildSessionTraceTest {
         assertNotNull(trace)
         assertTrue(trace!!.lines.any { it.label == "Capacity cap" && it.detail == "no cap" })
     }
+
+    @Test
+    fun capCitationNamesOnlyTheTargetsSets_evenWhenACircuitPartnerFinishedLast() {
+        val beliefs = mapOf(1L to Belief(bestGuessLn = ln(60f), uncertainty = 0.005f, updatedAt = 0L))
+        val now = 100_000_000L
+        // One session, interleaved: the target fails, then its circuit partner logs the last set.
+        val failed = completedSet(1L, weight = 35f, reps = 10, actual = 6, fb = SetFeedback.TOO_HARD, at = now - 2_000L)
+        val partner = completedSet(2L, weight = 80f, reps = 10, actual = 10, fb = SetFeedback.RIR_2_4, at = now - 1_000L)
+            .copy(sessionId = failed.sessionId)
+        val trace = buildSessionTrace(
+            targetId = 1L, muscle = MuscleGroup.CHEST, beliefs = beliefs,
+            seedCoef = mapOf(1L to 0.3f), muscleExerciseIds = listOf(1L),
+            exerciseMuscle = mapOf(1L to MuscleGroup.CHEST, 2L to MuscleGroup.QUADS),
+            priorSets = listOf(failed, partner),
+            sessionReps = 10, now = now, weightUnit = WeightUnit.LBS, retention = 1f, config = config,
+        )
+        val cap = trace!!.lines.single { it.label == "Capacity cap" }.detail
+        assertTrue(cap, cap.contains("failed at 6"))
+        assertTrue("partner's set cited: $cap", !cap.contains("RIR"))
+        assertTrue("cited in kg for an lb user: $cap", !cap.contains("kg"))
+    }
 }

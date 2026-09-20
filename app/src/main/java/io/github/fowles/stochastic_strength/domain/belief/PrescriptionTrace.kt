@@ -130,7 +130,7 @@ object PrescriptionTraceBuilder {
         val capLine = when {
             prescription.capWeightKg == null -> TraceLine("Capacity cap", "no cap")
             prescription.capBound -> {
-                val cited = capSessionSets.joinToString("; ") { citeSet(it) }
+                val cited = capSessionSets.joinToString("; ") { citeSet(it, weightUnit) }
                 val wanted = WeightFormatter.format(prescription.uncappedWeightKg, weightUnit)
                 val capped = WeightFormatter.format(prescription.weightKg, weightUnit)
                 TraceLine(
@@ -154,15 +154,15 @@ object PrescriptionTraceBuilder {
         )
     }
 
-    private fun citeSet(set: WorkoutSet): String {
-        val weight = "%.0f".format(set.targetWeight)
+    private fun citeSet(set: WorkoutSet, weightUnit: WeightUnit): String {
+        val lift = "${WeightFormatter.format(set.targetWeight, weightUnit)} × ${set.targetReps}"
         return when (set.feedback) {
-            SetFeedback.TOO_HARD -> "$weight kg × ${set.targetReps} → failed at ${set.actualReps ?: 0}"
-            SetFeedback.RIR_2_4 -> "$weight kg × ${set.targetReps} → RIR 2–4"
-            SetFeedback.RIR_5_PLUS -> "$weight kg × ${set.targetReps} → RIR 5+"
-            SetFeedback.RIR_0_1 -> "$weight kg × ${set.targetReps} → RIR 0–1"
-            SetFeedback.HURT -> "$weight kg × ${set.targetReps} → hurt"
-            null -> "$weight kg × ${set.targetReps}"
+            SetFeedback.TOO_HARD -> "$lift → failed at ${set.actualReps ?: 0}"
+            SetFeedback.RIR_2_4 -> "$lift → RIR 2–4"
+            SetFeedback.RIR_5_PLUS -> "$lift → RIR 5+"
+            SetFeedback.RIR_0_1 -> "$lift → RIR 0–1"
+            SetFeedback.HURT -> "$lift → hurt"
+            null -> lift
         }
     }
 }

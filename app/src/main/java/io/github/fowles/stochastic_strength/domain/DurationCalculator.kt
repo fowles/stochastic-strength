@@ -5,7 +5,7 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.domain.model.WarmupSet
 
 object DurationCalculator {
-    // Mirrors WorkoutSessionController.REST_SECONDS — kept here to avoid a domain → ui dep.
+    /** The rest after every set: the session's countdown and the duration estimate share it. */
     const val REST_SECONDS = 90
     const val WARMUP_REST_SECONDS = 30
     const val DEFAULT_SECONDS_PER_REP = 3.0f

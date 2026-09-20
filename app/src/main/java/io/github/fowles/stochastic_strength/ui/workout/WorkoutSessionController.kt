@@ -14,6 +14,7 @@ import io.github.fowles.stochastic_strength.domain.CircuitEdits
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
+import io.github.fowles.stochastic_strength.domain.DurationCalculator
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.ReplacementTier
@@ -679,7 +680,7 @@ class WorkoutSessionController(
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         val i = current.exerciseIndex
         val pe = current.plannedExercise
-        val w = WeightFormatter.round(newWeight, weightUnit).coerceAtLeast(WeightFormatter.minIncrement(weightUnit))
+        val w = WeightFormatter.clampToGrid(newWeight, weightUnit)
         if (w == pe.sessionWeight) return
         val exercises = current.plan.exercises.toMutableList()
         val warmupSets = when {
@@ -959,7 +960,7 @@ class WorkoutSessionController(
     }
 
     companion object {
-        const val REST_SECONDS = 90
+        const val REST_SECONDS = DurationCalculator.REST_SECONDS
         const val NO_ROW = -1L
     }
 }
