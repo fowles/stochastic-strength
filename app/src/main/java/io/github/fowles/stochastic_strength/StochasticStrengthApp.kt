@@ -50,6 +50,9 @@ class StochasticStrengthApp : Application() {
                 database.exerciseDao().insertAll(missing)
             }
             DebugSeeder.seedIfEmpty(database, workoutRepository)
+            // Synchronous, and ahead of the backfill's replay: an open session belongs to a live
+            // controller, and no UI (so no session) can exist yet at this point in onCreate.
+            workoutRepository.closeOrphanedSessions()
         }
         applicationScope.launch(Dispatchers.IO) {
             DerivedStateBackfill(database, workoutRepository).run()

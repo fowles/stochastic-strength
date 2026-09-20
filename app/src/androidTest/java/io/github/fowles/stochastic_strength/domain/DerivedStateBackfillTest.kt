@@ -136,6 +136,20 @@ class DerivedStateBackfillTest {
     }
 
     @Test
+    fun run_leavesOpenSessionsAlone() = runBlocking {
+        // Closing orphans happens synchronously at process start, not here: this runs async on
+        // applicationScope and would otherwise race a session the user has just started.
+        seedProfile()
+        val (_, sessionId) = seedExerciseAndSession()
+
+        DerivedStateBackfill(db, repository).run()
+
+        val session = db.workoutSessionDao().getAll().firstOrNull { it.id == sessionId }
+        assertEquals(null, session?.endTime)
+        assertTrue("an open session with no sets must survive the backfill", session != null)
+    }
+
+    @Test
     fun run_isIdempotent() = runBlocking {
         seedProfile()
         seedFullReplayData()
