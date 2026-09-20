@@ -10,8 +10,10 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.domain.history.HistoryRows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -36,6 +38,12 @@ class HistoryDeleteTest {
     val composeRule = createComposeRule()
 
     private val zone: ZoneId = ZoneId.systemDefault()
+
+    /** Deletes land from a coroutine on the main dispatcher, the way `confirmDelete` does. */
+    private val scope = CoroutineScope(Dispatchers.Main.immediate)
+
+    @After
+    fun tearDown() = scope.cancel()
 
     private fun startMs(date: LocalDate): Long =
         date.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
@@ -67,8 +75,6 @@ class HistoryDeleteTest {
             item(3L, LocalDate.of(2026, 2, 5), "Deadlift"),
         )
         val flow = MutableStateFlow(stateOf(all))
-        // Deletes land from a coroutine on the main dispatcher, the way `confirmDelete` does.
-        val scope = CoroutineScope(Dispatchers.Main.immediate)
 
         composeRule.setContent {
             HistoryScreenContent(
