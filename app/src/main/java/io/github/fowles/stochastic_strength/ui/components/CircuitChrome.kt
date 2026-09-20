@@ -210,7 +210,11 @@ fun LinkNodeHost(
     }
 }
 
-/** Inline − value + [unit] control for a per-row pin (reps, weight); [text] carries formatting the caller chose. */
+/**
+ * Inline − value + [unit] control for a per-row pin (reps, weight); [text] carries formatting the
+ * caller chose. A caller that knows its value is at a bound clears [canDecrement]/[canIncrement],
+ * so the arrow greys out instead of being a silent no-op.
+ */
 @Composable
 fun ValueStepper(
     text: String,
@@ -222,9 +226,11 @@ fun ValueStepper(
     fewerDescription: String,
     moreDescription: String,
     modifier: Modifier = Modifier,
+    canDecrement: Boolean = true,
+    canIncrement: Boolean = true,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
-        IconButton(onClick = onDecrement, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onDecrement, enabled = canDecrement, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Filled.Remove, contentDescription = fewerDescription, modifier = Modifier.size(16.dp))
         }
         Text(
@@ -236,7 +242,7 @@ fun ValueStepper(
                 if (pinned) Modifier.clickable(onClickLabel = "Reset to suggested", onClick = onReset) else Modifier
             ),
         )
-        IconButton(onClick = onIncrement, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onIncrement, enabled = canIncrement, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Filled.Add, contentDescription = moreDescription, modifier = Modifier.size(16.dp))
         }
         unit?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }

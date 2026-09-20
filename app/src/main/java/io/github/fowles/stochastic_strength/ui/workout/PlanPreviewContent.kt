@@ -327,6 +327,7 @@ private fun ExercisePreviewRow(
                             onReset = onResetWeight,
                             fewerDescription = "Less weight",
                             moreDescription = "More weight",
+                            canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
                         )
                         planned.exercise.equipment == Equipment.BODYWEIGHT -> Text(
                             "Bodyweight",
@@ -359,6 +360,8 @@ private fun ExercisePreviewRow(
                         onReset = onResetReps,
                         fewerDescription = "One rep fewer",
                         moreDescription = "One rep more",
+                        canDecrement = planned.sessionReps > PlannedExercise.PINNED_REPS.first,
+                        canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
                     )
                 }
                 SuggestionNote(

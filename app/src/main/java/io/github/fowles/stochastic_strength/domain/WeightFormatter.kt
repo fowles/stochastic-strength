@@ -77,6 +77,10 @@ object WeightFormatter {
     fun clampToGrid(kg: Float, unit: WeightUnit): Float =
         round(kg, unit).coerceAtLeast(minIncrement(unit))
 
+    /** Whether [kg] is already at the grid floor, so a "−" tap could only stay put. */
+    fun atFloor(kg: Float, unit: WeightUnit): Boolean =
+        round(kg, unit) <= minIncrement(unit) + GRID_EPSILON
+
     /** [kg] moved [steps] grid increments (±1 for a stepper tap), never below one increment. */
     fun step(kg: Float, steps: Int, unit: WeightUnit): Float =
         clampToGrid(round(kg, unit) + steps * minIncrement(unit), unit)

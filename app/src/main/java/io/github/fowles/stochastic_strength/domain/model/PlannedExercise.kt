@@ -31,5 +31,8 @@ data class PlannedExercise(
     companion object {
         /** Set count for rows the app adds on its own (generated, added, restocked). */
         const val DEFAULT_SETS = 3
+
+        /** What a pinned rep count may be, wherever one is set (session row, saved-workout row). */
+        val PINNED_REPS = 1..50
     }
 }

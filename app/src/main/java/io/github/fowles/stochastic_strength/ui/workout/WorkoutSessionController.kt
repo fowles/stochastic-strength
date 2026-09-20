@@ -256,7 +256,7 @@ class WorkoutSessionController(
     }
 
     fun setExerciseReps(exerciseId: Long, reps: Int) = editRow(exerciseId) { pe ->
-        if (pe.exercise.isTimed) pe else pe.copy(sessionReps = reps.coerceIn(1, 50), repsPinned = true)
+        if (pe.exercise.isTimed) pe else pe.copy(sessionReps = reps.coerceIn(PlannedExercise.PINNED_REPS), repsPinned = true)
     }
 
     fun resetExerciseReps(exerciseId: Long) = editRow(exerciseId) { it.copy(repsPinned = false) }

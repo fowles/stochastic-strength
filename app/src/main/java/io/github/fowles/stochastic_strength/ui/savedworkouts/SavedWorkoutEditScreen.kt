@@ -50,6 +50,7 @@ import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.RowSuggester
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise.Companion.PINNED_REPS
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
@@ -266,6 +267,7 @@ private fun EntryRow(
                         onReset = { onWeightChange(null) },
                         fewerDescription = "Less weight",
                         moreDescription = "More weight",
+                        canDecrement = !WeightFormatter.atFloor(shownWeight, weightUnitOrNull),
                     )
                     entry.exercise.equipment == Equipment.BODYWEIGHT -> Text(
                         "Bodyweight",
@@ -289,21 +291,23 @@ private fun EntryRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
+                // Null while the suggester is still building: there is no number to step from yet.
+                val baseReps = entry.reps ?: suggester?.typicalReps
                 ValueStepper(
                     text = entry.reps?.toString() ?: suggester?.let { "${it.repMin}–${it.repMax}" } ?: "–",
                     pinned = entry.reps != null,
                     unit = "reps",
                     onDecrement = {
-                        val base = entry.reps ?: suggester?.typicalReps
-                        if (base != null) onRepsChange((base - 1).coerceIn(1, MAX_PINNED_REPS))
+                        if (baseReps != null) onRepsChange((baseReps - 1).coerceIn(PINNED_REPS))
                     },
                     onIncrement = {
-                        val base = entry.reps ?: suggester?.typicalReps
-                        if (base != null) onRepsChange((base + 1).coerceIn(1, MAX_PINNED_REPS))
+                        if (baseReps != null) onRepsChange((baseReps + 1).coerceIn(PINNED_REPS))
                     },
                     onReset = { onRepsChange(null) },
                     fewerDescription = "One rep fewer",
                     moreDescription = "One rep more",
+                    canDecrement = baseReps != null && baseReps > PINNED_REPS.first,
+                    canIncrement = baseReps != null && baseReps < PINNED_REPS.last,
                 )
             }
             if (suggested != null && unit != null) {
@@ -313,4 +317,3 @@ private fun EntryRow(
     }
 }
 
-private const val MAX_PINNED_REPS = 50
