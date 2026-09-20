@@ -28,6 +28,14 @@ Single-module Android app (`app/`) using Kotlin and Jetpack Compose with Materia
 - **Package**: `io.github.fowles.stochastic_strength`
 - **Min SDK**: 33 (Android 13), **Target SDK**: 36
 - **UI**: Jetpack Compose — all UI is written in Kotlin composables, no XML layouts
+- **Compose stability**: `app/compose-stability.conf` declares Kotlin's collection interfaces
+  stable (nothing here mutates a list held in state), and the model classes that are composable
+  parameters — `Exercise`, `WarmupSet`, `PlannedExercise`, `SavedWorkoutEntry`, `RowSuggester` —
+  carry `@Immutable`. Without both, a `List` field makes its whole data class unstable and the
+  composable taking one re-runs on every parent recomposition. Skippability is a **compile-time**
+  property: read `app/build/compose_reports/app-composables.txt` after a build, where a parameter
+  with no `stable` prefix is what stops its composable skipping. Do not write a runtime
+  recomposition-counting test for this.
 - **Theme**: `ui/theme/` — Material3 theming
 - **Entry point**: `MainActivity` sets content via `setContent { StochasticStrengthTheme { ... } }`
 
