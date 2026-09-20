@@ -31,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,18 +38,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.domain.history.HistoryRow
 import io.github.fowles.stochastic_strength.domain.history.HistoryRows
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.formatDateTime
-import kotlinx.coroutines.launch
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.TextStyle
-import androidx.compose.ui.platform.LocalConfiguration
+import kotlinx.coroutines.launch
 
 @Composable
 fun HistoryScreen(
@@ -58,7 +58,7 @@ fun HistoryScreen(
     onBack: () -> Unit,
     viewModel: HistoryViewModel = viewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     HistoryScreenContent(
         state = state,

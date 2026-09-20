@@ -19,12 +19,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
@@ -39,10 +39,10 @@ fun ExercisesScreen(
     onBack: () -> Unit,
     viewModel: ExercisesViewModel = viewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
-    val hurtMap by viewModel.hurtMap.collectAsState()
-    val sparklines by viewModel.sparklines.collectAsState()
-    val lastPerformed by viewModel.lastPerformed.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val hurtMap by viewModel.hurtMap.collectAsStateWithLifecycle()
+    val sparklines by viewModel.sparklines.collectAsStateWithLifecycle()
+    val lastPerformed by viewModel.lastPerformed.collectAsStateWithLifecycle()
 
     val filtered = remember(state.exercises, state.selectedFilter, state.selectedEquipmentFilter) {
         filterExercises(state.exercises, state.selectedFilter, state.selectedEquipmentFilter)

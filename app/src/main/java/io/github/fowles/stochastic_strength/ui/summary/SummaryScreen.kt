@@ -1,7 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.summary
 
 import android.content.Intent
-import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,9 +31,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import io.github.fowles.stochastic_strength.ui.WorkoutSummaryContent
@@ -55,8 +55,8 @@ fun SummaryScreen(
     onExerciseTap: ((Long) -> Unit)? = null,
     viewModel: SummaryViewModel = viewModel(factory = SummaryViewModel.factory(sessionId)),
 ) {
-    val summary by viewModel.summary.collectAsState()
-    val stravaState by viewModel.stravaState.collectAsState()
+    val summary by viewModel.summary.collectAsStateWithLifecycle()
+    val stravaState by viewModel.stravaState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 

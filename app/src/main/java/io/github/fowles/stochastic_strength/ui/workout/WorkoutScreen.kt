@@ -2,8 +2,8 @@ package io.github.fowles.stochastic_strength.ui.workout
 
 import android.Manifest
 import android.content.Intent
-import androidx.core.net.toUri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +24,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,11 +31,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.usesBarPlates
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
@@ -52,11 +52,11 @@ fun WorkoutScreen(
     onExerciseTap: (exerciseId: Long) -> Unit,
     viewModel: WorkoutViewModel = viewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
-    val weightUnit by viewModel.weightUnit.collectAsState()
-    val doneSummary by viewModel.doneSummary.collectAsState()
-    val doneHighlight by viewModel.doneHighlight.collectAsState()
-    val stravaState by viewModel.stravaState.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val weightUnit by viewModel.weightUnit.collectAsStateWithLifecycle()
+    val doneSummary by viewModel.doneSummary.collectAsStateWithLifecycle()
+    val doneHighlight by viewModel.doneHighlight.collectAsStateWithLifecycle()
+    val stravaState by viewModel.stravaState.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
 
     BackHandler(enabled = state is WorkoutState.ActiveSet || state is WorkoutState.Resting) {
@@ -117,8 +117,8 @@ fun WorkoutScreen(
             when (val s = state) {
                 WorkoutState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 is WorkoutState.PlanPreview -> {
-                    val savedWorkouts by viewModel.savedWorkouts.collectAsState()
-                    val allExercises by viewModel.allExercises.collectAsState()
+                    val savedWorkouts by viewModel.savedWorkouts.collectAsStateWithLifecycle()
+                    val allExercises by viewModel.allExercises.collectAsStateWithLifecycle()
                     var dialog by rememberSaveable { mutableStateOf<PreviewDialog?>(null) }
                     var pendingLoadId by rememberSaveable { mutableStateOf<Long?>(null) }
                     val plannedIds = remember(s.plan.exercises) {

@@ -26,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
@@ -45,7 +45,7 @@ fun LocationEditScreen(
     onBack: () -> Unit,
     viewModel: LocationEditViewModel = viewModel(factory = LocationEditViewModel.factory(locationId)),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var collapsedSections by remember { mutableStateOf(emptySet<Equipment>()) }
     // Sections start collapsed, once: "nothing collapsed" is also what the user gets by opening
     // every section, and re-collapsing them on the next toggle would undo that.

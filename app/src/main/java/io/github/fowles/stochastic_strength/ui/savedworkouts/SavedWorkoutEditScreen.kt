@@ -31,7 +31,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -75,10 +75,10 @@ fun SavedWorkoutEditScreen(
     onBack: () -> Unit,
     viewModel: SavedWorkoutEditViewModel = viewModel(factory = SavedWorkoutEditViewModel.factory(workoutId)),
 ) {
-    val state by viewModel.state.collectAsState()
-    val allExercises by viewModel.allExercises.collectAsState()
-    val suggester by viewModel.suggester.collectAsState()
-    val weightUnit by viewModel.weightUnit.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val allExercises by viewModel.allExercises.collectAsStateWithLifecycle()
+    val suggester by viewModel.suggester.collectAsStateWithLifecycle()
+    val weightUnit by viewModel.weightUnit.collectAsStateWithLifecycle()
     var showPicker by rememberSaveable { mutableStateOf(false) }
 
     var showDiscard by rememberSaveable { mutableStateOf(false) }

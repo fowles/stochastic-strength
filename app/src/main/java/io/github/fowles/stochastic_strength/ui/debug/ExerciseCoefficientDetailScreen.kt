@@ -22,7 +22,6 @@ import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
@@ -49,7 +49,7 @@ import io.github.fowles.stochastic_strength.ui.debug.components.progressionColor
 fun ExerciseCoefficientDetailScreen(exerciseId: Long, onBack: () -> Unit) {
     val viewModel: ExerciseCoefficientDetailViewModel =
         viewModel(factory = ExerciseCoefficientDetailViewModel.factory(exerciseId))
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = { BackTopAppBar(title = state.exercise?.name ?: "", onBack = onBack) },
