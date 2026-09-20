@@ -12,14 +12,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew :app:testDebugUnitTest
 
 # Run a single unit test class
-./gradlew :app:testDebugUnitTest --tests "io.github.fowles.stochastic_strength.ExampleUnitTest"
+./gradlew :app:testDebugUnitTest --tests "*WorkoutPlannerTest"
 
-# Instrumented tests (requires connected device/emulator)
+# Instrumented tests (requires connected device/emulator; one class via
+# -Pandroid.testInstrumentationRunnerArguments.class=<fqcn>)
 ./gradlew :app:connectedAndroidTest
 
 # Lint
 ./gradlew :app:lint
 ```
+
+`JAVA_HOME` is not set on the dev machine: export
+`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"` before any gradle call.
+Most ViewModel/controller/repository/DAO/migration tests are **instrumented** (`src/androidTest`);
+`src/test` holds the pure-domain tests and the backtest.
 
 ## Version control
 
@@ -47,90 +53,156 @@ jj-natively; do not create git branches or `git commit` onto the detached HEAD.
 
 ## Architecture
 
-Single-module Android app (`app/`) using Kotlin and Jetpack Compose with Material3.
-
-- **Package**: `io.github.fowles.stochastic_strength`
-- **Min SDK**: 33 (Android 13), **Target SDK**: 36
-- **UI**: Jetpack Compose — all UI is written in Kotlin composables, no XML layouts
-- **Compose stability**: `app/compose-stability.conf` declares Kotlin's collection interfaces
-  stable (nothing here mutates a list held in state), and the model classes that are composable
-  parameters — `Exercise`, `WarmupSet`, `PlannedExercise`, `SavedWorkoutEntry`, `RowSuggester` —
-  carry `@Immutable`. Without both, a `List` field makes its whole data class unstable and the
-  composable taking one re-runs on every parent recomposition. Skippability is a **compile-time**
-  property: read `app/build/compose_reports/app-composables.txt` after a build, where a parameter
-  with no `stable` prefix is what stops its composable skipping. Do not write a runtime
-  recomposition-counting test for this.
-- **Theme**: `ui/theme/` — Material3 theming
-- **Entry point**: `MainActivity` sets content via `setContent { StochasticStrengthTheme { ... } }`
-
-Unit tests live in `src/test/` and run on the JVM. Instrumented tests live in `src/androidTest/` and require a device or emulator.
-
-### Layers
+Single-module Android app (`app/`), Kotlin + Jetpack Compose + Material3 (dynamic color only).
+Package `io.github.fowles.stochastic_strength`; min SDK 33, target 36. No XML layouts, no DI
+framework: `StochasticStrengthApp` owns the singletons (`database`, `workoutRepository`,
+`derivedStateStore`, `backupManager`, `stravaExporter`, `workoutSessionBus`, `applicationScope`)
+and ViewModels reach them via `application as StochasticStrengthApp`.
 
 ```
-data/           Room entities, DAOs, AppDatabase, type converters, seed data (ExerciseLibrary)
-domain/         Pure business logic: WorkoutPlanner, ProgressionEngine, WorkoutRepository, coefficient heuristics
-domain/strava/  Strava OAuth + JSON export
-ui/             Composable screens + ViewModels; one sub-package per screen (home/, workout/, history/, debug/, etc.)
-ui/components/  Shared composables (SectionHeader, StrengthGrid, LoadingBox, formatDateTime)
-location/       GPS lookup and KnownLocation resolution
-notification/   Workout foreground notification service
+data/           Room entities, DAOs, AppDatabase + migrations, seed data (ExerciseLibrary)
+domain/         WorkoutRepository, WorkoutPlanner, circuit structure, sequencing, formatting
+domain/belief/  per-exercise estimates: fold, pooling, prescriber, debug trace
+domain/policy/  PrescriptionPolicy + PolicyFacts (set-log rules on top of the estimate)
+domain/progression/  ReplayEngine, BeliefSessionStep, chart series
+domain/derived/ DerivedStateStore (in-memory projections)   domain/history/  highlights, quips
+domain/backup/  JSON export/import                          domain/strava/   OAuth + upload
+ui/<screen>/    composables + ViewModels; ui/components/ shared (CircuitChrome, pickers, charts)
+location/  notification/   GPS → KnownLocation; workout foreground service
 ```
 
-There is no DI framework. `StochasticStrengthApp` (the `Application` class) owns `AppDatabase`, `workoutRepository`, `stravaExporter`, and `workoutSessionBus` as singletons. ViewModels obtain them via `application as StochasticStrengthApp`.
+**Navigation** (`AppNavigation.kt`, string routes): `home → workout → home`. The workout screen
+renders its own Done summary; `summary/{sessionId}` is reached from history. Home also leads to
+`workouts` / `workout-edit/{id}`, history, locations, exercises (→ `exercise/{id}` →
+`debug/coefficient/{id}`), about.
 
-### Navigation
+**Compose stability**: `app/compose-stability.conf` declares Kotlin's collection interfaces
+stable, and model classes used as composable parameters (`Exercise`, `WarmupSet`,
+`PlannedExercise`, `SavedWorkoutEntry`, `RowSuggester`) carry `@Immutable`. Skippability is a
+**compile-time** property: read `app/build/compose_reports/app-composables.txt` after a build (a
+parameter with no `stable` prefix blocks skipping). Never write a runtime recomposition test.
 
-`AppNavigation.kt` wires the app's screens with string-based routes. The primary flow is `home → workout → summary/{sessionId} → home`; secondary screens (history, locations, exercises, about, debug detail screens) are reachable from home.
+### Workout session
 
-### Workout state machine
-
-`WorkoutState` is a sealed interface with five states. State is owned by `WorkoutSessionController` (in `ui/workout/`); `WorkoutViewModel` is a thin delegation layer.
+`WorkoutState` (sealed) is owned by `WorkoutSessionController`; `WorkoutViewModel` delegates.
 
 ```
 Loading → PlanPreview → ActiveSet ⇄ Resting → Done
-                                   ↑ (undo)
 ```
 
-- **PlanPreview**: user reviews/edits the generated exercise list before starting
-- **ActiveSet**: user performs a set (may show warmup sets first)
-- **Resting**: 90-second countdown after each set; auto-advances or can be skipped/undone
-- **Done**: triggers `replayDerivedState` then navigates to summary
+- **Position is derived, never stored.** `ActiveSet`/`Resting` carry `done` (completed working
+  sets per exercise id); `WorkoutSequence.next(plan.exercises, done)` is the single rule for what
+  comes next (controller, notification, rest screen). An exercise id appears at most once in a plan.
+- Warmups are a sub-state of `ActiveSet` (`warmupSetIndex`), entered only at an exercise's first
+  set. A 90 s rest (`DurationCalculator.REST_SECONDS`) follows every set.
+- **Staged rests**: swap, adjust weight, end exercise, stop, and warmups-done pass through
+  `Resting(staged = StagedAction(undoTarget, commitTarget))`. Undo restores `undoTarget`; the
+  commit applies the state **first**, then persists side effects (`persistSwap`).
+- HURT ends the exercise (it drops out of remaining circuit rounds). A mid-exercise swap gives the
+  replacement only the remaining sets. In-session removal (`withoutRow`) must **not** renumber
+  circuit ids — logged rows already carry them — so a lone tagged row is legal mid-session.
+- Preview edits that suspend go through `applyPreviewDelta` (a non-suspend transform over the
+  *live* state); never write back a snapshot taken before a suspend. Taps that write before moving
+  state go through `launchOnce`.
+- Ending the workout sets `endTime`, shows `Done`, and runs `repository.finishSession()` (replay)
+  itself; the Done button only waits for that and navigates.
+- No restore after process death: the foreground service keeps the process alive.
 
-Position is derived, never stored: `ActiveSet`/`Resting` carry `done` (completed working sets per exercise id) and `WorkoutSequence.next(plan.exercises, done)` is the single rule for what comes next (controller advance, notification label, rest screen). Rest follows every set.
+### Plans, saved workouts, circuits
 
-### Progression system (belief stack + policy layer)
+- Rows carry `sets` (1–10) and a nullable `circuitId`; **adjacent** rows sharing an id are a
+  circuit done round-robin. Storage, `WorkoutPlan.exercises` and ViewModel state stay flat; logic
+  reads `CircuitStructure.blocks` (a solo row is a block of one; `rounds` = largest member `sets`;
+  `Block.roundsDone` is the late-joiner rule). Never branch on `circuitId != null`.
+- `CircuitEdits` (link / unlink / moveBlock / remove / setRounds) is the shared editing vocabulary
+  for the editor and the plan preview. Link nodes toggle membership; drags move whole blocks.
+  Circuits may be uneven (`saveSessionAsWorkout` saves each member at the rounds it got); the
+  round chip shows the block maximum and `setRounds` re-levels the block.
+- The shared row is `ui/components/CircuitChrome.kt` (`ExerciseRowScaffold`, `LinkNodeHost`,
+  `ValueStepper`, `keyedBlocks`); reordering uses `sh.calvin.reorderable`.
+- `PlannedExercise.repsPinned` / `weightPinned` mark user-set values. `WorkoutPlanner.reprice`
+  (private `withWeight`) is the **single pricing rule** and the only place that honours pins: a
+  pinned weight bypasses `PrescriptionPolicy` and nothing reprices it; the rep-range slider
+  reprices only unpinned reps. The UI shows the live suggestion beside a differing pin
+  (`SuggestionNote`). Stepper taps move whole grid increments via `WeightFormatter.step`
+  (2.5 kg / 5 lb); `clampToGrid` is the floor rule.
+- `WorkoutPlanner.planExplicit` prices user-chosen rows: they bypass the rested-muscle and
+  location filters, are flagged in the UI and never dropped, and raw stored values are clamped
+  there (imports are not sanitized on write). The controller tracks which ids are explicit; rows
+  carry no origin flag. The exercise-count slider is a **minimum** (restock on swipe-away only
+  below `targetCount`).
+- `saved_workout` / `saved_workout_exercise` hold user-authored workouts with optional per-row
+  `reps` and literal `weight` (kg, never progresses). An unnamed workout is stored with an empty
+  name and shown under a derived one (`SavedWorkoutNaming`). The editor saves only on Done (back
+  discards, with a confirm); a new workout (`NEW_WORKOUT_ID`) is inserted on its first non-empty
+  save and the editor never deletes a row. Off-session suggestions come from
+  `WorkoutRepository.rowSuggester()`.
+- `workout_sets.circuitId` records a finished session's structure (summary, Strava description,
+  save-as-workout); `setNumber` stays per-exercise and dense.
+- Location: `LocationService` resolves GPS to the nearest `KnownLocation`; `buildPlanner` filters
+  out that location's `LocationExcludedExercise` rows (none when unknown). Excluded siblings still
+  vote in pooling, so a prescription never depends on where the user stands.
 
-Progression is a **per-exercise running estimate in log-space**. Each loaded exercise carries a `Belief` — its `mu` (the current best guess at ln(fresh 1RM, kg)), `sigma2` (how unsure we are about that guess, in ln-units²), and `updatedAt` — held in `domain/belief/`. These are estimates, not measurements: the whole stack tracks a best guess and its uncertainty and updates both as evidence arrives. The estimate map is the only durable progression state; the per-muscle display levels (`MuscleGroupStrength`), `baseline_history`, and `coefficient_history` are derived projections held in the in-memory `DerivedStateStore` (not Room entities). `WorkoutRepository.finishSession()` (and any override write) calls `replayDerivedState()`, which replays every completed session in order through `ReplayEngine` → `BeliefSessionStep`, rebuilding the derived state from scratch each time (idempotent). All tuning constants live in `BeliefConfig`, each labeled `semantic`/`fitted`/`flat` (constitution rule 2); the fitted values are pinned by the backtest gate (`BeliefScoreTest`, held-out score on real history).
+### Progression (belief stack + policy)
 
-For one session, `BeliefSessionStep.step`:
-1. **Pre-fold pooling** (`BeliefPooling.effective`) over the session's muscles at `asOf` — the held-out state for scoring and the cold prior for first-time exercises.
-2. **Per-exercise fold** (`BeliefFold.foldSession`): age `sigma2` by idle days (`confidenceDecayEstimate`), then fold each set in id order. Each set implies a model-free ln-1RM interval (`SetIntervals`, from the rep-max formula + feedback bucket), shifted up by a fatigue term `fatiguePerSetEstimate·(rank−1)`. The fold is a censored (boundary-pull) update: when the current best guess already sits inside the set's implied interval it is confirmed (uncertainty shrinks, best guess unmoved); when it falls outside, the best guess takes one correction step toward the violated boundary. `HURT` and feedback-less sets carry no interval (but count toward rank); zero-coefficient (unloadable) exercises are skipped. The fold is **local** — cross-informing happens only at read time.
-3. **Post-fold pooling** for the touched muscles: each exercise with an estimate votes `mu_j − ln(coef_j)`, weighted by its confidence `1/(sigma_j² + crossLiftIndependenceEstimate²)` (a tighter, more certain estimate counts for more); the effective estimate blends the exercise's own aged estimate with the leave-one-out prediction from its siblings by that confidence weight. Fresh, confident evidence outweighs siblings; stale/cold exercises lean on them; never mutates stored estimates. The muscle level goes to `MuscleGroupStrength` + `baseline_history` (epsilon-deduped), derived coefficients to `coefficient_history`. The pooling result exposes its per-exercise breakdown (`own`/`sibling`/`siblingShare`/`voterWeight`) — consumers (trace, cross-tuning, charts) must read that, never re-derive the math.
+Each loaded exercise has a `Belief` — `bestGuessLn` (ln of fresh 1RM, kg), `uncertainty`
+(ln-units²), `updatedAt`. These are **estimates, not measurements**. All progression state is
+derived: `DerivedStateStore` (in memory) holds beliefs, `MuscleGroupStrength`, `baseline_history`
+and `coefficient_history`, rebuilt from scratch by `WorkoutRepository.replayDerivedState()`
+(`ReplayEngine` → `BeliefSessionStep`, idempotent) on app start, finish, session delete and
+import. Fitted constants live in `BeliefConfig` (in `Belief.kt`), each labeled
+`semantic`/`fitted`/`flat`, and are pinned by the backtest gate.
 
-Cold-start seeds are not stored per-exercise: `ExerciseSeedExpansion` synthesizes them live during replay by expanding each per-muscle `BaselineOverride` (manual edits and initial rows; muscles with no override default to `StartingWeights` for the user's sex/level) through the *current* `ExerciseCoefficients` for every loaded exercise in that muscle. There is no `exercise_strength_override` table — shipping a new/refit coefficient table changes seeds automatically on next replay, no migration needed.
+Per session, `BeliefSessionStep.step`:
+1. **Pre-fold pooling** (`BeliefPooling.effective`) — the held-out state for scoring and the cold
+   prior for first-time exercises.
+2. **Fold** (`BeliefFold.foldSession`): age uncertainty by idle days, then fold each set in id
+   order. A set implies a ln-1RM interval (`SetIntervals`: rep-max formula + feedback bucket),
+   shifted by `fatiguePerSetEstimate·(rank−1)` where rank is **per exercise** (unaffected by
+   circuit interleaving). Inside the interval confirms (uncertainty shrinks); outside takes one
+   step toward the violated boundary. `HURT`/feedback-less sets carry no interval but count toward
+   rank; zero-coefficient exercises are skipped. The fold is local.
+3. **Post-fold pooling**: each exercise votes `bestGuessLn − ln(coef)`, weighted
+   `1/(uncertainty + crossLiftIndependenceEstimate²)`; the effective estimate blends own with the
+   leave-one-out sibling prediction. Never mutates stored beliefs. Consumers (trace, charts) read
+   the result's breakdown (`own`/`sibling`/`siblingShare`/`voterWeight`) — never re-derive it.
 
-**Prescription** is estimator → prescriber → policy, in that order:
-- `BeliefPooling.effective` → `BeliefPrescriber.targetE1rm` (backs off from the effective belief's best guess by `cautionMargin` standard deviations — the weight with a `targetSuccessChance` ≈ 70% chance of success) gives the raw target.
-- `PrescriptionPolicy.prescribe` clamps it: HURT backoff (15% per event, 14-day half-life, floor 0.6, muscle-level), unconditional overload nudge (+1 grid increment when the last feedback session was all RIR ≥ 2), then the **demonstrated-capacity cap** (a failed weight from the most recent feedback session cannot be re-prescribed for 28 days; the cap binds on the final *rounded* weight and floor-rounds at the grid). Policy rules are plain set-log arithmetic (`PolicyFacts`, built over a **time window** `FACTS_WINDOW_MS` — never a row-count limit) with `semantic` constants only, invisible to the backtest fitness function.
-- The load-aware 1RM formula is https://arxiv.org/pdf/2603.17495 (`DefaultProgressionEngine`). Seed coefficients come from `ExerciseCoefficients`; the planner's `coefficientSource` is the effective source (latest derived coefficient if any, else the seed). `PlannedExercise.DEFAULT_SETS` (3) is only the default for rows the app adds; each row carries its own `sets`.
+Cold-start seeds are synthesized live during replay (`ExerciseSeedExpansion`): each per-muscle
+`BaselineOverride` (only migration/import write these; otherwise `StartingWeights` for the user's
+sex/level) × the *current* `ExerciseCoefficients`. A new coefficient table needs no migration.
 
-`ExerciseCoefficients.byName` is a fitted artifact: literal baked coefficients equal to `guess^0.75`. The legible round-number priors (`CoefficientGuesses`) and the structural compression that shaped them (`CoefficientCompression`, `coef = guess^BAKED_LAMBDA`) now live **in the test tree** as a test-only analysis tool — the λ sweep (`CoefExponentFitTest`, `BacktestData.withCoefLambda`) still uses them, and `ExerciseCoefficientsTest` is an exact-equality guard that the shipped literals still equal `compress(CoefficientGuesses.raw, BAKED_LAMBDA)`. There is no runtime compression step and no `LAMBDA` knob. Reference (1.0) and bodyweight (0.0) lifts are anchors, unchanged by compression. Re-fitting the exponent means re-baking the table (a pure code change); nothing coefficient-derived is stored per user.
+**Prescription** = estimator → prescriber → policy:
+- `BeliefPrescriber.targetE1rm` backs off `cautionMargin` standard deviations (≈ 70%
+  `targetSuccessChance`).
+- `PrescriptionPolicy.prescribe`: HURT backoff (15%/event, 14-day half-life, floor 0.6,
+  muscle-level) → grid round + overload nudge (+1 increment when the last feedback session was all
+  RIR ≥ 2) → **demonstrated-capacity cap** on the rounded weight (a failed weight can't be
+  re-prescribed for 28 days). `COOLDOWN_MS` (2 days) is the planner's rested-muscle filter.
+  Policy is plain set-log arithmetic (`PolicyFacts`, over a **time window** `FACTS_WINDOW_MS`,
+  never a row count) with `semantic` constants, invisible to the backtest.
+- 1RM formula: https://arxiv.org/pdf/2603.17495 (`DefaultProgressionEngine`).
+- The debug trace (`PrescriptionTraceBuilder`) and the planner share
+  `WorkoutRepository.prescriptionContext`; display code reports `Prescription` fields and never
+  re-implements pipeline math.
 
-The debug "why this weight" trace (`PrescriptionTraceBuilder`) and the planner share `WorkoutRepository.prescriptionContext`; the trace reports what `prescribe()` did via the `Prescription` fields — do not re-implement pipeline math in display code.
+`ExerciseCoefficients.byName` is a baked artifact (`guess^0.75`; anchors 1.0 and 0.0 unchanged).
+The guesses and compression live in the **test tree** (`CoefficientGuesses`,
+`CoefficientCompression`); `ExerciseCoefficientsTest` guards exact equality. Re-fitting means
+re-baking the table.
 
-The backtest tree (`app/src/test/.../backtest/`) replays real history (`src/test/resources/backtest/history.json`) through the same `BeliefSessionStep`; `BeliefScoreTest` pins the held-out score and `BeliefPolicyBacktestTest` certifies the failed-weight invariant. Changes to fold/pooling/config must keep the gate green (re-baselining is a human decision).
-
-### Location & equipment filtering
-
-On workout start, `LocationService` resolves GPS coordinates to a `KnownLocation`. `WorkoutRepository.buildPlanner` filters out exercises listed in `LocationExcludedExercise` for that location. If location is unknown, no exclusions are applied.
-
-### Saved workouts and explicit control
-
-`saved_workout` / `saved_workout_exercise` (DB v20; structure columns v21) hold user-authored workouts: ordered exercises with optional per-row `reps` and `weight` (kg, literal, never progresses). `WorkoutRepository` exposes `observeSavedWorkouts`, `saveWorkout`, `deleteSavedWorkout`, and `saveSessionAsWorkout`; the backup export includes both tables. On plan preview the "⋮" menu can add one exercise, load or append a saved workout, or save the plan. Explicit rows bypass the rested-muscle and location filters (`WorkoutPlanner.planExplicit`) and are flagged in the UI, never dropped. Location-excluded siblings now also vote in per-muscle pooling, so a lift's prescription no longer depends on which location the user is standing at. Plan rows carry no origin flag: the exercise-count slider is a **minimum** the controller maintains (restock on swipe-away only when the plan would fall below `targetCount`). `PlannedExercise.repsPinned`/`weightPinned` mark a user-set value; the rep-range slider reprices only unpinned reps, and nothing reprices a pinned weight — a pinned weight bypasses `PrescriptionPolicy` entirely. `WorkoutPlanner.reprice` (the private `withWeight`) is the single pricing rule and is the only place that honours those pins; the UI shows the live suggestion beside a pin that differs from it (`SuggestionNote`). Off-session, the saved-workout editor's dimmed suggestions come from `WorkoutRepository.rowSuggester()` (a `RowSuggester`: a planner built at the profile's rep range and unit). Stepper taps move whole grid increments through `WeightFormatter.step` (2.5 kg / 5 lb, floored at one increment) — no unit-blind constant. The shared row lives in `ui/components/CircuitChrome.kt`: `ExerciseRowScaffold`, `LinkNodeHost`, `ValueStepper`. A saved workout the user never named is stored with an empty name and shown under one derived from its exercises (`SavedWorkoutDetail.displayName` / `SavedWorkoutNaming`); editors show that derived name as the field placeholder. The "+" button opens the editor with `NEW_WORKOUT_ID`; only the editor's Done button saves (back discards, with a confirm when edits would be lost); the row is inserted on the first save that has anything in it, and an existing row is never deleted by the editor.
-
-Rows carry `sets` (1–10) and a nullable `circuitId`; adjacent rows sharing an id are a circuit done round-robin (`2 × (curl, kickback, press)`), with `sets` as its rounds. Storage, `WorkoutPlan.exercises` and view-model state stay flat; logic reads `CircuitStructure.blocks`, where a solo row is a block of one. `CircuitEdits` (link / unlink / moveBlock / remove / setRounds) is the shared editing vocabulary for the editor and the plan preview: link nodes toggle membership, drags move whole blocks and never change membership. `workout_sets.circuitId` records the structure of a finished session (summary, Strava description, save-as-workout); `setNumber` stays per-exercise and dense. A mid-exercise swap gives the replacement only the remaining sets. `saveSessionAsWorkout` saves each member at the rounds it actually got — no equalization — so a saved circuit can be uneven; the editor's round chip shows the block maximum and `CircuitEdits.setRounds` re-levels the whole block when touched.
+The backtest (`app/src/test/.../backtest/`, real history in `resources/backtest/history.json`)
+replays through the same `BeliefSessionStep`. `BeliefScoreTest` pins the held-out score;
+`BeliefPolicyBacktestTest` certifies the failed-weight invariant. Fold/pooling/config changes must
+keep the gate green; **re-baselining is a human decision**.
 
 ### Database
 
-Room database (`AppDatabase`, version 21). Schema migrations live in `AppDatabase.Companion`. `saved_workout_exercise.weight` (nullable REAL, kg) is folded into `MIGRATION_20_21`. The app has real users — always write a proper `Migration` when bumping the version; destructive fallback is not configured.
+Room, version 21, schemas exported to `app/schemas/`. The app has real users: every version bump
+gets a `Migration` in `AppDatabase.Companion` plus a `MigrationNToMTest`; there is no destructive
+fallback of any kind (a failed open must crash, never reset). No foreign keys or unique
+constraints: integrity lives in `WorkoutRepository` transactions. Backup accepts
+`MIN_DB_VERSION..DB_VERSION` and defaults missing keys; additive import matches exercises and
+locations by name.
+
+`espresso-core` is pinned in the build although nothing imports it: compose ui-test's transitive
+version crashes on current API levels.
