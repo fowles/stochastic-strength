@@ -47,6 +47,15 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.random.Random
 
+/** Prices rows in the saved-workout editor (and any other off-session context) the way the planner would. */
+class RowSuggester(private val planner: WorkoutPlanner, val repMin: Int, val repMax: Int, val weightUnit: WeightUnit) {
+    val typicalReps: Int get() = RepRangePicker.typical(repMin, repMax)
+
+    /** Suggested kg for [exercise] at [reps] (null = the typical session reps); 0 when it has no weight. */
+    fun weight(exercise: Exercise, reps: Int?): Float =
+        if (exercise.isTimed) 0f else planner.suggestedWeight(exercise, reps ?: typicalReps)
+}
+
 class WorkoutRepository(
     private val db: AppDatabase,
     val derivedState: DerivedStateStore = DerivedStateStore(),
@@ -141,6 +150,15 @@ class WorkoutRepository(
             pacingEstimator = pacingEstimator,
             policyFacts = ctx.policyFacts,
         )
+    }
+
+    /** A planner-backed pricer for off-session editing (the saved-workout editor), at the profile's rep range. */
+    suspend fun rowSuggester(): RowSuggester {
+        val profile = db.userProfileDao().getProfile()
+        val repMin = profile?.preferredRepMin ?: RepRangePicker.DEFAULT_MIN
+        val repMax = profile?.preferredRepMax ?: RepRangePicker.DEFAULT_MAX
+        val unit = WeightUnit.KG
+        return RowSuggester(buildPlanner(locationId = null, weightUnit = unit), repMin, repMax, unit)
     }
 
     private fun writeLevelUpdate(

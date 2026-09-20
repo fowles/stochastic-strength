@@ -13,7 +13,9 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.RepRangePicker
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
 import io.github.fowles.stochastic_strength.location.LocationResult
 import io.github.fowles.stochastic_strength.location.LocationService
@@ -190,6 +192,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun startFirstExercise() = controller.startFirstExercise()
     fun replaceExercise(exerciseId: Long, reason: ExerciseRemovalReason) = controller.replaceExercise(exerciseId, reason)
     fun adjustExerciseWeight(exerciseId: Long, delta: Float) = controller.adjustExerciseWeight(exerciseId, delta)
+    fun suggestedWeight(pe: PlannedExercise): Float = controller.suggestedWeight(pe)
     fun setExerciseReps(exerciseId: Long, reps: Int) = controller.setExerciseReps(exerciseId, reps)
     fun resetExerciseReps(exerciseId: Long) = controller.resetExerciseReps(exerciseId)
     fun resetExerciseWeight(exerciseId: Long) = controller.resetExerciseWeight(exerciseId)
@@ -302,7 +305,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         // Runs in the background off the workout-start path, so we can wait longer for a slow
         // geocoder answer; the bound only exists to avoid leaking a permanently-stalled request.
         private const val GEOCODE_TIMEOUT_MS = 15_000L
-        const val DEFAULT_REP_MIN = 5
-        const val DEFAULT_REP_MAX = 10
+        const val DEFAULT_REP_MIN = RepRangePicker.DEFAULT_MIN
+        const val DEFAULT_REP_MAX = RepRangePicker.DEFAULT_MAX
     }
 }

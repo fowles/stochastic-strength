@@ -18,6 +18,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -227,5 +228,29 @@ class SavedWorkoutsViewModelsTest {
         await("saved") { savedCount() == 1 }
         val saved = repository.observeSavedWorkouts().first().single()
         assertEquals(listOf(3, 2), saved.entries.map { it.sets })
+    }
+
+    @Test
+    fun setWeight_isAnUnsavedEdit_andPersistsOnSave() {
+        val vm = newEditor()
+        runBlocking { vm.allExercises.first { it.isNotEmpty() } }
+        onMain { vm.addExercise(bench.id) }
+        await("row") { vm.state.value.entries.size == 1 }
+        onMain { vm.setWeight(bench.id, 40f) }
+        assertTrue(vm.hasUnsavedChanges())
+        onMain { vm.save() }
+        await("saved") { savedCount() == 1 }
+        val saved = runBlocking { repo.getSavedWorkout(db.savedWorkoutDao().getAll().single().id)!! }
+        assertEquals(40f, saved.entries.single().weight)
+        onMain { vm.setWeight(bench.id, null) }
+        assertNull(vm.state.value.entries.single().weight)
+    }
+
+    @Test
+    fun suggester_loads_andPricesAtPinnedReps() {
+        val vm = newEditor()
+        await("suggester") { vm.suggester.value != null }
+        val s = vm.suggester.value!!
+        assertTrue(s.weight(bench, 3) >= s.weight(bench, null))
     }
 }

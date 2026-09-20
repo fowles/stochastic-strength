@@ -244,6 +244,9 @@ class WorkoutSessionController(
         setState(preview.copy(plan = preview.plan.copy(exercises = rows), edited = true))
     }
 
+    /** What the planner would price [pe] at right now, for the "suggests …" line beside a pinned weight. */
+    fun suggestedWeight(pe: PlannedExercise): Float = planner?.suggestedWeight(pe.exercise, pe.sessionReps) ?: pe.sessionWeight
+
     fun adjustExerciseWeight(exerciseId: Long, delta: Float) = editRow(exerciseId) { pe ->
         if (pe.sessionWeight <= 0f) pe else pe.copy(
             sessionWeight = WeightFormatter.round((pe.sessionWeight + delta).coerceAtLeast(2.5f), weightUnit),

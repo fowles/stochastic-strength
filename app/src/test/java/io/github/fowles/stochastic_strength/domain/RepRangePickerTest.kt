@@ -65,4 +65,21 @@ class RepRangePickerTest {
         val random = Random(0)
         repeat(50) { assertEquals(7, RepRangePicker.pick(7, 7, random)) }
     }
+
+    @Test
+    fun typical_5to10_isMiddleCandidate() {
+        // candidates(5, 10) == [5, 8, 10]; middle is 8.
+        assertEquals(8, RepRangePicker.typical(5, 10))
+    }
+
+    @Test
+    fun typical_singletonRange_isThatValue() {
+        assertEquals(3, RepRangePicker.typical(3, 3))
+    }
+
+    @Test
+    fun typical_1to20_isLowerMiddleCandidate() {
+        val candidates = RepRangePicker.candidates(1, 20)
+        assertEquals(candidates[(candidates.size - 1) / 2], RepRangePicker.typical(1, 20))
+    }
 }

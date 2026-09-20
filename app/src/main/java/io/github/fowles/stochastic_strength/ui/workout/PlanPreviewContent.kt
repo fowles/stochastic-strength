@@ -81,6 +81,7 @@ internal fun PlanPreviewContent(
     onSetReps: (exerciseId: Long, reps: Int) -> Unit,
     onResetReps: (exerciseId: Long) -> Unit,
     onResetWeight: (exerciseId: Long) -> Unit,
+    suggestWeight: (PlannedExercise) -> Float,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
     hasSavedWorkouts: Boolean,
@@ -224,6 +225,7 @@ internal fun PlanPreviewContent(
                                         place = rowPlace(block, i),
                                         sets = block.rounds,
                                         dragHandleModifier = Modifier.draggableHandle(),
+                                        suggestedWeight = suggestWeight(planned),
                                         onReplace = { reason -> onReplace(planned.exercise.id, reason) },
                                         onAdjustWeight = { delta -> onAdjustWeight(planned.exercise.id, delta) },
                                         onRepsChange = { onSetReps(planned.exercise.id, it) },
@@ -255,6 +257,7 @@ private fun ExercisePreviewRow(
     place: RowPlace,
     sets: Int,
     dragHandleModifier: Modifier,
+    suggestedWeight: Float,
     onReplace: (ExerciseRemovalReason) -> Unit,
     onAdjustWeight: (Float) -> Unit,
     onRepsChange: (Int) -> Unit,
@@ -356,6 +359,13 @@ private fun ExercisePreviewRow(
                         onReset = onResetReps,
                         fewerDescription = "One rep fewer",
                         moreDescription = "One rep more",
+                    )
+                }
+                if (planned.weightPinned && planned.sessionWeight != suggestedWeight) {
+                    Text(
+                        "suggests ${WeightFormatter.format(suggestedWeight, weightUnit)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 flag?.let {

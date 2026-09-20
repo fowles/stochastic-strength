@@ -11,6 +11,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.domain.CircuitEdits
+import io.github.fowles.stochastic_strength.domain.RowSuggester
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
@@ -59,7 +60,13 @@ class SavedWorkoutEditViewModel(
     val allExercises: StateFlow<List<Exercise>> = repository.observeAllExercises()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Null until loaded; not part of [SavedWorkoutEditState] so its loading can't affect [hasUnsavedChanges]. */
+    private val _suggester = MutableStateFlow<RowSuggester?>(null)
+    val suggester: StateFlow<RowSuggester?> = _suggester.asStateFlow()
+
     init {
+        viewModelScope.launch { _suggester.value = repository.rowSuggester() }
+
         val existingId = persistedId
         if (existingId != null) viewModelScope.launch {
             val detail = repository.getSavedWorkout(existingId)
@@ -86,6 +93,12 @@ class SavedWorkoutEditViewModel(
     fun setReps(exerciseId: Long, reps: Int?) {
         _state.value = _state.value.copy(entries = _state.value.entries.map {
             if (it.exercise.id == exerciseId) it.copy(reps = reps) else it
+        })
+    }
+
+    fun setWeight(exerciseId: Long, weight: Float?) {
+        _state.value = _state.value.copy(entries = _state.value.entries.map {
+            if (it.exercise.id == exerciseId) it.copy(weight = weight) else it
         })
     }
 

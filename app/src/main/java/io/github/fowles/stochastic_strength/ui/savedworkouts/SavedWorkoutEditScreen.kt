@@ -5,19 +5,15 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,17 +41,25 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
+import io.github.fowles.stochastic_strength.domain.RowSuggester
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
-import io.github.fowles.stochastic_strength.ui.components.CircuitHeader
-import io.github.fowles.stochastic_strength.ui.components.CountStepper
 import io.github.fowles.stochastic_strength.ui.components.ExercisePickerSheet
-import io.github.fowles.stochastic_strength.ui.components.LinkToggle
+import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
+import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
+import io.github.fowles.stochastic_strength.ui.components.LinkState
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
+import io.github.fowles.stochastic_strength.ui.components.RowPlace
+import io.github.fowles.stochastic_strength.ui.components.ValueStepper
+import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -68,6 +72,7 @@ fun SavedWorkoutEditScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val allExercises by viewModel.allExercises.collectAsState()
+    val suggester by viewModel.suggester.collectAsState()
     var showPicker by rememberSaveable { mutableStateOf(false) }
 
     var showDiscard by rememberSaveable { mutableStateOf(false) }
@@ -116,7 +121,7 @@ fun SavedWorkoutEditScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "Drag to reorder · swipe left to remove · ⛓ links rows into a circuit · reps 0 = session default",
+                "Drag to reorder · swipe left to remove · dimmed numbers are suggestions",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 8.dp),
@@ -135,28 +140,28 @@ fun SavedWorkoutEditScreen(
                     ReorderableItem(reorderState, key = blockKey) { isDragging ->
                         val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                         Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
-                            val first = state.entries[block.start]
-                            if (block.isCircuit) CircuitHeader(
-                                rounds = block.rounds,
-                                onRoundsChange = { viewModel.setSets(first.exercise.id, it) },
-                                dragHandleModifier = Modifier.draggableHandle(),
-                            )
                             for (i in block.indices) {
                                 val entry = state.entries[i]
                                 key(entry.exercise.id) {
-                                    EntryRow(
-                                        entry = entry,
-                                        // Members have no handle: unlink, reorder, relink.
-                                        dragHandleModifier = if (block.isCircuit) null else Modifier.draggableHandle(),
-                                        onRemove = { viewModel.removeExercise(entry.exercise.id) },
-                                        onRepsChange = { reps -> viewModel.setReps(entry.exercise.id, reps) },
-                                        onSetsChange = { sets -> viewModel.setSets(entry.exercise.id, sets) },
-                                    )
+                                    LinkNodeHost(
+                                        linkAbove = if (i == 0) null else LinkState(
+                                            linked = i != block.start,
+                                            onToggle = { if (i != block.start) viewModel.unlink(i - 1) else viewModel.link(i - 1) },
+                                        ),
+                                    ) {
+                                        EntryRow(
+                                            entry = entry,
+                                            place = rowPlace(block, i),
+                                            sets = block.rounds,
+                                            dragHandleModifier = Modifier.draggableHandle(),
+                                            suggester = suggester,
+                                            onRemove = { viewModel.removeExercise(entry.exercise.id) },
+                                            onRepsChange = { reps -> viewModel.setReps(entry.exercise.id, reps) },
+                                            onWeightChange = { weight -> viewModel.setWeight(entry.exercise.id, weight) },
+                                            onSetsChange = { sets -> viewModel.setSets(entry.exercise.id, sets) },
+                                        )
+                                    }
                                 }
-                                if (i != state.entries.lastIndex) LinkToggle(
-                                    linked = i != block.last,
-                                    onClick = { if (i != block.last) viewModel.unlink(i) else viewModel.link(i) },
-                                )
                             }
                             HorizontalDivider()
                         }
@@ -189,10 +194,13 @@ fun SavedWorkoutEditScreen(
 @Composable
 private fun EntryRow(
     entry: SavedWorkoutEntry,
-    /** Null for a circuit member: the circuit's header is the only handle. */
-    dragHandleModifier: Modifier?,
+    place: RowPlace,
+    sets: Int,
+    dragHandleModifier: Modifier,
+    suggester: RowSuggester?,
     onRemove: () -> Unit,
     onRepsChange: (Int?) -> Unit,
+    onWeightChange: (Float?) -> Unit,
     onSetsChange: (Int) -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
@@ -212,60 +220,89 @@ private fun EntryRow(
                     Icons.Default.Close,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onError,
-                    modifier = Modifier.padding(end = 24.dp),
+                    modifier = Modifier.padding(end = 24.dp).size(36.dp),
                 )
             }
         },
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        val suggested = suggester?.weight(entry.exercise, entry.reps)
+        ExerciseRowScaffold(
+            place = place,
+            sets = sets,
+            onSetsChange = onSetsChange,
+            dragHandleModifier = dragHandleModifier,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
-                .padding(vertical = 4.dp),
-        ) {
-            if (dragHandleModifier != null) Icon(
-                Icons.Filled.DragIndicator,
-                contentDescription = "Drag to reorder",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = dragHandleModifier.padding(start = 4.dp, end = 8.dp).size(24.dp),
-            ) else Spacer(Modifier.width(36.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(entry.exercise.name, style = MaterialTheme.typography.titleMedium)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // A circuit member's set count is the circuit's rounds, shown on the header.
-                    if (dragHandleModifier != null) {
-                        StepperLabel("sets")
-                        CountStepper(
-                            value = entry.sets,
-                            range = CircuitStructure.MIN_SETS..CircuitStructure.MAX_SETS,
-                            onChange = onSetsChange,
-                            fewerDescription = "One set fewer",
-                            moreDescription = "One set more",
-                        )
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    StepperLabel("reps")
-                    // 0 is not a rep count but "leave it to the session", i.e. a null override.
-                    CountStepper(
-                        value = entry.reps ?: 0,
-                        range = 0..MAX_REPS,
-                        onChange = { onRepsChange(it.takeIf { r -> r > 0 }) },
-                        fewerDescription = "One rep fewer",
-                        moreDescription = "One rep more",
-                        dimAtMin = true,
+                .padding(vertical = 8.dp),
+            trailing = {
+                when {
+                    suggester != null && suggested != null && suggested > 0f -> ValueStepper(
+                        text = WeightFormatter.format(entry.weight ?: suggested, suggester.weightUnit),
+                        pinned = entry.weight != null,
+                        unit = null,
+                        onDecrement = {
+                            onWeightChange(
+                                WeightFormatter.round(((entry.weight ?: suggested) - 2.5f).coerceAtLeast(2.5f), suggester.weightUnit)
+                            )
+                        },
+                        onIncrement = {
+                            onWeightChange(
+                                WeightFormatter.round(((entry.weight ?: suggested) + 2.5f).coerceAtLeast(2.5f), suggester.weightUnit)
+                            )
+                        },
+                        onReset = { onWeightChange(null) },
+                        fewerDescription = "Less weight",
+                        moreDescription = "More weight",
                     )
+                    entry.exercise.equipment == Equipment.BODYWEIGHT -> Text(
+                        "Bodyweight",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    else -> Unit
                 }
+            },
+        ) {
+            Text(
+                entry.exercise.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (entry.exercise.isTimed) {
+                Text(
+                    formatQuantity(60, true),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                ValueStepper(
+                    text = entry.reps?.toString() ?: suggester?.let { "${it.repMin}–${it.repMax}" } ?: "–",
+                    pinned = entry.reps != null,
+                    unit = "reps",
+                    onDecrement = {
+                        val base = entry.reps ?: suggester?.typicalReps
+                        if (base != null) onRepsChange((base - 1).coerceIn(1, MAX_PINNED_REPS))
+                    },
+                    onIncrement = {
+                        val base = entry.reps ?: suggester?.typicalReps
+                        if (base != null) onRepsChange((base + 1).coerceIn(1, MAX_PINNED_REPS))
+                    },
+                    onReset = { onRepsChange(null) },
+                    fewerDescription = "One rep fewer",
+                    moreDescription = "One rep more",
+                )
+            }
+            if (suggester != null && suggested != null && entry.weight != null && entry.weight != suggested) {
+                Text(
+                    "suggests ${WeightFormatter.format(suggested, suggester.weightUnit)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
 }
 
-@Composable
-private fun StepperLabel(text: String) = Text(
-    text,
-    style = MaterialTheme.typography.labelSmall,
-    color = MaterialTheme.colorScheme.onSurfaceVariant,
-)
-
-private const val MAX_REPS = 50
+private const val MAX_PINNED_REPS = 50
