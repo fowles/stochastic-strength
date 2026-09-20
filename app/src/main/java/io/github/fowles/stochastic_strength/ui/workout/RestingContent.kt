@@ -47,6 +47,7 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.usesBarPlates
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import io.github.fowles.stochastic_strength.domain.WorkoutSequence
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import kotlinx.coroutines.flow.first
 
@@ -59,8 +60,7 @@ internal fun RestingContent(
     onReduceWeight: (Int) -> Unit,
 ) {
     val plan = state.plan
-    val totalSets = PlannedExercise.DEFAULT_SETS
-    val nextSet = state.completedSetIndex + 1
+    val nextStep = WorkoutSequence.next(plan.exercises, state.done)
 
     val targetProgress = state.secondsRemaining / WorkoutSessionController.REST_SECONDS.toFloat()
     val animatedProgress = remember { Animatable(targetProgress) }
@@ -161,10 +161,12 @@ internal fun RestingContent(
             contentAlignment = Alignment.BottomCenter,
         ) {
             val plannedExercise = state.plan.exercises[state.exerciseIndex]
-            val moreSetsForThisExercise = state.completedSetIndex < PlannedExercise.DEFAULT_SETS - 1
+            val moreSetsForThisExercise =
+                (state.done[plannedExercise.exercise.id] ?: 0) < plannedExercise.sets
             val isWeighted = plannedExercise.isWeighted
-            val nextExercise = if (state.exerciseIndex + 1 < plan.exercises.size)
-                plan.exercises[state.exerciseIndex + 1] else null
+            // In a circuit the next set usually belongs to a different exercise even with sets left here.
+            val nextExercise = nextStep?.takeIf { it.exerciseIndex != state.exerciseIndex }
+                ?.let { plan.exercises[it.exerciseIndex] }
             val weightReduced = plannedExercise.sessionWeight != state.weightAtSetStart
 
             when {
@@ -207,8 +209,8 @@ internal fun RestingContent(
                         weightUnit = weightUnit,
                     )
                 }
-                !moreSetsForThisExercise && nextExercise != null -> {
-                    val warmup = nextExercise.warmupSets.firstOrNull()
+                nextExercise != null -> {
+                    val warmup = nextExercise.warmupSets.firstOrNull().takeIf { nextStep?.setIndex == 0 }
                     NextExerciseCard(
                         title = if (warmup != null) "Warm up" else "Next up",
                         exerciseName = nextExercise.exercise.name,
@@ -220,19 +222,13 @@ internal fun RestingContent(
             }
         }
         // Exercises — always 20%
-        // For a staged action the rest precedes the commit-target exercise, so the
-        // "in progress" exercise and its remaining-set count come from the commit
-        // target (a freshly inserted/swapped exercise has all its sets to go), not
-        // from completedSetIndex which still reflects the originating exercise.
+        // For a staged action the rest precedes the commit-target exercise, so "in progress"
+        // follows the commit target.
         val commitTarget = state.staged?.commitTarget
         RemainingExerciseList(
-            exercises = plan.exercises,
-            currentExerciseIndex = commitTarget?.exerciseIndex ?: state.exerciseIndex,
-            setsRemainingForCurrent = if (commitTarget != null) {
-                totalSets - commitTarget.setIndex
-            } else {
-                totalSets - nextSet
-            },
+            exercises = (commitTarget?.plan ?: plan).exercises,
+            done = state.done,
+            currentExerciseIndex = commitTarget?.exerciseIndex ?: nextStep?.exerciseIndex ?: -1,
             modifier = Modifier.weight(0.2f),
         )
     }
@@ -328,17 +324,11 @@ private enum class ExerciseProgress { COMPLETED, IN_PROGRESS, PENDING }
 @Composable
 private fun RemainingExerciseList(
     exercises: List<PlannedExercise>,
+    done: Map<Long, Int>,
     currentExerciseIndex: Int,
-    setsRemainingForCurrent: Int,
     modifier: Modifier = Modifier,
 ) {
-    val totalSets = PlannedExercise.DEFAULT_SETS
-    val inProgressIndex = when {
-        setsRemainingForCurrent > 0 -> currentExerciseIndex
-        currentExerciseIndex + 1 < exercises.size -> currentExerciseIndex + 1
-        else -> -1
-    }
-    val inProgressRemaining = if (setsRemainingForCurrent > 0) setsRemainingForCurrent else totalSets
+    val inProgressIndex = currentExerciseIndex
     val listState = rememberLazyListState()
     LaunchedEffect(inProgressIndex) {
         if (inProgressIndex >= 0) {
@@ -367,15 +357,16 @@ private fun RemainingExerciseList(
             }
         }
         exercises.forEachIndexed { i, planned ->
+            val remaining = planned.sets - (done[planned.exercise.id] ?: 0)
             val progress = when {
-                inProgressIndex < 0 || i < inProgressIndex -> ExerciseProgress.COMPLETED
+                remaining <= 0 -> ExerciseProgress.COMPLETED
                 i == inProgressIndex -> ExerciseProgress.IN_PROGRESS
                 else -> ExerciseProgress.PENDING
             }
-            val detail = when (progress) {
-                ExerciseProgress.COMPLETED -> "done"
-                ExerciseProgress.IN_PROGRESS -> "$inProgressRemaining left"
-                ExerciseProgress.PENDING -> "$totalSets sets"
+            val detail = when {
+                remaining <= 0 -> "done"
+                remaining < planned.sets || i == inProgressIndex -> "$remaining left"
+                else -> "${planned.sets} sets"
             }
             item(key = planned.exercise.id) {
                 RemainingExerciseRow(name = planned.exercise.name, detail = detail, progress = progress)

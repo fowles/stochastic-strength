@@ -54,7 +54,7 @@ internal fun ActiveSetContent(
     } else {
         ExerciseSetLayout(
             exercise = exercise,
-            progressLabel = "Set ${state.setIndex + 1} of ${state.totalSets}",
+            progressLabel = state.positionLabel,
             progressColor = MaterialTheme.colorScheme.primary,
             weight = state.plannedExercise.sessionWeight,
             reps = state.plannedExercise.sessionReps,
@@ -102,7 +102,7 @@ private fun TimedSetContent(
         Spacer(Modifier.weight(1f))
         Text(exercise.name, style = MaterialTheme.typography.headlineMedium)
         Text(
-            "Set ${state.setIndex + 1} of ${state.totalSets}",
+            state.positionLabel,
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary,
         )
