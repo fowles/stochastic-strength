@@ -225,7 +225,10 @@ internal fun PlanPreviewContent(
                                         place = rowPlace(block, i),
                                         sets = block.rounds,
                                         dragHandleModifier = Modifier.draggableHandle(),
-                                        suggestedWeight = suggestWeight(planned),
+                                        // Only a pinned row can show a suggestion, so only a
+                                        // pinned row pays for one on every recomposition.
+                                        suggestedWeight =
+                                            if (planned.weightPinned) suggestWeight(planned) else 0f,
                                         onReplace = { reason -> onReplace(planned.exercise.id, reason) },
                                         onAdjustWeight = { steps -> onAdjustWeight(planned.exercise.id, steps) },
                                         onRepsChange = { onSetReps(planned.exercise.id, it) },
@@ -257,6 +260,7 @@ private fun ExercisePreviewRow(
     place: RowPlace,
     sets: Int,
     dragHandleModifier: Modifier,
+    /** The live prescription, shown beside a pin that differs from it; 0 on an unpinned row. */
     suggestedWeight: Float,
     onReplace: (ExerciseRemovalReason) -> Unit,
     onAdjustWeight: (Int) -> Unit,
