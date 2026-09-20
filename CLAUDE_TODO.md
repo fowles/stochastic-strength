@@ -7,9 +7,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 
 From the 2026-09-20 whole-project review. Each needs a decision or is bigger than a drive-by.
 
-## Workout session
-- **Undoing a HURT set leaves `ExerciseHurtState` set** (display-only; policy reads the set log).
-
 ## UI
 - **Editor state is lost on process death** (`SavedWorkoutEditViewModel` has no
   `SavedStateHandle`), while its two dialog flags are `rememberSaveable` and do survive.

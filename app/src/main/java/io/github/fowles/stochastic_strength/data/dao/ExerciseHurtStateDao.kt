@@ -19,6 +19,9 @@ interface ExerciseHurtStateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(state: ExerciseHurtState)
 
+    @Query("DELETE FROM exercise_hurt_state WHERE exerciseId = :exerciseId")
+    suspend fun delete(exerciseId: Long)
+
     @Query("SELECT * FROM exercise_hurt_state")
     suspend fun getAll(): List<ExerciseHurtState>
 

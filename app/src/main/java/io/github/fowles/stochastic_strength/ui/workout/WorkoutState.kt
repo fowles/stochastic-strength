@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
+import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.domain.WorkoutGenerator
 import io.github.fowles.stochastic_strength.domain.WorkoutSequence
@@ -54,6 +55,8 @@ sealed interface WorkoutState {
         val restQuip: String? = null,
         /** Progress once this rest ends: after the logged set, or — for a staged rest — the commit target's. */
         val done: Map<Long, Int> = emptyMap(),
+        /** Set only when the just-logged set was HURT: what its exercise's hurt-state row was before it, so undo can restore exactly that (never re-derived at undo time). */
+        val hurtUndo: HurtUndo? = null,
     ) : WorkoutState
 
     data class Done(val sessionId: Long) : WorkoutState
@@ -76,5 +79,8 @@ data class PendingSwap(
 
 /** Informational "you've been away — starting lighter" banner; carries no adjustable state. */
 data class DetrainingNotice(val weeksOff: Int)
+
+/** The exercise's [ExerciseHurtState] row before a just-logged HURT set; null means no row existed. */
+data class HurtUndo(val exerciseId: Long, val previousRow: ExerciseHurtState?)
 
 enum class RowFlag { NOT_AT_LOCATION, TRAINED_RECENTLY }

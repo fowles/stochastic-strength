@@ -6,6 +6,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.ExerciseHurtState
 import io.github.fowles.stochastic_strength.data.model.KnownLocation
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
@@ -1498,6 +1499,50 @@ class WorkoutSessionControllerTest {
         awaitState<WorkoutState.ActiveSet>()
         delay(100)
         assertEquals(0, db.workoutSetDao().getAll().size)
+    }
+
+    @Test
+    fun hurtUndo_withNoPriorRow_leavesNoRow() = runBlocking {
+        val exerciseId = (controller.state.value as WorkoutState.ActiveSet).plannedExercise.exercise.id
+        assertNull(db.exerciseHurtStateDao().get(exerciseId))
+
+        controller.recordFeedback(SetFeedback.HURT)
+        awaitState<WorkoutState.Resting>()
+        delay(100)
+        assertTrue(db.exerciseHurtStateDao().get(exerciseId)!!.isHurt)
+
+        controller.undoLastSet()
+        awaitState<WorkoutState.ActiveSet>()
+        delay(100)
+        assertNull("undo of a HURT set with no prior row must leave no row", db.exerciseHurtStateDao().get(exerciseId))
+    }
+
+    @Test
+    fun hurtUndo_withAPriorRow_restoresItExactly() = runBlocking {
+        val exerciseId = (controller.state.value as WorkoutState.ActiveSet).plannedExercise.exercise.id
+        val priorAsOf = System.currentTimeMillis() - 60_000
+        db.exerciseHurtStateDao().upsert(ExerciseHurtState(exerciseId, isHurt = true, asOf = priorAsOf))
+
+        controller.recordFeedback(SetFeedback.HURT)
+        awaitState<WorkoutState.Resting>()
+        delay(100)
+
+        controller.undoLastSet()
+        awaitState<WorkoutState.ActiveSet>()
+        delay(100)
+        val restored = db.exerciseHurtStateDao().get(exerciseId)
+        assertNotNull("undo of a HURT set with a prior row must restore it", restored)
+        assertTrue(restored!!.isHurt)
+        assertEquals("the restored row must carry the prior row's own asOf", priorAsOf, restored.asOf)
+    }
+
+    @Test
+    fun hurt_withoutUndo_stillLeavesTheExerciseHurt() = runBlocking {
+        val exerciseId = (controller.state.value as WorkoutState.ActiveSet).plannedExercise.exercise.id
+        controller.recordFeedback(SetFeedback.HURT)
+        awaitState<WorkoutState.Resting>()
+        delay(100)
+        assertTrue(db.exerciseHurtStateDao().get(exerciseId)!!.isHurt)
     }
 
     @Test

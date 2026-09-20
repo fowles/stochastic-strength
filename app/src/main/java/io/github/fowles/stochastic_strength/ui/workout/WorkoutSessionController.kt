@@ -553,7 +553,10 @@ class WorkoutSessionController(
                     ),
                 )
             )
-            if (feedback == SetFeedback.HURT) {
+            // Captured before the upsert overwrites it, so undo can restore exactly this row
+            // rather than guessing at undo time.
+            val hurtUndo = if (feedback == SetFeedback.HURT) {
+                val previousRow = database.exerciseHurtStateDao().get(planned.exercise.id)
                 database.exerciseHurtStateDao().upsert(
                     ExerciseHurtState(
                         exerciseId = planned.exercise.id,
@@ -561,7 +564,8 @@ class WorkoutSessionController(
                         asOf = System.currentTimeMillis(),
                     )
                 )
-            }
+                HurtUndo(planned.exercise.id, previousRow)
+            } else null
             val isHurt = feedback == SetFeedback.HURT
             val completedSetIndex = if (isHurt) current.totalSets - 1 else current.setIndex
             // HURT ends the exercise: it drops out of any remaining rounds.
@@ -577,6 +581,7 @@ class WorkoutSessionController(
                 currentSetRowId = rowId,
                 restQuip = RestQuips.pick(upcomingMusclesAfterRest(current.plan, done), Random.Default),
                 done = done,
+                hurtUndo = hurtUndo,
             ))
             startRestTimer()
         }
@@ -598,6 +603,11 @@ class WorkoutSessionController(
             val exerciseId = restoredPlan.exercises[resting.exerciseIndex].exercise.id
             val setIndex = row?.let { it.setNumber - 1 } ?: resting.completedSetIndex
             database.workoutSetDao().deleteById(resting.currentSetRowId)
+            resting.hurtUndo?.let { hurtUndo ->
+                val previous = hurtUndo.previousRow
+                if (previous != null) database.exerciseHurtStateDao().upsert(previous)
+                else database.exerciseHurtStateDao().delete(hurtUndo.exerciseId)
+            }
             setState(WorkoutState.ActiveSet(
                 plan = restoredPlan,
                 exerciseIndex = resting.exerciseIndex,
