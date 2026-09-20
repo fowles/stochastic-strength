@@ -21,12 +21,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   editor: (1) a 3-row circuit (sibling `LinkNodeHost` groups inside one `LazyColumn` item), and
   (2) two consecutive 2-row circuits back to back (crosses a `LazyColumn` item boundary) — and
   revert per that report if either reads wrong.
-- `WorkoutSessionController.addExercise` / `.applySavedWorkout` now re-read `planner` inside their
-  `applyPreviewDelta` transform (2026-09-20), so the planner-read race is closed — but the change is
-  **not covered by a test**. Gating it would need the planner swap to happen while `addExercise`'s
-  own suspend is blocked, and `onLocationRefreshed`'s DB calls queue behind that block on the same
-  single-threaded gated executor, so the swap can't be made to land in the window. Covering it needs
-  a seam that swaps `planner` without touching the database.
 - Not exercised on the emulator during the unified-row pass: block drag with the new handle/node
   layout, swipe-to-reject and swipe-to-remove inside a circuit, and steppers with long exercise names
   at 360dp.

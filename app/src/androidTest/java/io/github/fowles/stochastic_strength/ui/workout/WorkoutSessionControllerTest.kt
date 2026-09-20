@@ -19,6 +19,7 @@ import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.belief.Belief
+import io.github.fowles.stochastic_strength.domain.WorkoutPlanner
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
@@ -745,6 +746,124 @@ class WorkoutSessionControllerTest {
             assertEquals(
                 "a structure edit made during replaceExercise's suspend must survive",
                 4, p.plan.exercises.first { it.exercise.id == survivorId }.sets,
+            )
+        } finally {
+            gated.unblock() // safety net — see the comment in addExercise's version of this test
+        }
+    }
+
+    // --- planner-read race -----------------------------------------------------------------
+    // addExercise and applySavedWorkout reach for `planner` *after* their DB reads. A concurrent
+    // onLocationRefreshed can replace it in that window, and the row must be priced by whatever
+    // planner is installed when the merge runs, not by the one that was there when the method
+    // started. The swap is made through `adoptPlanner`, which touches no database — going through
+    // onLocationRefreshed itself would not work, because its own DB calls queue behind the gated
+    // call on the same single-threaded executor and so could never land inside the window.
+
+    /**
+     * A planner built by hand rather than from the database, prescribing [e1rmKg] for every active
+     * exercise — far above anything the fixture's ~100 kg beliefs produce, so a row it priced is
+     * unmistakable.
+     */
+    private suspend fun strongPlanner(f: PreviewFixture, locationId: Long?, e1rmKg: Float) =
+        WorkoutPlanner(
+            availableExercises = f.db.exerciseDao().getActive(),
+            prescribedE1rm = f.db.exerciseDao().getActive().associate { it.id to e1rmKg },
+            recentHistory = emptyMap(),
+            weightUnit = WeightUnit.KG,
+            locationId = locationId,
+        )
+
+    @Test
+    fun addExercise_pricesAgainstAPlannerSwappedIn_duringItsSuspend() = runBlocking {
+        var locationId = 0L
+        val gated = gatedExecutor()
+        val f = previewFixture(count = 1, queryExecutor = gated) { freshDb, _ ->
+            locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            locationId
+        }
+        try {
+            val existingId = preview(f.controller).plan.exercises[0].exercise.id
+            val candidates = f.db.exerciseDao().getActive().filter { it.id != existingId }
+            val dryRunId = candidates[0].id
+            val newId = candidates[1].id
+            val newExercise = f.db.exerciseDao().getById(newId)!!
+            val stronger = strongPlanner(f, locationId, e1rmKg = 400f)
+
+            val ordinal = armGateAtLastCall(gated) {
+                f.controller.addExercise(dryRunId)
+                awaitPreviewSize(f.controller, 2)
+            }
+
+            f.controller.addExercise(newId)
+            gated.awaitEntered(ordinal)
+            f.controller.adoptPlanner(stronger) // the swap onLocationRefreshed would have made
+            gated.unblock()
+
+            awaitPreviewSize(f.controller, 3)
+            val p = preview(f.controller)
+            val added = p.plan.exercises.first { it.exercise.id == newId }
+            val expected = stronger.suggestedWeight(newExercise, p.plan.sessionReps)
+            assertTrue(
+                "the hand-built planner must price well above the fixture's, or this test proves " +
+                    "nothing — got $expected kg",
+                expected > 150f,
+            )
+            assertEquals(
+                "the appended row must be priced by the planner installed when the merge ran",
+                expected, added.sessionWeight, 0.001f,
+            )
+        } finally {
+            gated.unblock() // safety net — see the comment in addExercise's version of this test
+        }
+    }
+
+    @Test
+    fun loadSavedWorkout_pricesAgainstAPlannerSwappedIn_duringItsSuspend() = runBlocking {
+        var locationId = 0L
+        val gated = gatedExecutor()
+        val f = previewFixture(count = 1, queryExecutor = gated) { freshDb, _ ->
+            locationId = freshDb.knownLocationDao().insert(
+                KnownLocation(name = "Home", latitude = 0.0, longitude = 0.0)
+            )
+            locationId
+        }
+        try {
+            val saved = f.db.exerciseDao().getActive().take(2)
+            val savedId = f.repo.saveWorkout(null, "Loadable", saved.map {
+                SavedWorkoutEntry(exercise = it, reps = null, sets = 3, circuitId = null)
+            })
+            val stronger = strongPlanner(f, locationId, e1rmKg = 400f)
+
+            // Dry run on a throwaway controller over the same DB, to measure the load's DB-call
+            // count in this exact fixture (see armGateAtLastCall).
+            val dry = WorkoutSessionController(f.db, f.repo, WorkoutSessionBus(), scope)
+            dry.initializeSession(
+                locationId = locationId, locationName = null, preferredExerciseCount = 1,
+                preferredRepMin = 5, preferredRepMax = 10, weightUnit = WeightUnit.KG,
+            )
+            awaitPreviewSize(dry, 1)
+            val ordinal = armGateAtLastCall(gated) {
+                dry.loadSavedWorkout(savedId)
+                awaitPreviewSize(dry, 2)
+            }
+
+            f.controller.loadSavedWorkout(savedId)
+            gated.awaitEntered(ordinal)
+            f.controller.adoptPlanner(stronger)
+            gated.unblock()
+
+            awaitPreviewSize(f.controller, 2)
+            val p = preview(f.controller)
+            val expected = stronger.suggestedWeight(saved[0], p.plan.sessionReps)
+            assertTrue("the hand-built planner must price well above the fixture's", expected > 150f)
+            assertEquals(
+                "a loaded row must be priced by the planner installed when the merge ran",
+                expected,
+                p.plan.exercises.first { it.exercise.id == saved[0].id }.sessionWeight,
+                0.001f,
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test

@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.ui.workout
 
+import androidx.annotation.VisibleForTesting
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
@@ -62,6 +63,22 @@ class WorkoutSessionController(
 
     private var weightUnit: WeightUnit = WeightUnit.KG
     private var planner: WorkoutPlanner? = null
+
+    /**
+     * The single place [planner] is replaced. Every caller goes through here rather than assigning
+     * the field, because the field is read across suspends: `addExercise`, `applySavedWorkout` and
+     * `replaceExercise` all reach for it *after* their database reads, so when it is swapped
+     * matters as much as what it is swapped to.
+     *
+     * A test needs the swap to land at an exact moment — while another method's suspend is
+     * blocked — and cannot get there through [onLocationRefreshed], whose own database calls
+     * queue behind that block on a single-threaded test executor. Calling this directly is that
+     * seam: it touches no database, so it can run from the test thread mid-block.
+     */
+    @VisibleForTesting
+    internal fun adoptPlanner(p: WorkoutPlanner) {
+        planner = p
+    }
     private var sessionStartTime = 0L
     private var sessionLocationId: Long? = null
     private var preferredRepMin: Int = 5
@@ -103,7 +120,7 @@ class WorkoutSessionController(
         this.preferredRepMin = preferredRepMin
         this.preferredRepMax = preferredRepMax
         val p = repository.buildPlanner(locationId, weightUnit)
-        planner = p
+        adoptPlanner(p)
         val plan = p.generateWorkout(repMin = preferredRepMin, repMax = preferredRepMax)
         targetCount = preferredExerciseCount
         setState(WorkoutState.PlanPreview(
@@ -184,7 +201,7 @@ class WorkoutSessionController(
             }
             val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
                 repository.buildPlanner(sessionLocationId, weightUnit)
-                    .also { planner = it }
+                    .also(::adoptPlanner)
             } else {
                 planner ?: return@launch
             }
@@ -610,7 +627,7 @@ class WorkoutSessionController(
             // Deliberately unconditional even if the preview has moved on (or away) by now: this
             // is a plain field, not the observable WorkoutState, and it's still the freshest
             // planner for sessionLocationId either way — nothing to drop here.
-            planner = freshPlanner
+            adoptPlanner(freshPlanner)
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
             // This method's delta is only the location-derived row flags (and the availability
             // swaps/removals that follow from them) — apply them to the live preview's rows, not
@@ -781,7 +798,7 @@ class WorkoutSessionController(
             // Skipping for today changes nothing the planner reads, so it needs no rebuild.
             ExerciseRemovalReason.SKIP_TODAY -> return
         }
-        planner = repository.buildPlanner(sessionLocationId, weightUnit)
+        adoptPlanner(repository.buildPlanner(sessionLocationId, weightUnit))
     }
 
     private fun startRestTimer() {
