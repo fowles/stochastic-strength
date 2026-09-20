@@ -85,6 +85,12 @@ fun HistoryScreen(
  * impossible: every lambda here closes over the same immutable `state` its composition was called
  * with, and there is no path from inside this composable to a newer one. Collection happens in the
  * [HistoryScreen] wrapper, which holds nothing derived from `sessions`.
+ *
+ * That guarantee has two sides, and both must be kept. The wrapper must stay free of anything
+ * memoized on or reading `sessions`; and nothing inside *this* composable may read a state source
+ * keyed on `sessions` — no `collectAsState`, no flow, no `mutableStateOf` holding a session list.
+ * (The local `mutableStateOf`s below are fine: they hold menu and dialog state, which `rows` is not
+ * built from.)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

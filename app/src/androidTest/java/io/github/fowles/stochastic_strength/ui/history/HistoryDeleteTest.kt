@@ -34,9 +34,10 @@ import java.time.ZoneId
  * What this does NOT cover: the stale-key crash this screen once had, where the `LazyColumn` key
  * lambda indexed a fresher `sessions` list than the memoized `rows` it was built from. That bug
  * needed a live `collectAsState` delegate *inside* the composable; [HistoryScreenContent] now takes
- * a plain `HistoryState` value and collection lives in the untestable `HistoryScreen` wrapper, so
- * the hazard is structurally absent rather than caught here. This test would still pass if the
- * read-once local in [HistoryScreenContent] were removed.
+ * a plain `HistoryState` value and collection lives in the `HistoryScreen` wrapper, which is not
+ * drivable without the database — exactly what this test exists to avoid. So the hazard is
+ * structurally absent rather than caught here. This test would still pass if the read-once local
+ * in [HistoryScreenContent] were removed.
  */
 @RunWith(AndroidJUnit4::class)
 class HistoryDeleteTest {
