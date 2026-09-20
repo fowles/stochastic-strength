@@ -47,10 +47,14 @@ fun LocationEditScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var collapsedSections by remember { mutableStateOf(emptySet<Equipment>()) }
+    // Sections start collapsed, once: "nothing collapsed" is also what the user gets by opening
+    // every section, and re-collapsing them on the next toggle would undo that.
+    var sectionsInitialized by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.exercisesByEquipment) {
-        if (state.exercisesByEquipment.isNotEmpty() && collapsedSections.isEmpty()) {
+        if (state.exercisesByEquipment.isNotEmpty() && !sectionsInitialized) {
             collapsedSections = state.exercisesByEquipment.keys.toSet()
+            sectionsInitialized = true
         }
     }
 

@@ -99,7 +99,18 @@ class StravaExporter(
         tokenStore.saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresAt)
     }
 
-    suspend fun exportSession(sessionId: Long, weightUnit: WeightUnit): Long {
+    /**
+     * A 401 mid-export means the user revoked the app on Strava while our token still looked
+     * valid: drop the tokens so the caller's auth path reconnects instead of failing until expiry.
+     */
+    suspend fun exportSession(sessionId: Long, weightUnit: WeightUnit): Long = try {
+        uploadSession(sessionId, weightUnit)
+    } catch (e: StravaAuthException) {
+        tokenStore.clearTokens()
+        throw e
+    }
+
+    private suspend fun uploadSession(sessionId: Long, weightUnit: WeightUnit): Long {
         val accessToken = ensureValidToken()
 
         val session = db.workoutSessionDao().getById(sessionId)

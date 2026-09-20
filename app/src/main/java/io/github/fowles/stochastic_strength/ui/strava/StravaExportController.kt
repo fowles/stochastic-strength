@@ -5,6 +5,7 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.strava.StravaAuthException
 import io.github.fowles.stochastic_strength.domain.strava.StravaExporter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +76,8 @@ class StravaExportController(
                     exporter.notifyUploadResult(success = true)
                 }
                 .onFailure { e ->
+                    // Leaving the screen is not a failed upload: no error state, no notification.
+                    if (e is CancellationException) throw e
                     Log.e("StravaExport", "Export failed", e)
                     if (e is StravaAuthException) {
                         _state.value = StravaExportState.NeedsAuth(exporter.getAuthUrl())

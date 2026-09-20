@@ -14,9 +14,14 @@ class LocationService(context: Context) {
 
     @Suppress("MissingPermission")
     suspend fun getCurrentCoords(): Pair<Double, Double>? = suspendCancellableCoroutine { cont ->
-        fusedLocationClient.lastLocation
-            .addOnSuccessListener { loc -> cont.resume(loc?.let { it.latitude to it.longitude }) }
-            .addOnFailureListener { cont.resume(null) }
+        try {
+            fusedLocationClient.lastLocation
+                .addOnSuccessListener { loc -> cont.resume(loc?.let { it.latitude to it.longitude }) }
+                .addOnFailureListener { cont.resume(null) }
+        } catch (e: SecurityException) {
+            // The workout starts whether or not the permission was granted; denied is just "unknown".
+            cont.resume(null)
+        }
     }
 
     suspend fun resolveLocation(db: AppDatabase): LocationResult {
@@ -29,7 +34,9 @@ class LocationService(context: Context) {
         }
         val (lat, lon) = coords
         val match = db.knownLocationDao().getAll()
-            .firstOrNull { haversineMeters(lat, lon, it.latitude, it.longitude) <= 100.0 }
+            .map { it to haversineMeters(lat, lon, it.latitude, it.longitude) }
+            .filter { (_, meters) -> meters <= 100.0 }
+            .minByOrNull { (_, meters) -> meters }?.first
         return if (match != null) LocationResult.Known(match.id) else LocationResult.Unknown(lat, lon)
     }
 

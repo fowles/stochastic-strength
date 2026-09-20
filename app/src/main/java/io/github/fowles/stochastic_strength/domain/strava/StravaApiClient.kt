@@ -117,6 +117,7 @@ object StravaApiClient {
             val response = client.newCall(request).execute()
             val bodyStr = response.body.string()
             Log.i("StravaApiClient", "Upload response ${response.code}: $bodyStr")
+            if (response.code == 401) throw StravaAuthException("Upload unauthorized: $bodyStr")
             if (!response.isSuccessful) throw IOException("Upload failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)
@@ -134,6 +135,7 @@ object StravaApiClient {
             val response = client.newCall(request).execute()
             val bodyStr = response.body.string()
             Log.i("StravaApiClient", "Poll response ${response.code}: $bodyStr")
+            if (response.code == 401) throw StravaAuthException("Poll unauthorized: $bodyStr")
             if (!response.isSuccessful) throw IOException("Poll failed ${response.code}: $bodyStr")
 
             val json = JSONObject(bodyStr)

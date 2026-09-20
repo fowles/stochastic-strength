@@ -127,6 +127,10 @@ class LocationEditViewModel(
     }
 
     fun confirmDelete() {
+        // A pending autosave (or onCleared's flush of one) would write exclusion rows for the
+        // location being deleted, and nothing would ever clean them up.
+        saveJob?.cancel()
+        saveJob = null
         viewModelScope.launch {
             repository.deleteLocation(locationId)
             _state.value = _state.value.copy(navigateBack = true)
