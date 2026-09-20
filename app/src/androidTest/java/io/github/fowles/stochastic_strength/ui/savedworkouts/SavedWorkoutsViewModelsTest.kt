@@ -165,6 +165,19 @@ class SavedWorkoutsViewModelsTest {
     }
 
     @Test
+    fun newWorkout_doubleTappedDone_insertsOnce() {
+        val vm = newEditor()
+        runBlocking { vm.allExercises.first { it.isNotEmpty() } }
+
+        // Both saves start before the first insert can return its id.
+        onMain { vm.addExercise(bench.id); vm.save(); vm.save() }
+        await("created") { savedCount() >= 1 }
+        runBlocking { delay(200) } // let a second insert land, if one is coming
+
+        assertEquals(1, savedCount())
+    }
+
+    @Test
     fun save_onExistingEmptyUnnamedWorkout_keepsIt() = runBlocking {
         val id = repo.saveWorkout(null, "", emptyList())
         val vm = editor(id)

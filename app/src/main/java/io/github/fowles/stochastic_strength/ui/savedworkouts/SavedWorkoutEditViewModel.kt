@@ -19,12 +19,16 @@ import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Whether the workout row behind the editor has been read yet, and whether it was still there. */
 enum class LoadStatus { LOADING, LOADED, MISSING }
@@ -132,16 +136,24 @@ class SavedWorkoutEditViewModel(
     }
 
     private var saveJob: Job? = null
+    private val saveMutex = Mutex()
 
-    private suspend fun performSave() {
+    /**
+     * One save at a time, and the write-then-remember-the-id step is never torn by cancellation:
+     * a second save that read `persistedId == null` while the first insert was still in flight
+     * would insert the workout twice.
+     */
+    private suspend fun performSave() = saveMutex.withLock {
         val s = _state.value
-        if (s.status != LoadStatus.LOADED) return
+        if (s.status != LoadStatus.LOADED) return@withLock
         val name = s.name.trim()
         // A new workout the user never touched is never written; an existing one is never
         // silently deleted, even when emptied — that is what the list's delete button is for.
-        if (persistedId == null && s.entries.isEmpty() && name.isEmpty()) return
+        if (persistedId == null && s.entries.isEmpty() && name.isEmpty()) return@withLock
         // Empty stays empty: the list and pickers derive a name from the exercises.
-        persistedId = repository.saveWorkout(persistedId, name, s.entries)
+        withContext(NonCancellable) {
+            persistedId = repository.saveWorkout(persistedId, name, s.entries)
+        }
         savedSnapshot = s
     }
 
