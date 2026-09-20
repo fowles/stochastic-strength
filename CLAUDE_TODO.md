@@ -6,6 +6,11 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 
 ## Open — needs triage
 
+- `RestingContent`'s staged-action branch (`state.staged != null` — swap / end-exercise / adjust-
+  weight / warmup-done) titles its card "Up next" / "Warm up" / "First set" for the commit target
+  but never shows a circuit round, even when that commit target is a circuit member. Same class of
+  omission as the "Next up" round fix in this pass, but a different code path (keyed off
+  `staged.commitTarget`, not `WorkoutSequence.next`); out of scope for this task.
 - `WorkoutRepository.saveSessionAsWorkout`: after a swap inside a circuit, both the abandoned
   original and its replacement are saved as members, each at full rounds (`equalizeRounds`). That
   follows the spec ("rounds = max over members") but is probably not what the user wants.
@@ -17,9 +22,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   `setState(current.copy(…))`; a pin or structure edit tapped during that window is overwritten.
   Pre-existing pattern (see the existing `onLocationRefreshed` entry); fix by re-reading state after
   the suspend and re-applying only the delta.
-- Rest screen "Next up" card omits the round for a circuit member (the notification includes it),
-  and after a too-hard weight reduction inside a circuit the card says "Reduced weight: A" although
-  the next set is B's.
 - Shared row polish (`ui/components/CircuitChrome.kt`), deferred from the unified-row review:
   - While a circuit member on Today's workout shows its swipe `ExerciseActionRow`, its rail segment
     disappears and its link node stays floating; the node also does not move with a row mid-swipe.
