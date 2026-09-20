@@ -196,4 +196,36 @@ class WorkoutRepositoryTest {
             strengths.any { it.muscleGroup == MuscleGroup.QUADS && it.baselineWeight > 0f },
         )
     }
+
+    @Test
+    fun rowSuggester_usesTheProfilesRepRange_notTheDefault() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(
+                sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG,
+                preferredRepMin = 3, preferredRepMax = 6,
+            )
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+
+        val suggester = repository.rowSuggester()
+
+        assertEquals(3, suggester.repMin)
+        assertEquals(6, suggester.repMax)
+        assertEquals(RepRangePicker.typical(3, 6), suggester.typicalReps)
+    }
+
+    @Test
+    fun rowSuggester_withNoProfile_fallsBackToTheDefaultRepRange() = runBlocking {
+        // No UserProfile row inserted at all.
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+
+        val suggester = repository.rowSuggester()
+
+        assertEquals(RepRangePicker.DEFAULT_MIN, suggester.repMin)
+        assertEquals(RepRangePicker.DEFAULT_MAX, suggester.repMax)
+    }
 }
