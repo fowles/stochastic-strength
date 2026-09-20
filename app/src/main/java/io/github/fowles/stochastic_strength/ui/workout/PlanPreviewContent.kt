@@ -322,17 +322,27 @@ private fun ExercisePreviewRow(
                     .padding(vertical = 8.dp),
                 trailing = {
                     when {
-                        planned.sessionWeight > 0f -> ValueStepper(
-                            text = WeightFormatter.format(planned.sessionWeight, weightUnit),
-                            pinned = planned.weightPinned,
-                            unit = null,
-                            onDecrement = { onAdjustWeight(-1) },
-                            onIncrement = { onAdjustWeight(+1) },
-                            onReset = onResetWeight,
-                            fewerDescription = "Less weight",
-                            moreDescription = "More weight",
-                            canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
-                        )
+                        // The note sits under the weight, in the height the trailing column
+                        // already has spare (the body's name + reps stepper is taller than the
+                        // stepper alone), so a pinned weight never makes the row grow.
+                        planned.sessionWeight > 0f -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            ValueStepper(
+                                text = WeightFormatter.format(planned.sessionWeight, weightUnit),
+                                pinned = planned.weightPinned,
+                                unit = null,
+                                onDecrement = { onAdjustWeight(-1) },
+                                onIncrement = { onAdjustWeight(+1) },
+                                onReset = onResetWeight,
+                                fewerDescription = "Less weight",
+                                moreDescription = "More weight",
+                                canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
+                            )
+                            SuggestionNote(
+                                pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
+                                suggestedKg = suggestedWeight,
+                                unit = weightUnit,
+                            )
+                        }
                         planned.exercise.equipment == Equipment.BODYWEIGHT -> Text(
                             "Bodyweight",
                             style = MaterialTheme.typography.bodyMedium,
@@ -368,11 +378,6 @@ private fun ExercisePreviewRow(
                         canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
                     )
                 }
-                SuggestionNote(
-                    pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
-                    suggestedKg = suggestedWeight,
-                    unit = weightUnit,
-                )
                 flag?.let {
                     Text(
                         when (it) {

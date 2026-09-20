@@ -258,17 +258,25 @@ private fun EntryRow(
                 .padding(vertical = 8.dp),
             trailing = {
                 when {
-                    weightUnitOrNull != null -> ValueStepper(
-                        text = WeightFormatter.format(shownWeight, weightUnitOrNull),
-                        pinned = pinnedWeight != null,
-                        unit = null,
-                        onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, weightUnitOrNull)) },
-                        onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, weightUnitOrNull)) },
-                        onReset = { onWeightChange(null) },
-                        fewerDescription = "Less weight",
-                        moreDescription = "More weight",
-                        canDecrement = !WeightFormatter.atFloor(shownWeight, weightUnitOrNull),
-                    )
+                    // The note sits under the weight, in the height the trailing column already
+                    // has spare (the body's name + reps stepper is taller than the stepper
+                    // alone), so a pinned weight never makes the row grow.
+                    weightUnitOrNull != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ValueStepper(
+                            text = WeightFormatter.format(shownWeight, weightUnitOrNull),
+                            pinned = pinnedWeight != null,
+                            unit = null,
+                            onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, weightUnitOrNull)) },
+                            onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, weightUnitOrNull)) },
+                            onReset = { onWeightChange(null) },
+                            fewerDescription = "Less weight",
+                            moreDescription = "More weight",
+                            canDecrement = !WeightFormatter.atFloor(shownWeight, weightUnitOrNull),
+                        )
+                        if (suggested != null) {
+                            SuggestionNote(pinnedKg = pinnedWeight, suggestedKg = suggested, unit = weightUnitOrNull)
+                        }
+                    }
                     entry.exercise.equipment == Equipment.BODYWEIGHT -> Text(
                         "Bodyweight",
                         style = MaterialTheme.typography.bodyMedium,
@@ -309,9 +317,6 @@ private fun EntryRow(
                     canDecrement = baseReps != null && baseReps > PINNED_REPS.first,
                     canIncrement = baseReps != null && baseReps < PINNED_REPS.last,
                 )
-            }
-            if (suggested != null && unit != null) {
-                SuggestionNote(pinnedKg = pinnedWeight, suggestedKg = suggested, unit = unit)
             }
         }
     }
