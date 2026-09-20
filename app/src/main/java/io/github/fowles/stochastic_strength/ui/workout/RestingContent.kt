@@ -35,6 +35,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
@@ -45,6 +46,10 @@ import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.usesBarPlates
+import io.github.fowles.stochastic_strength.domain.CircuitStructure
+import io.github.fowles.stochastic_strength.domain.WorkoutProgress
+import io.github.fowles.stochastic_strength.ui.components.RowPlace
+import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WorkoutSequence
@@ -320,8 +325,6 @@ private fun NextExerciseCard(
     }
 }
 
-private enum class ExerciseProgress { COMPLETED, IN_PROGRESS, PENDING }
-
 @Composable
 private fun RemainingExerciseList(
     exercises: List<PlannedExercise>,
@@ -342,6 +345,10 @@ private fun RemainingExerciseList(
             )
         }
     }
+    val rows = remember(exercises, done, inProgressIndex) {
+        WorkoutProgress.rows(exercises, done, inProgressIndex)
+    }
+    val blocks = remember(exercises) { CircuitStructure.blocks(exercises) }
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxWidth(),
@@ -357,51 +364,54 @@ private fun RemainingExerciseList(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             }
         }
-        exercises.forEachIndexed { i, planned ->
-            val remaining = planned.sets - (done[planned.exercise.id] ?: 0)
-            val progress = when {
-                remaining <= 0 -> ExerciseProgress.COMPLETED
-                i == inProgressIndex -> ExerciseProgress.IN_PROGRESS
-                else -> ExerciseProgress.PENDING
-            }
-            val detail = when {
-                remaining <= 0 -> "done"
-                remaining < planned.sets || i == inProgressIndex -> "$remaining left"
-                else -> "${planned.sets} sets"
-            }
+        // One item per exercise (not per block) so the scroll target above stays an exercise index.
+        for (block in blocks) for (i in block.indices) {
+            val planned = exercises[i]
             item(key = planned.exercise.id) {
-                RemainingExerciseRow(name = planned.exercise.name, detail = detail, progress = progress)
+                RemainingExerciseRow(name = planned.exercise.name, row = rows[i], place = rowPlace(block, i))
             }
         }
     }
 }
 
 @Composable
-private fun RemainingExerciseRow(name: String, detail: String, progress: ExerciseProgress) {
-    val iconTint = when (progress) {
-        ExerciseProgress.IN_PROGRESS -> MaterialTheme.colorScheme.primary
+private fun RemainingExerciseRow(name: String, row: WorkoutProgress.Row, place: RowPlace) {
+    val iconTint = when (row.status) {
+        WorkoutProgress.Status.UP_NEXT -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val nameColor = when (progress) {
-        ExerciseProgress.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
+    val nameColor = when (row.status) {
+        WorkoutProgress.Status.DONE -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurface
     }
+    val railColor = MaterialTheme.colorScheme.primary
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // The same rail as the plan rows: it joins a circuit's status icons, stopping short of
+            // each icon so the glyph stays legible.
+            .drawBehind {
+                val x = RAIL_ICON_SIZE.toPx() / 2
+                val gap = RAIL_ICON_SIZE.toPx() / 2 + 1.dp.toPx()
+                val mid = size.height / 2
+                fun rail(from: Float, to: Float) =
+                    drawLine(railColor, Offset(x, from), Offset(x, to), strokeWidth = 2.dp.toPx())
+                if (place == RowPlace.MIDDLE || place == RowPlace.LAST) rail(0f, mid - gap)
+                if (place == RowPlace.FIRST || place == RowPlace.MIDDLE) rail(mid + gap, size.height)
+            }
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = when (progress) {
-                ExerciseProgress.COMPLETED -> Icons.Filled.CheckCircle
-                ExerciseProgress.IN_PROGRESS -> Icons.Filled.PlayArrow
-                ExerciseProgress.PENDING -> Icons.Outlined.CheckCircle
+            imageVector = when (row.status) {
+                WorkoutProgress.Status.DONE, WorkoutProgress.Status.DONE_THIS_ROUND -> Icons.Filled.CheckCircle
+                WorkoutProgress.Status.UP_NEXT -> Icons.Filled.PlayArrow
+                WorkoutProgress.Status.PENDING -> Icons.Outlined.CheckCircle
             },
             contentDescription = null,
             tint = iconTint,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(RAIL_ICON_SIZE),
         )
         Text(
             name,
@@ -409,10 +419,14 @@ private fun RemainingExerciseRow(name: String, detail: String, progress: Exercis
             color = nameColor,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            detail,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        row.label?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
+
+private val RAIL_ICON_SIZE = 16.dp
