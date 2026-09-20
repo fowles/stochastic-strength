@@ -23,6 +23,8 @@ import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
@@ -82,6 +84,10 @@ class WorkoutSessionControllerTest {
 
     @After
     fun tearDown() {
+        // Every controller in the test (including each previewFixture's) runs in this scope, so a
+        // coroutine still in flight would keep querying a closed database and fail whichever test
+        // runs next. Cancel first, then close.
+        runBlocking { scope.coroutineContext.job.cancelAndJoin() }
         db.close()
     }
 
