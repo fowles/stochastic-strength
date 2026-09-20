@@ -93,8 +93,14 @@ class WorkoutPlanner(
      * The exercise need not be in [availableExercises]; it only needs a `prescribedE1rm` entry
      * (or a coefficient of zero, in which case it is unloaded like any bodyweight row).
      */
-    fun planExplicit(exercise: Exercise, reps: Int?, plan: WorkoutPlan): PlannedExercise =
-        withWeight(PlannedExercise(exercise = exercise), reps ?: plan.sessionReps)
+    fun planExplicit(
+        exercise: Exercise,
+        reps: Int?,
+        plan: WorkoutPlan,
+        sets: Int = PlannedExercise.DEFAULT_SETS,
+        circuitId: Int? = null,
+    ): PlannedExercise =
+        withWeight(PlannedExercise(exercise = exercise, sets = sets, circuitId = circuitId), reps ?: plan.sessionReps)
 
     private fun isLoaded(exercise: Exercise): Boolean =
         coefficientSource.get(exercise)?.let { it > 0f } ?: false
@@ -125,19 +131,25 @@ class WorkoutPlanner(
             weightUnit,
         )
         val warmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight, pe.exercise)
-        val perRep = pacingEstimator.secondsPerRep(pe.exercise.id)
         return pe.copy(
             sessionWeight = newWeight,
             warmupSets = warmups,
-            estimatedSeconds = DurationCalculator.estimate(
-                exercise = pe.exercise,
-                sessionReps = pe.sessionReps,
-                numSets = PlannedExercise.DEFAULT_SETS,
-                warmupSets = warmups,
-                secondsPerRep = perRep,
-            ),
+            estimatedSeconds = durationOf(pe, pe.sessionReps, warmups),
         )
     }
+
+    private fun durationOf(pe: PlannedExercise, reps: Int, warmups: List<WarmupSet>): Int =
+        DurationCalculator.estimate(
+            exercise = pe.exercise,
+            sessionReps = reps,
+            numSets = pe.sets,
+            warmupSets = warmups,
+            secondsPerRep = pacingEstimator.secondsPerRep(pe.exercise.id),
+        )
+
+    /** Re-prices a row's duration after its set count changed; weight and warmups are untouched. */
+    fun restampDuration(pe: PlannedExercise): PlannedExercise =
+        pe.copy(estimatedSeconds = durationOf(pe, pe.sessionReps, pe.warmupSets))
 
     fun computeWarmupSets(weightKg: Float, exercise: Exercise? = null): List<WarmupSet> {
         // Non-bar lifts (bodyweight/dumbbell/etc.) and asymmetric barbells (T-Bar, Landmine)
@@ -254,20 +266,13 @@ class WorkoutPlanner(
     }
 
     private fun withWeight(pe: PlannedExercise, sessionReps: Int): PlannedExercise {
-        val perRep = pacingEstimator.secondsPerRep(pe.exercise.id)
         if (pe.exercise.isTimed) {
             val timedReps = 60
             return pe.copy(
                 sessionWeight = 0f,
                 sessionReps = timedReps,
                 warmupSets = emptyList(),
-                estimatedSeconds = DurationCalculator.estimate(
-                    exercise = pe.exercise,
-                    sessionReps = timedReps,
-                    numSets = PlannedExercise.DEFAULT_SETS,
-                    warmupSets = emptyList(),
-                    secondsPerRep = perRep,
-                ),
+                estimatedSeconds = durationOf(pe, timedReps, emptyList()),
             )
         }
         val weight = weightForExercise(pe.exercise, sessionReps)
@@ -276,13 +281,7 @@ class WorkoutPlanner(
             sessionWeight = weight,
             sessionReps = sessionReps,
             warmupSets = warmups,
-            estimatedSeconds = DurationCalculator.estimate(
-                exercise = pe.exercise,
-                sessionReps = sessionReps,
-                numSets = PlannedExercise.DEFAULT_SETS,
-                warmupSets = warmups,
-                secondsPerRep = perRep,
-            ),
+            estimatedSeconds = durationOf(pe, sessionReps, warmups),
         )
     }
 

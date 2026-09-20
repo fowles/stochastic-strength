@@ -955,4 +955,35 @@ class WorkoutPlannerTest {
         assertTrue(planned.sessionWeight > 0f)
         assertTrue(planned.warmupSets.isNotEmpty())
     }
+
+    @Test
+    fun `planExplicit carries sets and circuit and prices duration from sets`() {
+        val exercise = exercise(id = 1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
+        val planner = planner(
+            exercises = listOf(exercise),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+        )
+        val plan = WorkoutPlan(emptyList(), null, sessionReps = 8)
+
+        val three = planner.planExplicit(exercise, reps = 8, plan = plan)
+        val five = planner.planExplicit(exercise, reps = 8, plan = plan, sets = 5, circuitId = 2)
+        assertEquals(5, five.sets)
+        assertEquals(2, five.circuitId)
+        assertTrue("5 sets must take longer than 3", five.estimatedSeconds > three.estimatedSeconds)
+    }
+
+    @Test
+    fun `restampDuration follows a changed set count`() {
+        val exercise = exercise(id = 1L, name = "Barbell Bench Press", muscle = MuscleGroup.CHEST)
+        val planner = planner(
+            exercises = listOf(exercise),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f),
+        )
+        val plan = WorkoutPlan(emptyList(), null, sessionReps = 8)
+
+        val three = planner.planExplicit(exercise, reps = 8, plan = plan)
+        val one = planner.restampDuration(three.copy(sets = 1))
+        assertTrue(one.estimatedSeconds < three.estimatedSeconds)
+        assertEquals(three.sessionWeight, one.sessionWeight)
+    }
 }
