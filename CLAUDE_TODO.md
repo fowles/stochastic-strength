@@ -61,3 +61,9 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   layout, swipe-to-reject and swipe-to-remove inside a circuit, and steppers with long exercise names
   at 360dp.
 
+- Deleting a history session leaves derived state stale: `WorkoutRepository.deleteSession` never
+  calls `replayDerivedState()` (every other history write does), so muscle levels / coefficients /
+  prescriptions still reflect the deleted sets until the next replay. `HistoryViewModel.confirmDelete`
+  likewise only filters `sessions`, so the calendar's `workoutDays` and the highlight keep the deleted
+  day until the screen reloads. Noticed while fixing the delete crash (2026-09-19); no UI test covers
+  `HistoryScreen` delete.

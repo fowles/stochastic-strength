@@ -166,10 +166,13 @@ fun HistoryScreen(
         }
 
         val zone = ZoneId.systemDefault()
-        val entryDates = remember(state.sessions) {
-            state.sessions.map { HistoryRows.localDate(it.session.startTime, zone) }
+        // Read once: `state` is a live delegate, and LazyColumn re-runs the key lambda on a snapshot
+        // apply before this recomposes. The lambdas must index the same list `rows` was built from.
+        val sessions = state.sessions
+        val entryDates = remember(sessions) {
+            sessions.map { HistoryRows.localDate(it.session.startTime, zone) }
         }
-        val rows = remember(state.sessions) { HistoryRows.buildRows(entryDates) }
+        val rows = remember(sessions) { HistoryRows.buildRows(entryDates) }
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
 
@@ -185,7 +188,7 @@ fun HistoryScreen(
                 },
             )
 
-            if (state.sessions.isEmpty()) {
+            if (sessions.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(32.dp),
                     contentAlignment = Alignment.Center,
@@ -199,14 +202,14 @@ fun HistoryScreen(
                         key = { row ->
                             when (row) {
                                 is HistoryRow.MonthHeader -> "h-${row.month}"
-                                is HistoryRow.Entry -> "s-${state.sessions[row.itemIndex].session.id}"
+                                is HistoryRow.Entry -> "s-${sessions[row.itemIndex].session.id}"
                             }
                         },
                     ) { row ->
                         when (row) {
                             is HistoryRow.MonthHeader -> MonthDividerRow(row.month)
                             is HistoryRow.Entry -> {
-                                val item = state.sessions[row.itemIndex]
+                                val item = sessions[row.itemIndex]
                                 SessionRow(
                                     item = item,
                                     onClick = { onSessionTap(item.session.id) },
