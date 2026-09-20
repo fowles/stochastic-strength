@@ -152,12 +152,12 @@ class WorkoutRepository(
         )
     }
 
-    /** A planner-backed pricer for off-session editing (the saved-workout editor), at the profile's rep range. */
+    /** A planner-backed pricer for off-session editing (the saved-workout editor), at the profile's rep range + unit. */
     suspend fun rowSuggester(): RowSuggester {
         val profile = db.userProfileDao().getProfile()
         val repMin = profile?.preferredRepMin ?: RepRangePicker.DEFAULT_MIN
         val repMax = profile?.preferredRepMax ?: RepRangePicker.DEFAULT_MAX
-        val unit = WeightUnit.KG
+        val unit = profile?.weightUnit ?: WeightUnit.KG
         return RowSuggester(buildPlanner(locationId = null, weightUnit = unit), repMin, repMax, unit)
     }
 

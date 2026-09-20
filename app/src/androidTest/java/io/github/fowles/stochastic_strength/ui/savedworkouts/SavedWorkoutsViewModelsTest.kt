@@ -8,6 +8,10 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.Sex
+import io.github.fowles.stochastic_strength.data.model.StrengthLevel
+import io.github.fowles.stochastic_strength.data.model.UserProfile
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
@@ -252,5 +256,15 @@ class SavedWorkoutsViewModelsTest {
         await("suggester") { vm.suggester.value != null }
         val s = vm.suggester.value!!
         assertTrue(s.weight(bench, 3) >= s.weight(bench, null))
+    }
+
+    @Test
+    fun suggester_followsTheProfilesWeightUnit() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.LBS)
+        )
+        val vm = newEditor()
+        await("suggester") { vm.suggester.value != null }
+        assertEquals(WeightUnit.LBS, vm.suggester.value!!.weightUnit)
     }
 }

@@ -15,7 +15,3 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - Rest screen "Next up" card omits the round for a circuit member (the notification includes it),
   and after a too-hard weight reduction inside a circuit the card says "Reduced weight: A" although
   the next set is B's.
-- `WorkoutRepository.rowSuggester()` (saved-workout editor) always prices and displays weight in kg
-  (`WeightUnit.KG`, per task-6-brief.md's explicit spec), instead of reading `profile.weightUnit`.
-  A user whose profile is set to lbs sees kg suggestions and steppers in the workout editor while
-  Today's workout (PlanPreviewContent) correctly uses their preferred unit.
