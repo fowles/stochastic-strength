@@ -339,6 +339,26 @@ class WorkoutRepository(
         workouts.map { w -> w.toDetail(rowsByWorkout[w.id].orEmpty(), byId) }
     }
 
+    /**
+     * The saved workout the user's recent history says is due, or null to plan a random workout.
+     * See [WorkoutRoutine] for the rule; this supplies it the history and the candidates.
+     */
+    suspend fun suggestRoutineWorkout(): SavedWorkoutDetail? {
+        val saved = db.savedWorkoutDao().getAll()
+        if (saved.isEmpty()) return null
+        val rowsByWorkout = db.savedWorkoutDao().getAllExerciseRows().groupBy { it.workoutId }
+        val candidates = saved.map { w ->
+            WorkoutRoutine.Candidate(w.id, rowsByWorkout[w.id].orEmpty().mapTo(mutableSetOf()) { it.exerciseId })
+        }
+        // Two cycles of the longest routine recognized is all the rule ever looks at.
+        val sessions = db.workoutSessionDao().getRecentCompletedSessions(limit = WorkoutRoutine.HISTORY_LIMIT)
+        val setsBySession = db.workoutSetDao().getAllSetsForSessions(sessions.map { it.id })
+            .groupBy { it.sessionId }
+        // getRecentCompletedSessions is already newest-first, which is the order the rule reads.
+        val history = sessions.map { s -> setsBySession[s.id].orEmpty().mapTo(mutableSetOf()) { it.exerciseId } }
+        return WorkoutRoutine.nextWorkoutId(history, candidates)?.let { getSavedWorkout(it) }
+    }
+
     suspend fun getSavedWorkout(id: Long): SavedWorkoutDetail? {
         val workout = db.savedWorkoutDao().getById(id) ?: return null
         val rows = db.savedWorkoutDao().getExerciseRows(id)

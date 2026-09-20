@@ -15,6 +15,9 @@ object WorkoutRoutine {
     /** The longest routine recognized: a three-day rotation. */
     private const val MAX_PERIOD = 3
 
+    /** How many recent sessions the rule can ever read: two cycles of the longest routine. */
+    const val HISTORY_LIMIT = MAX_PERIOD * 2
+
     /** A saved workout reduced to what labeling needs. */
     data class Candidate(val id: Long, val exerciseIds: Set<Long>)
 
