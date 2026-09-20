@@ -6,6 +6,15 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 
 ## Open — needs triage
 
+- `WorkoutSessionControllerTest` (the whole class) intermittently fails
+  `hurtMidCircuit_dropsThatMemberFromLaterRounds` with `IllegalStateException: attempt to
+  re-open an already-closed object: SQLiteDatabase: :memory:` when the full class is run
+  repeatedly back to back (~1 in 6-12 runs observed 2026-09-20, task-6 review-fix pass). The
+  failing test itself never flakes in isolation (8/8 clean solo runs) and doesn't touch a
+  gated/fresh fixture db, so this looks like cross-test contention/teardown timing under load
+  rather than a bug in that test's own logic. Reproduces identically on the pre-review-fix
+  commit (`111fb4a8`), so it predates and is unrelated to the task-6 review-fix pass (the
+  `applyPreviewDelta`/`GatedDbExecutor` changes) — logged here rather than chased further.
 - `LinkNodeHost`'s new `isTraversalGroup`/`traversalIndex = -1f` (added to place the circuit
   link-node between the two rows it links, task 4 of the 2026-09-19 todo sweep) is unverified on a
   real device — no TalkBack run was possible off-device. Needs a human to run the checklist in
@@ -21,14 +30,12 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - `WorkoutRepository.saveSessionAsWorkout`: after a swap inside a circuit, both the abandoned
   original and its replacement are saved as members, each at full rounds (`equalizeRounds`). That
   follows the spec ("rounds = max over members") but is probably not what the user wants.
-- `WorkoutSessionController.onLocationRefreshed` sets state after the `withRowFlags` suspend, so a
-  plan edit made during that suspend is overwritten. Pre-existing pattern, but with per-row sets and
-  circuits more kinds of edit can now be lost.
-- Plan-preview edits can be lost across a suspend: `applySavedWorkout`, `addExercise` and
-  `onLocationRefreshed` read `current`, suspend (`buildPlanner` / `withRowFlags`), then
-  `setState(current.copy(…))`; a pin or structure edit tapped during that window is overwritten.
-  Pre-existing pattern (see the existing `onLocationRefreshed` entry); fix by re-reading state after
-  the suspend and re-applying only the delta.
+- `WorkoutSessionController.addExercise` and `.applySavedWorkout` capture `p = planner` before
+  their suspends; a concurrent `onLocationRefreshed` can swap `planner` to a fresh instance in that
+  window, so the add/load prices its row(s) against a superseded planner instead of the latest one.
+  Pre-existing (predates and is unchanged by the 2026-09-19 todo-sweep task-6 fix, which addressed
+  the *state*-merge race but not this planner-read race); needs its own design pass (e.g. re-reading
+  `planner` right before pricing, or making the planner swap itself suspend-safe).
 - Shared row polish (`ui/components/CircuitChrome.kt`), deferred from the unified-row review:
   - While a circuit member on Today's workout shows its swipe `ExerciseActionRow`, its rail segment
     disappears and its link node stays floating; the node also does not move with a row mid-swipe.

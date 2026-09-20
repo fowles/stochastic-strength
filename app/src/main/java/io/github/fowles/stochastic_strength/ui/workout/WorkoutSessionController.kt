@@ -174,26 +174,30 @@ class WorkoutSessionController(
                 }
                 ExerciseRemovalReason.SKIP_TODAY -> Unit
             }
-            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-            val updatedPlan = current.plan.copy(
-                sessionRejectedIds = current.plan.sessionRejectedIds + rejectedId
-            )
             val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
                 repository.buildPlanner(sessionLocationId, weightUnit)
                     .also { planner = it }
             } else {
                 planner ?: return@launch
             }
-            val currentIndex = updatedPlan.exercises.indexOfFirst { it.exercise.id == rejectedId }
-            if (currentIndex < 0) return@launch
-            // The slider is a floor, not the plan's size: only restock when removing would drop below it.
-            val replacement = if (updatedPlan.exercises.size - 1 < targetCount)
-                p.pickReplacement(updatedPlan, currentIndex) else null
-            val old = updatedPlan.exercises[currentIndex]
-            val newExercises = if (replacement != null)
-                updatedPlan.exercises.toMutableList().also { it[currentIndex] = replacement.inSlotOf(old, p) }
-            else CircuitEdits.remove(updatedPlan.exercises, currentIndex)
-            setState(prunedToPlanRows(current.copy(plan = updatedPlan.copy(exercises = newExercises))))
+            // The delta this method owns is the one rejected row (replaced or removed) plus the
+            // rejected-ids bookkeeping: apply it against the live preview, not a plan snapshot
+            // taken before buildPlanner's suspend.
+            applyPreviewDelta { live ->
+                val updatedPlan = live.plan.copy(
+                    sessionRejectedIds = live.plan.sessionRejectedIds + rejectedId
+                )
+                val currentIndex = updatedPlan.exercises.indexOfFirst { it.exercise.id == rejectedId }
+                if (currentIndex < 0) return@applyPreviewDelta null
+                // The slider is a floor, not the plan's size: only restock when removing would drop below it.
+                val replacement = if (updatedPlan.exercises.size - 1 < targetCount)
+                    p.pickReplacement(updatedPlan, currentIndex) else null
+                val old = updatedPlan.exercises[currentIndex]
+                val newExercises = if (replacement != null)
+                    updatedPlan.exercises.toMutableList().also { it[currentIndex] = replacement.inSlotOf(old, p) }
+                else CircuitEdits.remove(updatedPlan.exercises, currentIndex)
+                prunedToPlanRows(live.copy(plan = updatedPlan.copy(exercises = newExercises)))
+            }
         }
     }
 
@@ -309,9 +313,11 @@ class WorkoutSessionController(
                     sessionRejectedIds = live.plan.sessionRejectedIds - exerciseId,
                 )
                 val flag = rowFlagFor(exercise, excluded, p)
+                // Unconditionally correct even if a stale flag were ever left under this id.
+                val clearedFlags = live.rowFlags - exerciseId
                 live.copy(
                     plan = newPlan,
-                    rowFlags = if (flag != null) live.rowFlags + (exerciseId to flag) else live.rowFlags,
+                    rowFlags = if (flag != null) clearedFlags + (exerciseId to flag) else clearedFlags,
                     edited = true,
                 )
             }
@@ -585,6 +591,9 @@ class WorkoutSessionController(
             val locationName = database.knownLocationDao().getById(locationId)?.name
             val freshPlanner = repository.buildPlanner(locationId, weightUnit)
             val excluded = repository.getExcludedExerciseIds(locationId)
+            // Deliberately unconditional even if the preview has moved on (or away) by now: this
+            // is a plain field, not the observable WorkoutState, and it's still the freshest
+            // planner for sessionLocationId either way — nothing to drop here.
             planner = freshPlanner
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
             // This method's delta is only the location-derived row flags (and the availability
