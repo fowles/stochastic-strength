@@ -21,6 +21,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew :app:lint
 ```
 
+## Version control
+
+This repo is managed with **jj (Jujutsu)** on a git backend (`.jj/` present; git sits at a
+detached HEAD that jj drives — `git branch --show-current` printing nothing is normal). Work
+jj-natively; do not create git branches or `git commit` onto the detached HEAD.
+
+- **Finish a change with `jj commit -m "..."`** — it describes the working copy and opens a fresh
+  empty change on top, in one step. Do NOT use `jj describe` alone, and do NOT "open" a commit
+  ahead of the work with `jj new -m`: in jj the working copy *is* a commit, so edits land in `@`
+  as they are made, and the next task's edits silently land in the previous commit.
+- **Commit finished work by default** — when a change is complete and tests pass, commit it in the
+  same turn. Don't ask first. Commit at every checkpoint a skill would call a `git commit`
+  (TDD red/green/refactor, each plan/subagent task).
+- **Stop at commits.** The user owns the upstream side: never `jj git push`, `git push`, move a
+  bookmark, or open a PR. Report "commits are on `@-`" and let them reshape.
+- **Sync by rebasing, never merging**: `jj rebase -d <trunk change>` when trunk moves underneath.
+- **For isolation use `jj workspace add`, not `git worktree`** — a git worktree on a colocated repo
+  is the split-brain colocation exists to avoid. The one sanctioned exception is a *read-only*
+  worktree at an old commit to build historical code (e.g. the backtest baseline): copy
+  `local.properties` in, `git worktree remove --force` after, never edit there.
+- `jj commit` snapshots the **entire** working copy — don't touch repo files while a subagent is
+  running, or your edits get swept into that subagent's commit. (`.superpowers/` is gitignored for
+  this reason; keep it that way.) `jj op log` undoes jj mistakes.
+
 ## Architecture
 
 Single-module Android app (`app/`) using Kotlin and Jetpack Compose with Material3.
