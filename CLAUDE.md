@@ -81,6 +81,9 @@ stable, and model classes used as composable parameters (`Exercise`, `WarmupSet`
 `PlannedExercise`, `SavedWorkoutEntry`, `RowSuggester`) carry `@Immutable`. Skippability is a
 **compile-time** property: read `app/build/compose_reports/app-composables.txt` after a build (a
 parameter with no `stable` prefix blocks skipping). Never write a runtime recomposition test.
+A later `compileDebugAndroidTestKotlin` overwrites that report with its own (empty) one, so after
+running instrumented tests regenerate it with
+`./gradlew :app:compileDebugKotlin --rerun-tasks` before reading.
 
 ### Workout session
 
