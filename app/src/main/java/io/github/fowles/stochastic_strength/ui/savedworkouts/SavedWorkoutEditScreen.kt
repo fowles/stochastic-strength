@@ -149,8 +149,12 @@ fun SavedWorkoutEditScreen(
                             for (i in block.indices) {
                                 val entry = keyed.rows[i - block.start]
                                 key(entry.exercise.id) {
-                                    val (linkedAbove, toggleLink) =
+                                    // Memoized so LinkNodeHost can actually skip — see linkAbove's
+                                    // KDoc. `viewModel` outlives every recomposition here, so
+                                    // pinning its bound references can't go stale.
+                                    val (linkedAbove, toggleLink) = remember(block, i) {
                                         linkAbove(block, i, onLink = viewModel::link, onUnlink = viewModel::unlink)
+                                    }
                                     LinkNodeHost(linkedAbove = linkedAbove, onToggleLink = toggleLink) {
                                         EntryRow(
                                             entry = entry,

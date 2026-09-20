@@ -217,7 +217,15 @@ internal fun PlanPreviewContent(
                         for (i in block.indices) {
                             val planned = keyed.rows[i - block.start]
                             key(planned.exercise.id) {
-                                val (linkedAbove, toggleLink) = linkAbove(block, i, onLink = onLink, onUnlink = onUnlink)
+                                // Memoized: `linkAbove` is a plain function, so its toggle lambda
+                                // would otherwise be a fresh, never-equal instance every
+                                // composition and stop ExercisePreviewRow ever skipping. `block`
+                                // is an all-Int data class and `i` an Int, so they compare
+                                // properly; onLink/onUnlink are bound references to the screen's
+                                // view model, so pinning them here can't capture a stale callback.
+                                val (linkedAbove, toggleLink) = remember(block, i) {
+                                    linkAbove(block, i, onLink = onLink, onUnlink = onUnlink)
+                                }
                                 ExercisePreviewRow(
                                     planned = planned,
                                     weightUnit = weightUnit,

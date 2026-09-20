@@ -95,6 +95,12 @@ fun rowPlace(block: Block, index: Int): RowPlace = when {
  * no boundary above it), otherwise whether row [i] is linked to the row above it, plus a toggle
  * that calls [onUnlink] to split an existing link or [onLink] to create one — both indexed by the
  * row above the boundary, matching [io.github.fowles.stochastic_strength.domain.CircuitEdits].
+ *
+ * This is a plain function, not a composable, so the toggle lambda it builds gets none of the
+ * Compose compiler's lambda memoization — a fresh, never-equal instance on every call. Call it
+ * from `remember(block, i) { linkAbove(...) }` so the pair is stable between recompositions;
+ * passing an unmemoized toggle straight into [LinkNodeHost] (or into a row composable that takes
+ * it as a parameter) defeats skipping for that whole subtree.
  */
 fun linkAbove(block: Block, i: Int, onLink: (Int) -> Unit, onUnlink: (Int) -> Unit): Pair<Boolean?, () -> Unit> {
     val linkedAbove = if (i == 0) null else i != block.start
