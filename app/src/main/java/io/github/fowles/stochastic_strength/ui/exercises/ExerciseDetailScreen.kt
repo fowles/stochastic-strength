@@ -208,7 +208,7 @@ fun ExerciseDetailScreen(
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
             )
 
-            if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty() && state.prescribedPoints.isEmpty()) {
+            if (state.primaryPoints.isEmpty() && state.shadowPoints.isEmpty() && state.estimatePoints.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -224,7 +224,7 @@ fun ExerciseDetailScreen(
                 ExerciseChart(
                     primaryPoints = state.primaryPoints,
                     shadowPoints = state.shadowPoints,
-                    prescribedPoints = state.prescribedPoints,
+                    estimatePoints = state.estimatePoints,
                     weightUnit = state.weightUnit,
                     onDaySelected = viewModel::selectDay,
                     yRange = state.chartYRange,
@@ -253,7 +253,7 @@ fun ExerciseDetailScreen(
 private fun ExerciseChart(
     primaryPoints: List<ChartPoint>,
     shadowPoints: List<ChartPoint>,
-    prescribedPoints: List<ChartPoint>,
+    estimatePoints: List<ChartPoint>,
     weightUnit: WeightUnit,
     onDaySelected: (Long?) -> Unit,
     yRange: ClosedFloatingPointRange<Double>?,
@@ -261,7 +261,7 @@ private fun ExerciseChart(
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
 
-    LaunchedEffect(primaryPoints, shadowPoints, prescribedPoints) {
+    LaunchedEffect(primaryPoints, shadowPoints, estimatePoints) {
         modelProducer.runTransaction {
             lineModel {
                 if (primaryPoints.isNotEmpty()) {
@@ -276,10 +276,10 @@ private fun ExerciseChart(
                         y = shadowPoints.map { it.weightKg },
                     )
                 }
-                if (prescribedPoints.isNotEmpty()) {
+                if (estimatePoints.isNotEmpty()) {
                     series(
-                        x = prescribedPoints.map { it.dateMs / 86_400_000L },
-                        y = prescribedPoints.map { it.weightKg },
+                        x = estimatePoints.map { it.dateMs / 86_400_000L },
+                        y = estimatePoints.map { it.weightKg },
                     )
                 }
             }
@@ -313,7 +313,7 @@ private fun ExerciseChart(
             )
         ),
     )
-    val prescribedLine = LineCartesianLayer.rememberLine(
+    val estimateLine = LineCartesianLayer.rememberLine(
         fill = LineCartesianLayer.LineFill.single(Fill(primaryColor)),
         stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 2.dp),
         interpolator = LineCartesianLayer.Interpolator.cubic(),
@@ -321,12 +321,12 @@ private fun ExerciseChart(
 
     val hasPrimary = primaryPoints.isNotEmpty()
     val hasShadow = shadowPoints.isNotEmpty()
-    val hasPrescribed = prescribedPoints.isNotEmpty()
-    val lineProvider = remember(hasPrimary, hasShadow, hasPrescribed, primaryLine, shadowLine, prescribedLine) {
+    val hasEstimate = estimatePoints.isNotEmpty()
+    val lineProvider = remember(hasPrimary, hasShadow, hasEstimate, primaryLine, shadowLine, estimateLine) {
         LineCartesianLayer.LineProvider.series(buildList {
             if (hasPrimary) add(primaryLine)
             if (hasShadow) add(shadowLine)
-            if (hasPrescribed) add(prescribedLine)
+            if (hasEstimate) add(estimateLine)
         })
     }
 
@@ -359,7 +359,7 @@ private fun ExerciseChart(
                 currentOnDaySelected(targets.firstOrNull()?.x?.toLong())
         }
     }
-    val marker = rememberSelectionMarker(weightUnit, prescribedColor = primaryColor)
+    val marker = rememberSelectionMarker(weightUnit, estimateColor = primaryColor)
 
     CartesianChartHost(
         chart = rememberCartesianChart(
@@ -383,7 +383,7 @@ private fun ExerciseChart(
 }
 
 @Composable
-private fun rememberSelectionMarker(weightUnit: WeightUnit, prescribedColor: Color): DefaultCartesianMarker {
+private fun rememberSelectionMarker(weightUnit: WeightUnit, estimateColor: Color): DefaultCartesianMarker {
     val labelBackground = rememberShapeComponent(
         fill = Fill(MaterialTheme.colorScheme.surface),
         shape = CircleShape,
@@ -397,15 +397,15 @@ private fun rememberSelectionMarker(weightUnit: WeightUnit, prescribedColor: Col
     )
     val guideline = rememberAxisGuidelineComponent()
     val fmt = remember { DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()) }
-    // The prescribed-target line is drawn in [prescribedColor]; exclude it so the
-    // marker reports only the plotted achieved points, not the trend line's value.
-    val valueFormatter = remember(fmt, weightUnit, prescribedColor) {
+    // The estimate trend line is drawn in [estimateColor]; exclude it so the
+    // marker reports only the plotted observed points, not the trend line's value.
+    val valueFormatter = remember(fmt, weightUnit, estimateColor) {
         DefaultCartesianMarker.ValueFormatter { _, targets ->
             formatLineMarkerLabel(
                 targets = targets,
                 xLabel = { x -> LocalDate.ofEpochDay(x.toLong()).format(fmt) },
                 yLabel = { y -> WeightFormatter.format(y.toFloat(), weightUnit) },
-                excludeColor = prescribedColor,
+                excludeColor = estimateColor,
             )
         }
     }

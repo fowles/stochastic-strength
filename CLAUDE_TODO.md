@@ -10,6 +10,3 @@ From the 2026-09-20 whole-project review. Each needs a decision or is bigger tha
 ## UI
 - **Swipe and drag have no accessible alternative**: add `customActions` (Remove / Move up /
   Move down) wired to `CircuitEdits`.
-- **The exercise-detail chart re-derives prescription math**: `buildPrescribedPoints` plots
-  baseline × coefficient (the old model) and scales sibling dots by seed coefficients. Plot
-  `series.merged` / `series.siblingObservations` from the pipeline, as the debug chart does.
