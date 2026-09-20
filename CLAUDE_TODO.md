@@ -50,24 +50,22 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   Pre-existing (predates and is unchanged by the 2026-09-19 todo-sweep task-6 fix, which addressed
   the *state*-merge race but not this planner-read race); needs its own design pass (e.g. re-reading
   `planner` right before pricing, or making the planner swap itself suspend-safe).
-- Shared row polish (`ui/components/CircuitChrome.kt`), deferred from the unified-row review:
-  - While a circuit member on Today's workout shows its swipe `ExerciseActionRow`, its rail segment
-    disappears and its link node stays floating; the node also does not move with a row mid-swipe.
-  - TalkBack reads the node after its own row; the wording now says "the row above", but a
-    `traversalIndex` so it reads between the two rows would be clearer. Not tested with TalkBack.
-- `EntryRow` (editor) and `ExercisePreviewRow` (Today's workout) duplicate the row body: name text,
-  timed text, the trailing stepper/"Bodyweight"/nothing `when`, `SuggestionNote`, and the identical
-  `linkedAbove = i != block.start` / toggle-lambda construction. Extract a shared body/weight slot and a
-  `linkAbove(block, i, onLink, onUnlink)` helper before the two screens drift.
-- Test gaps from the unified-row work: no test that pins survive `replaceExercise`, the count
-  slider's trim/restock, or `onLocationRefreshed` (verified by reading only); `rowPlace` has no unit
-  test; `rowSuggester()`'s profile rep range is untested (only its weight unit is); the link node
-  content descriptions are asserted nowhere. `WorkoutSessionControllerTest` also compiles with
-  pre-existing redundant-`!!` warnings.
 - Not exercised on the emulator during the unified-row pass: block drag with the new handle/node
   layout, swipe-to-reject and swipe-to-remove inside a circuit, and steppers with long exercise names
   at 360dp.
-
+- The circuit rail / link-node swipe fix (2026-09-19 todo sweep, task 3 — `CircuitRailGutter`,
+  `LinkNodeHost.swipeOffsetPx`, and the action-row gutter) is **device-unverified**: it was written
+  and reviewed off-device. Needs an emulator pass on plan preview covering (1) the rail staying
+  continuous through a circuit member that is showing its swipe `ExerciseActionRow`, (2) the link
+  node tracking a row's live swipe offset and snapping back to 0 once the action row takes over,
+  and (3) the action row's own layout now that the gutter is drawn only for circuit members (a solo
+  row's action row keeps the full width; a circuit member's is inset by the 36dp gutter).
+- `WorkoutSessionController.startFirstExercise` (:134-147) captures `plan` before its
+  `workoutSessionDao().insert` suspend and builds the first `ActiveSet` from that stale snapshot at
+  :144 — the whole session then runs on it, so a preview edit landing during the insert is lost for
+  the rest of the workout. `applyPreviewDelta` does not fit (this is a deliberate exit *from*
+  `PlanPreview`), but re-reading the live preview's plan after the insert would. Narrow window and
+  pre-existing; deliberately left unchanged by the 2026-09-19 whole-branch fix pass.
 - `HistoryScreen`'s `onExerciseTap` parameter is dead — `AppNavigation` passes a real
   `exercise/{id}` navigation lambda, but nothing in the screen body ever calls it. Either wire the
   session rows' exercise names to it or drop the parameter and the call-site lambda.
