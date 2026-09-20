@@ -79,6 +79,7 @@ suspend fun loadWorkoutSummary(db: AppDatabase, sessionId: Long): WorkoutSummary
                         isBodyweight = exercise?.equipment == Equipment.BODYWEIGHT,
                     )
                 },
+            // Every row an exercise logged in a session carries the same circuit id, so the first row's is the exercise's.
             circuitId = setsByExercise[id]?.firstOrNull()?.circuitId,
         )
     }

@@ -142,6 +142,7 @@ class WorkoutSessionController(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
             activeSetFor(plan, emptyMap(), sessionId)?.let(::setState)
+                ?: finishWorkout(plan, sessionId)
         }
     }
 
@@ -247,10 +248,10 @@ class WorkoutSessionController(
         if (newWeight == pe.sessionWeight) return
         val newE1rm = p.e1rmFromSessionWeight(newWeight, pe.sessionReps)
         if (newE1rm <= 0f) return
-        exercises[idx] = pe.copy(
+        exercises[idx] = p.restampDuration(pe.copy(
             sessionWeight = newWeight,
             warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight, pe.exercise),
-        )
+        ))
         val updatedOverrides = state.plan.exerciseOverrides + (exerciseId to newE1rm)
         setState(state.copy(plan = state.plan.copy(exercises = exercises, exerciseOverrides = updatedOverrides), edited = true))
         weightAdjustJob?.cancel()
@@ -614,6 +615,14 @@ class WorkoutSessionController(
         ))
     }
 
+    /**
+     * Drops row [i] without normalizing: mid-session, logged rows already carry their circuit id,
+     * and renumbering the survivors would write later circuits under an id the session has used.
+     * A lone tagged row is a block of one, so the sequence and its labels are unaffected.
+     */
+    private fun List<PlannedExercise>.withoutRow(i: Int): List<PlannedExercise> =
+        if (i !in indices) this else filterIndexed { idx, _ -> idx != i }
+
     fun swapCurrentExercise(reason: ExerciseRemovalReason) {
         val current = _state.value as? WorkoutState.ActiveSet ?: return
         val i = current.exerciseIndex
@@ -637,7 +646,7 @@ class WorkoutSessionController(
                 done = done + (original.id to old.sets) // keep original, advance past it
                 rejectedPlan.exercises
             }
-            replacement == null -> CircuitEdits.remove(rejectedPlan.exercises, i)
+            replacement == null -> rejectedPlan.exercises.withoutRow(i)
             hasLogged -> {
                 // The replacement owes only what the original had left, in the same block.
                 done = done + (original.id to old.sets)
@@ -677,7 +686,7 @@ class WorkoutSessionController(
         val commitTarget = if (hasLogged) {
             activeSetFor(current.plan, current.done + (id to current.plannedExercise.sets), current.sessionId)
         } else {
-            val trimmed = CircuitEdits.remove(current.plan.exercises, i)
+            val trimmed = current.plan.exercises.withoutRow(i)
             activeSetFor(current.plan.copy(exercises = trimmed), current.done, current.sessionId)
         }
         stageRest(current, StagedAction(

@@ -47,6 +47,7 @@ object CircuitEdits {
         return CircuitStructure.normalize(blocks.flatMap { b -> b.indices.map { rows[it] } })
     }
 
+    /** Normalizes *before* filtering so stale non-contiguous tags (`[A(0), B, C(0)]`) can't fuse when B goes. */
     fun <T : CircuitRow<T>> remove(rows: List<T>, i: Int): List<T> =
         if (i !in rows.indices) rows
         else CircuitStructure.normalize(CircuitStructure.normalize(rows).filterIndexed { idx, _ -> idx != i })

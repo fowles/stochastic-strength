@@ -100,4 +100,11 @@ class StravaDescriptionTest {
         assertTrue(desc.indexOf("Bench Press") < desc.indexOf("Squat"))
         assertTrue(desc.indexOf("Squat") < desc.indexOf("Deadlift"))
     }
+
+    @Test
+    fun loneCircuitMemberGetsNoHeading() {
+        val loneSets = listOf(set(1L, 1).copy(circuitId = 0), set(3L, 1))
+        val desc = StravaExporter.buildDescription("", loneSets, exercises, 0L, WeightUnit.KG)
+        assertFalse("one exercise is not a circuit", desc.contains("Circuit ×"))
+    }
 }

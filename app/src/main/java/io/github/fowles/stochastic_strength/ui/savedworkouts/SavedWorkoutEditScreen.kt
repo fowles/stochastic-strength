@@ -131,8 +131,8 @@ fun SavedWorkoutEditScreen(
                 // One item per block, so a drag carries a whole circuit. The smallest member id is a
                 // key that survives the drag.
                 items(blocks, key = { b -> b.indices.minOf { state.entries[it].exercise.id } }) { block ->
-                    val key = block.indices.minOf { state.entries[it].exercise.id }
-                    ReorderableItem(reorderState, key = key) { isDragging ->
+                    val blockKey = block.indices.minOf { state.entries[it].exercise.id }
+                    ReorderableItem(reorderState, key = blockKey) { isDragging ->
                         val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                         Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
                             val first = state.entries[block.start]

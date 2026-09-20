@@ -165,8 +165,8 @@ internal fun RestingContent(
                 (state.done[plannedExercise.exercise.id] ?: 0) < plannedExercise.sets
             val isWeighted = plannedExercise.isWeighted
             // In a circuit the next set usually belongs to a different exercise even with sets left here.
-            val nextExercise = nextStep?.takeIf { it.exerciseIndex != state.exerciseIndex }
-                ?.let { plan.exercises[it.exerciseIndex] }
+            val nextUp = nextStep?.takeIf { it.exerciseIndex != state.exerciseIndex }
+                ?.let { it to plan.exercises[it.exerciseIndex] }
             val weightReduced = plannedExercise.sessionWeight != state.weightAtSetStart
 
             when {
@@ -209,8 +209,9 @@ internal fun RestingContent(
                         weightUnit = weightUnit,
                     )
                 }
-                nextExercise != null -> {
-                    val warmup = nextExercise.warmupSets.firstOrNull().takeIf { nextStep?.setIndex == 0 }
+                nextUp != null -> {
+                    val (step, nextExercise) = nextUp
+                    val warmup = nextExercise.warmupSets.firstOrNull().takeIf { step.setIndex == 0 }
                     NextExerciseCard(
                         title = if (warmup != null) "Warm up" else "Next up",
                         exerciseName = nextExercise.exercise.name,

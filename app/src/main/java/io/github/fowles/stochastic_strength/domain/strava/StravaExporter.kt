@@ -182,8 +182,9 @@ class StravaExporter(
                 val exercise = exerciseById[id] ?: continue
                 val circuit = exerciseSets.first().circuitId
                 if (circuit != null && circuit != openCircuit) {
-                    val rounds = setsByExercise.values.filter { it.first().circuitId == circuit }.maxOf { it.size }
-                    sb.append("Circuit ×$rounds\n")
+                    val members = setsByExercise.values.filter { it.first().circuitId == circuit }
+                    // A single member left (stopped mid-round, or the others ended early) is not a circuit.
+                    if (members.size > 1) sb.append("Circuit ×${members.maxOf { it.size }}\n")
                 }
                 openCircuit = circuit
                 sb.append(exercise.name).append('\n')

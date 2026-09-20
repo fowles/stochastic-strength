@@ -21,6 +21,7 @@ import io.github.fowles.stochastic_strength.domain.WorkoutRepository
 import io.github.fowles.stochastic_strength.domain.belief.Belief
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
+import io.github.fowles.stochastic_strength.ui.loadWorkoutSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -108,6 +109,8 @@ class WorkoutSessionControllerTest {
 
     private suspend fun previewFixture(
         count: Int,
+        // Loaded alongside the three staples, for plans that need a fourth row or a swap candidate.
+        extraExercises: List<Exercise> = emptyList(),
         // Runs once the exercises exist; returns the location to start the session at.
         locationSetup: (suspend (AppDatabase, WorkoutRepository) -> Long)? = null,
     ): PreviewFixture {
@@ -121,12 +124,14 @@ class WorkoutSessionControllerTest {
             Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
             Exercise(name = "Barbell Row", primaryMuscle = MuscleGroup.BACK, equipment = Equipment.BARBELL),
-        ))
+        ) + extraExercises)
         val freshRepo = WorkoutRepository(freshDb)
         val active = freshDb.exerciseDao().getActive()
         val now = System.currentTimeMillis()
+        val muscles = listOf(MuscleGroup.CHEST, MuscleGroup.QUADS, MuscleGroup.BACK) +
+            extraExercises.map { it.primaryMuscle }
         freshRepo.derivedState.rebuild { mut ->
-            for (m in listOf(MuscleGroup.CHEST, MuscleGroup.QUADS, MuscleGroup.BACK)) {
+            for (m in muscles.distinct()) {
                 mut.upsertMuscleGroupStrength(MuscleGroupStrength(m, 100f))
             }
             mut.putExerciseBeliefs(
@@ -210,8 +215,11 @@ class WorkoutSessionControllerTest {
     }
 
     /** Preview of 3 rows → rows 0+1 linked as a [rounds]-round circuit, row 2 solo with 1 set → started. */
-    private suspend fun circuitSession(rounds: Int): Pair<PreviewFixture, List<Long>> {
-        val f = previewFixture(count = 3)
+    private suspend fun circuitSession(
+        rounds: Int,
+        extraExercises: List<Exercise> = emptyList(),
+    ): Pair<PreviewFixture, List<Long>> {
+        val f = previewFixture(count = 3, extraExercises = extraExercises)
         f.controller.linkExercises(0)
         val rows = preview(f.controller).plan.exercises
         f.controller.setExerciseSets(rows[0].exercise.id, rounds)
@@ -284,6 +292,110 @@ class WorkoutSessionControllerTest {
         val next = awaitActive(f.controller) { it.plannedExercise.exercise.id != ids[0] }
         assertEquals(ids[1], next.plannedExercise.exercise.id)
         assertEquals(1, next.setIndex)
+        f.db.close()
+    }
+
+    /** A fourth loaded exercise, so a 3-row plan still has a swap candidate. */
+    private fun spareExercise() = listOf(
+        Exercise(name = "Overhead Press", primaryMuscle = MuscleGroup.SHOULDERS, equipment = Equipment.BARBELL)
+    )
+
+    @Test
+    fun swap_inACircuit_roundOne_replacesInPlace_inheritingTheSlot() = runBlocking {
+        val (f, ids) = circuitSession(rounds = 2, extraExercises = spareExercise())
+        val before = awaitActive(f.controller) { it.plannedExercise.exercise.id == ids[0] }
+        f.controller.swapCurrentExercise(ExerciseRemovalReason.SKIP_TODAY)
+        val target = awaitState<WorkoutState.Resting>(f.controller).staged!!.commitTarget!!
+
+        assertEquals(0, target.exerciseIndex)
+        assertEquals(0, target.setIndex)
+        assertEquals(3, target.plan.exercises.size)
+        val row = target.plan.exercises[0]
+        assertTrue("the original is gone", row.exercise.id != ids[0])
+        assertEquals(before.plannedExercise.circuitId, row.circuitId)
+        assertEquals(before.plannedExercise.sets, row.sets)
+        f.db.close()
+    }
+
+    @Test
+    fun swap_inACircuit_laterRound_insertsReplacementWithRemainingRounds() = runBlocking {
+        val (f, ids) = circuitSession(rounds = 3, extraExercises = spareExercise())
+        performSet(f.controller); f.controller.skipRest()      // ids[0] r1
+        performSet(f.controller); f.controller.skipRest()      // ids[1] r1
+        awaitActive(f.controller) { it.plannedExercise.exercise.id == ids[0] && it.setIndex == 1 }
+
+        f.controller.swapCurrentExercise(ExerciseRemovalReason.SKIP_TODAY)
+        val target = awaitState<WorkoutState.Resting>(f.controller).staged!!.commitTarget!!
+        val inserted = target.plan.exercises[1]
+        assertEquals(0, inserted.circuitId)
+        assertEquals("1 round done of 3 → 2 owed", 2, inserted.sets)
+        assertEquals(3, target.done[ids[0]])
+
+        f.controller.skipRest()
+        val order = mutableListOf<Long>()
+        repeat(4) { order += performSet(f.controller); f.controller.skipRest() }
+        assertEquals(
+            listOf(inserted.exercise.id, ids[1], inserted.exercise.id, ids[1]),
+            order,
+        )
+        f.db.close()
+    }
+
+    @Test
+    fun endExercise_inACircuitWithNoLoggedSets_removesOnlyThatMember() = runBlocking {
+        val (f, ids) = circuitSession(rounds = 2)
+        awaitActive(f.controller) { it.plannedExercise.exercise.id == ids[0] }
+        f.controller.endCurrentExercise()
+        f.controller.skipRest()                                 // commit the staged end
+
+        val next = awaitActive(f.controller) { it.plannedExercise.exercise.id == ids[1] }
+        assertEquals(0, next.setIndex)
+        assertTrue(next.plan.exercises.none { it.exercise.id == ids[0] })
+        assertEquals("a lone member is a solo block", "Set 1 of 2", next.positionLabel)
+
+        performSet(f.controller); f.controller.skipRest()
+        val second = awaitActive(f.controller) {
+            it.plannedExercise.exercise.id == ids[1] && it.setIndex == 1
+        }
+        assertEquals("Set 2 of 2", second.positionLabel)
+        f.db.close()
+    }
+
+    @Test
+    fun endExercise_midSession_keepsLaterCircuitIdsDistinctFromLoggedOnes() = runBlocking {
+        val f = previewFixture(count = 4, extraExercises = spareExercise())
+        f.controller.linkExercises(0) // rows 0+1
+        f.controller.linkExercises(2) // rows 2+3
+        val rows = preview(f.controller).plan.exercises
+        assertEquals(listOf(0, 0, 1, 1), rows.map { it.circuitId })
+        f.controller.setExerciseSets(rows[0].exercise.id, 2)
+        f.controller.setExerciseSets(rows[2].exercise.id, 2)
+        val ids = rows.map { it.exercise.id }
+        f.controller.startFirstExercise()
+
+        performSet(f.controller); f.controller.skipRest()        // A round 1, tagged with A's circuit
+        awaitActive(f.controller) { it.plannedExercise.exercise.id == ids[1] }
+        f.controller.endCurrentExercise()                        // B, nothing logged
+        f.controller.skipRest()
+        // A round 2, then C and D for two rounds.
+        repeat(5) { performSet(f.controller); f.controller.skipRest() }
+        awaitState<WorkoutState.Done>(f.controller)
+
+        val sessionId = f.db.workoutSessionDao().getAll().single().id
+        val logged = f.db.workoutSetDao().getSetsForSession(sessionId)
+        val aCircuit = logged.first { it.exerciseId == ids[0] }.circuitId
+        val cd = logged.filter { it.exerciseId == ids[2] || it.exerciseId == ids[3] }
+        assertEquals("C and D ran two rounds each", 4, cd.size)
+        val cdCircuit = cd.map { it.circuitId }.distinct().single()
+        assertNotNull("C and D are still a circuit", cdCircuit)
+        assertTrue(
+            "removing B renumbered the second circuit onto A's logged id ($aCircuit)",
+            cdCircuit != aCircuit,
+        )
+
+        val circuits = loadWorkoutSummary(f.db, sessionId).blocks.filter { it.isCircuit }
+        assertEquals(1, circuits.size)
+        assertEquals(listOf(ids[2], ids[3]), circuits.single().exercises.map { it.exerciseId })
         f.db.close()
     }
 

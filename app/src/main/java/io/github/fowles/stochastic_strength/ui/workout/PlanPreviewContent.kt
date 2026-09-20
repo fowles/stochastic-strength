@@ -201,8 +201,8 @@ internal fun PlanPreviewContent(
         val blocks = remember(plan.exercises) { CircuitStructure.blocks(plan.exercises) }
         LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
             items(blocks, key = { b -> b.indices.minOf { plan.exercises[it].exercise.id } }) { block ->
-                val key = block.indices.minOf { plan.exercises[it].exercise.id }
-                ReorderableItem(reorderState, key = key) { isDragging ->
+                val blockKey = block.indices.minOf { plan.exercises[it].exercise.id }
+                ReorderableItem(reorderState, key = blockKey) { isDragging ->
                     val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                     Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
                         if (block.isCircuit) CircuitHeader(
