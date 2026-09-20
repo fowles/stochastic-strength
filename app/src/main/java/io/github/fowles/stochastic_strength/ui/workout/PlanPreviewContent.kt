@@ -317,11 +317,9 @@ internal fun ExercisePreviewRow(
             // actions. `.clickable` above already merges this row's descendants into one
             // TalkBack stop, so attaching them here reaches the same node that stop focuses.
             val customActions = remember(moveActions, onReplace) {
-                moveActions + listOf(
-                    CustomAccessibilityAction("No gear") { onReplace(ExerciseRemovalReason.NO_EQUIPMENT); true },
-                    CustomAccessibilityAction("Hate it") { onReplace(ExerciseRemovalReason.DISLIKE); true },
-                    CustomAccessibilityAction("Not today") { onReplace(ExerciseRemovalReason.SKIP_TODAY); true },
-                )
+                moveActions + ExerciseRemovalReason.entries.map { reason ->
+                    CustomAccessibilityAction(reason.label) { onReplace(reason); true }
+                }
             }
             ExerciseRowScaffold(
                 place = place,
@@ -399,6 +397,15 @@ internal fun ExercisePreviewRow(
     }
 }
 
+/** The one label for each removal reason, shared by [ExerciseActionRow]'s buttons and the
+ *  equivalent TalkBack custom action on [ExercisePreviewRow] — one wording, not two to keep in sync. */
+private val ExerciseRemovalReason.label: String
+    get() = when (this) {
+        ExerciseRemovalReason.NO_EQUIPMENT -> "No gear"
+        ExerciseRemovalReason.DISLIKE -> "Hate it"
+        ExerciseRemovalReason.SKIP_TODAY -> "Not today"
+    }
+
 @Composable
 private fun ExerciseActionRow(
     name: String,
@@ -421,18 +428,12 @@ private fun ExerciseActionRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            OutlinedButton(
-                onClick = { onAction(ExerciseRemovalReason.NO_EQUIPMENT) },
-                modifier = Modifier.weight(1f),
-            ) { Text("No gear", style = MaterialTheme.typography.labelSmall) }
-            OutlinedButton(
-                onClick = { onAction(ExerciseRemovalReason.DISLIKE) },
-                modifier = Modifier.weight(1f),
-            ) { Text("Hate it", style = MaterialTheme.typography.labelSmall) }
-            OutlinedButton(
-                onClick = { onAction(ExerciseRemovalReason.SKIP_TODAY) },
-                modifier = Modifier.weight(1f),
-            ) { Text("Not today", style = MaterialTheme.typography.labelSmall) }
+            for (reason in ExerciseRemovalReason.entries) {
+                OutlinedButton(
+                    onClick = { onAction(reason) },
+                    modifier = Modifier.weight(1f),
+                ) { Text(reason.label, style = MaterialTheme.typography.labelSmall) }
+            }
         }
         Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(

@@ -36,6 +36,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -277,7 +278,20 @@ internal fun EntryRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
-                .semantics { this.customActions = customActions }
+                // Unlike the plan-preview row, nothing here merges this row's descendants into one
+                // TalkBack stop (no `.clickable` on this chain) — a bare `customActions` node has
+                // no text/content description or click action of its own, and TalkBack only stops
+                // exploring on a node that has one of those, so without a contentDescription this
+                // menu would sit in the tree but be unreachable by swipe. The exercise name doubles
+                // as that description: TalkBack reads it once here (this stop) and again when the
+                // swipe reaches the row's own name Text further in — a small repeat, not a merge,
+                // so it doesn't touch the steppers' or the drag handle's separate focus stops, and
+                // it doesn't move where the [LinkNodeHost] boundary node above this row sits in
+                // traversal order (that ordering comes from `traversalIndex`, untouched here).
+                .semantics {
+                    contentDescription = entry.exercise.name
+                    this.customActions = customActions
+                }
                 .padding(vertical = 8.dp),
             trailing = {
                 // The note sits under the weight, in the height the trailing column already has

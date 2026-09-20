@@ -2,7 +2,6 @@ package io.github.fowles.stochastic_strength.ui.savedworkouts
 
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -11,6 +10,8 @@ import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
+import io.github.fowles.stochastic_strength.ui.components.findCustomActionsNode
+import io.github.fowles.stochastic_strength.ui.components.isTalkBackFocusable
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -21,7 +22,11 @@ import org.junit.runner.RunWith
  * [EntryRow]'s TalkBack-accessible alternative to swipe-to-remove: a "Remove" custom action that
  * calls the same callback the swipe gesture does, alongside whatever move actions
  * [io.github.fowles.stochastic_strength.ui.components.CircuitBlockList] hands it (covered
- * generically in `CircuitBlockListCustomActionsTest`).
+ * generically in `CircuitBlockListCustomActionsTest`). Unlike the plan-preview row, this row has
+ * no `.clickable` merging its descendants, so the node carrying the custom actions needs its own
+ * content description to be a TalkBack stop at all — [carriesTheMoveActionsItWasGiven] et al.
+ * would pass even if that node were unreachable, so
+ * [theCustomActionsNodeIsReachableByTalkBack] asserts reachability directly.
  */
 @RunWith(AndroidJUnit4::class)
 class EntryRowCustomActionsTest {
@@ -56,14 +61,21 @@ class EntryRowCustomActionsTest {
     }
 
     private fun rowCustomActions(): List<CustomAccessibilityAction> =
-        composeRule.onRoot().fetchSemanticsNode().let { root ->
-            fun find(node: androidx.compose.ui.semantics.SemanticsNode): List<CustomAccessibilityAction>? {
-                node.config.getOrNull(SemanticsActions.CustomActions)?.let { return it }
-                node.children.forEach { child -> find(child)?.let { return it } }
-                return null
-            }
-            find(root)
-        } ?: emptyList()
+        composeRule.onRoot().fetchSemanticsNode().findCustomActionsNode()
+            ?.config?.get(SemanticsActions.CustomActions) ?: emptyList()
+
+    @Test
+    fun theCustomActionsNodeIsReachableByTalkBack() {
+        setContent(onRemove = {}, moveActions = emptyList())
+
+        val node = composeRule.onRoot().fetchSemanticsNode().findCustomActionsNode()
+        assertTrue("no node in the tree carries CustomActions", node != null)
+        assertTrue(
+            "the customActions node has neither a content description, text, nor a click action " +
+                "— it's in the semantics tree but TalkBack has nothing to stop on",
+            node!!.isTalkBackFocusable(),
+        )
+    }
 
     @Test
     fun removeActionCallsTheSameCallbackAsTheSwipe() {

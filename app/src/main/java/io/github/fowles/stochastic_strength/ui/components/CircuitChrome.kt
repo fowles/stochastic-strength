@@ -384,9 +384,11 @@ fun <T : CircuitRow<T>> CircuitBlockList(
         itemsIndexed(blocks, key = { _, it -> it.key }) { blockIndex, keyed ->
             val block = keyed.block
             // Omitted at the list edge, same as the drag handle simply having nowhere further to
-            // go there. Memoized so the list stays the same instance across unrelated recompositions
-            // (block/onMove capture only what actually changes it) — a fresh list every pass would
-            // stop every row in the block from skipping.
+            // go there. Keyed on blockIndex and blocks.size (the only two things that change which
+            // actions are right) so the list instance survives unrelated recompositions — a fresh
+            // list every pass would stop every row in the block from skipping. onMove itself is
+            // deliberately not a key: both screens pass a bound view-model method reference, same
+            // as onLink/onUnlink below, so pinning it here can't capture a stale callback.
             val moveActions = remember(blockIndex, blocks.size) {
                 buildList {
                     if (blockIndex > 0) {
