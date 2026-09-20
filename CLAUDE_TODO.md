@@ -20,14 +20,14 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - Rest screen "Next up" card omits the round for a circuit member (the notification includes it),
   and after a too-hard weight reduction inside a circuit the card says "Reduced weight: A" although
   the next set is B's.
-
-- Instrumented-suite flake: a full `connectedAndroidTest` run can abort with `attempt to re-open an already-closed object: SQLiteDatabase`, thrown by a `finishWorkout` coroutine leaked from an earlier `WorkoutSessionControllerTest` test after its fixture closed the DB, and blamed on whichever test is running. Re-run passes. Fix in the fixture teardown (cancel the controller scope before `db.close()`).
-- A pinned weight on a user-created exercise is dropped: `WorkoutPlanner.isLoaded` resolves coefficients by exercise *name*, so a custom lift not in `ExerciseCoefficients.byName` counts as unloadable. Also the editor cannot create a weight pin for a loadable lift that has no estimate yet (its stepper needs a suggestion to start from).
-- Editor `hasWeight` gate (`SavedWorkoutEditScreen`) trusts a stored `weight`: a hand-edited backup with a weight on a bodyweight row, or `0`/sub-floor values, shows a stepper the session then ignores or re-clamps.
+- A pinned weight on a user-created exercise is dropped: `WorkoutPlanner.isLoadable` resolves
+  coefficients by exercise *name*, so a custom lift not in `ExerciseCoefficients.byName` counts as
+  unloadable.
 - Shared row polish (`ui/components/CircuitChrome.kt`), deferred from the unified-row review:
   - `ValueStepper` −/+ are 32dp `IconButton`s and the reset target is a bare `Text.clickable`
-    (~28×20dp), both under the 48dp minimum; −/+ are never disabled at the bounds (reps 1/50, weight
-    floor), so they are silent no-ops there.
+    (~28×20dp), both under the 48dp minimum. Growing them costs row width (two steppers plus the
+    handle and sets chip on a 360dp row), so it wants a layout decision and an on-device look, not
+    a bare size bump.
   - While a circuit member on Today's workout shows its swipe `ExerciseActionRow`, its rail segment
     disappears and its link node stays floating; the node also does not move with a row mid-swipe.
   - The link node sits ~2dp from the drag handle on a 64dp row, and the hollow (unlinked) node is
@@ -35,23 +35,14 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
     Both need an on-device look (drag feel, contrast).
   - TalkBack reads the node after its own row; the wording now says "the row above", but a
     `traversalIndex` so it reads between the two rows would be clearer. Not tested with TalkBack.
-  - `LinkState` is a data class holding a lambda, so it never compares equal and `LinkNodeHost` never
-    skips recomposition.
 - `EntryRow` (editor) and `ExercisePreviewRow` (Today's workout) duplicate the row body: name text,
   timed text, the trailing stepper/"Bodyweight"/nothing `when`, `SuggestionNote`, and the identical
-  `LinkState(linked = i != block.start, …)` construction. Extract a shared body/weight slot and a
+  `linkedAbove = i != block.start` / toggle-lambda construction. Extract a shared body/weight slot and a
   `linkAbove(block, i, onLink, onUnlink)` helper before the two screens drift.
-- Suggestions are computed in composition for every row on every recomposition
-  (`suggester.weight(...)` in the editor, `suggestWeight(planned)` on Today's workout, including
-  unpinned rows where the note can never show). Cheap arithmetic today; `remember` it by
-  exercise/reps. `RowSuggester` is also declared at the top of `WorkoutRepository.kt` and wants its
-  own file.
-- Redundant planner rebuilds in `WorkoutSessionController`: `applySavedWorkout` still rebuilds on a
-  non-append load (the override state it existed to discard is gone; `basePlan` is now just
-  `current.plan`), and `persistSwap` rebuilds for `SKIP_TODAY`, which changes nothing the planner reads.
-- `SavedWorkoutEditViewModel` starts `weightUnit` at KG and fills it from the profile
-  asynchronously, so for an lbs user a pinned weight renders (and, if tapped in that window, steps)
-  on the kg grid for the length of one DAO read.
+- The editor computes `suggester.weight(...)` in composition for every row on every recomposition
+  (it feeds the stepper's own value there, so it can't just be skipped the way Today's workout now
+  skips unpinned rows). Cheap arithmetic today; `remember` it by exercise/reps — keyed so a planner
+  rebuild can't leave a stale number on screen.
 - Test gaps from the unified-row work: no test that pins survive `replaceExercise`, the count
   slider's trim/restock, or `onLocationRefreshed` (verified by reading only); `rowPlace` has no unit
   test; `rowSuggester()`'s profile rep range is untested (only its weight unit is); the link node
