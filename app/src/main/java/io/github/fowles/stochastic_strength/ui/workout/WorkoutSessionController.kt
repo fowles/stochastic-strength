@@ -8,6 +8,8 @@ import io.github.fowles.stochastic_strength.data.model.SetFeedback
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
+import io.github.fowles.stochastic_strength.domain.CircuitEdits
+import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.DetrainingModel
 import io.github.fowles.stochastic_strength.domain.DefaultProgressionEngine
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
@@ -178,8 +180,10 @@ class WorkoutSessionController(
             // The slider is a floor, not the plan's size: only restock when removing would drop below it.
             val replacement = if (updatedPlan.exercises.size - 1 < targetCount)
                 p.pickReplacement(updatedPlan, currentIndex) else null
-            val newExercises = updatedPlan.exercises.toMutableList()
-            if (replacement != null) newExercises[currentIndex] = replacement else newExercises.removeAt(currentIndex)
+            val old = updatedPlan.exercises[currentIndex]
+            val newExercises = if (replacement != null)
+                updatedPlan.exercises.toMutableList().also { it[currentIndex] = replacement.inSlotOf(old, p) }
+            else CircuitEdits.remove(updatedPlan.exercises, currentIndex)
             setState(prunedToPlanRows(current.copy(plan = updatedPlan.copy(exercises = newExercises))))
         }
     }
@@ -191,7 +195,7 @@ class WorkoutSessionController(
         val current = preview.plan.exercises
         when {
             targetCount < current.size -> {
-                val trimmed = current.take(targetCount)
+                val trimmed = CircuitStructure.normalize(current.take(targetCount))
                 setState(prunedToPlanRows(
                     preview.copy(plan = preview.plan.copy(exercises = trimmed), targetCount = targetCount)
                 ))
@@ -247,11 +251,28 @@ class WorkoutSessionController(
         }
     }
 
-    fun moveExercise(from: Int, to: Int) {
+    /** Applies a structure edit to the preview rows and re-prices durations (rounds may have changed). */
+    private fun editStructure(edit: (List<PlannedExercise>) -> List<PlannedExercise>) {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
-        val exercises = preview.plan.exercises.toMutableList()
-        exercises.add(to, exercises.removeAt(from))
-        setState(preview.copy(plan = preview.plan.copy(exercises = exercises), edited = true))
+        val p = planner ?: return
+        val edited = edit(preview.plan.exercises)
+        if (edited == preview.plan.exercises) return
+        setState(preview.copy(plan = preview.plan.copy(exercises = edited.map(p::restampDuration)), edited = true))
+    }
+
+    /** A replacement row takes over the structural slot of the row it replaces. */
+    private fun PlannedExercise.inSlotOf(old: PlannedExercise, p: WorkoutPlanner): PlannedExercise =
+        p.restampDuration(withStructure(old.sets, old.circuitId))
+
+    /** Indices are block indices: a circuit moves as a unit, and a drag never changes membership. */
+    fun moveExercise(from: Int, to: Int) = editStructure { CircuitEdits.moveBlock(it, from, to) }
+
+    fun linkExercises(rowIndex: Int) = editStructure { CircuitEdits.link(it, rowIndex) }
+
+    fun unlinkExercises(rowIndex: Int) = editStructure { CircuitEdits.unlink(it, rowIndex) }
+
+    fun setExerciseSets(exerciseId: Long, sets: Int) = editStructure { rows ->
+        CircuitEdits.setRounds(rows, rows.indexOfFirst { it.exercise.id == exerciseId }, sets)
     }
 
     fun addExercise(exerciseId: Long) {
@@ -294,10 +315,11 @@ class WorkoutSessionController(
             val basePlan = if (append) current.plan else current.plan.copy(exerciseOverrides = emptyMap())
             // A loaded row wins over an existing row for the same exercise.
             val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
-            val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan) }
+            val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan, it.sets, it.circuitId) }
             explicitIds += loadedIds
             val newPlan = basePlan.copy(
-                exercises = kept + loaded,
+                // concat keeps a kept circuit and a loaded one distinct even when their ids collide.
+                exercises = CircuitStructure.concat(CircuitStructure.normalize(kept), loaded),
                 sessionRejectedIds = basePlan.sessionRejectedIds - loadedIds,
             )
             // A load replaces the plan wholesale, so rows that were explicit before can depart here.
@@ -305,13 +327,13 @@ class WorkoutSessionController(
         }
     }
 
-    /** Saves the current preview rows, in order, with no pinned reps. Null if not on the preview. */
+    /** Saves the current preview rows — order, sets and circuits — with no pinned reps. Null if not on the preview. */
     suspend fun saveCurrentPlan(name: String): SavedWorkoutDetail? {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return null
         val id = repository.saveWorkout(
             id = null,
             name = name,
-            entries = preview.plan.exercises.map { SavedWorkoutEntry(it.exercise, reps = null) },
+            entries = preview.plan.exercises.map { SavedWorkoutEntry(it.exercise, reps = null, it.sets, it.circuitId) },
         )
         return repository.getSavedWorkout(id)
     }
@@ -534,13 +556,9 @@ class WorkoutSessionController(
                 // An explicitly chosen row is flagged, not dropped, even where it's unavailable.
                 if (id !in availableIds && id !in explicitIds) {
                     val replacement = freshPlanner.pickReplacement(plan, i)
-                    val updated = plan.exercises.toMutableList()
-                    if (replacement != null) {
-                        updated[i] = replacement
-                    } else {
-                        updated.removeAt(i)
-                        i--
-                    }
+                    val updated = if (replacement != null)
+                        plan.exercises.toMutableList().also { it[i] = replacement.inSlotOf(plan.exercises[i], freshPlanner) }
+                    else CircuitEdits.remove(plan.exercises, i).also { i-- }
                     plan = plan.copy(exercises = updated)
                 }
                 i++

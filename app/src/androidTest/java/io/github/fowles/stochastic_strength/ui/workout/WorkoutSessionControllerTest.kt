@@ -373,6 +373,91 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
+    fun linkExercises_makesCircuit_setExerciseSetsWritesEveryMember_andDurationFollows() = runBlocking {
+        val f = previewFixture(count = 3)
+        val before = preview(f.controller).plan.estimatedDurationSeconds
+        f.controller.linkExercises(0)
+        val linked = preview(f.controller).plan.exercises
+        assertEquals(listOf(0, 0, null), linked.map { it.circuitId })
+
+        f.controller.setExerciseSets(linked[1].exercise.id, 1)
+        val p = preview(f.controller)
+        assertEquals(listOf(1, 1, 3), p.plan.exercises.map { it.sets })
+        assertTrue("fewer sets must shorten the estimate", p.plan.estimatedDurationSeconds < before)
+        assertTrue(p.edited)
+
+        f.controller.unlinkExercises(0)
+        assertEquals(listOf(null, null, null), preview(f.controller).plan.exercises.map { it.circuitId })
+        f.db.close()
+    }
+
+    @Test
+    fun moveExercise_movesAWholeCircuit() = runBlocking {
+        val f = previewFixture(count = 3)
+        f.controller.linkExercises(1) // rows 1+2 are a circuit; blocks = [row0], [row1,row2]
+        val ids = preview(f.controller).plan.exercises.map { it.exercise.id }
+        f.controller.moveExercise(1, 0)
+        val after = preview(f.controller).plan.exercises
+        assertEquals(listOf(ids[1], ids[2], ids[0]), after.map { it.exercise.id })
+        assertEquals(listOf(0, 0, null), after.map { it.circuitId })
+        f.db.close()
+    }
+
+    @Test
+    fun lowerCount_trimmingACircuitToOneMember_collapsesItToSolo() = runBlocking {
+        val f = previewFixture(count = 3)
+        f.controller.linkExercises(1)
+        f.controller.adjustExerciseCount(2)
+        awaitPreviewSize(f.controller, 2)
+        assertEquals(listOf(null, null), preview(f.controller).plan.exercises.map { it.circuitId })
+        f.db.close()
+    }
+
+    @Test
+    fun saveThenLoad_roundTripsStructure_andAppendKeepsCircuitsDistinct() = runBlocking {
+        val f = previewFixture(count = 2)
+        f.controller.linkExercises(0)
+        f.controller.setExerciseSets(preview(f.controller).plan.exercises[0].exercise.id, 2)
+        val saved = f.controller.saveCurrentPlan("Pair")!!
+        assertEquals(listOf(2, 2), saved.entries.map { it.sets })
+        assertEquals(listOf(0, 0), saved.entries.map { it.circuitId })
+
+        // A second saved circuit built from the third exercise plus one of the first two would
+        // violate one-per-plan, so append a circuit-free workout and check the kept circuit survives.
+        val third = f.db.exerciseDao().getActive().first { ex -> saved.entries.none { it.exercise.id == ex.id } }
+        val soloId = f.repo.saveWorkout(null, "Solo", listOf(SavedWorkoutEntry(third, reps = null, sets = 5)))
+
+        // Break the structure first, so the load is what restores it.
+        f.controller.unlinkExercises(0)
+        assertEquals(listOf(null, null), preview(f.controller).plan.exercises.map { it.circuitId })
+        f.controller.loadSavedWorkout(saved.id)
+        awaitPreview(f.controller) { p -> p.plan.exercises.map { it.circuitId } == listOf(0, 0) }
+        assertEquals(listOf(2, 2), preview(f.controller).plan.exercises.map { it.sets })
+
+        f.controller.appendSavedWorkout(soloId)
+        awaitPreviewSize(f.controller, 3)
+        val p = preview(f.controller).plan.exercises
+        assertEquals(listOf(0, 0, null), p.map { it.circuitId })
+        assertEquals(listOf(2, 2, 5), p.map { it.sets })
+        f.db.close()
+    }
+
+    @Test
+    fun replace_inACircuit_replacementInheritsTheSlot() = runBlocking {
+        val f = previewFixture(count = 2) // third exercise is the only replacement candidate
+        f.controller.linkExercises(0)
+        f.controller.setExerciseSets(preview(f.controller).plan.exercises[0].exercise.id, 2)
+        val victim = preview(f.controller).plan.exercises[1].exercise.id
+        f.controller.replaceExercise(victim, ExerciseRemovalReason.SKIP_TODAY)
+        awaitPreview(f.controller) { p -> p.plan.exercises.none { it.exercise.id == victim } }
+        val p = preview(f.controller).plan.exercises
+        assertEquals(2, p.size)
+        assertEquals(listOf(0, 0), p.map { it.circuitId })
+        assertEquals(listOf(2, 2), p.map { it.sets })
+        f.db.close()
+    }
+
+    @Test
     fun adjustExerciseCount_updatesTargetCountOnPreview() = runBlocking {
         val f = previewFixture(count = 1)
         f.controller.adjustExerciseCount(3)
