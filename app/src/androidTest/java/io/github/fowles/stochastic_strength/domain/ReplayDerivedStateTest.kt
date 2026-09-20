@@ -207,6 +207,27 @@ class ReplayDerivedStateTest {
         )
     }
 
+    /** Deleting a session replays, so derived state matches a history that never had it. */
+    @Test
+    fun deleteSession_dropsItsContributionFromDerivedState() = runBlocking {
+        seedSmallHistory()
+        repository.replayDerivedState()
+        val before = repository.derivedState.snapshot()
+        assertTrue(before.allBaselineHistory().any { it.sessionId == SESSION_2_ID })
+
+        repository.deleteSession(SESSION_2_ID)
+
+        val afterDelete = repository.derivedState.snapshot()
+        val baselines = afterDelete.allBaselineHistory().map { it.toComparable() }
+        val estimates = afterDelete.exerciseBeliefs().mapValues { it.value.e1rm }
+        assertTrue(afterDelete.allBaselineHistory().none { it.sessionId == SESSION_2_ID })
+
+        repository.replayDerivedState()
+        val fresh = repository.derivedState.snapshot()
+        assertEquals(fresh.allBaselineHistory().map { it.toComparable() }, baselines)
+        assertEquals(fresh.exerciseBeliefs().mapValues { it.value.e1rm }, estimates)
+    }
+
     // ----- helpers below: seed minimal but realistic histories -----
 
     private fun BaselineHistory.toComparable() = listOf(

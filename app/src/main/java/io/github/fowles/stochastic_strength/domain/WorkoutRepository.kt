@@ -393,9 +393,13 @@ class WorkoutRepository(
     // History
     suspend fun getAllSessions(): List<WorkoutSession> = db.workoutSessionDao().getAll()
 
-    suspend fun deleteSession(sessionId: Long) = db.withTransaction {
-        db.workoutSetDao().deleteAllForSession(sessionId)
-        db.workoutSessionDao().deleteById(sessionId)
+    /** Removes the session and its sets, then replays so derived state forgets them too. */
+    suspend fun deleteSession(sessionId: Long) {
+        db.withTransaction {
+            db.workoutSetDao().deleteAllForSession(sessionId)
+            db.workoutSessionDao().deleteById(sessionId)
+        }
+        replayDerivedState()
     }
 
     suspend fun getSessionExerciseNames(sessionId: Long): List<String> {

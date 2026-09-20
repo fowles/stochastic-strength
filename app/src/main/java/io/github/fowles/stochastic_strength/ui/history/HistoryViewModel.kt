@@ -173,12 +173,11 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
 
     fun confirmDelete() {
         val sessionId = _state.value.pendingDeleteSessionId ?: return
+        _state.value = _state.value.copy(pendingDeleteSessionId = null)
         viewModelScope.launch {
             repository.deleteSession(sessionId)
-            _state.value = _state.value.copy(
-                sessions = _state.value.sessions.filter { it.session.id != sessionId },
-                pendingDeleteSessionId = null,
-            )
+            // Full reload: the calendar's workout days and the highlight read the deleted sets too.
+            reloadInternal()
         }
     }
 }
