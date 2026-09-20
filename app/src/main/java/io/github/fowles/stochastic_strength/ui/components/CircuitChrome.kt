@@ -44,7 +44,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -100,6 +102,14 @@ fun linkAbove(block: Block, i: Int, onLink: (Int) -> Unit, onUnlink: (Int) -> Un
         if (i != block.start) onUnlink(i - 1) else onLink(i - 1)
     }
 }
+
+/**
+ * The [LinkNodeHost] node's content description for a boundary whose current state is
+ * [linkedAbove]. Kept short: [LinkNodeHost] reads the node between the two rows it links (a
+ * negative `traversalIndex` ahead of its own row content), so which two rows are involved is
+ * carried by reading position rather than by naming "the row above" in words.
+ */
+fun linkNodeDescription(linkedAbove: Boolean): String = if (linkedAbove) "Unlink" else "Link"
 
 /**
  * The 36dp-wide gutter [ExerciseRowScaffold] draws its rail segment in, on its own so a caller
@@ -215,6 +225,13 @@ fun ExerciseRowScaffold(
  * The node's two inputs stay separate parameters (rather than one holder) so Compose can compare
  * them: a holder built in composition around a lambda never compares equal, and this host would
  * then recompose on every pass.
+ *
+ * Visually the node paints above [content] (the later row), but it toggles the link to the row
+ * *before* it — so this [Box] is marked [isTraversalGroup] and the node given a negative
+ * [traversalIndex], putting it ahead of [content] in TalkBack order. That sorts the node right
+ * after the earlier row's own item (list order is untouched, only this item's two children swap),
+ * i.e. between the two rows it links, instead of the default after-content order the later-row
+ * ownership would otherwise produce.
  */
 @Composable
 fun LinkNodeHost(
@@ -224,7 +241,7 @@ fun LinkNodeHost(
     swipeOffsetPx: () -> Float = { 0f },
     content: @Composable () -> Unit,
 ) {
-    Box(modifier = modifier) {
+    Box(modifier = modifier.semantics { isTraversalGroup = true }) {
         content()
         if (linkedAbove != null) {
             Box(
@@ -236,10 +253,10 @@ fun LinkNodeHost(
                     .size(36.dp)
                     .clickable(onClick = onToggleLink, role = Role.Button)
                     .semantics {
-                        // TalkBack reads the node after the row it belongs to, so it says which
-                        // boundary it moves: the one between this row and the one above.
-                        contentDescription =
-                            if (linkedAbove) "Split from the row above" else "Link with the row above"
+                        // Read ahead of `content` (see traversalIndex above), between the two rows
+                        // this node links, so the description no longer needs to say "above".
+                        traversalIndex = -1f
+                        contentDescription = linkNodeDescription(linkedAbove)
                     },
             ) {
                 Surface(
