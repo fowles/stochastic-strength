@@ -77,7 +77,6 @@ class WorkoutSessionController(
     private var restTimerJob: Job? = null
     private var timedSetTimerJob: Job? = null
     private var addExerciseJob: Job? = null
-    private var weightAdjustJob: Job? = null
 
     init {
         scope.launch {
@@ -179,7 +178,7 @@ class WorkoutSessionController(
                 sessionRejectedIds = current.plan.sessionRejectedIds + rejectedId
             )
             val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
-                repository.buildPlanner(sessionLocationId, weightUnit, updatedPlan.effectiveOverrides)
+                repository.buildPlanner(sessionLocationId, weightUnit)
                     .also { planner = it }
             } else {
                 planner ?: return@launch
@@ -234,31 +233,31 @@ class WorkoutSessionController(
         setState(preview.copy(plan = newPlan, repMin = repMin, repMax = repMax))
     }
 
-    fun adjustExerciseWeight(exerciseId: Long, delta: Float) {
-        val state = _state.value as? WorkoutState.PlanPreview ?: return
+    /** Applies [edit] to one preview row and re-prices it through the planner, honouring its pins. */
+    private fun editRow(exerciseId: Long, edit: (PlannedExercise) -> PlannedExercise) {
+        val preview = _state.value as? WorkoutState.PlanPreview ?: return
         val p = planner ?: return
-        val exercises = state.plan.exercises.toMutableList()
-        val idx = exercises.indexOfFirst { it.exercise.id == exerciseId }
-        if (idx < 0) return
-        val pe = exercises[idx]
-        val newWeight = WeightFormatter.round(
-            (pe.sessionWeight + delta).coerceAtLeast(2.5f),
-            weightUnit,
-        )
-        if (newWeight == pe.sessionWeight) return
-        val newE1rm = p.e1rmFromSessionWeight(newWeight, pe.sessionReps)
-        if (newE1rm <= 0f) return
-        exercises[idx] = p.restampDuration(pe.copy(
-            sessionWeight = newWeight,
-            warmupSets = if (pe.exercise.isTimed) emptyList() else p.computeWarmupSets(newWeight, pe.exercise),
-        ))
-        val updatedOverrides = state.plan.exerciseOverrides + (exerciseId to newE1rm)
-        setState(state.copy(plan = state.plan.copy(exercises = exercises, exerciseOverrides = updatedOverrides), edited = true))
-        weightAdjustJob?.cancel()
-        weightAdjustJob = scope.launch {
-            planner = repository.buildPlanner(sessionLocationId, weightUnit, updatedOverrides)
+        val rows = preview.plan.exercises.map {
+            if (it.exercise.id == exerciseId) p.reprice(edit(it), preview.plan.sessionReps) else it
         }
+        if (rows == preview.plan.exercises) return
+        setState(preview.copy(plan = preview.plan.copy(exercises = rows), edited = true))
     }
+
+    fun adjustExerciseWeight(exerciseId: Long, delta: Float) = editRow(exerciseId) { pe ->
+        if (pe.sessionWeight <= 0f) pe else pe.copy(
+            sessionWeight = WeightFormatter.round((pe.sessionWeight + delta).coerceAtLeast(2.5f), weightUnit),
+            weightPinned = true,
+        )
+    }
+
+    fun setExerciseReps(exerciseId: Long, reps: Int) = editRow(exerciseId) { pe ->
+        if (pe.exercise.isTimed) pe else pe.copy(sessionReps = reps.coerceIn(1, 50), repsPinned = true)
+    }
+
+    fun resetExerciseReps(exerciseId: Long) = editRow(exerciseId) { it.copy(repsPinned = false) }
+
+    fun resetExerciseWeight(exerciseId: Long) = editRow(exerciseId) { it.copy(weightPinned = false) }
 
     /** Applies a structure edit to the preview rows and re-prices durations (rounds may have changed). */
     private fun editStructure(edit: (List<PlannedExercise>) -> List<PlannedExercise>) {
@@ -310,21 +309,17 @@ class WorkoutSessionController(
 
     private fun applySavedWorkout(id: Long, append: Boolean) {
         addExerciseJob?.cancel()
-        // An in-flight weight-adjust rebuild would otherwise land after ours and reinstate the
-        // very overrides a load discards.
-        weightAdjustJob?.cancel()
         scope.launch {
             val saved = repository.getSavedWorkout(id) ?: return@launch
             val entries = saved.entries.distinctBy { it.exercise.id }
             val loadedIds = entries.map { it.exercise.id }.toSet()
             val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-            // Load discards manual weight edits, so price from a planner that has none.
             val p = if (append) planner ?: return@launch
             else repository.buildPlanner(sessionLocationId, weightUnit).also { planner = it }
-            val basePlan = if (append) current.plan else current.plan.copy(exerciseOverrides = emptyMap())
+            val basePlan = current.plan
             // A loaded row wins over an existing row for the same exercise.
             val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
-            val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan, it.sets, it.circuitId) }
+            val loaded = entries.map { p.planExplicit(it.exercise, it.reps, basePlan, it.sets, it.circuitId, it.weight) }
             explicitIds += loadedIds
             val newPlan = basePlan.copy(
                 // concat keeps a kept circuit and a loaded one distinct even when their ids collide.
@@ -336,13 +331,21 @@ class WorkoutSessionController(
         }
     }
 
-    /** Saves the current preview rows — order, sets and circuits — with no pinned reps. Null if not on the preview. */
+    /** Saves the current preview rows — order, sets and circuits — carrying only their pinned reps/weight. Null if not on the preview. */
     suspend fun saveCurrentPlan(name: String): SavedWorkoutDetail? {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return null
         val id = repository.saveWorkout(
             id = null,
             name = name,
-            entries = preview.plan.exercises.map { SavedWorkoutEntry(it.exercise, reps = null, it.sets, it.circuitId) },
+            entries = preview.plan.exercises.map {
+                SavedWorkoutEntry(
+                    it.exercise,
+                    it.sessionReps.takeIf { _ -> it.repsPinned },
+                    it.sets,
+                    it.circuitId,
+                    it.sessionWeight.takeIf { _ -> it.weightPinned },
+                )
+            },
         )
         return repository.getSavedWorkout(id)
     }
@@ -548,17 +551,8 @@ class WorkoutSessionController(
         val locationId = sessionLocationId ?: return
         scope.launch {
             val locationName = database.knownLocationDao().getById(locationId)?.name
-            // Build from the overrides the preview holds *after* the suspend: a load that landed
-            // meanwhile may have cleared them, and its planner must not be overwritten with a
-            // stale one. Rebuild until the overrides we built from are the ones still in state.
-            var current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-            var freshPlanner: WorkoutPlanner
-            while (true) {
-                val overrides = current.plan.effectiveOverrides
-                freshPlanner = repository.buildPlanner(locationId, weightUnit, overrides)
-                current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-                if (current.plan.effectiveOverrides == overrides) break
-            }
+            val freshPlanner = repository.buildPlanner(locationId, weightUnit)
+            val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
             planner = freshPlanner
             val availableIds = freshPlanner.availableExercises.map { it.id }.toSet()
             var plan = current.plan
@@ -713,7 +707,7 @@ class WorkoutSessionController(
         startRestTimer()
     }
 
-    private suspend fun persistSwap(swap: PendingSwap, overrides: Map<Long, Float>) {
+    private suspend fun persistSwap(swap: PendingSwap) {
         when (swap.reason) {
             ExerciseRemovalReason.DISLIKE -> {
                 val ex = database.exerciseDao().getById(swap.exerciseId) ?: return
@@ -725,7 +719,7 @@ class WorkoutSessionController(
             }
             ExerciseRemovalReason.SKIP_TODAY -> Unit
         }
-        planner = repository.buildPlanner(sessionLocationId, weightUnit, overrides)
+        planner = repository.buildPlanner(sessionLocationId, weightUnit)
     }
 
     private fun startRestTimer() {
@@ -756,7 +750,7 @@ class WorkoutSessionController(
         val staged = current.staged
         if (staged != null) {
             scope.launch {
-                staged.pendingSwap?.let { persistSwap(it, current.plan.effectiveOverrides) }
+                staged.pendingSwap?.let { persistSwap(it) }
                 val target = staged.commitTarget
                 if (target != null) setState(target) else finishWorkout(current.plan, current.sessionId)
             }

@@ -333,53 +333,6 @@ class WorkoutPlannerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // e1rmFromSessionWeight round-trip
-    // ──────────────────────────────────────────────────────────────────────
-
-    @Test
-    fun e1rmFromSessionWeight_roundTrip() {
-        val ex = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
-        val e1rm = 100f
-        val sessionReps = 5
-        val pe = PlannedExercise(
-            exercise = ex,
-            sessionWeight = WeightFormatter.round(
-                DefaultProgressionEngine.fromOneRepMax(e1rm, sessionReps), WeightUnit.KG
-            ),
-            sessionReps = sessionReps,
-        )
-        val p = planner()
-
-        val derivedE1rm = p.e1rmFromSessionWeight(pe.sessionWeight, pe.sessionReps)
-        val recomputed = p.recomputeExercise(pe, derivedE1rm)
-
-        // Round-trip should reproduce the original session weight within one rounding unit
-        assertEquals("session weight should survive e1rmFromSessionWeight→recompute round-trip",
-            pe.sessionWeight, recomputed.sessionWeight, 1.0f)
-    }
-
-    @Test
-    fun recomputeExercise_appliesNewBaselineWithCoefficient() {
-        val ex = exercise(1L, "Barbell Bench Press", MuscleGroup.CHEST)
-        val newBaseline = 120f  // coeff for Barbell Bench Press = 1.0
-        val sessionReps = 5
-        val p = planner(listOf(ex), strengthsFor(MuscleGroup.CHEST to 100f))
-
-        val pe = PlannedExercise(exercise = ex, sessionReps = sessionReps,
-            sessionWeight = WeightFormatter.round(
-                DefaultProgressionEngine.fromOneRepMax(100f, sessionReps), WeightUnit.KG))
-
-        val recomputed = p.recomputeExercise(pe, newBaseline)
-
-        val expected = WeightFormatter.round(
-            DefaultProgressionEngine.fromOneRepMax(newBaseline * 1.0f, sessionReps), WeightUnit.KG)
-        assertEquals("recomputeExercise with coeff=1.0 should apply new baseline directly",
-            expected, recomputed.sessionWeight, 0.01f)
-        assertTrue("new weight should differ from original when baseline changed",
-            recomputed.sessionWeight != pe.sessionWeight)
-    }
-
-    // ──────────────────────────────────────────────────────────────────────
     // computeWarmupSets
     // ──────────────────────────────────────────────────────────────────────
 
@@ -881,33 +834,9 @@ class WorkoutPlannerTest {
             coefficientSource = UserCoefficientSource(mapOf(1L to 1f)),
             policyFacts = facts,
         )
-        val w = p.weightForExerciseTest(ex, sessionReps = 10)
+        val w = p.suggestedWeight(ex, reps = 10)
         assertTrue("must be strictly below the failed 35 kg, was $w", w < 35f)
         assertTrue(w > 0f)
-    }
-
-    @Test
-    fun manualOverrideBypassesPolicy() {
-        val now = System.currentTimeMillis()
-        val ex = exercise(1L, muscle = MuscleGroup.QUADS, equipment = Equipment.MACHINE)
-        val failedSet = WorkoutSet(
-            sessionId = 1L, exerciseId = 1L, setNumber = 1, targetWeight = 35f, targetReps = 10,
-            actualReps = 2, feedback = SetFeedback.TOO_HARD, completedAt = now - 86_400_000L,
-        )
-        val facts = PolicyFacts.build(listOf(failedSet), mapOf(1L to MuscleGroup.QUADS))
-        val p = WorkoutPlanner(
-            availableExercises = listOf(ex),
-            prescribedE1rm = mapOf(1L to 60f),
-            recentHistory = emptyMap(),
-            weightUnit = WeightUnit.KG,
-            locationId = null,
-            nowMs = now,
-            coefficientSource = UserCoefficientSource(mapOf(1L to 1f)),
-            policyFacts = facts,
-            exerciseE1rmOverrides = mapOf(1L to 60f),  // user explicitly chose this
-        )
-        val w = p.weightForExerciseTest(ex, sessionReps = 10)
-        assertTrue("manual override is the user's decision; policy must not cap it", w > 35f)
     }
 
     @Test

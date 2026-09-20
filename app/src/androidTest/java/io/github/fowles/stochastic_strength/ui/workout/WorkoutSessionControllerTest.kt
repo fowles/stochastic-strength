@@ -28,6 +28,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -575,7 +576,7 @@ class WorkoutSessionControllerTest {
         val f = previewFixture(count = 2)
         val first = preview(f.controller).plan.exercises[0]
         f.controller.adjustExerciseWeight(first.exercise.id, +2.5f)
-        assertTrue(preview(f.controller).plan.exerciseOverrides.isNotEmpty())
+        assertTrue(preview(f.controller).plan.exercises[0].weightPinned)
 
         val all = f.db.exerciseDao().getActive()
         val savedId = f.repo.saveWorkout(null, "Trio", all.map { SavedWorkoutEntry(it, 6) })
@@ -584,9 +585,72 @@ class WorkoutSessionControllerTest {
         val p = preview(f.controller)
         assertEquals(all.map { it.id }, p.plan.exercises.map { it.exercise.id })
         assertEquals(listOf(6, 6, 6), p.plan.exercises.map { it.sessionReps })
-        assertTrue(p.plan.exerciseOverrides.isEmpty())
+        assertTrue(p.plan.exercises.none { it.weightPinned })
+        assertTrue(p.plan.exercises.all { it.repsPinned })
         assertEquals(2, p.targetCount)
         assertTrue(p.edited)
+        f.db.close()
+    }
+
+    @Test
+    fun weightNudge_pinsTheWeight_andSurvivesTheRepSlider() = runBlocking {
+        val f = previewFixture(count = 2)
+        val row = preview(f.controller).plan.exercises[0]
+        f.controller.adjustExerciseWeight(row.exercise.id, +2.5f)
+        val nudged = preview(f.controller).plan.exercises[0]
+        assertTrue(nudged.weightPinned)
+        assertEquals(row.sessionWeight + 2.5f, nudged.sessionWeight)
+        f.controller.setRepRange(3, 3)
+        val after = preview(f.controller).plan.exercises
+        assertEquals(nudged.sessionWeight, after[0].sessionWeight)
+        assertEquals(listOf(3, 3), after.map { it.sessionReps })
+        f.db.close()
+    }
+
+    @Test
+    fun setExerciseReps_pins_repricesAutoWeight_andResetFollowsTheSession() = runBlocking {
+        val f = previewFixture(count = 2)
+        f.controller.setRepRange(10, 10)
+        val before = preview(f.controller).plan.exercises[0]
+        f.controller.setExerciseReps(before.exercise.id, 3)
+        val pinned = preview(f.controller).plan.exercises[0]
+        assertTrue(pinned.repsPinned); assertEquals(3, pinned.sessionReps)
+        assertTrue(pinned.sessionWeight > before.sessionWeight)
+        f.controller.setRepRange(8, 8)
+        assertEquals(listOf(3, 8), preview(f.controller).plan.exercises.map { it.sessionReps })
+        f.controller.resetExerciseReps(before.exercise.id)
+        val reset = preview(f.controller).plan.exercises[0]
+        assertFalse(reset.repsPinned); assertEquals(8, reset.sessionReps)
+        f.db.close()
+    }
+
+    @Test
+    fun resetExerciseWeight_returnsToThePrescription() = runBlocking {
+        val f = previewFixture(count = 1)
+        val row = preview(f.controller).plan.exercises[0]
+        f.controller.adjustExerciseWeight(row.exercise.id, +2.5f)
+        f.controller.resetExerciseWeight(row.exercise.id)
+        val reset = preview(f.controller).plan.exercises[0]
+        assertFalse(reset.weightPinned); assertEquals(row.sessionWeight, reset.sessionWeight)
+        f.db.close()
+    }
+
+    @Test
+    fun savedWeight_loadsPinned_andSaveCurrentPlanWritesOnlyPins() = runBlocking {
+        val f = previewFixture(count = 1)
+        val all = f.db.exerciseDao().getActive()
+        val savedId = f.repo.saveWorkout(null, "W", listOf(
+            SavedWorkoutEntry(all[0], reps = 6, weight = 40f),
+            SavedWorkoutEntry(all[1], reps = null),
+        ))
+        f.controller.loadSavedWorkout(savedId)
+        awaitPreviewSize(f.controller, 2)
+        val rows = preview(f.controller).plan.exercises
+        assertEquals(40f, rows[0].sessionWeight); assertTrue(rows[0].weightPinned)
+        assertFalse(rows[1].weightPinned); assertFalse(rows[1].repsPinned)
+        val resaved = f.controller.saveCurrentPlan("Again")!!.entries
+        assertEquals(listOf(6, null), resaved.map { it.reps })
+        assertEquals(listOf(40f, null), resaved.map { it.weight })
         f.db.close()
     }
 
@@ -930,8 +994,6 @@ class WorkoutSessionControllerTest {
             WeightFormatter.round(target, WeightUnit.KG),
             commit.plan.exercises[i].sessionWeight,
         )
-        // Baseline override untouched.
-        assertTrue(commit.plan.exerciseOverrides.isEmpty())
     }
 
     @Test

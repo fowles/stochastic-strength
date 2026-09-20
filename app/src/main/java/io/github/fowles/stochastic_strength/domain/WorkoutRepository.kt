@@ -105,7 +105,6 @@ class WorkoutRepository(
     suspend fun buildPlanner(
         locationId: Long?,
         weightUnit: WeightUnit,
-        exerciseOverrides: Map<Long, Float> = emptyMap(),
     ): WorkoutPlanner {
         val now = System.currentTimeMillis()
         val ctx = prescriptionContext(locationId, now)
@@ -140,7 +139,6 @@ class WorkoutRepository(
             coefficientSource = effectiveCoefficients,
             progressionEngine = progressionEngine,
             pacingEstimator = pacingEstimator,
-            exerciseE1rmOverrides = exerciseOverrides,
             policyFacts = ctx.policyFacts,
         )
     }

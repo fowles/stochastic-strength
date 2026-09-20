@@ -27,7 +27,6 @@ class WorkoutPlanner(
     private val coefficientSource: CoefficientSource = ExerciseCoefficients,
     private val progressionEngine: ProgressionEngine = DefaultProgressionEngine,
     private val pacingEstimator: ExercisePacingEstimator = ExercisePacingEstimator.EMPTY,
-    private val exerciseE1rmOverrides: Map<Long, Float> = emptyMap(),
     private val policyFacts: PolicyFacts = PolicyFacts.EMPTY,
 ) {
     // Muscle groups where a weighted exercise hit RIR 0-1 within the past two days.
@@ -125,26 +124,6 @@ class WorkoutPlanner(
             currentExercises = currentExercises,
         ) ?: return null
         return withWeight(picked, sessionReps)
-    }
-
-    fun e1rmFromSessionWeight(sessionWeight: Float, sessionReps: Int): Float =
-        progressionEngine.toOneRepMax(sessionWeight, sessionReps)
-
-    fun recomputeExercise(pe: PlannedExercise, newE1rmKg: Float): PlannedExercise {
-        // The coefficient is only a loaded/non-zero guard here: recompute maps the new e1rm straight
-        // to a session weight (no coefficient multiply), so unloadable exercises pass through unchanged.
-        val coefficient = coefficientSource.get(pe.exercise) ?: return pe
-        if (coefficient <= 0f) return pe
-        val newWeight = WeightFormatter.round(
-            progressionEngine.fromOneRepMax(newE1rmKg, pe.sessionReps),
-            weightUnit,
-        )
-        val warmups = if (pe.exercise.isTimed) emptyList() else computeWarmupSets(newWeight, pe.exercise)
-        return pe.copy(
-            sessionWeight = newWeight,
-            warmupSets = warmups,
-            estimatedSeconds = durationOf(pe, pe.sessionReps, warmups),
-        )
     }
 
     private fun durationOf(pe: PlannedExercise, reps: Int, warmups: List<WarmupSet>): Int =
@@ -310,13 +289,6 @@ class WorkoutPlanner(
     private fun weightForExercise(exercise: Exercise, sessionReps: Int): Float {
         val coeff = coefficientSource.get(exercise) ?: return 0f
         if (coeff <= 0f) return 0f // unloadable (bodyweight/banded): no prescription
-        // A manual e1rm override is the user's explicit decision — policy clamps machine
-        // prescriptions only, so overrides take the plain legacy path.
-        val manual = exerciseE1rmOverrides[exercise.id]
-        if (manual != null) {
-            if (manual <= 0f) return 0f
-            return WeightFormatter.round(progressionEngine.fromOneRepMax(manual, sessionReps), weightUnit)
-        }
         val e1rm = prescribedE1rm[exercise.id] ?: return 0f
         if (e1rm <= 0f) return 0f
         return PrescriptionPolicy.prescribe(
@@ -330,7 +302,4 @@ class WorkoutPlanner(
             engine = progressionEngine,
         ).weightKg
     }
-
-    internal fun weightForExerciseTest(exercise: Exercise, sessionReps: Int) =
-        weightForExercise(exercise, sessionReps)
 }
