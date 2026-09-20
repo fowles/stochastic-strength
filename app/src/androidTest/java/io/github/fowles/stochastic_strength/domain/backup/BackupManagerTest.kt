@@ -169,6 +169,39 @@ class BackupManagerTest {
     }
 
     @Test
+    fun additiveImport_skipsOpenSessionAlreadyClosedLocally() = runBlocking {
+        // A backup taken while a session was still open holds (start, null); locally that same
+        // session has since been closed to (start, lastCompletedAt). Same session, one startTime.
+        db.exerciseDao().insert(Exercise(id = 0, name = "Bench Press",
+            primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL))
+        val localSid = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000, endTime = 1500))
+        db.workoutSetDao().insert(WorkoutSet(sessionId = localSid, exerciseId = 1, setNumber = 1,
+            targetWeight = 60f, targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_2_4,
+            completedAt = 1500))
+
+        val backup = WorkoutBackup(
+            formatVersion = WorkoutBackup.FORMAT_VERSION, dbVersion = WorkoutBackup.DB_VERSION,
+            exportedAt = 0,
+            exercises = listOf(
+                Exercise(id = 5, name = "Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+            ),
+            knownLocations = emptyList(), locationExcludedExercises = emptyList(),
+            workoutSessions = listOf(WorkoutSession(id = 9, startTime = 1000, endTime = null)),
+            workoutSets = listOf(
+                WorkoutSet(id = 1, sessionId = 9, exerciseId = 5, setNumber = 1, targetWeight = 60f,
+                    targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = 1500),
+            ),
+            userProfile = emptyList(), baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
+        )
+
+        val result = manager.importAdditive(backup)
+
+        assertEquals(0, result.sessionsAdded)
+        assertEquals(1, db.workoutSessionDao().getAll().size)
+        assertEquals(1, db.workoutSetDao().getAll().size)
+    }
+
+    @Test
     fun additiveImport_leavesProfileUntouched() = runBlocking {
         db.userProfileDao().insert(io.github.fowles.stochastic_strength.data.model.UserProfile(
             id = 1, sex = io.github.fowles.stochastic_strength.data.model.Sex.MALE,

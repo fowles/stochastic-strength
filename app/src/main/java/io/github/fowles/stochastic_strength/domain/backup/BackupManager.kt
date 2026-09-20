@@ -104,14 +104,15 @@ class BackupManager(
                 return newId
             }
 
-            // (startTime, endTime) -> already present locally, so re-importing a file is a no-op.
-            val existingSessionSpans = db.workoutSessionDao().getAll()
-                .map { it.startTime to it.endTime }.toMutableSet()
+            // startTime alone identifies a session (a ms timestamp is unique for one user), so
+            // re-importing a file is a no-op — including a backup taken while a session was still
+            // open, whose local twin has since been closed to a different endTime.
+            val existingSessionStarts = db.workoutSessionDao().getAll()
+                .map { it.startTime }.toMutableSet()
 
             val setsBySession = backup.workoutSets.groupBy { it.sessionId }
             for (session in backup.workoutSessions) {
-                val span = session.startTime to session.endTime
-                if (!existingSessionSpans.add(span)) continue
+                if (!existingSessionStarts.add(session.startTime)) continue
                 val newLocationId = resolveLocationId(session.locationId)
                 val newSessionId = db.workoutSessionDao().insert(
                     session.copy(id = 0, locationId = newLocationId)
