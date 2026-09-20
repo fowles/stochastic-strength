@@ -16,12 +16,12 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - `WorkoutRepository.saveSessionAsWorkout`: after a swap inside a circuit, both the abandoned
   original and its replacement are saved as members, each at full rounds (`equalizeRounds`). That
   follows the spec ("rounds = max over members") but is probably not what the user wants.
-- `WorkoutSessionController.addExercise` and `.applySavedWorkout` capture `p = planner` before
-  their suspends; a concurrent `onLocationRefreshed` can swap `planner` to a fresh instance in that
-  window, so the add/load prices its row(s) against a superseded planner instead of the latest one.
-  Pre-existing (predates and is unchanged by the 2026-09-19 todo-sweep task-6 fix, which addressed
-  the *state*-merge race but not this planner-read race); needs its own design pass (e.g. re-reading
-  `planner` right before pricing, or making the planner swap itself suspend-safe).
+- `WorkoutSessionController.addExercise` / `.applySavedWorkout` now re-read `planner` inside their
+  `applyPreviewDelta` transform (2026-09-20), so the planner-read race is closed — but the change is
+  **not covered by a test**. Gating it would need the planner swap to happen while `addExercise`'s
+  own suspend is blocked, and `onLocationRefreshed`'s DB calls queue behind that block on the same
+  single-threaded gated executor, so the swap can't be made to land in the window. Covering it needs
+  a seam that swaps `planner` without touching the database.
 - Not exercised on the emulator during the unified-row pass: block drag with the new handle/node
   layout, swipe-to-reject and swipe-to-remove inside a circuit, and steppers with long exercise names
   at 360dp.

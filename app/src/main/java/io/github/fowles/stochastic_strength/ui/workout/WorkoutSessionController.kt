@@ -306,13 +306,18 @@ class WorkoutSessionController(
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         if (preview.plan.exercises.any { it.exercise.id == exerciseId }) return
         scope.launch {
-            val p = planner ?: return@launch
+            if (planner == null) return@launch
             val exercise = repository.getExerciseById(exerciseId) ?: return@launch
             val excluded = sessionLocationId?.let { repository.getExcludedExerciseIds(it) } ?: emptySet()
             // The delta this method owns is only the appended row: price and flag it against
             // whatever the live preview looks like now, and fold it into that live state — never
             // a plan snapshot taken before these suspends.
             applyPreviewDelta { live ->
+                // Read the planner here, not before the suspends: onLocationRefreshed can swap it
+                // for a fresher one in that window, and the row should be priced against the
+                // latest. `excluded` stays valid across that swap — onLocationRefreshed rebuilds
+                // the planner for the same sessionLocationId, so the exclusion set is unchanged.
+                val p = planner ?: return@applyPreviewDelta null
                 if (live.plan.exercises.any { it.exercise.id == exerciseId }) return@applyPreviewDelta null
                 val planned = p.planExplicit(exercise, reps = null, plan = live.plan)
                 explicitIds += exerciseId
@@ -342,15 +347,18 @@ class WorkoutSessionController(
             val saved = repository.getSavedWorkout(id) ?: return@launch
             val entries = saved.entries.distinctBy { it.exercise.id }
             val loadedIds = entries.map { it.exercise.id }.toSet()
-            // Both paths price against the planner the preview already holds: a load replaces the
-            // plan's rows, not anything the planner reads.
-            val p = planner ?: return@launch
+            if (planner == null) return@launch
             val excluded = sessionLocationId?.let { repository.getExcludedExerciseIds(it) } ?: emptySet()
             // This method's delta IS the whole exercise list — a load/append replaces the rows
             // wholesale. What must survive is everything outside the exercise list (location name,
             // slider target, detraining notice, …), so fold the new list into the live preview
             // rather than writing back a plan snapshot taken before these suspends.
             applyPreviewDelta { live ->
+                // Read the planner here, not before the suspends: onLocationRefreshed can swap it
+                // for a fresher one in that window, and the loaded rows should be priced against
+                // the latest. `excluded` stays valid across that swap — onLocationRefreshed
+                // rebuilds the planner for the same sessionLocationId.
+                val p = planner ?: return@applyPreviewDelta null
                 val basePlan = live.plan
                 // A loaded row wins over an existing row for the same exercise.
                 val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
