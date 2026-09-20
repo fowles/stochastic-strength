@@ -341,8 +341,9 @@ cd "$(mktemp -d)" && for f in stochastic_strength.db stochastic_strength.db-wal 
   actually did — `1` — while **B** shows `3` and **C** shows `2`. The point is that A is **not** 3.
 - Step 6: the session asks for exactly those counts — A once, B three times, C twice — and then
   moves past the circuit.
-- Open the saved workout in the editor (Home → *Workouts*) and confirm the known gap: the rounds
-  chip reads **"Rounds: 3"**, the block maximum, giving no hint that A is a 1-round member.
+- Open the saved workout in the editor (Home → *Workouts*) and confirm the chip reads
+  **"Rounds: 3"** — the block maximum. That is the intended display (decided 2026-09-20), not a
+  gap: an uneven circuit advertises its longest member.
 
 ### FAIL
 
@@ -350,11 +351,12 @@ Step 5 shows A at 3 rounds (the old equalizing behaviour — the fix did not tak
 step 6 asks for more rounds of A than were stored, or the three rows do **not** share a `circuitId`
 (the circuit was lost on save).
 
-### Worth deciding while you are looking at it
+### Also confirm, now that the display is decided
 
-This is the open design question the change created, not a defect: is "Rounds: 3" on an uneven
-circuit acceptable, or should the chip show a range ("1–3 ×") when members disagree? Note your call
-— it is logged in `CLAUDE_TODO.md` waiting for one.
+The chip shows the block maximum on an uneven circuit — no range. Tap it and pick a number: the
+whole block levels to that number, which is the point of setting one. Check that the levelled value
+then survives leaving and re-opening the editor. Losing the unevenness here is intended; losing it
+*without* a tap would not be.
 
 ---
 

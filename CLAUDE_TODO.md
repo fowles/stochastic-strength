@@ -4,6 +4,14 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 
 ## Open — intended / accepted-by-design (no action needed, kept for visibility)
 
+- **Uneven circuits show their largest round count** (decided 2026-09-20). `saveSessionAsWorkout`
+  keeps each member at the rounds it actually got, so a saved circuit can be uneven (a swapped-away
+  member at 1, its replacement at 2, an untouched member at 3). The rounds chip shows the block
+  maximum — no range, no per-member annotation: a circuit advertises its longest member. Setting the
+  chip (`CircuitEdits.setRounds`) levels the whole block, which is the coherent reading of editing
+  the one number on display. Still to be seen on a device — Check 7 of
+  `docs/verification/2026-09-20-device-check.md`.
+
 ## Open — needs triage
 
 - `LinkNodeHost`'s new `isTraversalGroup`/`traversalIndex = -1f` (added to place the circuit
@@ -13,11 +21,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   editor: (1) a 3-row circuit (sibling `LinkNodeHost` groups inside one `LazyColumn` item), and
   (2) two consecutive 2-row circuits back to back (crosses a `LazyColumn` item boundary) — and
   revert per that report if either reads wrong.
-- Saved workouts can now hold **uneven circuits** (2026-09-20): `saveSessionAsWorkout` no longer
-  equalizes rounds, so a member cut short or swapped away keeps the rounds it actually got. The
-  editor's round chip shows the block maximum, and touching it (`CircuitEdits.setRounds`) re-levels
-  the whole block — so an uneven saved circuit silently becomes even on the first rounds edit. Not
-  seen on a device; worth a look at whether the chip should show a range instead.
 - `WorkoutSessionController.addExercise` / `.applySavedWorkout` now re-read `planner` inside their
   `applyPreviewDelta` transform (2026-09-20), so the planner-read race is closed — but the change is
   **not covered by a test**. Gating it would need the planner swap to happen while `addExercise`'s
@@ -38,5 +41,5 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   parameter is **not measured**: no recomposition-count harness exists, so "the row now skips" is
   reasoning about parameter equality, not an observation. It is also **device-unverified** — drag
   and drop on plan preview and in the saved-workout editor should be exercised on the emulator to
-  confirm the remembered `Modifier.draggableHandle()` still starts a drag from every row of a
-  circuit block.
+  confirm the remembered `Modifier.draggableHandle()` still starts a drag. (The handle is drawn on
+  the block head only — one per circuit, not one per row.)
