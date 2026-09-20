@@ -83,10 +83,14 @@ are deleted: a pinned weight lives on the row, so the planner no longer needs to
 
 ### Storage
 
-- `saved_workout_exercise.weight REAL` nullable, kg. DB v21 → v22, `MIGRATION_21_22` is one
-  `ALTER TABLE ADD COLUMN`. Schema JSON `22.json`; `MigrationTest` forward lists updated;
-  `Migration21To22Test` added.
-- Backup: `DB_VERSION = 22`, `MIN_DB_VERSION` stays 20; the parser defaults a missing `weight` to null.
+- `saved_workout_exercise.weight REAL` nullable, kg. DB v21 was never released, so the column is folded
+  into it: `MIGRATION_20_21` gains a fourth `ALTER TABLE ADD COLUMN`, `21.json` is regenerated, and
+  `Migration20To21Test` is extended. No version bump, no `MigrationTest` list change.
+- Any install that already ran a v21 dev build (the emulator, a dev phone) has the old v21 schema and
+  will fail Room's schema check: uninstall or clear app data there. Export a backup first if the data
+  matters — a v21 backup without `weight` imports cleanly.
+- Backup: `DB_VERSION` stays 21, `MIN_DB_VERSION` stays 20; the parser defaults a missing `weight` to
+  null (covers v20 files and v21 files written before this change).
 - `saveSessionAsWorkout` (from a finished session) writes `weight = null`: a logged weight is history,
   not an instruction.
 
@@ -147,8 +151,8 @@ One composable lays out every row on both screens:
 
 - JVM: planner pin matrix (slider × {reps pinned, weight pinned}); `planExplicit` with weight;
   controller `adjustExerciseWeight` pins and survives the slider; `setExerciseReps` reprices auto weight
-  and leaves pinned weight; resets; load → save round trip keeps only pinned values; backup v20/v21/v22 parse; editor view model weight edits and dirty check.
-- Instrumented: `Migration21To22Test`, DAO/repository round trip of `weight`, `MigrationTest` lists.
+  and leaves pinned weight; resets; load → save round trip keeps only pinned values; backup parse with and without `weight`; editor view model weight edits and dirty check.
+- Instrumented: `Migration20To21Test` covers `weight`; DAO/repository round trip of `weight`.
 - Belief/policy stack and the backtest gate are untouched.
 - On-device pass (emulator) for both screens after the UI tasks: chip menu, link node hit area next to
   the drag handle, rail drawing, steppers at 360dp width with long names, dynamic-colour contrast of the
