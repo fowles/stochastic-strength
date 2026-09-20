@@ -176,7 +176,7 @@ internal fun RestingContent(
             // The reduction only describes what's next when the next real set is this same
             // exercise (always true when solo); in a circuit the next set belongs to another
             // member, so the reduced-weight card would be naming the wrong exercise's weight.
-            val reductionAppliesToNext = nextStep?.exerciseIndex == state.exerciseIndex
+            val reductionAppliesToNext = WorkoutSequence.isNextStepFor(nextStep, state.exerciseIndex)
 
             when {
                 state.staged != null -> {

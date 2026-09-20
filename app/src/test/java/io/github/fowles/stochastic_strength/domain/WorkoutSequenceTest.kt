@@ -110,4 +110,38 @@ class WorkoutSequenceTest {
         )
         assertNull(WorkoutSequence.circuitRoundLabel(plan, Step(exerciseIndex = 3, setIndex = 0)))
     }
+
+    @Test
+    fun circuitRoundLabel_staleCircuitIdOnASingleMember_isTreatedAsSolo() {
+        // In-session removal doesn't renumber circuit ids, so a block can shrink to one member
+        // that still carries a non-null circuitId. CircuitStructure.blocks treats a run of one as
+        // solo (isCircuit = size > 1), and circuitRoundLabel must follow that, not the raw id.
+        val plan = listOf(pe(1, 4, circuitId = 0))
+        assertNull(WorkoutSequence.circuitRoundLabel(plan, Step(exerciseIndex = 0, setIndex = 1)))
+    }
+
+    @Test
+    fun isNextStepFor_soloExercise_reductionAppliesToItsOwnNextSet() {
+        // Defect 2: a too-hard reduction to exercise A only describes what's next when the next
+        // real step is also A's — true for a solo row continuing its own remaining sets.
+        val plan = listOf(pe(1, 3))
+        val step = WorkoutSequence.next(plan, mapOf(1L to 1))
+        assertEquals(Step(exerciseIndex = 0, setIndex = 1), step)
+        assertEquals(true, WorkoutSequence.isNextStepFor(step, exerciseIndex = 0))
+    }
+
+    @Test
+    fun isNextStepFor_circuitMember_reductionDoesNotApplyToADifferentMembersNextSet() {
+        // A reduced A inside a circuit is followed by B's set, not another set of A — the reduced-
+        // weight card must not claim to describe what's next.
+        val plan = listOf(pe(1, 2, 0), pe(2, 2, 0))
+        val step = WorkoutSequence.next(plan, mapOf(1L to 1)) // A just finished set 1; B is next
+        assertEquals(Step(exerciseIndex = 1, setIndex = 0), step)
+        assertEquals(false, WorkoutSequence.isNextStepFor(step, exerciseIndex = 0))
+    }
+
+    @Test
+    fun isNextStepFor_nullStep_neverApplies() {
+        assertEquals(false, WorkoutSequence.isNextStepFor(null, exerciseIndex = 0))
+    }
 }

@@ -41,4 +41,13 @@ object WorkoutSequence {
         val block = CircuitStructure.blocks(exercises).first { step.exerciseIndex in it.indices }
         return if (block.isCircuit) positionLabel(exercises, step.exerciseIndex, step.setIndex) else null
     }
+
+    /**
+     * True when [step] — the workout's next real step, from [next] — is a set for [exerciseIndex].
+     * Always true for a solo exercise's own continuation; false whenever the next real set belongs
+     * to a different exercise, which in a circuit is the common case. Consumers use this to gate
+     * exercise-scoped "what's next" copy (e.g. a reduced-weight notice) that would otherwise
+     * describe the wrong exercise's upcoming set.
+     */
+    fun isNextStepFor(step: Step?, exerciseIndex: Int): Boolean = step?.exerciseIndex == exerciseIndex
 }
