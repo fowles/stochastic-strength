@@ -10,7 +10,9 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   link-node between the two rows it links, task 4 of the 2026-09-19 todo sweep) is unverified on a
   real device — no TalkBack run was possible off-device. Needs a human to run the checklist in
   `.superpowers/sdd/2026-09-19-todo-sweep/task-4-report.md` on plan preview and the saved-workout
-  editor, for both a 2-row and a 3-row circuit, and revert per that report if it reads wrong.
+  editor: (1) a 3-row circuit (sibling `LinkNodeHost` groups inside one `LazyColumn` item), and
+  (2) two consecutive 2-row circuits back to back (crosses a `LazyColumn` item boundary) — and
+  revert per that report if either reads wrong.
 - `RestingContent`'s staged-action branch (`state.staged != null` — swap / end-exercise / adjust-
   weight / warmup-done) titles its card "Up next" / "Warm up" / "First set" for the commit target
   but never shows a circuit round, even when that commit target is a circuit member. Same class of

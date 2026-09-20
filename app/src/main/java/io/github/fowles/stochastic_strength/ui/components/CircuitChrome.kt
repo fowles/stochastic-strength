@@ -228,10 +228,21 @@ fun ExerciseRowScaffold(
  *
  * Visually the node paints above [content] (the later row), but it toggles the link to the row
  * *before* it — so this [Box] is marked [isTraversalGroup] and the node given a negative
- * [traversalIndex], putting it ahead of [content] in TalkBack order. That sorts the node right
- * after the earlier row's own item (list order is untouched, only this item's two children swap),
- * i.e. between the two rows it links, instead of the default after-content order the later-row
- * ownership would otherwise produce.
+ * [traversalIndex], putting it ahead of [content] in TalkBack order within this one host, instead
+ * of the default after-content order the later-row ownership would otherwise produce.
+ *
+ * That fixes ordering *inside* one [LinkNodeHost], but a circuit's rows aren't one-host-per-list-
+ * item: at both call sites a `LazyColumn` item is a whole circuit block, and the per-row
+ * `LinkNodeHost` calls are siblings inside that item's `Column`, one per row in a `for` loop. This
+ * function marks its own group unconditionally (even the `linkedAbove == null` case with a single
+ * child, where grouping is a no-op) so those sibling groups behave uniformly; between *different*
+ * `LinkNodeHost` calls in that `Column`, none of them sets a `traversalIndex`, so they tie at the
+ * default `0f` and fall back to plain layout order (top to bottom) for their relative order. That
+ * is what actually produces content₀, node₁, content₁, node₂, content₂, … across a multi-row
+ * circuit — not nesting inside a shared group. Adding a group *around* several `LinkNodeHost`
+ * siblings (e.g. wrapping the `for` loop's body) would put them in traversalIndex contention with
+ * each other and could silently break this ordering; don't add one there without re-deriving the
+ * order from scratch.
  */
 @Composable
 fun LinkNodeHost(
