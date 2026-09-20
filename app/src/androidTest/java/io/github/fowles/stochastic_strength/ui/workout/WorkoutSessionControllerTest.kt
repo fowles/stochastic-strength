@@ -752,6 +752,41 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
+    fun startFirstExercise_picksUpAPreviewEdit_madeDuringItsSessionInsert() = runBlocking {
+        val gated = gatedExecutor()
+        val f = previewFixture(count = 2, queryExecutor = gated)
+        try {
+            // Gate the FIRST call, not the last: the session-row insert is the only DB call
+            // startFirstExercise makes, and its suspend window closes the moment that call
+            // returns. armGateAtLastCall would land on Room's post-insert invalidation refresh,
+            // by which point the coroutine has already resumed and the race is over.
+            gated.resetCount()
+            gated.armBlockAt(1)
+
+            val editedId = preview(f.controller).plan.exercises[0].exercise.id
+            f.controller.startFirstExercise()
+            gated.awaitEntered(1)
+            assertTrue(
+                "the gate must have caught the session insert, with the preview still up — " +
+                    "a stray background call got it instead",
+                f.controller.state.value is WorkoutState.PlanPreview,
+            )
+            // The preview is still on screen while the session row is being inserted, so this is
+            // an edit a real user can make — and the session then runs on the plan chosen here.
+            f.controller.setExerciseSets(editedId, 4)
+            gated.unblock()
+
+            val active = awaitActive(f.controller)
+            assertEquals(
+                "a preview edit made during startFirstExercise's insert must reach the session",
+                4, active.plan.exercises.first { it.exercise.id == editedId }.sets,
+            )
+        } finally {
+            gated.unblock() // safety net — see the comment in addExercise's version of this test
+        }
+    }
+
+    @Test
     fun maybeNoteDetraining_survivesAConcurrentStructureEdit_duringItsSuspend() = runBlocking {
         val gated = gatedExecutor()
         val context = InstrumentationRegistry.getInstrumentation().targetContext

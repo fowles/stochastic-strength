@@ -32,12 +32,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   node tracking a row's live swipe offset and snapping back to 0 once the action row takes over,
   and (3) the action row's own layout now that the gutter is drawn only for circuit members (a solo
   row's action row keeps the full width; a circuit member's is inset by the 36dp gutter).
-- `WorkoutSessionController.startFirstExercise` (:134-147) captures `plan` before its
-  `workoutSessionDao().insert` suspend and builds the first `ActiveSet` from that stale snapshot at
-  :144 — the whole session then runs on it, so a preview edit landing during the insert is lost for
-  the rest of the workout. `applyPreviewDelta` does not fit (this is a deliberate exit *from*
-  `PlanPreview`), but re-reading the live preview's plan after the insert would. Narrow window and
-  pre-existing; deliberately left unchanged by the 2026-09-19 whole-branch fix pass.
 - `ExercisePreviewRow` still recomposes on every pass, so the `remember(block, i) { linkAbove(...) }`
   memoization added in the 2026-09-19 sweep buys subtree skipping (`LinkNodeHost`) rather than the
   whole-row skipping it was aimed at. The remaining never-equal parameter is

@@ -137,13 +137,18 @@ class WorkoutSessionController(
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         if (preview.plan.exercises.isEmpty()) return
-        val plan = preview.plan
         scope.launch {
             val now = System.currentTimeMillis()
             sessionStartTime = now
             val sessionId = database.workoutSessionDao().insert(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
+            // Re-read the preview after the insert rather than using the snapshot taken before
+            // it. The preview is still on screen for the duration of that suspend, so an edit
+            // can land in the window — and the plan chosen here is the one the whole session
+            // runs on, so a stale snapshot would lose that edit for the rest of the workout.
+            // (applyPreviewDelta doesn't fit: this is a deliberate exit *from* PlanPreview.)
+            val plan = (_state.value as? WorkoutState.PlanPreview)?.plan ?: preview.plan
             activeSetFor(plan, emptyMap(), sessionId)?.let(::setState)
                 ?: finishWorkout(plan, sessionId)
         }
