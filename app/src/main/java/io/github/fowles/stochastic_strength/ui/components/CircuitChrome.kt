@@ -83,10 +83,18 @@ private const val DISABLED_ALPHA = 0.38f
  */
 data class KeyedBlock<T>(val block: Block, val rows: List<T>, val key: Long)
 
-/** [CircuitStructure.blocks], with each block's rows and its list key (its smallest member [id]). */
+/**
+ * [CircuitStructure.blocks], with each block's rows and its list key: its first member's [id].
+ *
+ * The first member, not the smallest id, so a link or unlink always leaves the *upper* block's key
+ * in place and only the lower block's item comes or goes. A key that can hop to the lower block
+ * (ids carry no relation to position) makes LazyColumn slide that item up over the fading upper
+ * one, and — when it was the first visible item — re-anchor its scroll to the key's new index,
+ * which animates the whole list. Drags move whole blocks, so the first member survives them.
+ */
 fun <T : CircuitRow<T>> keyedBlocks(rows: List<T>, id: (T) -> Long): List<KeyedBlock<T>> =
     CircuitStructure.blocks(rows).map { b ->
-        KeyedBlock(b, rows.slice(b.indices), b.indices.minOf { id(rows[it]) })
+        KeyedBlock(b, rows.slice(b.indices), id(rows[b.start]))
     }
 
 /** Where a row sits in its block; drives the handle column of [ExerciseRowScaffold]. */
@@ -379,8 +387,8 @@ fun <T : CircuitRow<T>> CircuitBlockList(
     }
     val blocks = remember(rows) { keyedBlocks(rows, rowId) }
     LazyColumn(state = lazyListState, modifier = modifier) {
-        // One item per block, so a drag carries a whole circuit. The smallest member id is a key
-        // that survives the drag.
+        // One item per block, so a drag carries a whole circuit. The first member's id is a key
+        // that survives the drag, and a link or unlink (see keyedBlocks).
         itemsIndexed(blocks, key = { _, it -> it.key }) { blockIndex, keyed ->
             val block = keyed.block
             // Omitted at the list edge, same as the drag handle simply having nowhere further to

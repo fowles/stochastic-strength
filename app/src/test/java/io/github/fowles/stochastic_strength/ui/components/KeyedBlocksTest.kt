@@ -9,13 +9,27 @@ class KeyedBlocksTest {
     private fun id(row: TestRow) = row.tag.first().code.toLong()
 
     @Test
-    fun keyedBlocks_carriesEachBlocksRowsAndSmallestMemberId() {
+    fun keyedBlocks_carriesEachBlocksRowsAndFirstMemberId() {
         val rows = listOf(TestRow("a"), TestRow("c", 2, 7), TestRow("b", 1, 7))
         val keyed = keyedBlocks(rows) { id(it) }
 
         assertEquals(listOf(Block(0, 1, 3), Block(1, 2, 2)), keyed.map { it.block })
         assertEquals(listOf(rows.subList(0, 1), rows.subList(1, 3)), keyed.map { it.rows })
-        assertEquals(listOf(id(rows[0]), id(rows[2])), keyed.map { it.key })
+        assertEquals(listOf(id(rows[0]), id(rows[1])), keyed.map { it.key })
+    }
+
+    /**
+     * Linking or unlinking a boundary must leave the upper block's key where it was, whichever
+     * side holds the smaller id: a key that hops to the lower block makes LazyColumn slide that
+     * item up over the fading upper one, and re-anchor its scroll when it was the first visible.
+     */
+    @Test
+    fun keyedBlocks_upperBlockKeepsItsKeyAcrossALink() {
+        val unlinked = listOf(TestRow("c"), TestRow("a"), TestRow("b"))
+        val linked = listOf(TestRow("c", 1, 7), TestRow("a", 1, 7), TestRow("b"))
+
+        assertEquals(listOf(id(unlinked[0]), id(unlinked[1]), id(unlinked[2])), keyedBlocks(unlinked) { id(it) }.map { it.key })
+        assertEquals(listOf(id(linked[0]), id(linked[2])), keyedBlocks(linked) { id(it) }.map { it.key })
     }
 
     /**
