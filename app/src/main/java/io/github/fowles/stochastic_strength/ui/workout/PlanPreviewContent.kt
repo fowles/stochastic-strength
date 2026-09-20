@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -52,11 +53,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
-import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.components.CircuitHeader
+import io.github.fowles.stochastic_strength.ui.components.CountStepper
+import io.github.fowles.stochastic_strength.ui.components.LinkToggle
 import kotlin.math.roundToInt
 
 @Composable
@@ -69,6 +74,9 @@ internal fun PlanPreviewContent(
     onSetRepRange: (repMin: Int, repMax: Int) -> Unit,
     onAdjustWeight: (exerciseId: Long, delta: Float) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
+    onLink: (rowIndex: Int) -> Unit,
+    onUnlink: (rowIndex: Int) -> Unit,
+    onSetSets: (exerciseId: Long, sets: Int) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
     hasSavedWorkouts: Boolean,
@@ -78,7 +86,7 @@ internal fun PlanPreviewContent(
     onSaveWorkout: () -> Unit,
 ) {
     val plan = state.plan
-    val totalSets = plan.exercises.size * PlannedExercise.DEFAULT_SETS
+    val totalSets = plan.exercises.sumOf { it.sets }
     val durationMin = plan.estimatedDurationSeconds / 60
 
     var sliderValue by remember(state.targetCount) { mutableFloatStateOf(state.targetCount.toFloat()) }
@@ -179,7 +187,7 @@ internal fun PlanPreviewContent(
         Spacer(Modifier.height(8.dp))
         HorizontalDivider()
         Text(
-            "Swipe left to reject an exercise",
+            "Swipe left to reject · ⛓ links rows into a circuit",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 4.dp),
@@ -190,25 +198,42 @@ internal fun PlanPreviewContent(
             onMove(from.index, to.index)
         }
 
+        val blocks = remember(plan.exercises) { CircuitStructure.blocks(plan.exercises) }
         LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
-            items(plan.exercises, key = { it.exercise.id }) { planned ->
-                ReorderableItem(reorderState, key = planned.exercise.id) { isDragging ->
+            items(blocks, key = { b -> b.indices.minOf { plan.exercises[it].exercise.id } }) { block ->
+                val key = block.indices.minOf { plan.exercises[it].exercise.id }
+                ReorderableItem(reorderState, key = key) { isDragging ->
                     val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                     Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
-                        ExercisePreviewRow(
-                            planned = planned,
-                            weightUnit = weightUnit,
+                        if (block.isCircuit) CircuitHeader(
+                            rounds = block.rounds,
+                            onRoundsChange = { onSetSets(plan.exercises[block.start].exercise.id, it) },
                             dragHandleModifier = Modifier.draggableHandle(),
-                            onReplace = { reason -> onReplace(planned.exercise.id, reason) },
-                            onWeightDecrement = if (planned.sessionWeight > 0f) {
-                                { onAdjustWeight(planned.exercise.id, -2.5f) }
-                            } else null,
-                            onWeightIncrement = if (planned.sessionWeight > 0f) {
-                                { onAdjustWeight(planned.exercise.id, +2.5f) }
-                            } else null,
-                            onTap = { onExerciseTap(planned.exercise.id) },
-                            flag = state.rowFlags[planned.exercise.id],
                         )
+                        for (i in block.indices) {
+                            val planned = plan.exercises[i]
+                            key(planned.exercise.id) {
+                                ExercisePreviewRow(
+                                    planned = planned,
+                                    weightUnit = weightUnit,
+                                    dragHandleModifier = if (block.isCircuit) null else Modifier.draggableHandle(),
+                                    onReplace = { reason -> onReplace(planned.exercise.id, reason) },
+                                    onWeightDecrement = if (planned.sessionWeight > 0f) {
+                                        { onAdjustWeight(planned.exercise.id, -2.5f) }
+                                    } else null,
+                                    onWeightIncrement = if (planned.sessionWeight > 0f) {
+                                        { onAdjustWeight(planned.exercise.id, +2.5f) }
+                                    } else null,
+                                    onTap = { onExerciseTap(planned.exercise.id) },
+                                    onSetsChange = { onSetSets(planned.exercise.id, it) },
+                                    flag = state.rowFlags[planned.exercise.id],
+                                )
+                            }
+                            if (i != plan.exercises.lastIndex) LinkToggle(
+                                linked = i != block.last,
+                                onClick = { if (i != block.last) onUnlink(i) else onLink(i) },
+                            )
+                        }
                         HorizontalDivider()
                     }
                 }
@@ -225,11 +250,13 @@ internal fun PlanPreviewContent(
 private fun ExercisePreviewRow(
     planned: io.github.fowles.stochastic_strength.domain.model.PlannedExercise,
     weightUnit: WeightUnit,
-    dragHandleModifier: Modifier,
+    /** Null for a circuit member: the circuit's header is the only handle. */
+    dragHandleModifier: Modifier?,
     onReplace: (ExerciseRemovalReason) -> Unit,
     onWeightDecrement: (() -> Unit)?,
     onWeightIncrement: (() -> Unit)?,
     onTap: () -> Unit,
+    onSetsChange: (Int) -> Unit,
     flag: RowFlag?,
 ) {
     var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
@@ -279,14 +306,14 @@ private fun ExercisePreviewRow(
                     .clickable(onClick = onTap)
                     .padding(vertical = 12.dp),
             ) {
-                Icon(
+                if (dragHandleModifier != null) Icon(
                     imageVector = Icons.Filled.DragIndicator,
                     contentDescription = "Drag to reorder",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = dragHandleModifier
                         .padding(start = 4.dp, end = 8.dp)
                         .size(24.dp),
-                )
+                ) else Spacer(Modifier.width(36.dp))
                 val weightLabel = when {
                     planned.sessionWeight > 0f -> WeightFormatter.format(planned.sessionWeight, weightUnit)
                     planned.exercise.equipment == Equipment.BODYWEIGHT -> "Bodyweight"
@@ -295,15 +322,24 @@ private fun ExercisePreviewRow(
                 val repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
-                    val detail = buildString {
-                        append("${PlannedExercise.DEFAULT_SETS} sets × $repsLabel")
-                        if (onWeightDecrement == null && weightLabel != null) append(" · $weightLabel")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (dragHandleModifier != null) CountStepper(
+                            value = planned.sets,
+                            range = CircuitStructure.MIN_SETS..CircuitStructure.MAX_SETS,
+                            onChange = onSetsChange,
+                            fewerDescription = "One set fewer",
+                            moreDescription = "One set more",
+                        )
+                        val detail = buildString {
+                            append(if (dragHandleModifier != null) "sets × $repsLabel" else repsLabel)
+                            if (onWeightDecrement == null && weightLabel != null) append(" · $weightLabel")
+                        }
+                        Text(
+                            detail,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Text(
-                        detail,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                     flag?.let {
                         Text(
                             when (it) {
