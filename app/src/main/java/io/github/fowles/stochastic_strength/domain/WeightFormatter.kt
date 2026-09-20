@@ -73,6 +73,14 @@ object WeightFormatter {
     fun minIncrement(unit: WeightUnit): Float =
         if (unit == WeightUnit.KG) 2.5f else unit.toKg(5f)
 
+    /** A user-entered weight snapped to the grid, never below one increment. */
+    fun clampToGrid(kg: Float, unit: WeightUnit): Float =
+        round(kg, unit).coerceAtLeast(minIncrement(unit))
+
+    /** [kg] moved [steps] grid increments (±1 for a stepper tap), never below one increment. */
+    fun step(kg: Float, steps: Int, unit: WeightUnit): Float =
+        clampToGrid(round(kg, unit) + steps * minIncrement(unit), unit)
+
     fun platesPerSide(weightKg: Float, unit: WeightUnit): String? {
         return when (unit) {
             WeightUnit.KG -> {

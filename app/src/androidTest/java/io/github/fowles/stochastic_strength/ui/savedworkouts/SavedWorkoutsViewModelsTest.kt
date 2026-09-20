@@ -8,11 +8,13 @@ import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
+import io.github.fowles.stochastic_strength.data.model.MuscleGroupStrength
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
+import io.github.fowles.stochastic_strength.domain.belief.Belief
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import kotlinx.coroutines.delay
@@ -26,6 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.ln
 
 @RunWith(AndroidJUnit4::class)
 class SavedWorkoutsViewModelsTest {
@@ -41,7 +44,8 @@ class SavedWorkoutsViewModelsTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         repo = WorkoutRepository(db)
         val benchId = db.exerciseDao().insert(
-            Exercise(name = "Bench", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
+            // The reference lift: a name the coefficient table knows, so it can actually be priced.
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL)
         )
         bench = db.exerciseDao().getById(benchId)!!
     }
@@ -251,11 +255,20 @@ class SavedWorkoutsViewModelsTest {
     }
 
     @Test
-    fun suggester_loads_andPricesAtPinnedReps() {
+    fun suggester_loads_andPricesAtPinnedReps() = runBlocking {
+        // A real estimate, so "prices at the pinned reps" means a real number and not a shared 0.
+        repo.derivedState.rebuild { mut ->
+            mut.upsertMuscleGroupStrength(MuscleGroupStrength(MuscleGroup.CHEST, 100f))
+            mut.putExerciseBeliefs(
+                mapOf(bench.id to Belief(bestGuessLn = ln(100f), uncertainty = 4e-4f, updatedAt = System.currentTimeMillis()))
+            )
+        }
         val vm = newEditor()
         await("suggester") { vm.suggester.value != null }
         val s = vm.suggester.value!!
-        assertTrue(s.weight(bench, 3) >= s.weight(bench, null))
+        assertTrue(s.weight(bench, null) > 0f)
+        // Fewer reps at the same estimate means a heavier set — a flat pair would mean no pricing.
+        assertTrue(s.weight(bench, 3) > s.weight(bench, null))
     }
 
     @Test

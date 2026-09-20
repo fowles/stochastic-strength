@@ -247,9 +247,10 @@ class WorkoutSessionController(
     /** What the planner would price [pe] at right now, for the "suggests …" line beside a pinned weight. */
     fun suggestedWeight(pe: PlannedExercise): Float = planner?.suggestedWeight(pe.exercise, pe.sessionReps) ?: pe.sessionWeight
 
-    fun adjustExerciseWeight(exerciseId: Long, delta: Float) = editRow(exerciseId) { pe ->
+    /** [steps] grid increments (±1 per stepper tap); a row with no weight to move is left alone. */
+    fun adjustExerciseWeight(exerciseId: Long, steps: Int) = editRow(exerciseId) { pe ->
         if (pe.sessionWeight <= 0f) pe else pe.copy(
-            sessionWeight = WeightFormatter.round((pe.sessionWeight + delta).coerceAtLeast(2.5f), weightUnit),
+            sessionWeight = WeightFormatter.step(pe.sessionWeight, steps, weightUnit),
             weightPinned = true,
         )
     }

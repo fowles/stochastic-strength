@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.RowSuggester
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
@@ -74,6 +75,7 @@ fun SavedWorkoutEditScreen(
     val state by viewModel.state.collectAsState()
     val allExercises by viewModel.allExercises.collectAsState()
     val suggester by viewModel.suggester.collectAsState()
+    val weightUnit by viewModel.weightUnit.collectAsState()
     var showPicker by rememberSaveable { mutableStateOf(false) }
 
     var showDiscard by rememberSaveable { mutableStateOf(false) }
@@ -156,6 +158,7 @@ fun SavedWorkoutEditScreen(
                                             sets = block.rounds,
                                             dragHandleModifier = Modifier.draggableHandle(),
                                             suggester = suggester,
+                                            weightUnit = weightUnit,
                                             onRemove = { viewModel.removeExercise(entry.exercise.id) },
                                             onRepsChange = { reps -> viewModel.setReps(entry.exercise.id, reps) },
                                             onWeightChange = { weight -> viewModel.setWeight(entry.exercise.id, weight) },
@@ -199,6 +202,7 @@ private fun EntryRow(
     sets: Int,
     dragHandleModifier: Modifier,
     suggester: RowSuggester?,
+    weightUnit: WeightUnit,
     onRemove: () -> Unit,
     onRepsChange: (Int?) -> Unit,
     onWeightChange: (Float?) -> Unit,
@@ -227,6 +231,11 @@ private fun EntryRow(
         },
     ) {
         val suggested = suggester?.weight(entry.exercise, entry.reps)
+        // A pinned weight is the user's own number: it shows (and steps) with nothing but a unit,
+        // even while the suggester is still building or has no estimate for this lift.
+        val unit = suggester?.weightUnit ?: weightUnit
+        val shownWeight = entry.weight ?: suggested ?: 0f
+        val hasWeight = !entry.exercise.isTimed && (entry.weight != null || (suggested ?: 0f) > 0f)
         ExerciseRowScaffold(
             place = place,
             sets = sets,
@@ -238,20 +247,12 @@ private fun EntryRow(
                 .padding(vertical = 8.dp),
             trailing = {
                 when {
-                    suggester != null && suggested != null && suggested > 0f -> ValueStepper(
-                        text = WeightFormatter.format(entry.weight ?: suggested, suggester.weightUnit),
+                    hasWeight -> ValueStepper(
+                        text = WeightFormatter.format(shownWeight, unit),
                         pinned = entry.weight != null,
                         unit = null,
-                        onDecrement = {
-                            onWeightChange(
-                                WeightFormatter.round(((entry.weight ?: suggested) - 2.5f).coerceAtLeast(2.5f), suggester.weightUnit)
-                            )
-                        },
-                        onIncrement = {
-                            onWeightChange(
-                                WeightFormatter.round(((entry.weight ?: suggested) + 2.5f).coerceAtLeast(2.5f), suggester.weightUnit)
-                            )
-                        },
+                        onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, unit)) },
+                        onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, unit)) },
                         onReset = { onWeightChange(null) },
                         fewerDescription = "Less weight",
                         moreDescription = "More weight",
@@ -295,8 +296,8 @@ private fun EntryRow(
                     moreDescription = "One rep more",
                 )
             }
-            if (suggester != null && suggested != null) {
-                SuggestionNote(pinnedKg = entry.weight, suggestedKg = suggested, unit = suggester.weightUnit)
+            if (suggested != null) {
+                SuggestionNote(pinnedKg = entry.weight, suggestedKg = suggested, unit = unit)
             }
         }
     }

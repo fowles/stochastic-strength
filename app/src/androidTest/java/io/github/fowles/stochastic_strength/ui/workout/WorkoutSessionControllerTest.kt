@@ -572,10 +572,10 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
-    fun loadSavedWorkout_replacesRows_clearsOverrides_keepsTarget() = runBlocking {
+    fun loadSavedWorkout_replacesRows_clearsWeightPins_keepsTarget() = runBlocking {
         val f = previewFixture(count = 2)
         val first = preview(f.controller).plan.exercises[0]
-        f.controller.adjustExerciseWeight(first.exercise.id, +2.5f)
+        f.controller.adjustExerciseWeight(first.exercise.id, +1)
         assertTrue(preview(f.controller).plan.exercises[0].weightPinned)
 
         val all = f.db.exerciseDao().getActive()
@@ -596,10 +596,10 @@ class WorkoutSessionControllerTest {
     fun weightNudge_pinsTheWeight_andSurvivesTheRepSlider() = runBlocking {
         val f = previewFixture(count = 2)
         val row = preview(f.controller).plan.exercises[0]
-        f.controller.adjustExerciseWeight(row.exercise.id, +2.5f)
+        f.controller.adjustExerciseWeight(row.exercise.id, +1)
         val nudged = preview(f.controller).plan.exercises[0]
         assertTrue(nudged.weightPinned)
-        assertEquals(row.sessionWeight + 2.5f, nudged.sessionWeight)
+        assertEquals(WeightFormatter.step(row.sessionWeight, +1, WeightUnit.KG), nudged.sessionWeight)
         f.controller.setRepRange(3, 3)
         val after = preview(f.controller).plan.exercises
         assertEquals(nudged.sessionWeight, after[0].sessionWeight)
@@ -628,10 +628,54 @@ class WorkoutSessionControllerTest {
     fun resetExerciseWeight_returnsToThePrescription() = runBlocking {
         val f = previewFixture(count = 1)
         val row = preview(f.controller).plan.exercises[0]
-        f.controller.adjustExerciseWeight(row.exercise.id, +2.5f)
+        f.controller.adjustExerciseWeight(row.exercise.id, +1)
         f.controller.resetExerciseWeight(row.exercise.id)
         val reset = preview(f.controller).plan.exercises[0]
         assertFalse(reset.weightPinned); assertEquals(row.sessionWeight, reset.sessionWeight)
+        f.db.close()
+    }
+
+    /** Adds [exerciseId] unless generation already picked it (a small pool often does). */
+    private suspend fun ensureInPlan(f: PreviewFixture, exerciseId: Long) {
+        val size = preview(f.controller).plan.exercises.size
+        if (preview(f.controller).plan.exercises.any { it.exercise.id == exerciseId }) return
+        f.controller.addExercise(exerciseId)
+        awaitPreviewSize(f.controller, size + 1)
+    }
+
+    @Test
+    fun adjustExerciseWeight_isANoOpOnARowWithNoWeight() = runBlocking {
+        val bodyweight = Exercise(
+            name = "Push-Up", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BODYWEIGHT,
+        )
+        val f = previewFixture(count = 1, extraExercises = listOf(bodyweight))
+        val added = f.db.exerciseDao().getActive().first { it.name == "Push-Up" }
+        ensureInPlan(f, added.id)
+        val row = preview(f.controller).plan.exercises.first { it.exercise.id == added.id }
+        assertEquals(0f, row.sessionWeight)
+
+        f.controller.adjustExerciseWeight(added.id, +1)
+        val after = preview(f.controller).plan.exercises.first { it.exercise.id == added.id }
+        assertEquals(0f, after.sessionWeight)
+        assertFalse(after.weightPinned)
+        f.db.close()
+    }
+
+    @Test
+    fun setExerciseReps_isANoOpOnATimedRow() = runBlocking {
+        val plank = Exercise(
+            name = "Plank", primaryMuscle = MuscleGroup.CORE, equipment = Equipment.BODYWEIGHT, isTimed = true,
+        )
+        val f = previewFixture(count = 1, extraExercises = listOf(plank))
+        val added = f.db.exerciseDao().getActive().first { it.name == "Plank" }
+        ensureInPlan(f, added.id)
+        val row = preview(f.controller).plan.exercises.first { it.exercise.id == added.id }
+        assertEquals(60, row.sessionReps)
+
+        f.controller.setExerciseReps(added.id, 12)
+        val after = preview(f.controller).plan.exercises.first { it.exercise.id == added.id }
+        assertEquals(60, after.sessionReps)
+        assertFalse(after.repsPinned)
         f.db.close()
     }
 

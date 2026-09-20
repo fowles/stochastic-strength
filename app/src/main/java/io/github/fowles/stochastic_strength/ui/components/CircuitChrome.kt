@@ -67,7 +67,7 @@ fun rowPlace(block: Block, index: Int): RowPlace = when {
     else -> RowPlace.MIDDLE
 }
 
-/** Whether the ⛓ node below a row is linked, and what to do when it's tapped. */
+/** Whether the ⛓ node above a row is linked, and what to do when it's tapped. */
 data class LinkState(val linked: Boolean, val onToggle: () -> Unit)
 
 /**
@@ -178,7 +178,10 @@ fun LinkNodeHost(linkAbove: LinkState?, modifier: Modifier = Modifier, content: 
                     .size(36.dp)
                     .clickable(onClick = linkAbove.onToggle, role = Role.Button)
                     .semantics {
-                        contentDescription = if (linkAbove.linked) "Split the circuit here" else "Link into a circuit"
+                        // TalkBack reads the node after the row it belongs to, so it says which
+                        // boundary it moves: the one between this row and the one above.
+                        contentDescription =
+                            if (linkAbove.linked) "Split from the row above" else "Link with the row above"
                     },
             ) {
                 Surface(

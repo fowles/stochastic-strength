@@ -152,6 +152,9 @@ class WorkoutRepository(
         )
     }
 
+    /** The profile's display unit on its own — readable long before a planner can be built. */
+    suspend fun weightUnit(): WeightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
+
     /** A planner-backed pricer for off-session editing (the saved-workout editor), at the profile's rep range + unit. */
     suspend fun rowSuggester(): RowSuggester {
         val profile = db.userProfileDao().getProfile()

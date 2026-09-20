@@ -38,6 +38,37 @@ class WeightFormatterTest {
     @Test fun lbs_54_snapsTo55()   = assertEquals(55f,  warmupLbs(54f),  0.6f)
 
     @Test
+    fun stepMovesOneGridIncrementKg() {
+        assertEquals(42.5f, WeightFormatter.step(40f, +1, WeightUnit.KG), 1e-4f)
+        assertEquals(37.5f, WeightFormatter.step(40f, -1, WeightUnit.KG), 1e-4f)
+        // An off-grid start snaps to the grid (41 → 40) first, then moves one increment.
+        assertEquals(42.5f, WeightFormatter.step(41f, +1, WeightUnit.KG), 1e-4f)
+    }
+
+    @Test
+    fun stepMovesOneGridIncrementLbs() {
+        val lbs = WeightUnit.LBS
+        assertEquals(45f, lbs.fromKg(WeightFormatter.step(lbs.toKg(40f), +1, lbs)), 1e-3f)
+        assertEquals(35f, lbs.fromKg(WeightFormatter.step(lbs.toKg(40f), -1, lbs)), 1e-3f)
+    }
+
+    @Test
+    fun stepDownAtTheFloorStaysAtTheFloor() {
+        assertEquals(2.5f, WeightFormatter.step(2.5f, -1, WeightUnit.KG), 1e-4f)
+        val lbs = WeightUnit.LBS
+        assertEquals(5f, lbs.fromKg(WeightFormatter.step(lbs.toKg(5f), -1, lbs)), 1e-3f)
+    }
+
+    @Test
+    fun clampToGridSnapsAndFloors() {
+        assertEquals(40f, WeightFormatter.clampToGrid(41f, WeightUnit.KG), 1e-4f)
+        assertEquals(2.5f, WeightFormatter.clampToGrid(0f, WeightUnit.KG), 1e-4f)
+        assertEquals(2.5f, WeightFormatter.clampToGrid(1f, WeightUnit.KG), 1e-4f)
+        val lbs = WeightUnit.LBS
+        assertEquals(5f, lbs.fromKg(WeightFormatter.clampToGrid(lbs.toKg(1f), lbs)), 1e-3f)
+    }
+
+    @Test
     fun roundDownFloorsToGrid() {
         assertEquals(22.5f, WeightFormatter.roundDown(24.9f, WeightUnit.KG), 1e-4f)
         assertEquals(25f, WeightFormatter.roundDown(25.0f, WeightUnit.KG), 1e-4f)

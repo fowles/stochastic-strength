@@ -89,8 +89,9 @@ class WorkoutPlanner(
     /**
      * Price one explicitly chosen exercise. Skips the rested-muscle and in-plan/rejected filters —
      * the user asked for it — but prescribes through the same policy as any generated row.
-     * The exercise need not be in [availableExercises]; it only needs a `prescribedE1rm` entry
-     * (or a coefficient of zero, in which case it is unloaded like any bodyweight row).
+     * The exercise need not be in [availableExercises]; without a `prescribedE1rm` entry it is
+     * priced at 0 unless [weight] pins one. A coefficient of zero is unloadable (bodyweight,
+     * banded): no prescription and no pin.
      */
     fun planExplicit(
         exercise: Exercise,
@@ -99,16 +100,20 @@ class WorkoutPlanner(
         sets: Int = PlannedExercise.DEFAULT_SETS,
         circuitId: Int? = null,
         weight: Float? = null,
-    ): PlannedExercise =
-        withWeight(
+    ): PlannedExercise {
+        // Stored rows arrive raw (backup import writes what it was given): a non-positive weight
+        // is no pin at all, and anything else is snapped to the grid the steppers move on.
+        val pinnedWeight = weight?.takeIf { it > 0f }?.let { WeightFormatter.clampToGrid(it, weightUnit) }
+        return withWeight(
             PlannedExercise(
                 exercise = exercise, sets = sets, circuitId = circuitId,
                 sessionReps = reps ?: plan.sessionReps, repsPinned = reps != null,
-                sessionWeight = weight?.let { WeightFormatter.round(it, weightUnit) } ?: 0f,
-                weightPinned = weight != null,
+                sessionWeight = pinnedWeight ?: 0f,
+                weightPinned = pinnedWeight != null,
             ),
             plan.sessionReps,
         )
+    }
 
     private fun isLoaded(exercise: Exercise): Boolean =
         coefficientSource.get(exercise)?.let { it > 0f } ?: false
@@ -267,8 +272,9 @@ class WorkoutPlanner(
         }
         val reps = if (pe.repsPinned) pe.sessionReps else sessionReps
         val suggested = weightForExercise(pe.exercise, reps)
-        // A weight can only be pinned where there is a weight to prescribe.
-        val pinned = pe.weightPinned && suggested > 0f
+        // A weight can only be pinned on a row that can carry one. Loadedness is the exercise's
+        // own property — a missing estimate (disliked, never trained) must not drop the user's pin.
+        val pinned = pe.weightPinned && isLoaded(pe.exercise)
         val weight = if (pinned) pe.sessionWeight else suggested
         val warmups = computeWarmupSets(weight, pe.exercise)
         return pe.copy(

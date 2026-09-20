@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.fowles.stochastic_strength.StochasticStrengthApp
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.CircuitEdits
 import io.github.fowles.stochastic_strength.domain.RowSuggester
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
@@ -64,7 +65,12 @@ class SavedWorkoutEditViewModel(
     private val _suggester = MutableStateFlow<RowSuggester?>(null)
     val suggester: StateFlow<RowSuggester?> = _suggester.asStateFlow()
 
+    /** Read on its own so a pinned weight can render before the (much slower) planner build lands. */
+    private val _weightUnit = MutableStateFlow(WeightUnit.KG)
+    val weightUnit: StateFlow<WeightUnit> = _weightUnit.asStateFlow()
+
     init {
+        viewModelScope.launch { _weightUnit.value = repository.weightUnit() }
         viewModelScope.launch { _suggester.value = repository.rowSuggester() }
 
         val existingId = persistedId

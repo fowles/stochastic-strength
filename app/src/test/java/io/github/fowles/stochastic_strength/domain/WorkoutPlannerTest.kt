@@ -913,6 +913,41 @@ class WorkoutPlannerTest {
     }
 
     @Test
+    fun `pinned weight survives when the exercise has no e1rm entry`() {
+        // A disliked lift drops out of getActive(), so the planner has no estimate for it — the
+        // weight the user pinned in a saved workout is still the weight they asked for.
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = WorkoutPlanner(
+            availableExercises = listOf(chest),
+            prescribedE1rm = emptyMap(),
+            recentHistory = emptyMap(),
+            weightUnit = WeightUnit.KG,
+            locationId = null,
+            random = Random(0),
+        )
+        assertEquals(0f, p.suggestedWeight(chest, 8))
+        val planned = p.planExplicit(chest, null, WorkoutPlan(emptyList(), null, sessionReps = 8), weight = 100f)
+        assertEquals(100f, planned.sessionWeight)
+        assertTrue(planned.weightPinned)
+        assertTrue(planned.warmupSets.isNotEmpty())
+    }
+
+    @Test
+    fun `planExplicit treats a non-positive stored weight as auto and floors a tiny one`() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+        val plan = WorkoutPlan(emptyList(), null, sessionReps = 8)
+
+        val zero = p.planExplicit(chest, null, plan, weight = 0f)
+        assertFalse(zero.weightPinned)
+        assertEquals(p.suggestedWeight(chest, 8), zero.sessionWeight)
+
+        val tiny = p.planExplicit(chest, null, plan, weight = 1f)
+        assertTrue(tiny.weightPinned)
+        assertEquals(WeightFormatter.minIncrement(WeightUnit.KG), tiny.sessionWeight)
+    }
+
+    @Test
     fun suggestedWeight_isThePrescription() {
         val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
         val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))

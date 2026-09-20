@@ -12,6 +12,11 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - `WorkoutSessionController.onLocationRefreshed` sets state after the `withRowFlags` suspend, so a
   plan edit made during that suspend is overwritten. Pre-existing pattern, but with per-row sets and
   circuits more kinds of edit can now be lost.
+- Plan-preview edits can be lost across a suspend: `applySavedWorkout`, `addExercise` and
+  `onLocationRefreshed` read `current`, suspend (`buildPlanner` / `withRowFlags`), then
+  `setState(current.copy(…))`; a pin or structure edit tapped during that window is overwritten.
+  Pre-existing pattern (see the existing `onLocationRefreshed` entry); fix by re-reading state after
+  the suspend and re-applying only the delta.
 - Rest screen "Next up" card omits the round for a circuit member (the notification includes it),
   and after a too-hard weight reduction inside a circuit the card says "Reduced weight: A" although
   the next set is B's.
