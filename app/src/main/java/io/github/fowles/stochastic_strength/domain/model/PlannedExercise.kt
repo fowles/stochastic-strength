@@ -12,6 +12,12 @@ data class PlannedExercise(
     val estimatedSeconds: Int = 0,
     override val sets: Int = DEFAULT_SETS,
     override val circuitId: Int? = null,
+    /**
+     * A pinned value is the user's own number: the rep slider skips pinned reps and nothing
+     * reprices a pinned weight.
+     */
+    val repsPinned: Boolean = false,
+    val weightPinned: Boolean = false,
 ) : CircuitRow<PlannedExercise> {
     override fun withStructure(sets: Int, circuitId: Int?) = copy(sets = sets, circuitId = circuitId)
 

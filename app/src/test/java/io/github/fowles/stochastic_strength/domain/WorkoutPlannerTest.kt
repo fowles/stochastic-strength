@@ -11,6 +11,7 @@ import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import io.github.fowles.stochastic_strength.domain.policy.PolicyFacts
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -933,10 +934,61 @@ class WorkoutPlannerTest {
         val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
         val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
         val plan = WorkoutPlan(emptyList(), null, sessionReps = 10)
-        assertEquals(5, p.planExplicit(chest, reps = 5, plan = plan).sessionReps)
-        assertEquals(10, p.planExplicit(chest, reps = null, plan = plan).sessionReps)
+        val pinnedReps = p.planExplicit(chest, reps = 5, plan = plan)
+        assertEquals(5, pinnedReps.sessionReps)
+        assertTrue(pinnedReps.repsPinned)
+        val autoReps = p.planExplicit(chest, reps = null, plan = plan)
+        assertEquals(10, autoReps.sessionReps)
+        assertFalse(autoReps.repsPinned)
         // Fewer reps at the same e1rm means a heavier set.
         assertTrue(p.planExplicit(chest, 5, plan).sessionWeight > p.planExplicit(chest, 10, plan).sessionWeight)
+    }
+
+    @Test
+    fun repriceForReps_leavesPinnedRepsAlone_andRepricesAutoWeightAtThem() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val back = exercise(2, "Barbell Row", MuscleGroup.BACK)
+        val p = planner(exercises = listOf(chest, back),
+            strengths = strengthsFor(MuscleGroup.CHEST to 100f, MuscleGroup.BACK to 100f))
+        val base = WorkoutPlan(emptyList(), null, sessionReps = 10)
+        val plan = base.copy(exercises = listOf(
+            p.planExplicit(chest, reps = 5, plan = base),
+            p.planExplicit(back, reps = null, plan = base),
+        ))
+        val repriced = p.repriceForReps(plan, 3, 3)
+        assertEquals(listOf(5, 3), repriced.exercises.map { it.sessionReps })
+        assertEquals(plan.exercises[0].sessionWeight, repriced.exercises[0].sessionWeight)
+        assertTrue(repriced.exercises[1].sessionWeight > plan.exercises[1].sessionWeight)
+    }
+
+    @Test
+    fun pinnedWeight_survivesReprice_andWarmupsFollowIt() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+        val base = WorkoutPlan(emptyList(), null, sessionReps = 10)
+        val pinned = p.planExplicit(chest, reps = null, plan = base, weight = 40f)
+        assertTrue(pinned.weightPinned); assertFalse(pinned.repsPinned)
+        assertEquals(40f, pinned.sessionWeight)
+        val repriced = p.repriceForReps(base.copy(exercises = listOf(pinned)), 3, 3).exercises[0]
+        assertEquals(3, repriced.sessionReps)
+        assertEquals(40f, repriced.sessionWeight)
+        assertEquals(p.computeWarmupSets(40f, chest), repriced.warmupSets)
+    }
+
+    @Test
+    fun planExplicit_ignoresWeightForUnloadableAndTimedRows() {
+        val pushup = exercise(3, "Push-Up", MuscleGroup.CHEST, equipment = Equipment.BODYWEIGHT)
+        val p = planner(exercises = listOf(pushup), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+        val pe = p.planExplicit(pushup, reps = null, plan = WorkoutPlan(emptyList(), null, 10), weight = 40f)
+        assertFalse(pe.weightPinned); assertEquals(0f, pe.sessionWeight)
+    }
+
+    @Test
+    fun suggestedWeight_isThePrescription() {
+        val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
+        val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+        val plan = WorkoutPlan(emptyList(), null, sessionReps = 8)
+        assertEquals(p.planExplicit(chest, null, plan).sessionWeight, p.suggestedWeight(chest, 8))
     }
 
     @Test

@@ -99,8 +99,17 @@ class WorkoutPlanner(
         plan: WorkoutPlan,
         sets: Int = PlannedExercise.DEFAULT_SETS,
         circuitId: Int? = null,
+        weight: Float? = null,
     ): PlannedExercise =
-        withWeight(PlannedExercise(exercise = exercise, sets = sets, circuitId = circuitId), reps ?: plan.sessionReps)
+        withWeight(
+            PlannedExercise(
+                exercise = exercise, sets = sets, circuitId = circuitId,
+                sessionReps = reps ?: plan.sessionReps, repsPinned = reps != null,
+                sessionWeight = weight?.let { WeightFormatter.round(it, weightUnit) } ?: 0f,
+                weightPinned = weight != null,
+            ),
+            plan.sessionReps,
+        )
 
     private fun isLoaded(exercise: Exercise): Boolean =
         coefficientSource.get(exercise)?.let { it > 0f } ?: false
@@ -273,17 +282,30 @@ class WorkoutPlanner(
                 sessionReps = timedReps,
                 warmupSets = emptyList(),
                 estimatedSeconds = durationOf(pe, timedReps, emptyList()),
+                repsPinned = false,
+                weightPinned = false,
             )
         }
-        val weight = weightForExercise(pe.exercise, sessionReps)
+        val reps = if (pe.repsPinned) pe.sessionReps else sessionReps
+        val suggested = weightForExercise(pe.exercise, reps)
+        // A weight can only be pinned where there is a weight to prescribe.
+        val pinned = pe.weightPinned && suggested > 0f
+        val weight = if (pinned) pe.sessionWeight else suggested
         val warmups = computeWarmupSets(weight, pe.exercise)
         return pe.copy(
             sessionWeight = weight,
-            sessionReps = sessionReps,
+            sessionReps = reps,
+            weightPinned = pinned,
             warmupSets = warmups,
-            estimatedSeconds = durationOf(pe, sessionReps, warmups),
+            estimatedSeconds = durationOf(pe, reps, warmups),
         )
     }
+
+    /** Prices [pe] for a session at [sessionReps], honouring its pins. */
+    fun reprice(pe: PlannedExercise, sessionReps: Int): PlannedExercise = withWeight(pe, sessionReps)
+
+    /** The prescription for [exercise] at [reps], kg; 0 when it cannot be loaded. */
+    fun suggestedWeight(exercise: Exercise, reps: Int): Float = weightForExercise(exercise, reps)
 
     private fun weightForExercise(exercise: Exercise, sessionReps: Int): Float {
         val coeff = coefficientSource.get(exercise) ?: return 0f
