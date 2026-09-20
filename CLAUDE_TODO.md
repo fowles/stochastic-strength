@@ -13,11 +13,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   editor: (1) a 3-row circuit (sibling `LinkNodeHost` groups inside one `LazyColumn` item), and
   (2) two consecutive 2-row circuits back to back (crosses a `LazyColumn` item boundary) — and
   revert per that report if either reads wrong.
-- `RestingContent`'s staged-action branch (`state.staged != null` — swap / end-exercise / adjust-
-  weight / warmup-done) titles its card "Up next" / "Warm up" / "First set" for the commit target
-  but never shows a circuit round, even when that commit target is a circuit member. Same class of
-  omission as the "Next up" round fix in this pass, but a different code path (keyed off
-  `staged.commitTarget`, not `WorkoutSequence.next`); out of scope for this task.
 - `WorkoutRepository.saveSessionAsWorkout`: after a swap inside a circuit, both the abandoned
   original and its replacement are saved as members, each at full rounds (`equalizeRounds`). That
   follows the spec ("rounds = max over members") but is probably not what the user wants.

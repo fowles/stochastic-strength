@@ -186,11 +186,19 @@ internal fun RestingContent(
                         val isWarmupDone = state.staged.kind == StagedKind.WARMUP_DONE
                         val warmup = if (isWarmupDone) null
                                      else commitTarget.warmupSetIndex?.let { up.warmupSets.getOrNull(it) }
+                        // Same rule as the "Next up" branch below: a warmup set has no round, but
+                        // any real set of a circuit member does, and the commit target can be one.
+                        val roundLabel = if (warmup != null) null
+                                         else WorkoutSequence.circuitRoundLabel(
+                                             commitTarget.plan.exercises,
+                                             WorkoutSequence.Step(commitTarget.exerciseIndex, commitTarget.setIndex),
+                                         )
                         NextExerciseCard(
                             title = if (isWarmupDone) "First set"
                                     else if (warmup != null) "Warm up"
                                     else "Up next",
                             exerciseName = up.exercise.name,
+                            roundLabel = roundLabel,
                             weight = warmup?.weight ?: up.sessionWeight,
                             usesBarPlates = up.exercise.usesBarPlates,
                             weightUnit = weightUnit,
