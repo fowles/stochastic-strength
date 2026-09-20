@@ -7,10 +7,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 
 ## Needs a device to settle
 
-- **TalkBack reads the saved-workout editor row's exercise name twice.** The row's focus stop
-  carries a `contentDescription` and the name is also an inline `Text`, so both are announced.
-  Which one to drop (or whether the inline text should be `clearAndSetSemantics`) depends on how
-  the row actually sounds — pick the fix while listening to it on a device with TalkBack on.
 - **`WorkoutNotificationService`'s refused-`startForeground` path is untested.** When the dataSync
   quota is exhausted the system refuses the promotion and the service calls `stopSelf()`; the same
   goes for `onTimeout`. Neither path can be exercised from a unit or instrumented test, so exhaust
