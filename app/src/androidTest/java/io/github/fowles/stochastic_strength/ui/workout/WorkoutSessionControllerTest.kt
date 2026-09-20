@@ -559,6 +559,31 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
+    fun replaceExercise_leavesOtherRowsPinsUntouched() = runBlocking {
+        val f = previewFixture(count = 2)
+        val rows = preview(f.controller).plan.exercises
+        val keptId = rows[1].exercise.id
+        val removedId = rows[0].exercise.id
+
+        f.controller.adjustExerciseWeight(keptId, +1)
+        f.controller.setExerciseReps(keptId, 3)
+        val pinned = preview(f.controller).plan.exercises.first { it.exercise.id == keptId }
+        assertTrue(pinned.weightPinned); assertTrue(pinned.repsPinned)
+
+        f.controller.replaceExercise(removedId, ExerciseRemovalReason.SKIP_TODAY)
+        awaitPreview(f.controller) { p ->
+            p.plan.exercises.none { it.exercise.id == removedId }
+        }
+
+        val kept = preview(f.controller).plan.exercises.first { it.exercise.id == keptId }
+        assertTrue("weight pin must survive replacing a sibling row", kept.weightPinned)
+        assertTrue("reps pin must survive replacing a sibling row", kept.repsPinned)
+        assertEquals(pinned.sessionWeight, kept.sessionWeight)
+        assertEquals(pinned.sessionReps, kept.sessionReps)
+        f.db.close()
+    }
+
+    @Test
     fun addExercise_appends_marksEdited_andIgnoresDuplicates() = runBlocking {
         val f = previewFixture(count = 1)
         assertTrue(!preview(f.controller).edited)
@@ -960,7 +985,7 @@ class WorkoutSessionControllerTest {
 
     private suspend fun toLastWarmup() {
         var s = controller.state.value as? WorkoutState.ActiveSet ?: return
-        while (s.warmupSetIndex != null && s.warmupSetIndex!! + 1 < s.plannedExercise.warmupSets.size) {
+        while (s.warmupSetIndex != null && s.warmupSetIndex + 1 < s.plannedExercise.warmupSets.size) {
             controller.completeWarmupSet()
             delay(20)
             s = controller.state.value as? WorkoutState.ActiveSet ?: return
@@ -1033,8 +1058,9 @@ class WorkoutSessionControllerTest {
 
         controller.setActiveSetWeight(target)
         val resting = awaitState<WorkoutState.Resting>()
-        assertEquals(StagedKind.ADJUST_WEIGHT, resting.staged!!.kind)
-        val commit = resting.staged!!.commitTarget!!
+        val staged = resting.staged!!
+        assertEquals(StagedKind.ADJUST_WEIGHT, staged.kind)
+        val commit = staged.commitTarget!!
         // Same set coordinates.
         assertEquals(active.exerciseIndex, commit.exerciseIndex)
         assertEquals(active.setIndex, commit.setIndex)
@@ -1079,8 +1105,9 @@ class WorkoutSessionControllerTest {
         val originalId = active.plannedExercise.exercise.id
         controller.swapCurrentExercise(ExerciseRemovalReason.DISLIKE)
         val resting = awaitState<WorkoutState.Resting>()
-        val target = resting.staged!!.commitTarget!!
-        assertEquals(StagedKind.SWAP, resting.staged!!.kind)
+        val staged = resting.staged!!
+        val target = staged.commitTarget!!
+        assertEquals(StagedKind.SWAP, staged.kind)
         assertEquals(0, target.exerciseIndex)
         // Replaced in place: original gone, exactly one exercise, different id.
         assertEquals(1, target.plan.exercises.size)
@@ -1251,10 +1278,12 @@ class WorkoutSessionControllerTest {
 
         controller.completeWarmupSet()
         val resting = awaitState<WorkoutState.Resting>()
-        assertEquals(StagedKind.WARMUP_DONE, resting.staged!!.kind)
-        assertEquals(lastWarmupState.exerciseIndex, resting.staged!!.commitTarget!!.exerciseIndex)
-        assertEquals(0, resting.staged!!.commitTarget!!.setIndex)
-        assertNull(resting.staged!!.commitTarget!!.warmupSetIndex)
+        val staged = resting.staged!!
+        val commitTarget = staged.commitTarget!!
+        assertEquals(StagedKind.WARMUP_DONE, staged.kind)
+        assertEquals(lastWarmupState.exerciseIndex, commitTarget.exerciseIndex)
+        assertEquals(0, commitTarget.setIndex)
+        assertNull(commitTarget.warmupSetIndex)
         assertEquals(WorkoutSessionController.NO_ROW, resting.currentSetRowId)
     }
 
