@@ -8,8 +8,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 From the 2026-09-20 whole-project review. Each needs a decision or is bigger than a drive-by.
 
 ## Workout session
-- **Count slider can cut a circuit.** `adjustExerciseCount` trims with `take(targetCount)`, which
-  can drop explicit/pinned rows and split a block (`normalize` then dissolves the remainder).
 - **Undoing a HURT set leaves `ExerciseHurtState` set** (display-only; policy reads the set log).
 
 ## UI

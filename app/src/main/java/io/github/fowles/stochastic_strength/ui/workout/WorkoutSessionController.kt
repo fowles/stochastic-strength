@@ -248,9 +248,8 @@ class WorkoutSessionController(
         val current = preview.plan.exercises
         when {
             targetCount < current.size -> {
-                val trimmed = CircuitStructure.normalize(current.take(targetCount))
                 setState(prunedToPlanRows(
-                    preview.copy(plan = preview.plan.copy(exercises = trimmed), targetCount = targetCount)
+                    preview.copy(plan = preview.plan.copy(exercises = trimToTarget(current)), targetCount = targetCount)
                 ))
             }
             targetCount > current.size -> {
@@ -266,6 +265,27 @@ class WorkoutSessionController(
             }
             else -> setState(preview.copy(targetCount = targetCount))
         }
+    }
+
+    /**
+     * The count slider is a minimum, never a cut: it removes only *plain* rows — not explicit, not
+     * pinned, not a circuit member — latest first, until [targetCount] is reached or no plain row
+     * is left. The plan may therefore stay longer than the target.
+     */
+    private fun trimToTarget(exercises: List<PlannedExercise>): List<PlannedExercise> {
+        var rows = CircuitStructure.normalize(exercises)
+        while (rows.size > targetCount) {
+            val blocks = CircuitStructure.blocks(rows)
+            val i = rows.indices.lastOrNull { idx ->
+                val block = blocks.first { idx in it.indices }
+                !block.isCircuit &&
+                    rows[idx].exercise.id !in explicitIds &&
+                    !rows[idx].repsPinned &&
+                    !rows[idx].weightPinned
+            } ?: break
+            rows = CircuitEdits.remove(rows, i)
+        }
+        return rows
     }
 
     fun setRepRange(repMin: Int, repMax: Int) {

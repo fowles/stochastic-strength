@@ -1005,7 +1005,10 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
-    fun trim_prunesRowFlags() = runBlocking {
+    fun lowerCount_leavesAFlaggedExplicitRowAndItsFlagInPlace() = runBlocking {
+        // An explicitly added row is never a plain row, so the slider must never trim it — even
+        // when it also carries a location-excluded flag. prunedToPlanRows must therefore leave
+        // its rowFlags entry alone too, since the row never actually left the plan.
         var excludedId = 0L
         val f = previewFixture(count = 2) { freshDb, freshRepo ->
             val locationId = freshDb.knownLocationDao().insert(
@@ -1023,26 +1026,57 @@ class WorkoutSessionControllerTest {
         awaitPreviewSize(f.controller, 2)
 
         val p = preview(f.controller)
-        assertTrue("trimmed row still in plan", p.plan.exercises.none { it.exercise.id == excludedId })
-        assertNull("flag for a trimmed row was not pruned", p.rowFlags[excludedId])
+        assertTrue(
+            "an explicit row must survive the slider even when flagged",
+            p.plan.exercises.any { it.exercise.id == excludedId },
+        )
+        assertEquals("its flag must survive along with it", RowFlag.NOT_AT_LOCATION, p.rowFlags[excludedId])
     }
 
     @Test
-    fun lowerCount_trimsFromTailRegardlessOfOrigin() = runBlocking {
-        val f = previewFixture(count = 1)
-        val all = f.db.exerciseDao().getActive()
-        f.controller.loadSavedWorkout(f.repo.saveWorkout(null, "Trio", all.map { SavedWorkoutEntry(it, null) }))
+    fun lowerCount_removesTheLatestPlainRow_leavesTheExplicitTailRowInPlace() = runBlocking {
+        val f = previewFixture(count = 2)
+        val plainIds = preview(f.controller).plan.exercises.map { it.exercise.id }
+        val explicitId = f.db.exerciseDao().getActive().first { it.id !in plainIds }.id
+        f.controller.addExercise(explicitId)
         awaitPreviewSize(f.controller, 3)
-        assertEquals(all.map { it.id }, preview(f.controller).plan.exercises.map { it.exercise.id })
 
         f.controller.adjustExerciseCount(2)
         awaitPreviewSize(f.controller, 2)
 
         assertEquals(
-            "lowering the slider drops the tail row, explicit or not",
-            all.take(2).map { it.id },
+            "the explicit tail row survives; the later plain row is the one removed",
+            listOf(plainIds[0], explicitId),
             preview(f.controller).plan.exercises.map { it.exercise.id },
         )
+    }
+
+    @Test
+    fun lowerCount_withNoPlainRows_removesNothing() = runBlocking {
+        val f = previewFixture(count = 2)
+        val ids = preview(f.controller).plan.exercises.map { it.exercise.id }
+        ids.forEach { f.controller.adjustExerciseWeight(it, +1) } // pin every row
+        assertTrue(preview(f.controller).plan.exercises.all { it.weightPinned })
+
+        f.controller.adjustExerciseCount(1)
+        awaitPreviewSize(f.controller, 2)
+
+        val p = preview(f.controller)
+        assertEquals("targetCount is still stored even though nothing could be trimmed", 1, p.targetCount)
+        assertEquals(ids, p.plan.exercises.map { it.exercise.id })
+    }
+
+    @Test
+    fun lowerCount_pinnedRowSurvives_earlierPlainRowGoes() = runBlocking {
+        val f = previewFixture(count = 2)
+        val rows = preview(f.controller).plan.exercises
+        f.controller.adjustExerciseWeight(rows[1].exercise.id, +1)
+        assertTrue(preview(f.controller).plan.exercises[1].weightPinned)
+
+        f.controller.adjustExerciseCount(1)
+        awaitPreviewSize(f.controller, 1)
+
+        assertEquals(listOf(rows[1].exercise.id), preview(f.controller).plan.exercises.map { it.exercise.id })
     }
 
     @Test
@@ -1290,12 +1324,18 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
-    fun lowerCount_trimmingACircuitToOneMember_collapsesItToSolo() = runBlocking {
+    fun lowerCount_neverTrimsACircuitMember_leavesTheBlockWhole() = runBlocking {
         val f = previewFixture(count = 3)
-        f.controller.linkExercises(1)
-        f.controller.adjustExerciseCount(2)
+        f.controller.linkExercises(1) // rows 1+2 become a circuit; row 0 stays the only plain row
+        val circuitIds = preview(f.controller).plan.exercises.drop(1).map { it.exercise.id }
+
+        f.controller.adjustExerciseCount(1)
         awaitPreviewSize(f.controller, 2)
-        assertEquals(listOf(null, null), preview(f.controller).plan.exercises.map { it.circuitId })
+
+        val p = preview(f.controller)
+        assertEquals("targetCount is stored even though the circuit couldn't be trimmed to it", 1, p.targetCount)
+        assertEquals(circuitIds, p.plan.exercises.map { it.exercise.id })
+        assertEquals(listOf(0, 0), p.plan.exercises.map { it.circuitId })
     }
 
     @Test
