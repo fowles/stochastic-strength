@@ -42,9 +42,5 @@ object CircuitStructure {
         return normalize(head + tail.map { r -> r.circuitId?.let { r.withStructure(r.sets, it + shift) } ?: r })
     }
 
-    /** Every member takes its block's rounds. For authored data; a live session may be uneven. */
-    fun <T : CircuitRow<T>> equalizeRounds(rows: List<T>): List<T> =
-        blocks(rows).flatMap { b -> b.indices.map { rows[it].withStructure(b.rounds, rows[it].circuitId) } }
-
     fun <T : CircuitRow<T>> circuitCount(rows: List<T>): Int = blocks(rows).count { it.isCircuit }
 }

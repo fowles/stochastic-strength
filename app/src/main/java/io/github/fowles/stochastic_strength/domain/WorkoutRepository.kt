@@ -378,7 +378,14 @@ class WorkoutRepository(
                 )
             }
         }
-        return saveWorkout(null, name, CircuitStructure.equalizeRounds(CircuitStructure.normalize(entries)))
+        // No equalizeRounds here, deliberately: each member keeps the rounds it actually got. A
+        // mid-circuit swap leaves both the abandoned exercise and its replacement in the session,
+        // and equalizing gave both of them the block's full rounds — saving a template that
+        // proposes more of an exercise the user walked away from. The same shape covers a member
+        // cut short for any other reason, which the session log does not distinguish from a swap.
+        // Circuits in a saved workout can therefore be uneven; a per-row `sets` is what the
+        // planner and WorkoutSequence read, and the editor's round chip shows the block maximum.
+        return saveWorkout(null, name, CircuitStructure.normalize(entries))
     }
 
     // History

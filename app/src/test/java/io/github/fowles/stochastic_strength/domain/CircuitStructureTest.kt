@@ -54,12 +54,6 @@ class CircuitStructureTest {
     }
 
     @Test
-    fun equalizeRounds_writesBlockMaxToEveryMember() {
-        val rows = listOf(TestRow("a", 2, 0), TestRow("b", 1, 0), TestRow("c", 5))
-        assertEquals(listOf(2, 2, 5), CircuitStructure.equalizeRounds(rows).map { it.sets })
-    }
-
-    @Test
     fun circuitCount_countsOnlyMultiMemberBlocks() {
         val rows = listOf(TestRow("a", 3, 0), TestRow("b", 3, 0), TestRow("c"))
         assertEquals(1, CircuitStructure.circuitCount(rows))

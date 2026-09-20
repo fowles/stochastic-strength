@@ -142,7 +142,11 @@ class SavedWorkoutRepositoryTest {
         val id = repo.saveSessionAsWorkout(sessionId, "From session")
         val entries = repo.getSavedWorkout(id)!!.entries
         assertEquals(listOf(bench.id, squat.id, row.id), entries.map { it.exercise.id })
-        assertEquals("a circuit's rounds are its longest member's", listOf(2, 2, 4), entries.map { it.sets })
+        assertEquals(
+            "each member keeps the rounds it actually got — a member cut short (or swapped away) " +
+                "must not be saved at the block's full rounds",
+            listOf(2, 1, 4), entries.map { it.sets },
+        )
         assertEquals(listOf(0, 0, null), entries.map { it.circuitId })
     }
 }
