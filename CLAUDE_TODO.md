@@ -20,3 +20,7 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - Rest screen "Next up" card omits the round for a circuit member (the notification includes it),
   and after a too-hard weight reduction inside a circuit the card says "Reduced weight: A" although
   the next set is B's.
+
+- Instrumented-suite flake: a full `connectedAndroidTest` run can abort with `attempt to re-open an already-closed object: SQLiteDatabase`, thrown by a `finishWorkout` coroutine leaked from an earlier `WorkoutSessionControllerTest` test after its fixture closed the DB, and blamed on whichever test is running. Re-run passes. Fix in the fixture teardown (cancel the controller scope before `db.close()`).
+- A pinned weight on a user-created exercise is dropped: `WorkoutPlanner.isLoaded` resolves coefficients by exercise *name*, so a custom lift not in `ExerciseCoefficients.byName` counts as unloadable. Also the editor cannot create a weight pin for a loadable lift that has no estimate yet (its stepper needs a suggestion to start from).
+- Editor `hasWeight` gate (`SavedWorkoutEditScreen`) trusts a stored `weight`: a hand-edited backup with a weight on a bodyweight row, or `0`/sub-floor values, shows a stepper the session then ignores or re-clamps.
