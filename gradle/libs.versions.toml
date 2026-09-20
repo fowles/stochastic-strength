@@ -18,7 +18,7 @@ okhttp = "5.5.0"
 tink = "1.23.0"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
-reorderable = "2.4.0"
+reorderable = "3.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
