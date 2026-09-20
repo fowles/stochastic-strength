@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -55,6 +56,7 @@ import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.components.CircuitRailGutter
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowBody
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
 import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
@@ -216,27 +218,27 @@ internal fun PlanPreviewContent(
                             val planned = keyed.rows[i - block.start]
                             key(planned.exercise.id) {
                                 val (linkedAbove, toggleLink) = linkAbove(block, i, onLink = onLink, onUnlink = onUnlink)
-                                LinkNodeHost(linkedAbove = linkedAbove, onToggleLink = toggleLink) {
-                                    ExercisePreviewRow(
-                                        planned = planned,
-                                        weightUnit = weightUnit,
-                                        place = rowPlace(block, i),
-                                        sets = block.rounds,
-                                        dragHandleModifier = Modifier.draggableHandle(),
-                                        // Only a pinned row can show a suggestion, so only a
-                                        // pinned row pays for one on every recomposition.
-                                        suggestedWeight =
-                                            if (planned.weightPinned) suggestWeight(planned) else 0f,
-                                        onReplace = { reason -> onReplace(planned.exercise.id, reason) },
-                                        onAdjustWeight = { steps -> onAdjustWeight(planned.exercise.id, steps) },
-                                        onRepsChange = { onSetReps(planned.exercise.id, it) },
-                                        onResetReps = { onResetReps(planned.exercise.id) },
-                                        onResetWeight = { onResetWeight(planned.exercise.id) },
-                                        onTap = { onExerciseTap(planned.exercise.id) },
-                                        onSetsChange = { onSetSets(planned.exercise.id, it) },
-                                        flag = state.rowFlags[planned.exercise.id],
-                                    )
-                                }
+                                ExercisePreviewRow(
+                                    planned = planned,
+                                    weightUnit = weightUnit,
+                                    place = rowPlace(block, i),
+                                    sets = block.rounds,
+                                    dragHandleModifier = Modifier.draggableHandle(),
+                                    // Only a pinned row can show a suggestion, so only a
+                                    // pinned row pays for one on every recomposition.
+                                    suggestedWeight =
+                                        if (planned.weightPinned) suggestWeight(planned) else 0f,
+                                    onReplace = { reason -> onReplace(planned.exercise.id, reason) },
+                                    onAdjustWeight = { steps -> onAdjustWeight(planned.exercise.id, steps) },
+                                    onRepsChange = { onSetReps(planned.exercise.id, it) },
+                                    onResetReps = { onResetReps(planned.exercise.id) },
+                                    onResetWeight = { onResetWeight(planned.exercise.id) },
+                                    onTap = { onExerciseTap(planned.exercise.id) },
+                                    onSetsChange = { onSetSets(planned.exercise.id, it) },
+                                    flag = state.rowFlags[planned.exercise.id],
+                                    linkedAbove = linkedAbove,
+                                    onToggleLink = toggleLink,
+                                )
                             }
                         }
                         HorizontalDivider()
@@ -268,6 +270,8 @@ private fun ExercisePreviewRow(
     onTap: () -> Unit,
     onSetsChange: (Int) -> Unit,
     flag: RowFlag?,
+    linkedAbove: Boolean?,
+    onToggleLink: () -> Unit,
 ) {
     var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
 
@@ -277,107 +281,124 @@ private fun ExercisePreviewRow(
             .collect { if (it != SwipeToDismissBoxValue.Settled) showActions = true }
     }
 
-    if (showActions) {
-        ExerciseActionRow(
-            name = planned.exercise.name,
-            onAction = { reason ->
-                showActions = false
-                onReplace(reason)
-            },
-        )
-    } else {
-        SwipeToDismissBox(
-            state = dismissState,
-            backgroundContent = {
-                val alpha = dismissState.progress.coerceIn(0f, 1f)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.error.copy(alpha = alpha)),
-                    contentAlignment = Alignment.CenterEnd,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onError.copy(alpha = alpha),
-                        modifier = Modifier
-                            .padding(end = 24.dp)
-                            .size(36.dp),
-                    )
-                }
-            },
-            enableDismissFromStartToEnd = false,
-        ) {
-            ExerciseRowScaffold(
-                place = place,
-                sets = sets,
-                onSetsChange = onSetsChange,
-                dragHandleModifier = dragHandleModifier,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .clickable(onClick = onTap)
-                    .padding(vertical = 8.dp),
-                trailing = {
-                    // The note sits under the weight, in the height the trailing column already
-                    // has spare (the body's name + reps stepper is taller than the stepper
-                    // alone), so a pinned weight never makes the row grow.
-                    WeightOrBodyweightTrailing(
-                        showWeight = planned.sessionWeight > 0f,
-                        isBodyweight = planned.exercise.equipment == Equipment.BODYWEIGHT,
-                        stepper = {
-                            ValueStepper(
-                                text = WeightFormatter.format(planned.sessionWeight, weightUnit),
-                                pinned = planned.weightPinned,
-                                unit = null,
-                                onDecrement = { onAdjustWeight(-1) },
-                                onIncrement = { onAdjustWeight(+1) },
-                                onReset = onResetWeight,
-                                fewerDescription = "Less weight",
-                                moreDescription = "More weight",
-                                canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
-                            )
-                        },
-                        note = {
-                            SuggestionNote(
-                                pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
-                                suggestedKg = suggestedWeight,
-                                unit = weightUnit,
-                            )
-                        },
-                    )
-                },
+    // The node lives outside the swipe box below, so it never sees that box's own internal
+    // translation; feed it the same live offset directly. Once the action row takes over, the
+    // row's content is no longer translated (the swipe box itself is gone), so the node offset
+    // resets to 0 rather than dragging the stale swiped-away distance along with it.
+    val swipeOffsetPx = {
+        linkNodeSwipeOffsetPx(showActions, runCatching { dismissState.requireOffset() }.getOrDefault(0f))
+    }
+
+    LinkNodeHost(linkedAbove = linkedAbove, onToggleLink = onToggleLink, swipeOffsetPx = swipeOffsetPx) {
+        if (showActions) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
             ) {
-                ExerciseRowBody(
+                CircuitRailGutter(place)
+                ExerciseActionRow(
                     name = planned.exercise.name,
-                    timedText = if (planned.exercise.isTimed) formatQuantity(planned.sessionReps, true) else null,
-                    reps = {
-                        ValueStepper(
-                            text = "${planned.sessionReps}",
-                            pinned = planned.repsPinned,
-                            unit = "reps",
-                            onDecrement = { onRepsChange(planned.sessionReps - 1) },
-                            onIncrement = { onRepsChange(planned.sessionReps + 1) },
-                            onReset = onResetReps,
-                            fewerDescription = "One rep fewer",
-                            moreDescription = "One rep more",
-                            canDecrement = planned.sessionReps > PlannedExercise.PINNED_REPS.first,
-                            canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
+                    onAction = { reason ->
+                        showActions = false
+                        onReplace(reason)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            SwipeToDismissBox(
+                state = dismissState,
+                backgroundContent = {
+                    val alpha = dismissState.progress.coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = alpha)),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onError.copy(alpha = alpha),
+                            modifier = Modifier
+                                .padding(end = 24.dp)
+                                .size(36.dp),
+                        )
+                    }
+                },
+                enableDismissFromStartToEnd = false,
+            ) {
+                ExerciseRowScaffold(
+                    place = place,
+                    sets = sets,
+                    onSetsChange = onSetsChange,
+                    dragHandleModifier = dragHandleModifier,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clickable(onClick = onTap)
+                        .padding(vertical = 8.dp),
+                    trailing = {
+                        // The note sits under the weight, in the height the trailing column already
+                        // has spare (the body's name + reps stepper is taller than the stepper
+                        // alone), so a pinned weight never makes the row grow.
+                        WeightOrBodyweightTrailing(
+                            showWeight = planned.sessionWeight > 0f,
+                            isBodyweight = planned.exercise.equipment == Equipment.BODYWEIGHT,
+                            stepper = {
+                                ValueStepper(
+                                    text = WeightFormatter.format(planned.sessionWeight, weightUnit),
+                                    pinned = planned.weightPinned,
+                                    unit = null,
+                                    onDecrement = { onAdjustWeight(-1) },
+                                    onIncrement = { onAdjustWeight(+1) },
+                                    onReset = onResetWeight,
+                                    fewerDescription = "Less weight",
+                                    moreDescription = "More weight",
+                                    canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
+                                )
+                            },
+                            note = {
+                                SuggestionNote(
+                                    pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
+                                    suggestedKg = suggestedWeight,
+                                    unit = weightUnit,
+                                )
+                            },
                         )
                     },
-                    extra = {
-                        flag?.let {
-                            Text(
-                                when (it) {
-                                    RowFlag.NOT_AT_LOCATION -> "Missing equipment"
-                                    RowFlag.TRAINED_RECENTLY -> "Trained recently"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary,
+                ) {
+                    ExerciseRowBody(
+                        name = planned.exercise.name,
+                        timedText = if (planned.exercise.isTimed) formatQuantity(planned.sessionReps, true) else null,
+                        reps = {
+                            ValueStepper(
+                                text = "${planned.sessionReps}",
+                                pinned = planned.repsPinned,
+                                unit = "reps",
+                                onDecrement = { onRepsChange(planned.sessionReps - 1) },
+                                onIncrement = { onRepsChange(planned.sessionReps + 1) },
+                                onReset = onResetReps,
+                                fewerDescription = "One rep fewer",
+                                moreDescription = "One rep more",
+                                canDecrement = planned.sessionReps > PlannedExercise.PINNED_REPS.first,
+                                canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
                             )
-                        }
-                    },
-                )
+                        },
+                        extra = {
+                            flag?.let {
+                                Text(
+                                    when (it) {
+                                        RowFlag.NOT_AT_LOCATION -> "Missing equipment"
+                                        RowFlag.TRAINED_RECENTLY -> "Trained recently"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                )
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -425,6 +446,16 @@ private fun ExerciseActionRow(
         )
     }
 }
+
+/**
+ * The offset a row's own [LinkNodeHost][io.github.fowles.stochastic_strength.ui.components.LinkNodeHost]
+ * node should track: the row's live swipe offset while it's still showing its swipe box, or 0
+ * once [showingActions] — at that point the row's content is no longer translated (the swipe box
+ * itself is gone, replaced by the action row), so the node must not keep the stale swiped-away
+ * [rawOffsetPx] either.
+ */
+internal fun linkNodeSwipeOffsetPx(showingActions: Boolean, rawOffsetPx: Float): Float =
+    if (showingActions) 0f else rawOffsetPx
 
 private const val MAX_EXERCISE_COUNT = 15
 private const val REP_RANGE_MIN = 1

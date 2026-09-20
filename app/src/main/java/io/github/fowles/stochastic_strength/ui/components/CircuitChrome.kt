@@ -48,12 +48,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.data.model.CircuitRow
 import io.github.fowles.stochastic_strength.domain.Block
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
+import kotlin.math.roundToInt
 
 /** Material 3's disabled-content alpha, so a dimmed value matches the disabled "−" beside it. */
 private const val DISABLED_ALPHA = 0.38f
@@ -100,6 +102,32 @@ fun linkAbove(block: Block, i: Int, onLink: (Int) -> Unit, onUnlink: (Int) -> Un
 }
 
 /**
+ * The 36dp-wide gutter [ExerciseRowScaffold] draws its rail segment in, on its own so a caller
+ * that swaps a row's normal body for other content (e.g. a swipe action row) can still draw the
+ * rail through that row and keep the gutter width stable — which is what keeps a [LinkNodeHost]
+ * node lined up above it, since the node's position is a fixed offset from this gutter's corner.
+ */
+@Composable
+fun CircuitRailGutter(place: RowPlace, modifier: Modifier = Modifier) {
+    val railColor = MaterialTheme.colorScheme.primary
+    Box(
+        modifier = modifier
+            .width(36.dp)
+            .fillMaxHeight()
+            .drawBehind {
+                val x = 16.dp.toPx()
+                val strokeWidth = 2.dp.toPx()
+                when (place) {
+                    RowPlace.FIRST -> drawLine(railColor, Offset(x, size.height / 2 + 12.dp.toPx()), Offset(x, size.height), strokeWidth)
+                    RowPlace.MIDDLE -> drawLine(railColor, Offset(x, 0f), Offset(x, size.height), strokeWidth)
+                    RowPlace.LAST -> drawLine(railColor, Offset(x, 0f), Offset(x, size.height / 2), strokeWidth)
+                    RowPlace.SOLO -> {}
+                }
+            },
+    )
+}
+
+/**
  * The shared row: [drag handle | circuit rail] [sets chip] name/subtitle … trailing.
  * The handle column shows a drag icon on SOLO/FIRST rows and a vertical rail tracing the
  * circuit's run through MIDDLE/LAST rows; the sets chip (sets on SOLO, rounds on FIRST) is
@@ -115,28 +143,13 @@ fun ExerciseRowScaffold(
     trailing: @Composable RowScope.() -> Unit = {},
     body: @Composable ColumnScope.() -> Unit,
 ) {
-    val railColor = MaterialTheme.colorScheme.primary
     val isBlockHead = place == RowPlace.SOLO || place == RowPlace.FIRST
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .width(36.dp)
-                .fillMaxHeight()
-                .drawBehind {
-                    val x = 16.dp.toPx()
-                    val strokeWidth = 2.dp.toPx()
-                    when (place) {
-                        RowPlace.FIRST -> drawLine(railColor, Offset(x, size.height / 2 + 12.dp.toPx()), Offset(x, size.height), strokeWidth)
-                        RowPlace.MIDDLE -> drawLine(railColor, Offset(x, 0f), Offset(x, size.height), strokeWidth)
-                        RowPlace.LAST -> drawLine(railColor, Offset(x, 0f), Offset(x, size.height / 2), strokeWidth)
-                        RowPlace.SOLO -> {}
-                    }
-                },
-        ) {
+        Box(contentAlignment = Alignment.Center) {
+            CircuitRailGutter(place)
             if (isBlockHead) {
                 Icon(
                     Icons.Filled.DragIndicator,
@@ -194,6 +207,11 @@ fun ExerciseRowScaffold(
  * node so it paints, and is hit, above the row before it. Put the swipe box inside [content].
  * [linkedAbove] is `null` on the list's first row, which has no boundary above it.
  *
+ * [swipeOffsetPx] is the later row's own live horizontal swipe translation in px (0 when it
+ * isn't being swiped): [content] here is a sibling of the node, not an ancestor, so a swipe
+ * offset applied inside [content] (e.g. by a `SwipeToDismissBox`) never reaches this node on its
+ * own — without this, the node stays put while the row it's anchored to slides out from under it.
+ *
  * The node's two inputs stay separate parameters (rather than one holder) so Compose can compare
  * them: a holder built in composition around a lambda never compares equal, and this host would
  * then recompose on every pass.
@@ -203,6 +221,7 @@ fun LinkNodeHost(
     linkedAbove: Boolean?,
     onToggleLink: () -> Unit,
     modifier: Modifier = Modifier,
+    swipeOffsetPx: () -> Float = { 0f },
     content: @Composable () -> Unit,
 ) {
     Box(modifier = modifier) {
@@ -213,6 +232,7 @@ fun LinkNodeHost(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset(x = (16 - 18).dp, y = (-18).dp)
+                    .offset { IntOffset(swipeOffsetPx().roundToInt(), 0) }
                     .size(36.dp)
                     .clickable(onClick = onToggleLink, role = Role.Button)
                     .semantics {
