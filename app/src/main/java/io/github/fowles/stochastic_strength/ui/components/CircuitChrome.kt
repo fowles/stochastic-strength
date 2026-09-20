@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -341,10 +342,15 @@ private class SwipeOffsetRelay {
  * differs between the two screens, and that is [row].
  *
  * [row] receives its [T], where it sits in its block, the block's rounds (the count the block head
- * displays), the drag-handle modifier, and a [SwipeOffsetRelay.report] it calls to keep its link
- * node tracking it while it is swiped. [onLink]/[onUnlink] are indexed by the row *above* the
- * boundary, matching [io.github.fowles.stochastic_strength.domain.CircuitEdits]; [onMove] moves a
- * whole block.
+ * displays), the drag-handle modifier, a [SwipeOffsetRelay.report] it calls to keep its link node
+ * tracking it while it is swiped, and the block's TalkBack "Move up"/"Move down" custom actions
+ * (below) — every row of a block gets the same list, since a move relocates the whole block.
+ * [onLink]/[onUnlink] are indexed by the row *above* the boundary, matching
+ * [io.github.fowles.stochastic_strength.domain.CircuitEdits]; [onMove] moves a whole block and is
+ * also what the move custom actions call — they are the accessible alternative to the drag handle,
+ * so a caller wires no separate move logic of its own. A screen's [row] slot is expected to add its
+ * own removal action(s) to this list and attach the result as that row's own `customActions`,
+ * wherever it puts the semantics for the node TalkBack focuses for the row.
  *
  * Both call sites keep their headers and footers outside this list, in the [Column] around it, so
  * this takes no header/footer slot — add one here rather than growing a second list if that
@@ -364,6 +370,7 @@ fun <T : CircuitRow<T>> CircuitBlockList(
         rounds: Int,
         dragHandleModifier: Modifier,
         reportSwipeOffset: (() -> Float) -> Unit,
+        moveActions: List<CustomAccessibilityAction>,
     ) -> Unit,
 ) {
     val lazyListState = rememberLazyListState()
@@ -374,8 +381,22 @@ fun <T : CircuitRow<T>> CircuitBlockList(
     LazyColumn(state = lazyListState, modifier = modifier) {
         // One item per block, so a drag carries a whole circuit. The smallest member id is a key
         // that survives the drag.
-        items(blocks, key = { it.key }) { keyed ->
+        itemsIndexed(blocks, key = { _, it -> it.key }) { blockIndex, keyed ->
             val block = keyed.block
+            // Omitted at the list edge, same as the drag handle simply having nowhere further to
+            // go there. Memoized so the list stays the same instance across unrelated recompositions
+            // (block/onMove capture only what actually changes it) — a fresh list every pass would
+            // stop every row in the block from skipping.
+            val moveActions = remember(blockIndex, blocks.size) {
+                buildList {
+                    if (blockIndex > 0) {
+                        add(CustomAccessibilityAction("Move up") { onMove(blockIndex, blockIndex - 1); true })
+                    }
+                    if (blockIndex < blocks.size - 1) {
+                        add(CustomAccessibilityAction("Move down") { onMove(blockIndex, blockIndex + 1); true })
+                    }
+                }
+            }
             ReorderableItem(reorderState, key = keyed.key) { isDragging ->
                 val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                 // draggableHandle() builds an unkeyed Modifier.composed { … }, which has no
@@ -403,7 +424,7 @@ fun <T : CircuitRow<T>> CircuitBlockList(
                                 onToggleLink = toggleLink,
                                 swipeOffsetPx = swipeOffset.read,
                             ) {
-                                row(blockRow, rowPlace(block, i), block.rounds, dragHandle, swipeOffset.report)
+                                row(blockRow, rowPlace(block, i), block.rounds, dragHandle, swipeOffset.report, moveActions)
                             }
                         }
                     }

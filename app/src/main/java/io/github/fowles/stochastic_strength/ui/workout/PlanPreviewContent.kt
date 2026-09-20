@@ -42,6 +42,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -198,7 +201,7 @@ internal fun PlanPreviewContent(
             onLink = onLink,
             onUnlink = onUnlink,
             modifier = Modifier.weight(1f),
-        ) { planned, place, rounds, dragHandle, reportSwipeOffset ->
+        ) { planned, place, rounds, dragHandle, reportSwipeOffset, moveActions ->
             ExercisePreviewRow(
                 planned = planned,
                 weightUnit = weightUnit,
@@ -217,6 +220,7 @@ internal fun PlanPreviewContent(
                 onSetsChange = { onSetSets(planned.exercise.id, it) },
                 flag = state.rowFlags[planned.exercise.id],
                 reportSwipeOffset = reportSwipeOffset,
+                moveActions = moveActions,
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -227,7 +231,7 @@ internal fun PlanPreviewContent(
 }
 
 @Composable
-private fun ExercisePreviewRow(
+internal fun ExercisePreviewRow(
     planned: PlannedExercise,
     weightUnit: WeightUnit,
     place: RowPlace,
@@ -244,6 +248,7 @@ private fun ExercisePreviewRow(
     onSetsChange: (Int) -> Unit,
     flag: RowFlag?,
     reportSwipeOffset: (() -> Float) -> Unit,
+    moveActions: List<CustomAccessibilityAction>,
 ) {
     var showActions by remember(planned.exercise.id) { mutableStateOf(false) }
 
@@ -307,6 +312,17 @@ private fun ExercisePreviewRow(
             },
             enableDismissFromStartToEnd = false,
         ) {
+            // The accessible alternative to swipe-to-remove: one custom action per removal
+            // reason, labelled as the action row's own buttons are, plus the block's move
+            // actions. `.clickable` above already merges this row's descendants into one
+            // TalkBack stop, so attaching them here reaches the same node that stop focuses.
+            val customActions = remember(moveActions, onReplace) {
+                moveActions + listOf(
+                    CustomAccessibilityAction("No gear") { onReplace(ExerciseRemovalReason.NO_EQUIPMENT); true },
+                    CustomAccessibilityAction("Hate it") { onReplace(ExerciseRemovalReason.DISLIKE); true },
+                    CustomAccessibilityAction("Not today") { onReplace(ExerciseRemovalReason.SKIP_TODAY); true },
+                )
+            }
             ExerciseRowScaffold(
                 place = place,
                 sets = sets,
@@ -316,6 +332,7 @@ private fun ExercisePreviewRow(
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
                     .clickable(onClick = onTap)
+                    .semantics { this.customActions = customActions }
                     .padding(vertical = 8.dp),
                 trailing = {
                     // The note sits under the weight, in the height the trailing column already

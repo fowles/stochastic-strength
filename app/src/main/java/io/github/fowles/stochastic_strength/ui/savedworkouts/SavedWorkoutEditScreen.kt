@@ -35,6 +35,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -129,7 +132,7 @@ fun SavedWorkoutEditScreen(
                 onLink = viewModel::link,
                 onUnlink = viewModel::unlink,
                 modifier = Modifier.weight(1f),
-            ) { entry, place, rounds, dragHandle, reportSwipeOffset ->
+            ) { entry, place, rounds, dragHandle, reportSwipeOffset, moveActions ->
                 EntryRow(
                     entry = entry,
                     place = place,
@@ -142,6 +145,7 @@ fun SavedWorkoutEditScreen(
                     onWeightChange = { weight -> viewModel.setWeight(entry.exercise.id, weight) },
                     onSetsChange = { sets -> viewModel.setSets(entry.exercise.id, sets) },
                     reportSwipeOffset = reportSwipeOffset,
+                    moveActions = moveActions,
                 )
             }
             OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
@@ -168,7 +172,7 @@ fun SavedWorkoutEditScreen(
 }
 
 @Composable
-private fun EntryRow(
+internal fun EntryRow(
     entry: SavedWorkoutEntry,
     place: RowPlace,
     sets: Int,
@@ -180,6 +184,7 @@ private fun EntryRow(
     onWeightChange: (Float?) -> Unit,
     onSetsChange: (Int) -> Unit,
     reportSwipeOffset: (() -> Float) -> Unit,
+    moveActions: List<CustomAccessibilityAction>,
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
     LaunchedEffect(dismissState) {
@@ -259,6 +264,11 @@ private fun EntryRow(
             weightStepper = {}
             weightNote = {}
         }
+        // The accessible alternative to the swipe-to-remove gesture above: TalkBack reaches this
+        // row's custom-action menu even though it never sees the swipe.
+        val customActions = remember(moveActions, onRemove) {
+            moveActions + CustomAccessibilityAction("Remove") { onRemove(); true }
+        }
         ExerciseRowScaffold(
             place = place,
             sets = sets,
@@ -267,6 +277,7 @@ private fun EntryRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
+                .semantics { this.customActions = customActions }
                 .padding(vertical = 8.dp),
             trailing = {
                 // The note sits under the weight, in the height the trailing column already has
