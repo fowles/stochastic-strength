@@ -47,8 +47,9 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
                 _state.value = _state.value.copy(exercises = exercises)
             }
         }
-        // Computed once (beliefs only change after a workout finishes, and this screen is entered
-        // fresh from home) — mirrors the History highlight's one-shot series build.
+        // Computed once per ViewModel: beliefs only change after a workout finishes. Returning from
+        // exercise detail reuses this retained ViewModel and its values; entering from home builds a
+        // fresh one. Mirrors the History highlight's one-shot series build.
         viewModelScope.launch {
             withContext(Dispatchers.Default) {
                 _sparklines.value = repository.buildExerciseSparklines()

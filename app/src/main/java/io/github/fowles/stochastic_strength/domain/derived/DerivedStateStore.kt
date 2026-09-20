@@ -65,9 +65,6 @@ class DerivedStateStore {
 
         fun allCoefficientHistory(): List<CoefficientHistory> = coefficientHistory
 
-        fun coefficientHistoryMostRecent(limit: Int): List<CoefficientHistory> =
-            coefficientHistory.sortedByDescending { it.computedAt }.take(limit)
-
         companion object {
             fun empty() = Snapshot(emptyMap(), emptyList(), emptyList(), emptyMap())
         }

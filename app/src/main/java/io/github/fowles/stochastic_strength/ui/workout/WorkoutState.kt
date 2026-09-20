@@ -36,7 +36,7 @@ sealed interface WorkoutState {
         val targetCount: Int = WorkoutGenerator.DEFAULT_EXERCISE_COUNT,
         /** Rows the user chose that the generator would have filtered out. */
         val rowFlags: Map<Long, RowFlag> = emptyMap(),
-        /** True once the user has changed the plan (weight, order, add, load, append). */
+        /** True once the user has made any change to the plan. */
         val edited: Boolean = false,
     ) : WorkoutState
 
@@ -56,12 +56,7 @@ sealed interface WorkoutState {
         val done: Map<Long, Int> = emptyMap(),
     ) : WorkoutState
 
-    data class Done(
-        val sessionId: Long,
-        val plan: WorkoutPlan,
-        val startTime: Long,
-        val endTime: Long,
-    ) : WorkoutState
+    data class Done(val sessionId: Long) : WorkoutState
 }
 
 enum class StagedKind { SWAP, ADJUST_WEIGHT, END_EXERCISE, STOP_WORKOUT, WARMUP_DONE }

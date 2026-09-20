@@ -102,6 +102,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    // No test imports espresso, but compose ui-test drives input through it, and the version it
+    // pulls in transitively crashes on current API levels (InputManager.getInstance is gone).
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.room.testing)

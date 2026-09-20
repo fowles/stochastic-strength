@@ -30,8 +30,8 @@ data class BeliefConfig(
     val confidenceDecayEstimate: Float = 3e-6f,
     /**
      * `edge-pinned`/`saturated` (re-confirmed 2026-07-15 on updated history): single observation
-     * uncertainty for all load folds. Task 10 collapsed the RIR/FAIL pair (identical optima 0.005) into
-     * one constant. Re-baseline widened the grid downward to 0.001/0.002 — all three lowest values
+     * uncertainty for all load folds. RIR and FAIL sets share it (their separate optima were both
+     * 0.005). Re-baseline widened the grid downward to 0.001/0.002 — all three lowest values
      * (0.001→24.3352, 0.002→24.3336, 0.005→24.3274) score within ~0.03% of best, so the low edge is a
      * saturated asymptote, not a genuine bowl. 0.005 kept as the least-extreme saturated value; curve
      * in the phase-2 plan appendix.

@@ -4,9 +4,9 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import kotlin.random.Random
 
 /**
- * Occasional quip for the rest-timer screen. Deliberately scarce: at ~15 rests per
- * workout, 4% averages under one sighting per workout, so no repeat-avoidance
- * state is needed. [upcomingMuscles] is the muscle set of the exercise the rest
+ * Occasional quip for the rest-timer screen. Deliberately scarce: at 4% per rest a
+ * sighting is rare enough within one workout that no repeat-avoidance state is
+ * needed. [upcomingMuscles] is the muscle set of the exercise the rest
  * precedes; null means this is the final rest (the Done screen's HighlightCard
  * follows immediately, so never quip there).
  */

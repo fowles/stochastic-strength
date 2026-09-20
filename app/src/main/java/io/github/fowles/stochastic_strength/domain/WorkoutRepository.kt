@@ -407,48 +407,6 @@ class WorkoutRepository(
         return orderedIds.mapNotNull { nameById[it] }
     }
 
-    suspend fun getRecentCoefficientChanges(limit: Int = 2): List<CoefficientRow> {
-        val rows = derivedState.snapshot().coefficientHistoryMostRecent(limit)
-        if (rows.isEmpty()) return emptyList()
-        val exerciseIds = rows.map { it.exerciseId }.distinct()
-        val exercisesById = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
-        return rows.mapNotNull { log ->
-            val exercise = exercisesById[log.exerciseId] ?: return@mapNotNull null
-            CoefficientRow(
-                exerciseId = exercise.id,
-                exerciseName = exercise.name,
-                currentCoefficient = log.coefficient,
-                previousCoefficient = log.previousCoefficient,
-                computedAt = log.computedAt,
-                heuristicName = log.heuristicName,
-                heuristicMetadataPreview = log.heuristicMetadata
-                    ?.replace('\n', ' ')
-                    ?.take(80),
-            )
-        }
-    }
-
-    suspend fun getAllCoefficientRows(): List<CoefficientRow> {
-        val allExercises = db.exerciseDao().getAll()
-        val latestByExercise = derivedState.snapshot().coefficientHistoryLatestPerExercise()
-            .associateBy { it.exerciseId }
-        return allExercises
-            .map { exercise ->
-                val log = latestByExercise[exercise.id]
-                val seed = ExerciseCoefficients.get(exercise) ?: 0f
-                CoefficientRow(
-                    exerciseId = exercise.id,
-                    exerciseName = exercise.name,
-                    currentCoefficient = log?.coefficient ?: seed,
-                    previousCoefficient = null,
-                    computedAt = log?.computedAt,
-                    heuristicName = log?.heuristicName,
-                    heuristicMetadataPreview = null,
-                )
-            }
-            .sortedBy { it.exerciseName }
-    }
-
     suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineHistory> =
         derivedState.snapshot().baselineHistoryForMuscle(muscleGroup)
 
@@ -505,9 +463,6 @@ class WorkoutRepository(
 
     suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
         derivedState.snapshot().coefficientHistoryForExercise(exerciseId)
-
-    fun getSeedCoefficient(exercise: Exercise): Float? =
-        ExerciseCoefficients.get(exercise)
 
     private val progressionSeriesBuilder = ExerciseProgressionSeriesBuilder(config = beliefConfig)
 

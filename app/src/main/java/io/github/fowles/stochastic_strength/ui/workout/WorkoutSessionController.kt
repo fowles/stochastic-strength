@@ -83,7 +83,6 @@ class WorkoutSessionController(
     internal fun adoptPlanner(p: WorkoutPlanner) {
         planner = p
     }
-    private var sessionStartTime = 0L
     private var sessionLocationId: Long? = null
     private var preferredRepMin: Int = 5
     private var preferredRepMax: Int = 10
@@ -174,7 +173,6 @@ class WorkoutSessionController(
         if (preview.plan.exercises.isEmpty()) return
         launchOnce {
             val now = System.currentTimeMillis()
-            sessionStartTime = now
             val sessionId = database.workoutSessionDao().insert(
                 WorkoutSession(startTime = now, locationId = sessionLocationId)
             )
@@ -185,7 +183,7 @@ class WorkoutSessionController(
             // (applyPreviewDelta doesn't fit: this is a deliberate exit *from* PlanPreview.)
             val plan = (_state.value as? WorkoutState.PlanPreview)?.plan ?: preview.plan
             activeSetFor(plan, emptyMap(), sessionId)?.let(::setState)
-                ?: finishWorkout(plan, sessionId)
+                ?: finishWorkout(sessionId)
         }
     }
 
@@ -858,27 +856,19 @@ class WorkoutSessionController(
             if (target != null) setState(target)
             scope.launch {
                 staged.pendingSwap?.let { persistSwap(it) }
-                if (target == null) finishWorkout(current.plan, current.sessionId)
+                if (target == null) finishWorkout(current.sessionId)
             }
             return
         }
         activeSetFor(current.plan, current.done, current.sessionId)?.let(::setState)
-            ?: finishWorkout(current.plan, current.sessionId)
+            ?: finishWorkout(current.sessionId)
     }
 
-    private fun finishWorkout(
-        plan: WorkoutPlan,
-        sessionId: Long,
-    ) {
+    private fun finishWorkout(sessionId: Long) {
         val endTime = System.currentTimeMillis()
         scope.launch {
             database.workoutSessionDao().updateEndTime(sessionId, endTime)
-            setState(WorkoutState.Done(
-                sessionId = sessionId,
-                plan = plan,
-                startTime = sessionStartTime,
-                endTime = endTime,
-            ))
+            setState(WorkoutState.Done(sessionId))
             // Here rather than on the Done button: system back leaves the Done screen without
             // tapping it, and the next plan would be priced from beliefs that predate today's sets.
             withContext(NonCancellable) { repository.finishSession() }

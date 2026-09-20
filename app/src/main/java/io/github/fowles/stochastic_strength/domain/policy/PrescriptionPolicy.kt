@@ -100,7 +100,8 @@ object PrescriptionPolicy {
 
     /**
      * prescribe(rawTarget, PolicyFacts) → weight (spec Phase 1). Order: HURT backoff multiplies the
-     * raw target, then the demonstrated-capacity cap ceilings it, then grid rounding. When the cap
+     * raw target, the result is grid-rounded and the overload nudge added, then the
+     * demonstrated-capacity cap ceilings that rounded weight. When the cap
      * binds, the weight is computed with the RAW rep-max inverse and floor-rounded at the grid —
      * pre-rounding to the 0.5 kg internal grid could nudge the weight back up to exactly the failed
      * weight, and nearest-rounding at the prescription grid could round above the cap. The cap

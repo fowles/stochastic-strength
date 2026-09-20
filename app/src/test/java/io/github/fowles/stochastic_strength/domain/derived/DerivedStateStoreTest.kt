@@ -26,7 +26,6 @@ class DerivedStateStoreTest {
         assertTrue(snap.baselineHistoryForMuscle(MuscleGroup.CHEST).isEmpty())
         assertTrue(snap.coefficientHistoryForExercise(7L).isEmpty())
         assertTrue(snap.coefficientHistoryLatestPerExercise().isEmpty())
-        assertTrue(snap.coefficientHistoryMostRecent(5).isEmpty())
     }
 
     @Test fun rebuildPopulatesAllThreeStores() = runTest {
@@ -97,17 +96,6 @@ class DerivedStateStoreTest {
         assertEquals(1.5f, latest[1L]?.coefficient)
         assertEquals(0.8f, latest[2L]?.coefficient)
         assertEquals(2, latest.size)
-    }
-
-    @Test fun coefficientMostRecentSortsDescendingByComputedAt() = runTest {
-        val store = DerivedStateStore()
-        store.rebuild { mut ->
-            mut.insertCoefficientHistory(coefRow(exerciseId = 1L, value = 1.0f, ts = 10L))
-            mut.insertCoefficientHistory(coefRow(exerciseId = 2L, value = 1.0f, ts = 30L))
-            mut.insertCoefficientHistory(coefRow(exerciseId = 3L, value = 1.0f, ts = 20L))
-        }
-        val mostRecent = store.snapshot().coefficientHistoryMostRecent(limit = 2)
-        assertEquals(listOf(30L, 20L), mostRecent.map { it.computedAt })
     }
 
     @Test fun allCoefficientHistoryReturnsInsertionOrder() = runTest {

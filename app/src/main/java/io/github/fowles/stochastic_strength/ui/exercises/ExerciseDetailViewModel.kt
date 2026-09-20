@@ -143,8 +143,8 @@ class ExerciseDetailViewModel(
         val completedPrimary = primarySets.filter { it.completedAt != null }
         val primarySetsByDay = completedPrimary
             .groupBy { ExerciseChartGrouping.sessionDayKey(it, sessionAnchorById, zone) }
-        // One dot per session (not per day): a day with two sessions shows two dots, matching the
-        // debug chart and the per-session aggregate the engine actually folds in.
+        // Grouped per session (not per day); observedSessionPoints then emits one dot per set, matching
+        // the debug chart and the per-set observations the belief fold consumes.
         val primarySessions = completedPrimary.groupBy { it.sessionId }.map { (_, sets) ->
             ObservedSession(
                 day = ExerciseChartGrouping.sessionDayKey(sets.first(), sessionAnchorById, zone),
@@ -198,9 +198,9 @@ class ExerciseDetailViewModel(
             it.primaryMuscle == exercise.primaryMuscle && it.id != exerciseId
         }
 
-        // One observed dot per sibling-session (never averaged across siblings sharing a day),
-        // scaled into this exercise's space with the same engine aggregate as the own dots — this
-        // is what the debug chart plots, so the two views agree. Entries list every set for the
+        // One observed dot per sibling set (never averaged across siblings sharing a day), scaled
+        // into this exercise's space by the same per-set rule as the own dots — this is what the
+        // debug chart plots, so the two views agree. Entries list every set for the
         // day-detail panel regardless of whether the session yielded a signal.
         val shadowSessions = mutableListOf<ObservedSession>()
         val dayToEntries = mutableMapOf<Long, MutableList<ExerciseSetEntry>>()

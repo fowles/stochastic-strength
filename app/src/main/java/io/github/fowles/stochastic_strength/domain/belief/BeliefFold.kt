@@ -5,7 +5,7 @@ import io.github.fowles.stochastic_strength.domain.policy.LnInterval
 import io.github.fowles.stochastic_strength.domain.policy.SetIntervals
 import kotlin.math.ln
 
-/** Pure belief updates: aging (this task), fatigue shift + boundary-pull fold (Task 3). */
+/** Pure belief updates: aging, fatigue shift, and the boundary-pull fold. */
 class BeliefFold(private val config: BeliefConfig) {
     private val dayMs = 24L * 60 * 60 * 1000
 
