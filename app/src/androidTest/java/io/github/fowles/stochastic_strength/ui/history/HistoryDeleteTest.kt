@@ -1,5 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.history
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -23,13 +25,18 @@ import java.time.ZoneId
 
 /**
  * Drives [HistoryScreenContent] — the real screen, minus only its view model — over a hand-built
- * state flow, so delete is covered without the app's Room database.
+ * state, so the delete flow is covered without the app's Room database.
  *
- * The regression under test: the `LazyColumn` key lambda used to read the live `collectAsState`
- * delegate while indexing with the `rows` list captured at composition. Deleting a session shrinks
- * `sessions`, the key map is rebuilt against the new list before the composition that built `rows`
- * is replaced, and the last row's `itemIndex` runs off the end
- * (`IndexOutOfBoundsException` from the key lambda).
+ * What this covers: the end-to-end delete interaction. Tapping a row's delete icon raises the
+ * confirm dialog, confirming it removes that session, and the list re-renders with the survivors
+ * and their month headers intact.
+ *
+ * What this does NOT cover: the stale-key crash this screen once had, where the `LazyColumn` key
+ * lambda indexed a fresher `sessions` list than the memoized `rows` it was built from. That bug
+ * needed a live `collectAsState` delegate *inside* the composable; [HistoryScreenContent] now takes
+ * a plain `HistoryState` value and collection lives in the untestable `HistoryScreen` wrapper, so
+ * the hazard is structurally absent rather than caught here. This test would still pass if the
+ * read-once local in [HistoryScreenContent] were removed.
  */
 @RunWith(AndroidJUnit4::class)
 class HistoryDeleteTest {
@@ -67,7 +74,7 @@ class HistoryDeleteTest {
     )
 
     @Test
-    fun deletingTheFirstSessionDoesNotCrashTheList() {
+    fun deletingTheFirstSessionRemovesItAndKeepsTheRest() {
         // Two months, so the list carries month headers and entry indices are not row indices.
         val all = listOf(
             item(1L, LocalDate.of(2026, 3, 10), "Squat"),
@@ -77,8 +84,9 @@ class HistoryDeleteTest {
         val flow = MutableStateFlow(stateOf(all))
 
         composeRule.setContent {
+            val state by flow.collectAsState()
             HistoryScreenContent(
-                stateFlow = flow,
+                state = state,
                 onSessionTap = {},
                 onBack = {},
                 onInspireMe = {},
@@ -104,8 +112,8 @@ class HistoryDeleteTest {
         composeRule.onNodeWithText("Squat").assertIsDisplayed()
         assertEquals(3, composeRule.onAllNodesWithContentDescription("Delete session").fetchSemanticsNodes().size)
 
-        // Delete the newest session: every surviving entry's itemIndex shifts, and the last one
-        // (index 2) no longer exists in the shortened list.
+        // Delete the newest session: every surviving entry's itemIndex shifts, so the rendered
+        // rows have to be rebuilt against the shortened list.
         composeRule.onAllNodesWithContentDescription("Delete session")[0].performClick()
         composeRule.onNodeWithText("Delete").performClick()
         composeRule.waitForIdle()

@@ -46,7 +46,6 @@ import io.github.fowles.stochastic_strength.domain.history.HistoryRows
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.formatDateTime
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.YearMonth
 import java.time.ZoneId
@@ -60,8 +59,10 @@ fun HistoryScreen(
     onBack: () -> Unit,
     viewModel: HistoryViewModel = viewModel(),
 ) {
+    val state by viewModel.state.collectAsState()
+
     HistoryScreenContent(
-        stateFlow = viewModel.state,
+        state = state,
         onSessionTap = onSessionTap,
         onBack = onBack,
         onInspireMe = viewModel::inspireMe,
@@ -75,19 +76,20 @@ fun HistoryScreen(
 }
 
 /**
- * The whole history screen, with its state source hoisted to a parameter so a test can drive it
- * without the app's Room database.
+ * The whole history screen, with its state hoisted to a parameter so a test can drive it without
+ * the app's Room database.
  *
- * The seam is the [StateFlow], not a plain [HistoryState] value, deliberately: the delete crash
- * this screen has already had once lived in how `collectAsState()`'s live delegate interacts with
- * `LazyColumn`'s key lambda, so `collectAsState` has to stay *inside* the tested composable. A
- * value parameter would move it into the untested wrapper and hide that class of bug instead of
- * covering it. See HistoryDeleteTest.
+ * The parameter is a plain [HistoryState] value, deliberately — not a `StateFlow`. This screen has
+ * had a delete crash where the `LazyColumn` key lambda read a fresher `sessions` list than the
+ * memoized `rows` it was indexing into. A value parameter makes that mismatch structurally
+ * impossible: every lambda here closes over the same immutable `state` its composition was called
+ * with, and there is no path from inside this composable to a newer one. Collection happens in the
+ * [HistoryScreen] wrapper, which holds nothing derived from `sessions`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreenContent(
-    stateFlow: StateFlow<HistoryState>,
+    state: HistoryState,
     onSessionTap: (Long) -> Unit,
     onBack: () -> Unit,
     onInspireMe: () -> Unit,
@@ -98,8 +100,6 @@ fun HistoryScreenContent(
     onCancelDelete: () -> Unit,
     onConfirmDelete: () -> Unit,
 ) {
-    val state by stateFlow.collectAsState()
-
     val snackbarHostState = remember { SnackbarHostState() }
     var menuExpanded by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
@@ -204,8 +204,10 @@ fun HistoryScreenContent(
         }
 
         val zone = ZoneId.systemDefault()
-        // Read once: `state` is a live delegate, and LazyColumn re-runs the key lambda on a snapshot
-        // apply before this recomposes. The lambdas must index the same list `rows` was built from.
+        // Plain shorthand. `state` is a value parameter, so every read below — including the
+        // LazyColumn key lambda, which Compose may re-run on a snapshot apply before this
+        // composable recomposes — sees the one list this composition was called with, and `rows`
+        // is memoized on that same list. Nothing here can observe a fresher `sessions`.
         val sessions = state.sessions
         val entryDates = remember(sessions) {
             sessions.map { HistoryRows.localDate(it.session.startTime, zone) }
