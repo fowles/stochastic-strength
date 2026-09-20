@@ -294,6 +294,9 @@ private fun ExercisePreviewRow(
     // row's content is no longer translated (the swipe box itself is gone), so the node offset
     // resets to 0 rather than dragging the stale swiped-away distance along with it.
     val swipeOffsetPx = {
+        // requireOffset() throws until the swipe box's anchors have been initialized by its first
+        // measurement, and this lambda can be read before then (first frame, or a row recomposed
+        // into the list); 0 is the right offset in that window anyway.
         linkNodeSwipeOffsetPx(showActions, runCatching { dismissState.requireOffset() }.getOrDefault(0f))
     }
 
@@ -303,7 +306,11 @@ private fun ExercisePreviewRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
             ) {
-                CircuitRailGutter(place)
+                // Only a circuit member needs the gutter — it's what keeps the rail continuous
+                // through a swiped row and the link node above it lined up. A SOLO row draws no
+                // rail and has no node, so a gutter there would just cost the action row (its
+                // three buttons and progress bar) 36dp of width for nothing.
+                if (place != RowPlace.SOLO) CircuitRailGutter(place)
                 ExerciseActionRow(
                     name = planned.exercise.name,
                     onAction = { reason ->
