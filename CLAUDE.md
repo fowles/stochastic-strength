@@ -107,8 +107,11 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
 - Ending the workout sets `endTime`, shows `Done`, and runs `repository.finishSession()` (replay)
   itself; the Done button only waits for that and navigates.
 - No restore after process death: the foreground service keeps the process alive. If it dies
-  anyway, `WorkoutRepository.closeOrphanedSessions()` runs at the next process start, ahead of the
-  startup replay: a session with `endTime IS NULL` and no logged sets is deleted, otherwise
+  anyway, `WorkoutRepository.closeOrphanedSessions()` runs **synchronously** in
+  `StochasticStrengthApp.onCreate`, ahead of the startup replay — an open session exists only under
+  a live controller, so closing before any UI can exist is what keeps the close from racing (and
+  deleting) a session the user has just started: a session with `endTime IS NULL` and no logged
+  sets is deleted, otherwise
   `endTime` becomes its latest set's `completedAt` (falling back to `startTime`) so the sets it did
   log still fold into replay. It never resumes a session.
 
@@ -139,7 +142,8 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
   location filters, are flagged in the UI and never dropped, and raw stored values are clamped
   there (imports are not sanitized on write). The controller tracks which ids are explicit; rows
   carry no origin flag. The exercise-count slider is a **minimum** (restock on swipe-away only
-  below `targetCount`).
+  below `targetCount`); lowering it trims only *plain* rows — never explicit, pinned or circuit
+  members — latest first, so a plan may sit above `targetCount`.
 - `saved_workout` / `saved_workout_exercise` hold user-authored workouts with optional per-row
   `reps` and literal `weight` (kg, never progresses). An unnamed workout is stored with an empty
   name and shown under a derived one (`SavedWorkoutNaming`). The editor saves only on Done (back
@@ -211,7 +215,8 @@ gets a `Migration` in `AppDatabase.Companion` plus a `MigrationNToMTest`; there 
 fallback of any kind (a failed open must crash, never reset). No foreign keys or unique
 constraints: integrity lives in `WorkoutRepository` transactions. Backup accepts
 `MIN_DB_VERSION..DB_VERSION` and defaults missing keys; additive import matches exercises and
-locations by name.
+locations by name, and skips a session whose `startTime` already exists locally (`startTime` alone
+is the identity — an open session in an old backup is the same session as its closed local twin).
 
 `espresso-core` is pinned in the build although nothing imports it: compose ui-test's transitive
 version crashes on current API levels.
