@@ -193,7 +193,10 @@ fun LinkNodeHost(
                 Surface(
                     shape = CircleShape,
                     color = if (linkedAbove) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                    border = if (linkedAbove) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    // `outline`, not `outlineVariant`: the ring bounds a control the user taps, and
+                    // outlineVariant (the decorative-divider token) can wash out against `surface`
+                    // under some dynamic-colour palettes.
+                    border = if (linkedAbove) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     modifier = Modifier.size(20.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
