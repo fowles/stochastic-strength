@@ -400,11 +400,18 @@ class WorkoutRepository(
         replayDerivedState()
     }
 
-    suspend fun getSessionExerciseNames(sessionId: Long): List<String> {
-        val sets = db.workoutSetDao().getSetsForSession(sessionId)
-        val orderedIds = sets.map { it.exerciseId }.distinct()
-        val nameById = db.exerciseDao().getByIds(orderedIds).associate { it.id to it.name }
-        return orderedIds.mapNotNull { nameById[it] }
+    /**
+     * Each session's exercise names (first-appearance order, matching [getSetsForSession]'s id-ASC
+     * order), for every session in one pass: one sets query grouped in memory + one exercises
+     * query, rather than a name lookup per session.
+     */
+    suspend fun getSessionExerciseNames(sessionIds: List<Long>): Map<Long, List<String>> {
+        val setsBySession = db.workoutSetDao().getAllOrderedById().groupBy { it.sessionId }
+        val allExerciseIds = setsBySession.values.flatten().map { it.exerciseId }.distinct()
+        val nameById = db.exerciseDao().getByIds(allExerciseIds).associate { it.id to it.name }
+        return sessionIds.associateWith { sessionId ->
+            setsBySession[sessionId].orEmpty().map { it.exerciseId }.distinct().mapNotNull { nameById[it] }
+        }
     }
 
     suspend fun getBaselineEvents(muscleGroup: MuscleGroup): List<BaselineHistory> =

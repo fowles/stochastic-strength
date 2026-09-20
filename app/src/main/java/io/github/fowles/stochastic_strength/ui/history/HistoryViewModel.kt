@@ -62,11 +62,12 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         val weightUnit = profile?.weightUnit ?: WeightUnit.KG
         val locations = repository.getLocations().associateBy { it.id }
         val rawSessions = repository.getAllSessions()
+        val exerciseNamesBySession = repository.getSessionExerciseNames(rawSessions.map { it.id })
         val sessions = rawSessions.map { session ->
             SessionListItem(
                 session = session,
                 locationName = session.locationId?.let { locations[it]?.name },
-                exerciseNames = repository.getSessionExerciseNames(session.id),
+                exerciseNames = exerciseNamesBySession[session.id].orEmpty(),
                 durationSeconds = if (session.endTime != null)
                     (session.endTime - session.startTime) / 1000L
                 else 0L,

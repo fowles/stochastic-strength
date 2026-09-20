@@ -289,6 +289,8 @@ class ExerciseProgressionSeriesBuilder(
                 exerciseMuscle = snapshot.exerciseMuscle, coefById = snapshot.seedCoefficients,
             )
         }
+        // One query for the whole set log, grouped in memory — see ReplayEngine.run.
+        val setsBySession = db.workoutSetDao().getAllOrderedById().groupBy { it.sessionId }
         return buildCore(
             exerciseId = exerciseId,
             snapshot = snapshot,
@@ -299,7 +301,7 @@ class ExerciseProgressionSeriesBuilder(
             initialSeeds = seeds.initial,
             sessionSeeds = seeds.bySession,
             sessions = db.workoutSessionDao().getAll(),
-            setsForSession = { db.workoutSetDao().getSetsForSession(it) },
+            setsForSession = { setsBySession[it].orEmpty() },
             now = System.currentTimeMillis(),
         )
     }

@@ -8,9 +8,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 From the 2026-09-20 whole-project review. Each needs a decision or is bigger than a drive-by.
 
 ## Data
-- **Replay is sessions × sets.** `ReplayEngine`, `ExerciseProgressionSeriesBuilder` and
-  `HistoryViewModel` call `getSetsForSession` per session, and `workout_sets` has no index on
-  `sessionId`/`exerciseId`. Fetch once and group, or add the indices (needs a v22 migration).
 - **An abandoned session is orphaned.** Process death mid-workout leaves a `workout_sessions` row
   with `endTime` NULL whose sets never reach replay; nothing resumes or cleans it. Resuming needs
   the session id in a `SavedStateHandle`.

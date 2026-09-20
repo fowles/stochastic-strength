@@ -52,12 +52,15 @@ class ReplayEngine(
                 coefById = snapshot.seedCoefficients,
             )
         }
+        // One query for the whole set log, grouped in memory — the per-session list this produces
+        // is identical to getSetsForSession's (same id-ASC order), just without a query per session.
+        val setsBySession = db.workoutSetDao().getAllOrderedById().groupBy { it.sessionId }
         runCore(
             snapshot = snapshot,
             initialSeeds = seeds.initial,
             sessionSeeds = seeds.bySession,
             sessions = db.workoutSessionDao().getAll(),
-            setsForSession = { db.workoutSetDao().getSetsForSession(it) },
+            setsForSession = { setsBySession[it].orEmpty() },
             observer = observer,
             beforeSession = beforeSession,
         )

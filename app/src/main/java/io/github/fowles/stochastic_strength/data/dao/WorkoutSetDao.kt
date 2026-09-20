@@ -19,6 +19,14 @@ interface WorkoutSetDao {
     @Query("SELECT * FROM workout_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     suspend fun getSetsForSession(sessionId: Long): List<WorkoutSet>
 
+    /**
+     * The whole set log, ordered the same way [getSetsForSession] orders one session (id ASC).
+     * Since id increases monotonically, grouping this by sessionId reproduces each session's list
+     * exactly — the one-query alternative to calling [getSetsForSession] per session.
+     */
+    @Query("SELECT * FROM workout_sets ORDER BY id ASC")
+    suspend fun getAllOrderedById(): List<WorkoutSet>
+
     @Query("SELECT * FROM workout_sets WHERE exerciseId = :exerciseId ORDER BY completedAt ASC")
     suspend fun getAllForExercise(exerciseId: Long): List<WorkoutSet>
 

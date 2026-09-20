@@ -21,8 +21,10 @@ class ActualRepsBackfill(
 ) {
     suspend fun run() {
         val sessions = database.workoutSessionDao().getAll()
+        // One query for the whole set log, grouped in memory — see ReplayEngine.run.
+        val setsBySession = database.workoutSetDao().getAllOrderedById().groupBy { it.sessionId }
         for (session in sessions) {
-            val sets = database.workoutSetDao().getSetsForSession(session.id)
+            val sets = setsBySession[session.id].orEmpty()
             val bySetKey = sets.associateBy { it.exerciseId to it.setNumber }
             for (s in sets) {
                 if (s.actualReps != null) continue
