@@ -3,7 +3,9 @@ package io.github.fowles.stochastic_strength.domain.model
 import io.github.fowles.stochastic_strength.data.model.CircuitRow
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.Exercise
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class PlannedExercise(
     val exercise: Exercise,
     val sessionWeight: Float = 0f,

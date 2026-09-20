@@ -109,3 +109,17 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
+
+composeCompiler {
+    // Treats Kotlin's collection interfaces as stable — see compose-stability.conf for the promise
+    // that makes and why this codebase keeps it. Without it, every data class holding a List is
+    // unstable, and the composables taking one re-run on every parent recomposition.
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("compose-stability.conf"))
+
+    // Skippability is a compile-time property, so it is checked by reading these rather than by a
+    // runtime recomposition-counting test. After a build, app/build/compose_reports/
+    // app-composables.txt lists each composable's parameters; a parameter with no `stable` prefix
+    // is what stops its composable skipping.
+    reportsDestination = layout.buildDirectory.dir("compose_reports")
+    metricsDestination = layout.buildDirectory.dir("compose_metrics")
+}

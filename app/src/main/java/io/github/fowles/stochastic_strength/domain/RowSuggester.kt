@@ -2,8 +2,10 @@ package io.github.fowles.stochastic_strength.domain
 
 import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import androidx.compose.runtime.Immutable
 
 /** Prices rows in the saved-workout editor (and any other off-session context) the way the planner would. */
+@Immutable
 class RowSuggester(private val planner: WorkoutPlanner, val repMin: Int, val repMax: Int, val weightUnit: WeightUnit) {
     val typicalReps: Int get() = RepRangePicker.typical(repMin, repMax)
 

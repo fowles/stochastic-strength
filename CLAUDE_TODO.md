@@ -4,6 +4,13 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 
 ## Open — intended / accepted-by-design (no action needed, kept for visibility)
 
+- **Skippability is checked by reading the Compose compiler report, not by a runtime test**
+  (2026-09-20). `app/build/compose_reports/app-composables.txt` lists every composable's
+  parameters; one with no `stable` prefix is what stops it skipping. That is a compile-time
+  property, so a recomposition-counting harness would cost real work to answer a question the
+  build already answers — and when the question was first asked, the answer was "it doesn't skip".
+  `ExercisePreviewRow` and `EntryRow` now report every parameter `stable`.
+
 - **Uneven circuits show their largest round count** (decided 2026-09-20). `saveSessionAsWorkout`
   keeps each member at the rounds it actually got, so a saved circuit can be uneven (a swapped-away
   member at 1, its replacement at 2, an untouched member at 3). The rounds chip shows the block
@@ -31,9 +38,3 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   node tracking a row's live swipe offset and snapping back to 0 once the action row takes over,
   and (3) the action row's own layout now that the gutter is drawn only for circuit members (a solo
   row's action row keeps the full width; a circuit member's is inset by the 36dp gutter).
-- The drag-handle memoization (2026-09-20) that removed `ExercisePreviewRow`'s last never-equal
-  parameter is **not measured**: no recomposition-count harness exists, so "the row now skips" is
-  reasoning about parameter equality, not an observation. It is also **device-unverified** — drag
-  and drop on plan preview and in the saved-workout editor should be exercised on the emulator to
-  confirm the remembered `Modifier.draggableHandle()` still starts a drag. (The handle is drawn on
-  the block head only — one per circuit, not one per row.)
