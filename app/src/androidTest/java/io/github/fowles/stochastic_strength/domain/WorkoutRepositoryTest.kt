@@ -265,6 +265,29 @@ class WorkoutRepositoryTest {
     }
 
     @Test
+    fun closeOrphanedSessions_withOnlyAnUncompletedSet_isKeptWithEndTimeFromStartTime() = runBlocking {
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        // No endTime: process death mid-workout. Its only set row has no completedAt — reachable
+        // via backup import, which round-trips sets verbatim.
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        val setId = db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, completedAt = null)
+        )
+
+        repository.closeOrphanedSessions()
+
+        val closed = db.workoutSessionDao().getById(sessionId)
+        assertEquals("a session with an uncompleted-only set row is not empty; it must be kept",
+            1000L, closed?.endTime)
+        assertTrue("the set row must not be dropped",
+            db.workoutSetDao().getAll().any { it.id == setId })
+    }
+
+    @Test
     fun closeOrphanedSessions_leavesFinishedSessionsUntouched() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L, endTime = 2000L))
 

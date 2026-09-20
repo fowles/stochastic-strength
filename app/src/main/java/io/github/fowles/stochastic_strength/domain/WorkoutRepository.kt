@@ -231,13 +231,15 @@ class WorkoutRepository(
     suspend fun closeOrphanedSessions() = db.withTransaction {
         val orphans = db.workoutSessionDao().getOpenSessions()
         if (orphans.isEmpty()) return@withTransaction
-        val setsBySession = db.workoutSetDao().getSetsForSessions(orphans.map { it.id }).groupBy { it.sessionId }
+        // Unfiltered: a session whose only set row has no completedAt (e.g. round-tripped
+        // verbatim by backup import) still has a set row and must not be deleted as empty.
+        val setsBySession = db.workoutSetDao().getAllSetsForSessions(orphans.map { it.id }).groupBy { it.sessionId }
         for (session in orphans) {
             val sets = setsBySession[session.id]
             if (sets.isNullOrEmpty()) {
                 db.workoutSessionDao().deleteById(session.id)
             } else {
-                val latest = sets.maxOf { it.completedAt ?: session.startTime }
+                val latest = sets.mapNotNull { it.completedAt }.maxOrNull() ?: session.startTime
                 db.workoutSessionDao().updateEndTime(session.id, latest)
             }
         }

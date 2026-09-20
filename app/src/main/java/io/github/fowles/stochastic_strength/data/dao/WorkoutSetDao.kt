@@ -62,6 +62,14 @@ interface WorkoutSetDao {
     """)
     suspend fun getSetsForSessions(sessionIds: List<Long>): List<WorkoutSet>
 
+    /**
+     * Every set row for these sessions, completed or not — unlike [getSetsForSessions], which
+     * filters to completed sets only. Used where "does this session have any logged sets at all"
+     * matters (an orphan with only an uncompleted set row is not empty).
+     */
+    @Query("SELECT * FROM workout_sets WHERE sessionId IN (:sessionIds)")
+    suspend fun getAllSetsForSessions(sessionIds: List<Long>): List<WorkoutSet>
+
     @Query("SELECT * FROM workout_sets")
     suspend fun getAll(): List<WorkoutSet>
 
