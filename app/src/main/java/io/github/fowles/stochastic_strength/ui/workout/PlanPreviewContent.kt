@@ -61,6 +61,7 @@ import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
 import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
 import io.github.fowles.stochastic_strength.ui.components.LinkState
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
+import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
 import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import kotlin.math.roundToInt
@@ -361,13 +362,11 @@ private fun ExercisePreviewRow(
                         moreDescription = "One rep more",
                     )
                 }
-                if (planned.weightPinned && planned.sessionWeight != suggestedWeight) {
-                    Text(
-                        "suggests ${WeightFormatter.format(suggestedWeight, weightUnit)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                SuggestionNote(
+                    pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
+                    suggestedKg = suggestedWeight,
+                    unit = weightUnit,
+                )
                 flag?.let {
                     Text(
                         when (it) {

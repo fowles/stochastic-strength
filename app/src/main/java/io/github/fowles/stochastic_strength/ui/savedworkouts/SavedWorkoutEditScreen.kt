@@ -58,6 +58,7 @@ import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
 import io.github.fowles.stochastic_strength.ui.components.LinkState
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
+import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
 import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import sh.calvin.reorderable.ReorderableItem
@@ -294,12 +295,8 @@ private fun EntryRow(
                     moreDescription = "One rep more",
                 )
             }
-            if (suggester != null && suggested != null && entry.weight != null && entry.weight != suggested) {
-                Text(
-                    "suggests ${WeightFormatter.format(suggested, suggester.weightUnit)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (suggester != null && suggested != null) {
+                SuggestionNote(pinnedKg = entry.weight, suggestedKg = suggested, unit = suggester.weightUnit)
             }
         }
     }

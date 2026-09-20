@@ -48,8 +48,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.Block
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
+import io.github.fowles.stochastic_strength.domain.WeightFormatter
 
 /** Material 3's disabled-content alpha, so a dimmed value matches the disabled "−" beside it. */
 private const val DISABLED_ALPHA = 0.38f
@@ -229,6 +231,19 @@ fun ValueStepper(
             Icon(Icons.Filled.Add, contentDescription = moreDescription, modifier = Modifier.size(16.dp))
         }
         unit?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+/** "suggests 35 lb" under a pinned weight that differs from the suggestion; nothing otherwise. */
+@Composable
+fun SuggestionNote(pinnedKg: Float?, suggestedKg: Float, unit: WeightUnit, modifier: Modifier = Modifier) {
+    if (pinnedKg != null && suggestedKg > 0f && WeightFormatter.differsOnGrid(pinnedKg, suggestedKg, unit)) {
+        Text(
+            "suggests ${WeightFormatter.format(suggestedKg, unit)}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = modifier,
+        )
     }
 }
 

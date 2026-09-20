@@ -20,6 +20,16 @@ object WeightFormatter {
         }
     }
 
+    /**
+     * Whether [aKg] and [bKg] are different weights once displayed in [unit] — the same nominal
+     * weight reached by different arithmetic (e.g. [round] vs [roundDown] landing on the same grid
+     * point via a different unit-conversion path) compares equal here even when the underlying
+     * floats aren't bit-identical. Compares the formatted text rather than a raw epsilon so it can
+     * never disagree with what the screen actually shows.
+     */
+    fun differsOnGrid(aKg: Float, bKg: Float, unit: WeightUnit): Boolean =
+        format(aKg, unit) != format(bKg, unit)
+
     // Snaps to the nearest 10 kg (or 10 lb) when within 12%, otherwise 5 kg / 5 lb.
     // Avoids fractional plates (1.25/2.5 kg, 2.5 lb) in warmup sets where precision doesn't matter.
     fun roundForWarmup(kg: Float, unit: WeightUnit): Float {
