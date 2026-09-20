@@ -136,6 +136,9 @@ fun WorkoutScreen(
                         onLink = viewModel::linkExercises,
                         onUnlink = viewModel::unlinkExercises,
                         onSetSets = viewModel::setExerciseSets,
+                        onSetReps = viewModel::setExerciseReps,
+                        onResetReps = viewModel::resetExerciseReps,
+                        onResetWeight = viewModel::resetExerciseWeight,
                         onEditLocation = { locationId ->
                             onEditLocation(locationId)
                         },

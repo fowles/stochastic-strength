@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.LocationOn
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -51,17 +49,20 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.width
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
-import io.github.fowles.stochastic_strength.ui.components.CircuitHeader
-import io.github.fowles.stochastic_strength.ui.components.CountStepper
-import io.github.fowles.stochastic_strength.ui.components.LinkToggle
+import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
+import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
+import io.github.fowles.stochastic_strength.ui.components.LinkState
+import io.github.fowles.stochastic_strength.ui.components.RowPlace
+import io.github.fowles.stochastic_strength.ui.components.ValueStepper
+import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import kotlin.math.roundToInt
 
 @Composable
@@ -77,6 +78,9 @@ internal fun PlanPreviewContent(
     onLink: (rowIndex: Int) -> Unit,
     onUnlink: (rowIndex: Int) -> Unit,
     onSetSets: (exerciseId: Long, sets: Int) -> Unit,
+    onSetReps: (exerciseId: Long, reps: Int) -> Unit,
+    onResetReps: (exerciseId: Long) -> Unit,
+    onResetWeight: (exerciseId: Long) -> Unit,
     onEditLocation: (locationId: Long) -> Unit,
     onExerciseTap: (exerciseId: Long) -> Unit,
     hasSavedWorkouts: Boolean,
@@ -187,7 +191,7 @@ internal fun PlanPreviewContent(
         Spacer(Modifier.height(8.dp))
         HorizontalDivider()
         Text(
-            "Swipe left to reject · ⛓ links rows into a circuit",
+            "Swipe left to reject · tap a dimmed number's − or + to set it yourself",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 4.dp),
@@ -205,34 +209,32 @@ internal fun PlanPreviewContent(
                 ReorderableItem(reorderState, key = blockKey) { isDragging ->
                     val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                     Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
-                        if (block.isCircuit) CircuitHeader(
-                            rounds = block.rounds,
-                            onRoundsChange = { onSetSets(plan.exercises[block.start].exercise.id, it) },
-                            dragHandleModifier = Modifier.draggableHandle(),
-                        )
                         for (i in block.indices) {
                             val planned = plan.exercises[i]
                             key(planned.exercise.id) {
-                                ExercisePreviewRow(
-                                    planned = planned,
-                                    weightUnit = weightUnit,
-                                    dragHandleModifier = if (block.isCircuit) null else Modifier.draggableHandle(),
-                                    onReplace = { reason -> onReplace(planned.exercise.id, reason) },
-                                    onWeightDecrement = if (planned.sessionWeight > 0f) {
-                                        { onAdjustWeight(planned.exercise.id, -2.5f) }
-                                    } else null,
-                                    onWeightIncrement = if (planned.sessionWeight > 0f) {
-                                        { onAdjustWeight(planned.exercise.id, +2.5f) }
-                                    } else null,
-                                    onTap = { onExerciseTap(planned.exercise.id) },
-                                    onSetsChange = { onSetSets(planned.exercise.id, it) },
-                                    flag = state.rowFlags[planned.exercise.id],
-                                )
+                                LinkNodeHost(
+                                    linkAbove = if (i == 0) null else LinkState(
+                                        linked = i != block.start,
+                                        onToggle = { if (i != block.start) onUnlink(i - 1) else onLink(i - 1) },
+                                    ),
+                                ) {
+                                    ExercisePreviewRow(
+                                        planned = planned,
+                                        weightUnit = weightUnit,
+                                        place = rowPlace(block, i),
+                                        sets = block.rounds,
+                                        dragHandleModifier = Modifier.draggableHandle(),
+                                        onReplace = { reason -> onReplace(planned.exercise.id, reason) },
+                                        onAdjustWeight = { delta -> onAdjustWeight(planned.exercise.id, delta) },
+                                        onRepsChange = { onSetReps(planned.exercise.id, it) },
+                                        onResetReps = { onResetReps(planned.exercise.id) },
+                                        onResetWeight = { onResetWeight(planned.exercise.id) },
+                                        onTap = { onExerciseTap(planned.exercise.id) },
+                                        onSetsChange = { onSetSets(planned.exercise.id, it) },
+                                        flag = state.rowFlags[planned.exercise.id],
+                                    )
+                                }
                             }
-                            if (i != plan.exercises.lastIndex) LinkToggle(
-                                linked = i != block.last,
-                                onClick = { if (i != block.last) onUnlink(i) else onLink(i) },
-                            )
                         }
                         HorizontalDivider()
                     }
@@ -248,13 +250,16 @@ internal fun PlanPreviewContent(
 
 @Composable
 private fun ExercisePreviewRow(
-    planned: io.github.fowles.stochastic_strength.domain.model.PlannedExercise,
+    planned: PlannedExercise,
     weightUnit: WeightUnit,
-    /** Null for a circuit member: the circuit's header is the only handle. */
-    dragHandleModifier: Modifier?,
+    place: RowPlace,
+    sets: Int,
+    dragHandleModifier: Modifier,
     onReplace: (ExerciseRemovalReason) -> Unit,
-    onWeightDecrement: (() -> Unit)?,
-    onWeightIncrement: (() -> Unit)?,
+    onAdjustWeight: (Float) -> Unit,
+    onRepsChange: (Int) -> Unit,
+    onResetReps: () -> Unit,
+    onResetWeight: () -> Unit,
     onTap: () -> Unit,
     onSetsChange: (Int) -> Unit,
     flag: RowFlag?,
@@ -298,81 +303,70 @@ private fun ExercisePreviewRow(
             },
             enableDismissFromStartToEnd = false,
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            ExerciseRowScaffold(
+                place = place,
+                sets = sets,
+                onSetsChange = onSetsChange,
+                dragHandleModifier = dragHandleModifier,
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
                     .clickable(onClick = onTap)
-                    .padding(vertical = 12.dp),
-            ) {
-                if (dragHandleModifier != null) Icon(
-                    imageVector = Icons.Filled.DragIndicator,
-                    contentDescription = "Drag to reorder",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = dragHandleModifier
-                        .padding(start = 4.dp, end = 8.dp)
-                        .size(24.dp),
-                ) else Spacer(Modifier.width(36.dp))
-                val weightLabel = when {
-                    planned.sessionWeight > 0f -> WeightFormatter.format(planned.sessionWeight, weightUnit)
-                    planned.exercise.equipment == Equipment.BODYWEIGHT -> "Bodyweight"
-                    else -> null
-                }
-                val repsLabel = formatQuantity(planned.sessionReps, planned.exercise.isTimed)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(planned.exercise.name, style = MaterialTheme.typography.titleMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (dragHandleModifier != null) CountStepper(
-                            value = planned.sets,
-                            range = CircuitStructure.MIN_SETS..CircuitStructure.MAX_SETS,
-                            onChange = onSetsChange,
-                            fewerDescription = "One set fewer",
-                            moreDescription = "One set more",
+                    .padding(vertical = 8.dp),
+                trailing = {
+                    when {
+                        planned.sessionWeight > 0f -> ValueStepper(
+                            text = WeightFormatter.format(planned.sessionWeight, weightUnit),
+                            pinned = planned.weightPinned,
+                            unit = null,
+                            onDecrement = { onAdjustWeight(-2.5f) },
+                            onIncrement = { onAdjustWeight(+2.5f) },
+                            onReset = onResetWeight,
+                            fewerDescription = "Less weight",
+                            moreDescription = "More weight",
                         )
-                        val detail = buildString {
-                            append(if (dragHandleModifier != null) "sets × $repsLabel" else repsLabel)
-                            if (onWeightDecrement == null && weightLabel != null) append(" · $weightLabel")
-                        }
-                        Text(
-                            detail,
+                        planned.exercise.equipment == Equipment.BODYWEIGHT -> Text(
+                            "Bodyweight",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        else -> Unit
                     }
-                    flag?.let {
-                        Text(
-                            when (it) {
-                                RowFlag.NOT_AT_LOCATION -> "Missing equipment"
-                                RowFlag.TRAINED_RECENTLY -> "Trained recently"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary,
-                        )
-                    }
-                }
-                if (onWeightDecrement != null && onWeightIncrement != null && weightLabel != null) {
-                    OutlinedButton(
-                        onClick = onWeightDecrement,
-                        modifier = Modifier.size(32.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                    ) {
-                        Text("−", style = MaterialTheme.typography.labelLarge)
-                    }
+                },
+            ) {
+                Text(
+                    planned.exercise.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (planned.exercise.isTimed) {
                     Text(
-                        weightLabel,
+                        formatQuantity(planned.sessionReps, true),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.widthIn(min = 64.dp),
                     )
-                    OutlinedButton(
-                        onClick = onWeightIncrement,
-                        modifier = Modifier.size(32.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                    ) {
-                        Text("+", style = MaterialTheme.typography.labelLarge)
-                    }
+                } else {
+                    ValueStepper(
+                        text = "${planned.sessionReps}",
+                        pinned = planned.repsPinned,
+                        unit = "reps",
+                        onDecrement = { onRepsChange(planned.sessionReps - 1) },
+                        onIncrement = { onRepsChange(planned.sessionReps + 1) },
+                        onReset = onResetReps,
+                        fewerDescription = "One rep fewer",
+                        moreDescription = "One rep more",
+                    )
+                }
+                flag?.let {
+                    Text(
+                        when (it) {
+                            RowFlag.NOT_AT_LOCATION -> "Missing equipment"
+                            RowFlag.TRAINED_RECENTLY -> "Trained recently"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
                 }
             }
         }
