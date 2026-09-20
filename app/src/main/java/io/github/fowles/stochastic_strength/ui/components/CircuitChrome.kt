@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
@@ -83,6 +84,19 @@ fun rowPlace(block: Block, index: Int): RowPlace = when {
     index == block.start -> RowPlace.FIRST
     index == block.last -> RowPlace.LAST
     else -> RowPlace.MIDDLE
+}
+
+/**
+ * The [LinkNodeHost] wiring for row [i] of [block]: `null` on the list's very first row (there is
+ * no boundary above it), otherwise whether row [i] is linked to the row above it, plus a toggle
+ * that calls [onUnlink] to split an existing link or [onLink] to create one — both indexed by the
+ * row above the boundary, matching [io.github.fowles.stochastic_strength.domain.CircuitEdits].
+ */
+fun linkAbove(block: Block, i: Int, onLink: (Int) -> Unit, onUnlink: (Int) -> Unit): Pair<Boolean?, () -> Unit> {
+    val linkedAbove = if (i == 0) null else i != block.start
+    return linkedAbove to {
+        if (i != block.start) onUnlink(i - 1) else onLink(i - 1)
+    }
 }
 
 /**
@@ -280,6 +294,62 @@ fun SuggestionNote(pinnedKg: Float?, suggestedKg: Float, unit: WeightUnit, modif
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier,
         )
+    }
+}
+
+/**
+ * The [ExerciseRowScaffold] body shared by every screen's exercise row: the exercise [name],
+ * then either [timedText] (a timed exercise's duration, read-only) or the [reps] stepper, then
+ * any row-specific [extra] content (e.g. a location/recency flag) below that.
+ */
+@Composable
+fun ExerciseRowBody(
+    name: String,
+    timedText: String?,
+    reps: @Composable () -> Unit,
+    extra: @Composable () -> Unit = {},
+) {
+    Text(
+        name,
+        style = MaterialTheme.typography.titleMedium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+    if (timedText != null) {
+        Text(
+            timedText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        reps()
+    }
+    extra()
+}
+
+/**
+ * The [ExerciseRowScaffold] trailing slot shared by every screen's exercise row: a weight
+ * [stepper] (with an optional [note] below it, e.g. [SuggestionNote]) when [showWeight], else
+ * "Bodyweight" text for an unloadable [isBodyweight] exercise, else nothing.
+ */
+@Composable
+fun WeightOrBodyweightTrailing(
+    showWeight: Boolean,
+    isBodyweight: Boolean,
+    stepper: @Composable ColumnScope.() -> Unit,
+    note: @Composable ColumnScope.() -> Unit = {},
+) {
+    when {
+        showWeight -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            stepper()
+            note()
+        }
+        isBodyweight -> Text(
+            "Bodyweight",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        else -> Unit
     }
 }
 

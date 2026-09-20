@@ -49,19 +49,21 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
+import io.github.fowles.stochastic_strength.ui.components.ExerciseRowBody
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
 import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
+import io.github.fowles.stochastic_strength.ui.components.WeightOrBodyweightTrailing
 import io.github.fowles.stochastic_strength.ui.components.keyedBlocks
+import io.github.fowles.stochastic_strength.ui.components.linkAbove
 import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import kotlin.math.roundToInt
 
@@ -213,12 +215,8 @@ internal fun PlanPreviewContent(
                         for (i in block.indices) {
                             val planned = keyed.rows[i - block.start]
                             key(planned.exercise.id) {
-                                LinkNodeHost(
-                                    linkedAbove = if (i == 0) null else i != block.start,
-                                    onToggleLink = {
-                                        if (i != block.start) onUnlink(i - 1) else onLink(i - 1)
-                                    },
-                                ) {
+                                val (linkedAbove, toggleLink) = linkAbove(block, i, onLink = onLink, onUnlink = onUnlink)
+                                LinkNodeHost(linkedAbove = linkedAbove, onToggleLink = toggleLink) {
                                     ExercisePreviewRow(
                                         planned = planned,
                                         weightUnit = weightUnit,
@@ -321,11 +319,13 @@ private fun ExercisePreviewRow(
                     .clickable(onClick = onTap)
                     .padding(vertical = 8.dp),
                 trailing = {
-                    when {
-                        // The note sits under the weight, in the height the trailing column
-                        // already has spare (the body's name + reps stepper is taller than the
-                        // stepper alone), so a pinned weight never makes the row grow.
-                        planned.sessionWeight > 0f -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // The note sits under the weight, in the height the trailing column already
+                    // has spare (the body's name + reps stepper is taller than the stepper
+                    // alone), so a pinned weight never makes the row grow.
+                    WeightOrBodyweightTrailing(
+                        showWeight = planned.sessionWeight > 0f,
+                        isBodyweight = planned.exercise.equipment == Equipment.BODYWEIGHT,
+                        stepper = {
                             ValueStepper(
                                 text = WeightFormatter.format(planned.sessionWeight, weightUnit),
                                 pinned = planned.weightPinned,
@@ -337,57 +337,47 @@ private fun ExercisePreviewRow(
                                 moreDescription = "More weight",
                                 canDecrement = !WeightFormatter.atFloor(planned.sessionWeight, weightUnit),
                             )
+                        },
+                        note = {
                             SuggestionNote(
                                 pinnedKg = planned.sessionWeight.takeIf { planned.weightPinned },
                                 suggestedKg = suggestedWeight,
                                 unit = weightUnit,
                             )
-                        }
-                        planned.exercise.equipment == Equipment.BODYWEIGHT -> Text(
-                            "Bodyweight",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        else -> Unit
-                    }
+                        },
+                    )
                 },
             ) {
-                Text(
-                    planned.exercise.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                ExerciseRowBody(
+                    name = planned.exercise.name,
+                    timedText = if (planned.exercise.isTimed) formatQuantity(planned.sessionReps, true) else null,
+                    reps = {
+                        ValueStepper(
+                            text = "${planned.sessionReps}",
+                            pinned = planned.repsPinned,
+                            unit = "reps",
+                            onDecrement = { onRepsChange(planned.sessionReps - 1) },
+                            onIncrement = { onRepsChange(planned.sessionReps + 1) },
+                            onReset = onResetReps,
+                            fewerDescription = "One rep fewer",
+                            moreDescription = "One rep more",
+                            canDecrement = planned.sessionReps > PlannedExercise.PINNED_REPS.first,
+                            canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
+                        )
+                    },
+                    extra = {
+                        flag?.let {
+                            Text(
+                                when (it) {
+                                    RowFlag.NOT_AT_LOCATION -> "Missing equipment"
+                                    RowFlag.TRAINED_RECENTLY -> "Trained recently"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    },
                 )
-                if (planned.exercise.isTimed) {
-                    Text(
-                        formatQuantity(planned.sessionReps, true),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    ValueStepper(
-                        text = "${planned.sessionReps}",
-                        pinned = planned.repsPinned,
-                        unit = "reps",
-                        onDecrement = { onRepsChange(planned.sessionReps - 1) },
-                        onIncrement = { onRepsChange(planned.sessionReps + 1) },
-                        onReset = onResetReps,
-                        fewerDescription = "One rep fewer",
-                        moreDescription = "One rep more",
-                        canDecrement = planned.sessionReps > PlannedExercise.PINNED_REPS.first,
-                        canIncrement = planned.sessionReps < PlannedExercise.PINNED_REPS.last,
-                    )
-                }
-                flag?.let {
-                    Text(
-                        when (it) {
-                            RowFlag.NOT_AT_LOCATION -> "Missing equipment"
-                            RowFlag.TRAINED_RECENTLY -> "Trained recently"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                }
             }
         }
     }

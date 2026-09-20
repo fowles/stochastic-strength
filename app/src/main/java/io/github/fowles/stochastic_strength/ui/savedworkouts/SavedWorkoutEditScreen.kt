@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -41,7 +42,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
@@ -54,13 +54,16 @@ import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutNaming
 import io.github.fowles.stochastic_strength.ui.components.BackTopAppBar
 import io.github.fowles.stochastic_strength.ui.components.ExercisePickerSheet
+import io.github.fowles.stochastic_strength.ui.components.ExerciseRowBody
 import io.github.fowles.stochastic_strength.ui.components.ExerciseRowScaffold
 import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
 import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
+import io.github.fowles.stochastic_strength.ui.components.WeightOrBodyweightTrailing
 import io.github.fowles.stochastic_strength.ui.components.keyedBlocks
+import io.github.fowles.stochastic_strength.ui.components.linkAbove
 import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -146,12 +149,9 @@ fun SavedWorkoutEditScreen(
                             for (i in block.indices) {
                                 val entry = keyed.rows[i - block.start]
                                 key(entry.exercise.id) {
-                                    LinkNodeHost(
-                                        linkedAbove = if (i == 0) null else i != block.start,
-                                        onToggleLink = {
-                                            if (i != block.start) viewModel.unlink(i - 1) else viewModel.link(i - 1)
-                                        },
-                                    ) {
+                                    val (linkedAbove, toggleLink) =
+                                        linkAbove(block, i, onLink = viewModel::link, onUnlink = viewModel::unlink)
+                                    LinkNodeHost(linkedAbove = linkedAbove, onToggleLink = toggleLink) {
                                         EntryRow(
                                             entry = entry,
                                             place = rowPlace(block, i),
@@ -252,6 +252,33 @@ private fun EntryRow(
                 ?: (pinnedWeight != null && !entry.exercise.isTimed &&
                     entry.exercise.equipment.canCarryWeight)
         }
+        // Both slots are built inside this `if` so their non-null uses of weightUnitOrNull stay
+        // smart-cast; WeightOrBodyweightTrailing itself only needs the boolean + the built slots.
+        val weightStepper: @Composable ColumnScope.() -> Unit
+        val weightNote: @Composable ColumnScope.() -> Unit
+        if (weightUnitOrNull != null) {
+            weightStepper = {
+                ValueStepper(
+                    text = WeightFormatter.format(shownWeight, weightUnitOrNull),
+                    pinned = pinnedWeight != null,
+                    unit = null,
+                    onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, weightUnitOrNull)) },
+                    onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, weightUnitOrNull)) },
+                    onReset = { onWeightChange(null) },
+                    fewerDescription = "Less weight",
+                    moreDescription = "More weight",
+                    canDecrement = !WeightFormatter.atFloor(shownWeight, weightUnitOrNull),
+                )
+            }
+            weightNote = if (suggested != null) {
+                { SuggestionNote(pinnedKg = pinnedWeight, suggestedKg = suggested, unit = weightUnitOrNull) }
+            } else {
+                {}
+            }
+        } else {
+            weightStepper = {}
+            weightNote = {}
+        }
         ExerciseRowScaffold(
             place = place,
             sets = sets,
@@ -262,67 +289,41 @@ private fun EntryRow(
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(vertical = 8.dp),
             trailing = {
-                when {
-                    // The note sits under the weight, in the height the trailing column already
-                    // has spare (the body's name + reps stepper is taller than the stepper
-                    // alone), so a pinned weight never makes the row grow.
-                    weightUnitOrNull != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        ValueStepper(
-                            text = WeightFormatter.format(shownWeight, weightUnitOrNull),
-                            pinned = pinnedWeight != null,
-                            unit = null,
-                            onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, weightUnitOrNull)) },
-                            onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, weightUnitOrNull)) },
-                            onReset = { onWeightChange(null) },
-                            fewerDescription = "Less weight",
-                            moreDescription = "More weight",
-                            canDecrement = !WeightFormatter.atFloor(shownWeight, weightUnitOrNull),
-                        )
-                        if (suggested != null) {
-                            SuggestionNote(pinnedKg = pinnedWeight, suggestedKg = suggested, unit = weightUnitOrNull)
-                        }
-                    }
-                    entry.exercise.equipment == Equipment.BODYWEIGHT -> Text(
-                        "Bodyweight",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    else -> Unit
-                }
+                // The note sits under the weight, in the height the trailing column already has
+                // spare (the body's name + reps stepper is taller than the stepper alone), so a
+                // pinned weight never makes the row grow.
+                WeightOrBodyweightTrailing(
+                    showWeight = weightUnitOrNull != null,
+                    isBodyweight = entry.exercise.equipment == Equipment.BODYWEIGHT,
+                    stepper = weightStepper,
+                    note = weightNote,
+                )
             },
         ) {
-            Text(
-                entry.exercise.name,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            ExerciseRowBody(
+                name = entry.exercise.name,
+                timedText = if (entry.exercise.isTimed) formatQuantity(60, true) else null,
+                reps = {
+                    // Null while the suggester is still building: there is no number to step from yet.
+                    val baseReps = entry.reps ?: suggester?.typicalReps
+                    ValueStepper(
+                        text = entry.reps?.toString() ?: suggester?.let { "${it.repMin}–${it.repMax}" } ?: "–",
+                        pinned = entry.reps != null,
+                        unit = "reps",
+                        onDecrement = {
+                            if (baseReps != null) onRepsChange((baseReps - 1).coerceIn(PINNED_REPS))
+                        },
+                        onIncrement = {
+                            if (baseReps != null) onRepsChange((baseReps + 1).coerceIn(PINNED_REPS))
+                        },
+                        onReset = { onRepsChange(null) },
+                        fewerDescription = "One rep fewer",
+                        moreDescription = "One rep more",
+                        canDecrement = baseReps != null && baseReps > PINNED_REPS.first,
+                        canIncrement = baseReps != null && baseReps < PINNED_REPS.last,
+                    )
+                },
             )
-            if (entry.exercise.isTimed) {
-                Text(
-                    formatQuantity(60, true),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                // Null while the suggester is still building: there is no number to step from yet.
-                val baseReps = entry.reps ?: suggester?.typicalReps
-                ValueStepper(
-                    text = entry.reps?.toString() ?: suggester?.let { "${it.repMin}–${it.repMax}" } ?: "–",
-                    pinned = entry.reps != null,
-                    unit = "reps",
-                    onDecrement = {
-                        if (baseReps != null) onRepsChange((baseReps - 1).coerceIn(PINNED_REPS))
-                    },
-                    onIncrement = {
-                        if (baseReps != null) onRepsChange((baseReps + 1).coerceIn(PINNED_REPS))
-                    },
-                    onReset = { onRepsChange(null) },
-                    fewerDescription = "One rep fewer",
-                    moreDescription = "One rep more",
-                    canDecrement = baseReps != null && baseReps > PINNED_REPS.first,
-                    canIncrement = baseReps != null && baseReps < PINNED_REPS.last,
-                )
-            }
         }
     }
 }
