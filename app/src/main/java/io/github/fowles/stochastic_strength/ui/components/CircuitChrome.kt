@@ -48,7 +48,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import io.github.fowles.stochastic_strength.domain.Block
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
 
@@ -163,6 +162,7 @@ fun ExerciseRowScaffold(
     body: @Composable ColumnScope.() -> Unit,
 ) {
     val railColor = MaterialTheme.colorScheme.primary
+    val isBlockHead = place == RowPlace.SOLO || place == RowPlace.FIRST
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -183,7 +183,7 @@ fun ExerciseRowScaffold(
                     }
                 },
         ) {
-            if (place == RowPlace.SOLO || place == RowPlace.FIRST) {
+            if (isBlockHead) {
                 Icon(
                     Icons.Filled.DragIndicator,
                     contentDescription = "Drag to reorder",
@@ -193,9 +193,9 @@ fun ExerciseRowScaffold(
             }
         }
 
-        if (place == RowPlace.SOLO || place == RowPlace.FIRST) {
+        if (isBlockHead) {
             var open by remember { mutableStateOf(false) }
-            Box(modifier = Modifier.width(44.dp).padding(end = 8.dp)) {
+            Box(modifier = Modifier.padding(end = 8.dp).width(44.dp)) {
                 Surface(
                     shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.secondaryContainer,
@@ -236,39 +236,37 @@ fun ExerciseRowScaffold(
 }
 
 /**
- * Overlays [link]'s ⛓ node on the bottom edge of [content], centred on the handle column's x;
- * the node overflows the row's bottom edge and adds no height. `null` on the list's last row.
- * Callers put a `SwipeToDismissBox` inside [content] and the scaffold inside that box, since
- * `SwipeToDismissBox` clips and would cut the node off.
+ * Overlays the node for the boundary above [content] on its top edge; the later row owns the
+ * node so it paints, and is hit, above the row before it. Put the swipe box inside [content].
+ * [linkAbove] is `null` on the list's first row.
  */
 @Composable
-fun LinkNodeHost(link: LinkState?, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(modifier = modifier.zIndex(1f)) {
+fun LinkNodeHost(linkAbove: LinkState?, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(modifier = modifier) {
         content()
-        if (link != null) {
+        if (linkAbove != null) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .offset(x = (16 - 18).dp, y = 18.dp)
+                    .align(Alignment.TopStart)
+                    .offset(x = (16 - 18).dp, y = (-18).dp)
                     .size(36.dp)
-                    .zIndex(1f)
-                    .clickable(onClick = link.onToggle, role = Role.Button)
+                    .clickable(onClick = linkAbove.onToggle, role = Role.Button)
                     .semantics {
-                        contentDescription = if (link.linked) "Split the circuit here" else "Link into a circuit"
+                        contentDescription = if (linkAbove.linked) "Split the circuit here" else "Link into a circuit"
                     },
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = if (link.linked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                    border = if (link.linked) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    color = if (linkAbove.linked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                    border = if (linkAbove.linked) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier.size(20.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Icon(
-                            if (link.linked) Icons.Filled.Link else Icons.Filled.LinkOff,
+                            if (linkAbove.linked) Icons.Filled.Link else Icons.Filled.LinkOff,
                             contentDescription = null,
-                            tint = if (link.linked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (linkAbove.linked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp),
                         )
                     }
@@ -318,12 +316,14 @@ private fun ExerciseRowScaffoldPreview() {
         var soloSets by remember { mutableStateOf(3) }
         var circuitRounds by remember { mutableStateOf(2) }
         var tailSoloSets by remember { mutableStateOf(4) }
-        var linkBeforeCircuit by remember { mutableStateOf(false) }
-        var linkInsideCircuit by remember { mutableStateOf(true) }
-        var linkAfterCircuit by remember { mutableStateOf(true) }
+        // One state per row boundary, named for the boundary it sits at (row above ⇄ row below).
+        var linkAfterSquat by remember { mutableStateOf(false) }
+        var linkAfterCurl by remember { mutableStateOf(true) }
+        var linkAfterKickback by remember { mutableStateOf(true) }
+        var linkAfterPress by remember { mutableStateOf(false) }
 
         Column {
-            LinkNodeHost(link = LinkState(linkBeforeCircuit) { linkBeforeCircuit = !linkBeforeCircuit }) {
+            LinkNodeHost(linkAbove = null) {
                 ExerciseRowScaffold(
                     place = RowPlace.SOLO,
                     sets = soloSets,
@@ -345,7 +345,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(link = LinkState(linkInsideCircuit) { linkInsideCircuit = !linkInsideCircuit }) {
+            LinkNodeHost(linkAbove = LinkState(linkAfterSquat) { linkAfterSquat = !linkAfterSquat }) {
                 ExerciseRowScaffold(
                     place = RowPlace.FIRST,
                     sets = circuitRounds,
@@ -367,7 +367,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(link = LinkState(linked = true) {}) {
+            LinkNodeHost(linkAbove = LinkState(linkAfterCurl) { linkAfterCurl = !linkAfterCurl }) {
                 ExerciseRowScaffold(
                     place = RowPlace.MIDDLE,
                     sets = circuitRounds,
@@ -389,7 +389,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(link = LinkState(linkAfterCircuit) { linkAfterCircuit = !linkAfterCircuit }) {
+            LinkNodeHost(linkAbove = LinkState(linkAfterKickback) { linkAfterKickback = !linkAfterKickback }) {
                 ExerciseRowScaffold(
                     place = RowPlace.LAST,
                     sets = circuitRounds,
@@ -411,7 +411,7 @@ private fun ExerciseRowScaffoldPreview() {
                     )
                 }
             }
-            LinkNodeHost(link = null) {
+            LinkNodeHost(linkAbove = LinkState(linkAfterPress) { linkAfterPress = !linkAfterPress }) {
                 ExerciseRowScaffold(
                     place = RowPlace.SOLO,
                     sets = tailSoloSets,
