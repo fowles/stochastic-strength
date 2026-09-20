@@ -1584,6 +1584,67 @@ class WorkoutSessionControllerTest {
     }
 
     @Test
+    fun setActiveSetWeight_duringWarmups_neverLeavesAnIndexPastTheNewWarmups() = runBlocking<Unit> {
+        toLastWarmup()
+        val active = controller.state.value as WorkoutState.ActiveSet
+        assertTrue("fixture should be warming up", (active.warmupSetIndex ?: 0) > 0)
+
+        // Down to the grid floor: far fewer warmups (possibly none) than the index we stand on.
+        controller.setActiveSetWeight(0.1f)
+        awaitState<WorkoutState.Resting>()
+        controller.skipRest()
+
+        val after = awaitState<WorkoutState.ActiveSet>()
+        after.warmupSetIndex?.let { assertTrue(it < after.plannedExercise.warmupSets.size) }
+        after.currentWarmupSet // threw IndexOutOfBounds before the fix
+    }
+
+    @Test
+    fun recordFeedback_doubleTap_logsTheSetOnce() = runBlocking<Unit> {
+        toWorkingSet()
+        controller.recordFeedback(SetFeedback.RIR_2_4)
+        controller.recordFeedback(SetFeedback.RIR_2_4)
+        awaitState<WorkoutState.Resting>()
+        delay(100) // let a second insert land, if one is coming
+        assertEquals(1, db.workoutSetDao().getAll().size)
+    }
+
+    @Test
+    fun finishingTheWorkout_replaysWithoutTheDoneButton() = runBlocking<Unit> {
+        val seeded = repository.derivedState.snapshot().exerciseBeliefs()
+        toWorkingSet()
+        while (controller.state.value !is WorkoutState.Done) {
+            controller.recordFeedback(SetFeedback.RIR_2_4)
+            awaitLoggedRest(controller)
+            controller.skipRest()
+            while (controller.state.value is WorkoutState.Resting) delay(20)
+        }
+        // No completeWorkout(): system back leaves the Done screen without it.
+        val deadline = System.currentTimeMillis() + 5000
+        while (repository.derivedState.snapshot().exerciseBeliefs() == seeded && System.currentTimeMillis() < deadline) delay(20)
+        assertTrue("replay never ran", repository.derivedState.snapshot().exerciseBeliefs() != seeded)
+    }
+
+    @Test
+    fun stagedAction_onARunningTimedSet_undoReturnsAnUnstartedSet() = runBlocking<Unit> {
+        // Leave the generator nothing but a timed exercise.
+        db.exerciseDao().getActive().forEach { db.exerciseDao().update(it.copy(isDisliked = true)) }
+        db.exerciseDao().insertAll(listOf(Exercise(
+            name = "Plank", primaryMuscle = MuscleGroup.CORE, equipment = Equipment.BODYWEIGHT, isTimed = true,
+        )))
+        startSession(1)
+        assertTrue((controller.state.value as WorkoutState.ActiveSet).plannedExercise.exercise.isTimed)
+
+        controller.startTimedSet()
+        controller.endCurrentExercise()
+        awaitState<WorkoutState.Resting>()
+        controller.undoLastSet()
+
+        // A frozen countdown with no timer behind it could be neither resumed nor restarted.
+        assertEquals(null, awaitState<WorkoutState.ActiveSet>().timerSecondsRemaining)
+    }
+
+    @Test
     fun endExercise_noLoggedSets_multiExercise_removesAndAdvances() = runBlocking<Unit> {
         startSession(2)
         val firstId = (controller.state.value as WorkoutState.ActiveSet)

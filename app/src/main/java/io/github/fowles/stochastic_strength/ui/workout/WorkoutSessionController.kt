@@ -28,8 +28,10 @@ import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutDetail
 import io.github.fowles.stochastic_strength.domain.model.SavedWorkoutEntry
 import io.github.fowles.stochastic_strength.domain.model.WorkoutPlan
 import kotlin.random.Random
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -39,6 +41,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class ExerciseRemovalReason { NO_EQUIPMENT, DISLIKE, SKIP_TODAY }
 
@@ -151,10 +154,24 @@ class WorkoutSessionController(
         setState(preview.copy(detraining = null))
     }
 
+    /**
+     * True while a tap's database write is in flight. The state only moves on after the write, so
+     * a second tap in that window would pass the same state check and write the same thing again.
+     */
+    private var writeInFlight = false
+
+    private fun launchOnce(block: suspend () -> Unit) {
+        if (writeInFlight) return
+        writeInFlight = true
+        scope.launch {
+            try { block() } finally { writeInFlight = false }
+        }
+    }
+
     fun startFirstExercise() {
         val preview = _state.value as? WorkoutState.PlanPreview ?: return
         if (preview.plan.exercises.isEmpty()) return
-        scope.launch {
+        launchOnce {
             val now = System.currentTimeMillis()
             sessionStartTime = now
             val sessionId = database.workoutSessionDao().insert(
@@ -193,10 +210,9 @@ class WorkoutSessionController(
             when (reason) {
                 ExerciseRemovalReason.DISLIKE ->
                     database.exerciseDao().update(planned.exercise.copy(isDisliked = true))
-                ExerciseRemovalReason.NO_EQUIPMENT -> {
-                    val locationId = sessionLocationId ?: return@launch
-                    repository.excludeExercise(locationId, planned.exercise.id)
-                }
+                // With no location there is nowhere to remember it, but the row still goes.
+                ExerciseRemovalReason.NO_EQUIPMENT ->
+                    sessionLocationId?.let { repository.excludeExercise(it, planned.exercise.id) }
                 ExerciseRemovalReason.SKIP_TODAY -> Unit
             }
             val p = if (reason != ExerciseRemovalReason.SKIP_TODAY) {
@@ -494,7 +510,7 @@ class WorkoutSessionController(
     fun recordFeedback(feedback: SetFeedback) {
         timedSetTimerJob?.cancel()
         val current = _state.value as? WorkoutState.ActiveSet ?: return
-        scope.launch {
+        launchOnce {
             val planned = current.plannedExercise
             val initialActualReps: Int? = when (feedback) {
                 SetFeedback.RIR_0_1, SetFeedback.RIR_2_4, SetFeedback.RIR_5_PLUS -> planned.sessionReps
@@ -598,10 +614,13 @@ class WorkoutSessionController(
         setState(resting.copy(plan = resting.plan.copy(exercises = updatedExercises), weightReductionApplied = true))
     }
 
+    /** Completes once the finished session has been replayed into derived state. */
+    private val sessionReplayed = CompletableDeferred<Unit>()
+
     fun completeWorkout() {
-        val done = _state.value as? WorkoutState.Done ?: return
+        if (_state.value !is WorkoutState.Done) return
         scope.launch {
-            repository.finishSession()
+            sessionReplayed.await()
             _navigationEvent.send(NavigationEvent.WorkoutCompleted)
         }
     }
@@ -663,21 +682,21 @@ class WorkoutSessionController(
         val w = WeightFormatter.round(newWeight, weightUnit).coerceAtLeast(WeightFormatter.minIncrement(weightUnit))
         if (w == pe.sessionWeight) return
         val exercises = current.plan.exercises.toMutableList()
-        exercises[i] = pe.copy(
-            sessionWeight = w,
-            warmupSets = when {
-                pe.exercise.isTimed -> emptyList()
-                current.warmupSetIndex != null -> planner?.computeWarmupSets(w, pe.exercise) ?: pe.warmupSets
-                else -> pe.warmupSets
-            },
-        )
+        val warmupSets = when {
+            pe.exercise.isTimed -> emptyList()
+            current.warmupSetIndex != null -> planner?.computeWarmupSets(w, pe.exercise) ?: pe.warmupSets
+            else -> pe.warmupSets
+        }
+        exercises[i] = pe.copy(sessionWeight = w, warmupSets = warmupSets)
         val newPlan = current.plan.copy(exercises = exercises)
         val commitTarget = WorkoutState.ActiveSet(
             plan = newPlan,
             exerciseIndex = i,
             setIndex = current.setIndex,
             sessionId = current.sessionId,
-            warmupSetIndex = current.warmupSetIndex,
+            // A lighter weight has fewer warmups (none at all near the bar): an index past the new
+            // list means the warmups are over, not that there is a set to show there.
+            warmupSetIndex = current.warmupSetIndex?.takeIf { it < warmupSets.size },
             done = current.done,
         )
         stageRest(current, StagedAction(
@@ -768,7 +787,11 @@ class WorkoutSessionController(
         ))
     }
 
-    private fun stageRest(current: WorkoutState.ActiveSet, staged: StagedAction) {
+    private fun stageRest(current: WorkoutState.ActiveSet, action: StagedAction) {
+        // A timed set that was running stops here. Undo hands back one that hasn't started: a
+        // frozen countdown with no timer behind it could be neither resumed nor restarted.
+        timedSetTimerJob?.cancel()
+        val staged = action.copy(undoTarget = action.undoTarget.copy(timerSecondsRemaining = null))
         val target = staged.commitTarget
         setState(WorkoutState.Resting(
             plan = target?.plan ?: current.plan,
@@ -828,10 +851,13 @@ class WorkoutSessionController(
         val current = _state.value as? WorkoutState.Resting ?: return
         val staged = current.staged
         if (staged != null) {
+            // Commit first: persisting a swap suspends through a planner rebuild, and an Undo
+            // tapped in that window would be overwritten by the commit it was meant to cancel.
+            val target = staged.commitTarget
+            if (target != null) setState(target)
             scope.launch {
                 staged.pendingSwap?.let { persistSwap(it) }
-                val target = staged.commitTarget
-                if (target != null) setState(target) else finishWorkout(current.plan, current.sessionId)
+                if (target == null) finishWorkout(current.plan, current.sessionId)
             }
             return
         }
@@ -852,6 +878,10 @@ class WorkoutSessionController(
                 startTime = sessionStartTime,
                 endTime = endTime,
             ))
+            // Here rather than on the Done button: system back leaves the Done screen without
+            // tapping it, and the next plan would be priced from beliefs that predate today's sets.
+            withContext(NonCancellable) { repository.finishSession() }
+            sessionReplayed.complete(Unit)
         }
     }
 
