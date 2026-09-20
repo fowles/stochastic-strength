@@ -1,6 +1,7 @@
 package io.github.fowles.stochastic_strength.ui.savedworkouts
 
 import android.app.Application
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -92,12 +93,15 @@ class SavedWorkoutsViewModelsTest {
     /**
      * Every editor is held in one store so [tearDown] can clear them — an editor's init reads the
      * planner on its own scope, and that read must not outlive the database it queries.
+     *
+     * A fresh [SavedStateHandle] by default (a first-ever navigation to the route); pass the same
+     * handle back in to simulate rebuilding the ViewModel after process death.
      */
-    private fun editor(workoutId: Long): SavedWorkoutEditViewModel = onMain {
+    private fun editor(workoutId: Long, handle: SavedStateHandle = SavedStateHandle()): SavedWorkoutEditViewModel = onMain {
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                SavedWorkoutEditViewModel(app, workoutId, repo) as T
+                SavedWorkoutEditViewModel(app, workoutId, repo, handle) as T
         }
         ViewModelProvider(store, factory)["editor-${editorsCreated++}", SavedWorkoutEditViewModel::class.java]
     }
@@ -316,5 +320,79 @@ class SavedWorkoutsViewModelsTest {
         val vm = newEditor()
         await("suggester") { vm.suggester.value != null }
         assertEquals(WeightUnit.LBS, vm.suggester.value!!.weightUnit)
+    }
+
+    // --- Process-death survival (SavedStateHandle) ---
+
+    @Test
+    fun noSnapshotInTheHandle_loadsFromTheDatabase() = runBlocking {
+        val id = repo.saveWorkout(null, "Push day", listOf(SavedWorkoutEntry(bench, 8)))
+        val vm = editor(id, SavedStateHandle())
+        await("loaded") { vm.state.value.status == LoadStatus.LOADED }
+
+        assertEquals("Push day", vm.state.value.name)
+        assertEquals(listOf(bench.id), vm.state.value.entries.map { it.exercise.id })
+        assertEquals(false, vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun aSecondViewModelOnTheSameHandle_restoresEditsAndDirtyState() {
+        val handle = SavedStateHandle()
+        val first = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        runBlocking { first.allExercises.first { it.isNotEmpty() } }
+        onMain {
+            first.addExercise(bench.id)
+            first.setReps(bench.id, 5)
+            first.setName("Push day")
+        }
+        assertEquals(true, first.hasUnsavedChanges())
+
+        // Simulates process death: a fresh ViewModel instance, same SavedStateHandle content.
+        val second = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        await("restored") { second.state.value.status == LoadStatus.LOADED }
+
+        assertEquals(first.state.value.name, second.state.value.name)
+        assertEquals(first.state.value.entries, second.state.value.entries)
+        assertEquals(true, second.hasUnsavedChanges())
+
+        // The restored editor still behaves like a fresh NEW_WORKOUT_ID: first save inserts.
+        onMain { second.save() }
+        await("saved") { savedCount() == 1 }
+    }
+
+    @Test
+    fun aSecondViewModelOnTheSameHandle_afterASave_isNotDirty() {
+        val handle = SavedStateHandle()
+        val first = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        runBlocking { first.allExercises.first { it.isNotEmpty() } }
+        onMain { first.addExercise(bench.id); first.save() }
+        await("saved") { savedCount() == 1 }
+
+        val second = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        await("restored") { second.state.value.status == LoadStatus.LOADED }
+
+        assertEquals(listOf(bench.id), second.state.value.entries.map { it.exercise.id })
+        assertEquals(false, second.hasUnsavedChanges())
+    }
+
+    @Test
+    fun restoringASnapshot_dropsRowsForExercisesDeletedMeanwhile() = runBlocking {
+        val squatId = db.exerciseDao().insert(
+            Exercise(name = "Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL)
+        )
+        val handle = SavedStateHandle()
+        val first = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        first.allExercises.first { it.size >= 2 }
+        onMain { first.addExercise(bench.id); first.addExercise(squatId) }
+        await("rows") { first.state.value.entries.size == 2 }
+
+        // Simulates the exercise having vanished underneath the snapshot (no per-row delete DAO
+        // method exists; a raw delete stands in for it).
+        db.openHelper.writableDatabase.execSQL("DELETE FROM exercises WHERE id = $squatId")
+
+        val second = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        await("restored") { second.state.value.status == LoadStatus.LOADED }
+
+        assertEquals(listOf(bench.id), second.state.value.entries.map { it.exercise.id })
     }
 }

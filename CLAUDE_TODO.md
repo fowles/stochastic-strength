@@ -8,8 +8,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 From the 2026-09-20 whole-project review. Each needs a decision or is bigger than a drive-by.
 
 ## UI
-- **Editor state is lost on process death** (`SavedWorkoutEditViewModel` has no
-  `SavedStateHandle`), while its two dialog flags are `rememberSaveable` and do survive.
 - **The editor and plan preview still duplicate the block list** (reorderable state, `items` by
   block, elevation, link-node wiring, swipe background). Extract a `CircuitBlockList` into
   `CircuitChrome.kt`. The editor also omits `swipeOffsetPx`, so its link node stays put while a
