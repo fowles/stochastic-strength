@@ -7,11 +7,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 
 From the 2026-09-20 whole-project review. Each needs a decision or is bigger than a drive-by.
 
-## Data
-- **An abandoned session is orphaned.** Process death mid-workout leaves a `workout_sessions` row
-  with `endTime` NULL whose sets never reach replay; nothing resumes or cleans it. Resuming needs
-  the session id in a `SavedStateHandle`.
-
 ## Workout session
 - **`saveSessionAsWorkout` reorders uneven circuits.** It orders by first logged set, but
   `WorkoutSequence.next` starts an uneven circuit with the member that has most sets left:
@@ -21,8 +16,6 @@ From the 2026-09-20 whole-project review. Each needs a decision or is bigger tha
 - **Undoing a HURT set leaves `ExerciseHurtState` set** (display-only; policy reads the set log).
 - **`ExercisePacingEstimator` tests `circuitId != null`** rather than block membership, so a lone
   tagged row (legal mid-session) loses its pacing samples.
-- **Foreground service type is `dataSync`**, capped at ~6 h/day on target SDK 36, with no
-  `onTimeout`. An abandoned workout can hit the cap. Consider `health`, or stop on timeout.
 
 ## UI
 - **Editor state is lost on process death** (`SavedWorkoutEditViewModel` has no

@@ -1,5 +1,6 @@
 package io.github.fowles.stochastic_strength.notification
 
+import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import io.github.fowles.stochastic_strength.MainActivity
 import io.github.fowles.stochastic_strength.R
@@ -35,7 +37,16 @@ class WorkoutNotificationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildPlaceholderNotification())
+        try {
+            startForeground(NOTIFICATION_ID, buildPlaceholderNotification())
+        } catch (e: ForegroundServiceStartNotAllowedException) {
+            // dataSync's ~6h/day quota (target SDK 36) is exhausted. The workout itself lives in
+            // the ViewModel and keeps going without the notification; if the process later dies,
+            // WorkoutRepository.closeOrphanedSessions() keeps its logged sets at the next launch.
+            Log.w(TAG, "startForeground refused (quota exhausted); stopping", e)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val app = application as StochasticStrengthApp
         collectJob?.cancel()
         collectJob = serviceScope.launch {
@@ -48,6 +59,16 @@ class WorkoutNotificationService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    /**
+     * The `dataSync` foreground service type is capped at ~6h/day on target SDK 36; the OS calls
+     * this shortly before killing the service outright. Stop cleanly instead of crashing — the
+     * workout continues in the ViewModel regardless (see [onStartCommand]'s catch).
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "dataSync foreground service timed out; stopping")
+        stopSelf(startId)
     }
 
     override fun onDestroy() {
@@ -171,6 +192,7 @@ class WorkoutNotificationService : Service() {
         )
 
     companion object {
+        private const val TAG = "WorkoutNotifService"
         const val CHANNEL_ID = "workout_active"
         const val NOTIFICATION_ID = 1001
         const val ACTION_FEEDBACK = "io.github.fowles.stochastic_strength.ACTION_FEEDBACK"

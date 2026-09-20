@@ -106,7 +106,11 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
   state go through `launchOnce`.
 - Ending the workout sets `endTime`, shows `Done`, and runs `repository.finishSession()` (replay)
   itself; the Done button only waits for that and navigates.
-- No restore after process death: the foreground service keeps the process alive.
+- No restore after process death: the foreground service keeps the process alive. If it dies
+  anyway, `WorkoutRepository.closeOrphanedSessions()` runs at the next process start, ahead of the
+  startup replay: a session with `endTime IS NULL` and no logged sets is deleted, otherwise
+  `endTime` becomes its latest set's `completedAt` (falling back to `startTime`) so the sets it did
+  log still fold into replay. It never resumes a session.
 
 ### Plans, saved workouts, circuits
 

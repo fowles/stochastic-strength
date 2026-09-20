@@ -220,6 +220,29 @@ class WorkoutRepository(
         replayDerivedState()
     }
 
+    /**
+     * Closes every session process death left open (`endTime IS NULL`). Call this at process
+     * start, before [replayDerivedState] — a fresh process has no live controller, so no
+     * in-progress session can be hit. Per CLAUDE.md ("no restore after process death") this never
+     * resumes a session, only closes it: one with no logged sets is deleted, otherwise `endTime`
+     * becomes its latest set's `completedAt` (falling back to `startTime` if none have one) so its
+     * sets flow into the next replay.
+     */
+    suspend fun closeOrphanedSessions() = db.withTransaction {
+        val orphans = db.workoutSessionDao().getOpenSessions()
+        if (orphans.isEmpty()) return@withTransaction
+        val setsBySession = db.workoutSetDao().getSetsForSessions(orphans.map { it.id }).groupBy { it.sessionId }
+        for (session in orphans) {
+            val sets = setsBySession[session.id]
+            if (sets.isNullOrEmpty()) {
+                db.workoutSessionDao().deleteById(session.id)
+            } else {
+                val latest = sets.maxOf { it.completedAt ?: session.startTime }
+                db.workoutSessionDao().updateEndTime(session.id, latest)
+            }
+        }
+    }
+
     suspend fun replayDerivedState() = replayMutex.withLock {
         derivedState.rebuild { scratch ->
             val snapshot = ReplaySnapshot.loadStaticFromDb(db)

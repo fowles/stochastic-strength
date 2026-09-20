@@ -13,6 +13,10 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions WHERE id = :id")
     suspend fun getById(id: Long): WorkoutSession?
 
+    /** Sessions never closed — abandoned by process death (no live controller survives a fresh process). */
+    @Query("SELECT * FROM workout_sessions WHERE endTime IS NULL")
+    suspend fun getOpenSessions(): List<WorkoutSession>
+
     @Query("""
         SELECT * FROM workout_sessions
         WHERE endTime IS NOT NULL

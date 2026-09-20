@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -214,6 +215,63 @@ class WorkoutRepositoryTest {
         assertEquals(3, suggester.repMin)
         assertEquals(6, suggester.repMax)
         assertEquals(RepRangePicker.typical(3, 6), suggester.typicalReps)
+    }
+
+    @Test
+    fun closeOrphanedSessions_withSets_setsEndTimeToLatestCompletedAtAndFeedsReplay() = runBlocking {
+        db.userProfileDao().insert(
+            UserProfile(sex = Sex.MALE, strengthLevel = StrengthLevel.MEDIUM, weightUnit = WeightUnit.KG)
+        )
+        db.exerciseDao().insertAll(listOf(
+            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
+        ))
+        val exerciseId = db.exerciseDao().getActive().first().id
+        db.baselineOverrideDao().insert(BaselineOverride(
+            sessionId = null, muscleGroup = MuscleGroup.CHEST, baselineWeight = 100f, asOf = 0L,
+        ))
+        // No endTime: process death mid-workout.
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+        db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = exerciseId, setNumber = 1,
+                targetWeight = 80f, targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_5_PLUS,
+                completedAt = 1500L)
+        )
+        db.workoutSetDao().insert(
+            WorkoutSet(sessionId = sessionId, exerciseId = exerciseId, setNumber = 2,
+                targetWeight = 80f, targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_5_PLUS,
+                completedAt = 1800L)
+        )
+
+        repository.closeOrphanedSessions()
+
+        val closed = db.workoutSessionDao().getById(sessionId)
+        assertEquals("endTime should be the latest set's completedAt", 1800L, closed?.endTime)
+
+        // The now-closed session's sets should feed the next replay (ReplayEngine only walks
+        // sessions with a non-null endTime).
+        repository.replayDerivedState()
+        val estimates = repository.derivedState.snapshot().exerciseBeliefs()
+        assertTrue("orphaned session's sets should have folded into the estimate",
+            (estimates[exerciseId]?.e1rm ?: 0f) > 100f)
+    }
+
+    @Test
+    fun closeOrphanedSessions_withNoSets_deletesTheSession() = runBlocking {
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L))
+
+        repository.closeOrphanedSessions()
+
+        assertNull("session with no logged sets should be deleted", db.workoutSessionDao().getById(sessionId))
+    }
+
+    @Test
+    fun closeOrphanedSessions_leavesFinishedSessionsUntouched() = runBlocking {
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1000L, endTime = 2000L))
+
+        repository.closeOrphanedSessions()
+
+        val session = db.workoutSessionDao().getById(sessionId)
+        assertEquals("a finished session's endTime must not change", 2000L, session?.endTime)
     }
 
     @Test
