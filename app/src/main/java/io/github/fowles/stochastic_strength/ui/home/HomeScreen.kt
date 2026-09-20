@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Sex
 import io.github.fowles.stochastic_strength.data.model.StrengthLevel
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.ui.rememberResumedAction
 
 @Composable
 fun HomeScreen(
@@ -50,9 +51,12 @@ fun HomeScreen(
     val context = LocalContext.current
     val onStartWorkoutState = rememberUpdatedState(onStartWorkout)
 
+    // The permission result lands before the host is RESUMED, and navigation issued then is
+    // dropped — so defer it.
+    val startAfterPermission = rememberResumedAction { onStartWorkoutState.value() }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { _ -> onStartWorkoutState.value() }
+    ) { _ -> startAfterPermission() }
 
     Scaffold { paddingValues ->
         Box(
