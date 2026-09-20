@@ -230,7 +230,12 @@ private fun EntryRow(
             }
         },
     ) {
-        val suggested = suggester?.weight(entry.exercise, entry.reps)
+        // Priced once per (suggester, exercise, reps) rather than on every recomposition: the
+        // stepper reads this value, so it cannot be skipped the way Today's workout skips
+        // unpinned rows. Keyed on the suggester itself, so a planner rebuild reprices.
+        val suggested = remember(suggester, entry.exercise, entry.reps) {
+            suggester?.weight(entry.exercise, entry.reps)
+        }
         // Stored rows arrive raw (a backup import writes what it was given): a non-positive weight
         // is no pin at all, the same reading the planner takes.
         val pinnedWeight = entry.weight?.takeIf { it > 0f }
