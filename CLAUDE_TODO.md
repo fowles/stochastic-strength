@@ -10,8 +10,6 @@ From the 2026-09-20 whole-project review. Each needs a decision or is bigger tha
 ## UI
 - **Editor state is lost on process death** (`SavedWorkoutEditViewModel` has no
   `SavedStateHandle`), while its two dialog flags are `rememberSaveable` and do survive.
-- **Forward navigation has no resumed guard.** A double-tapped card or FAB pushes the route twice
-  (`workout-edit/0` twice = two editors). Only pops go through `popBackStackIfResumed`.
 - **The editor and plan preview still duplicate the block list** (reorderable state, `items` by
   block, elevation, link-node wiring, swipe background). Extract a `CircuitBlockList` into
   `CircuitChrome.kt`. The editor also omits `swipeOffsetPx`, so its link node stays put while a

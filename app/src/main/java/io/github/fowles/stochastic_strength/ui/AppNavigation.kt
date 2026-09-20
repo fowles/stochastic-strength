@@ -3,6 +3,7 @@ package io.github.fowles.stochastic_strength.ui
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavController
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,6 +28,18 @@ private fun NavController.popBackStackIfResumed() {
     popBackStack()
 }
 
+private fun NavController.navigateIfResumed(route: String) {
+    val entry = currentBackStackEntry ?: return
+    if (entry.lifecycle.currentState != Lifecycle.State.RESUMED) return
+    navigate(route)
+}
+
+private fun NavController.navigateIfResumed(route: String, builder: NavOptionsBuilder.() -> Unit) {
+    val entry = currentBackStackEntry ?: return
+    if (entry.lifecycle.currentState != Lifecycle.State.RESUMED) return
+    navigate(route, builder)
+}
+
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
@@ -34,12 +47,12 @@ fun AppNavigation() {
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
-                onStartWorkout = { navController.navigate("workout") },
-                onHistory = { navController.navigate("history") },
-                onExercises = { navController.navigate("exercises") },
-                onWorkouts = { navController.navigate("workouts") },
-                onLocations = { navController.navigate("locations") },
-                onAbout = { navController.navigate("about") },
+                onStartWorkout = { navController.navigateIfResumed("workout") },
+                onHistory = { navController.navigateIfResumed("history") },
+                onExercises = { navController.navigateIfResumed("exercises") },
+                onWorkouts = { navController.navigateIfResumed("workouts") },
+                onLocations = { navController.navigateIfResumed("locations") },
+                onAbout = { navController.navigateIfResumed("about") },
             )
         }
         composable("about") {
@@ -59,13 +72,13 @@ fun AppNavigation() {
         }
         composable("history") {
             HistoryScreen(
-                onSessionTap = { sessionId -> navController.navigate("summary/$sessionId") },
+                onSessionTap = { sessionId -> navController.navigateIfResumed("summary/$sessionId") },
                 onBack = { navController.popBackStackIfResumed() },
             )
         }
         composable("workouts") {
             SavedWorkoutsScreen(
-                onWorkoutTap = { id -> navController.navigate("workout-edit/$id") },
+                onWorkoutTap = { id -> navController.navigateIfResumed("workout-edit/$id") },
                 onBack = { navController.popBackStackIfResumed() },
             )
         }
@@ -80,7 +93,7 @@ fun AppNavigation() {
         }
         composable("locations") {
             LocationsScreen(
-                onLocationTap = { locationId -> navController.navigate("location/$locationId") },
+                onLocationTap = { locationId -> navController.navigateIfResumed("location/$locationId") },
                 onBack = { navController.popBackStackIfResumed() },
             )
         }
@@ -96,7 +109,7 @@ fun AppNavigation() {
         }
         composable("exercises") {
             ExercisesScreen(
-                onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
+                onExerciseTap = { exerciseId -> navController.navigateIfResumed("exercise/$exerciseId") },
                 onBack = { navController.popBackStackIfResumed() },
             )
         }
@@ -108,18 +121,18 @@ fun AppNavigation() {
             ExerciseDetailScreen(
                 exerciseId = exerciseId,
                 onBack = { navController.popBackStackIfResumed() },
-                onDebugStats = { navController.navigate("debug/coefficient/$exerciseId") },
+                onDebugStats = { navController.navigateIfResumed("debug/coefficient/$exerciseId") },
             )
         }
         composable("workout") {
             WorkoutScreen(
                 onWorkoutDone = {
-                    navController.navigate("home") {
+                    navController.navigateIfResumed("home") {
                         popUpTo("home") { inclusive = true }
                     }
                 },
-                onEditLocation = { locationId -> navController.navigate("location/$locationId") },
-                onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
+                onEditLocation = { locationId -> navController.navigateIfResumed("location/$locationId") },
+                onExerciseTap = { exerciseId -> navController.navigateIfResumed("exercise/$exerciseId") },
             )
         }
         composable(
@@ -130,12 +143,12 @@ fun AppNavigation() {
             SummaryScreen(
                 sessionId = sessionId,
                 onDone = {
-                    navController.navigate("home") {
+                    navController.navigateIfResumed("home") {
                         popUpTo("home") { inclusive = true }
                     }
                 },
                 onBack = { navController.popBackStackIfResumed() },
-                onExerciseTap = { exerciseId -> navController.navigate("exercise/$exerciseId") },
+                onExerciseTap = { exerciseId -> navController.navigateIfResumed("exercise/$exerciseId") },
             )
         }
     }
