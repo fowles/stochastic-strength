@@ -619,8 +619,8 @@ class WorkoutSessionControllerTest {
             // tearDown's cancelAndJoin() would hang the whole instrumentation run instead of
             // just failing this one test.
             gated.unblock()
-            gated.shutdown()
             f.db.close()
+            gated.shutdown()
         }
     }
 
@@ -665,8 +665,8 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
-            gated.shutdown()
             f.db.close()
+            gated.shutdown()
         }
     }
 
@@ -703,8 +703,8 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
-            gated.shutdown()
             f.db.close()
+            gated.shutdown()
         }
     }
 
@@ -736,8 +736,8 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in addExercise's version of this test
-            gated.shutdown()
             f.db.close()
+            gated.shutdown()
         }
     }
 
@@ -773,8 +773,8 @@ class WorkoutSessionControllerTest {
             )
         } finally {
             gated.unblock() // safety net — see the comment in the first test in this section
-            gated.shutdown()
             f.db.close()
+            gated.shutdown()
         }
     }
 
