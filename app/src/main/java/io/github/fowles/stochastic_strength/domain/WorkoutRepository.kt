@@ -361,8 +361,8 @@ class WorkoutRepository(
 
     /**
      * Captures a completed session as a saved workout: exercises in order of first set, each with
-     * the first set's target reps, its logged set count, and its circuit. A circuit's rounds are its
-     * longest member's count, so a member cut short (HURT, ended early) doesn't shrink the circuit.
+     * the first set's target reps, its logged set count, and its circuit. Each circuit member keeps the
+     * rounds it actually got, so a saved circuit can be uneven.
      */
     suspend fun saveSessionAsWorkout(sessionId: Long, name: String): Long {
         val setsByExercise = db.workoutSetDao().getSetsForSession(sessionId)

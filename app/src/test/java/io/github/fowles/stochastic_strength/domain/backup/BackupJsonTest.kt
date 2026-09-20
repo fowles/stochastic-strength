@@ -6,6 +6,7 @@ import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import io.github.fowles.stochastic_strength.data.model.SavedWorkout
 import io.github.fowles.stochastic_strength.data.model.SavedWorkoutExercise
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -77,5 +78,19 @@ class BackupJsonTest {
         """.trimIndent()
         val backup = BackupJsonParser.parse(json)
         assertEquals(null, backup.savedWorkoutExercises.single().weight)
+    }
+
+    @Test
+    fun `a damaged file fails as a BackupFormatException, never a raw parser error`() {
+        val header = """"format":"stochastic-strength-backup","formatVersion":1,"dbVersion":21,"exportedAt":1"""
+        val noTables = "{$header}"
+        val unknownEnum = """
+            {$header,"tables":{"exercises":[{"id":1,"name":"X","primaryMuscle":"TENTACLE",
+               "secondaryMuscles":[],"equipment":"BARBELL","isDisliked":false,"isUnilateral":false,
+               "isTimed":false}]}}
+        """.trimIndent()
+        for (json in listOf(noTables, unknownEnum)) {
+            assertThrows(BackupFormatException::class.java) { BackupJsonParser.parse(json) }
+        }
     }
 }

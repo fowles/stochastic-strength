@@ -26,7 +26,6 @@ import io.github.fowles.stochastic_strength.data.model.SavedWorkoutExercise
 import io.github.fowles.stochastic_strength.data.model.UserProfile
 import io.github.fowles.stochastic_strength.data.model.WorkoutSession
 import io.github.fowles.stochastic_strength.data.model.WorkoutSet
-import kotlinx.coroutines.CoroutineScope
 
 @Database(
     entities = [
@@ -397,21 +396,12 @@ abstract class AppDatabase : RoomDatabase() {
 
         @Volatile private var INSTANCE: AppDatabase? = null
 
-        fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
+        fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
-                INSTANCE ?: buildDatabase(context, scope).also { INSTANCE = it }
+                INSTANCE ?: buildDatabase(context).also { INSTANCE = it }
             }
 
-        fun reset(context: Context, scope: CoroutineScope): AppDatabase {
-            synchronized(this) {
-                INSTANCE?.close()
-                INSTANCE = null
-            }
-            context.deleteDatabase("stochastic_strength.db")
-            return getInstance(context, scope)
-        }
-
-        private fun buildDatabase(context: Context, scope: CoroutineScope) =
+        private fun buildDatabase(context: Context) =
             Room.databaseBuilder(context, AppDatabase::class.java, "stochastic_strength.db")
                 .addMigrations(
                     MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,

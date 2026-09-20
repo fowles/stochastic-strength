@@ -19,7 +19,7 @@ import kotlinx.coroutines.runBlocking
 
 class StochasticStrengthApp : Application() {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val database: AppDatabase get() = AppDatabase.getInstance(this, applicationScope)
+    val database: AppDatabase get() = AppDatabase.getInstance(this)
     val workoutSessionBus = WorkoutSessionBus()
     val stravaExporter: StravaExporter by lazy {
         StravaExporter(
@@ -44,11 +44,6 @@ class StochasticStrengthApp : Application() {
     override fun onCreate() {
         super.onCreate()
         runBlocking(Dispatchers.IO) {
-            try {
-                database.workoutSetDao().getFirst()
-            } catch (_: Exception) {
-                AppDatabase.reset(this@StochasticStrengthApp, applicationScope)
-            }
             val existingNames = database.exerciseDao().getNames().toHashSet()
             val missing = ExerciseLibrary.exercises.filter { it.name !in existingNames }
             if (missing.isNotEmpty()) {

@@ -135,8 +135,8 @@ object BackupJsonParser {
                     "Update the app, or re-export."
             )
         }
-        val tables = root.getJSONObject("tables")
         return try {
+            val tables = root.getJSONObject("tables")
             WorkoutBackup(
                 formatVersion = root.getInt("formatVersion"),
                 dbVersion = dbVersion,
@@ -153,6 +153,9 @@ object BackupJsonParser {
                 savedWorkoutExercises = tables.optJSONArray("savedWorkoutExercises")?.map { savedWorkoutExercise(it) } ?: emptyList(),
             )
         } catch (e: JSONException) {
+            throw BackupFormatException("Malformed backup contents: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            // An enum name this build doesn't know (valueOf).
             throw BackupFormatException("Malformed backup contents: ${e.message}")
         }
     }
