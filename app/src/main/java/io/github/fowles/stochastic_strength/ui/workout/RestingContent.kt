@@ -173,6 +173,10 @@ internal fun RestingContent(
             val nextUp = nextStep?.takeIf { it.exerciseIndex != state.exerciseIndex }
                 ?.let { it to plan.exercises[it.exerciseIndex] }
             val weightReduced = plannedExercise.sessionWeight != state.weightAtSetStart
+            // The reduction only describes what's next when the next real set is this same
+            // exercise (always true when solo); in a circuit the next set belongs to another
+            // member, so the reduced-weight card would be naming the wrong exercise's weight.
+            val reductionAppliesToNext = nextStep?.exerciseIndex == state.exerciseIndex
 
             when {
                 state.staged != null -> {
@@ -205,7 +209,7 @@ internal fun RestingContent(
                     )
                 }
                 state.lastFeedback == SetFeedback.TOO_HARD && state.weightReductionApplied
-                    && moreSetsForThisExercise && weightReduced -> {
+                    && moreSetsForThisExercise && weightReduced && reductionAppliesToNext -> {
                     NextExerciseCard(
                         title = "Reduced weight",
                         exerciseName = plannedExercise.exercise.name,
@@ -217,9 +221,12 @@ internal fun RestingContent(
                 nextUp != null -> {
                     val (step, nextExercise) = nextUp
                     val warmup = nextExercise.warmupSets.firstOrNull().takeIf { step.setIndex == 0 }
+                    val roundLabel = if (warmup != null) null
+                                      else WorkoutSequence.circuitRoundLabel(plan.exercises, step)
                     NextExerciseCard(
                         title = if (warmup != null) "Warm up" else "Next up",
                         exerciseName = nextExercise.exercise.name,
+                        roundLabel = roundLabel,
                         weight = warmup?.weight ?: nextExercise.sessionWeight,
                         usesBarPlates = nextExercise.exercise.usesBarPlates,
                         weightUnit = weightUnit,
@@ -300,13 +307,17 @@ private fun NextExerciseCard(
     weight: Float,
     usesBarPlates: Boolean,
     weightUnit: WeightUnit,
+    roundLabel: String? = null,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            "$title: $exerciseName",
+            buildString {
+                append(title); append(": "); append(exerciseName)
+                if (roundLabel != null) { append(" · "); append(roundLabel) }
+            },
             style = MaterialTheme.typography.labelLarge,
         )
         if (weight > 0f) {

@@ -84,4 +84,30 @@ class WorkoutSequenceTest {
         val plan = listOf(pe(1, 3, 0), pe(2, 2, 0)) // 2 joined at round 2 of 3
         assertEquals("Round 2 of 3", WorkoutSequence.positionLabel(plan, 1, 0))
     }
+
+    @Test
+    fun circuitRoundLabel_nullForSoloStep() {
+        val plan = listOf(pe(1, 4))
+        assertNull(WorkoutSequence.circuitRoundLabel(plan, Step(exerciseIndex = 0, setIndex = 1)))
+    }
+
+    @Test
+    fun circuitRoundLabel_roundTextForCircuitMemberStep() {
+        val plan = listOf(pe(1, 4), pe(2, 2, 0), pe(3, 2, 0))
+        assertEquals(
+            "Round 2 of 2",
+            WorkoutSequence.circuitRoundLabel(plan, Step(exerciseIndex = 2, setIndex = 1)),
+        )
+    }
+
+    @Test
+    fun circuitRoundLabel_mixedBlocks_soloAndCircuitStepsInSamePlan() {
+        val plan = listOf(pe(1, 1), pe(2, 2, 0), pe(3, 2, 0), pe(4, 1))
+        assertNull(WorkoutSequence.circuitRoundLabel(plan, Step(exerciseIndex = 0, setIndex = 0)))
+        assertEquals(
+            "Round 1 of 2",
+            WorkoutSequence.circuitRoundLabel(plan, Step(exerciseIndex = 1, setIndex = 0)),
+        )
+        assertNull(WorkoutSequence.circuitRoundLabel(plan, Step(exerciseIndex = 3, setIndex = 0)))
+    }
 }

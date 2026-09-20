@@ -831,12 +831,17 @@ class WorkoutSessionController(
                     null -> "Last set — almost done!"
                     else -> {
                         val name = plan.exercises[step.exerciseIndex].exercise.name
-                        val position = WorkoutSequence.positionLabel(plan.exercises, step.exerciseIndex, step.setIndex)
-                            .substringBefore(" of")
                         when {
-                            step.exerciseIndex == state.exerciseIndex -> "Next: $position · $name"
-                            plan.exercises[step.exerciseIndex].circuitId != null -> "Next: $name · $position"
-                            else -> "Next: $name"
+                            step.exerciseIndex == state.exerciseIndex -> {
+                                val position = WorkoutSequence
+                                    .positionLabel(plan.exercises, step.exerciseIndex, step.setIndex)
+                                    .substringBefore(" of")
+                                "Next: $position · $name"
+                            }
+                            else -> WorkoutSequence.circuitRoundLabel(plan.exercises, step)
+                                ?.substringBefore(" of")
+                                ?.let { round -> "Next: $name · $round" }
+                                ?: "Next: $name"
                         }
                     }
                 }

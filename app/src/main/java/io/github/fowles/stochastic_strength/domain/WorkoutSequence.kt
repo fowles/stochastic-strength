@@ -31,4 +31,14 @@ object WorkoutSequence {
         return if (block.isCircuit) "Round ${block.rounds - sets + setIndex + 1} of ${block.rounds}"
         else "Set ${setIndex + 1} of $sets"
     }
+
+    /**
+     * "Round 2 of 2" when [step] lands on a circuit member, null for a solo exercise. The single
+     * circuit-vs-solo distinction consumers (rest screen, notification) key their "up next" round
+     * copy off of, so it is derived once here rather than re-checking `circuitId` at each call site.
+     */
+    fun circuitRoundLabel(exercises: List<PlannedExercise>, step: Step): String? {
+        val block = CircuitStructure.blocks(exercises).first { step.exerciseIndex in it.indices }
+        return if (block.isCircuit) positionLabel(exercises, step.exerciseIndex, step.setIndex) else null
+    }
 }
