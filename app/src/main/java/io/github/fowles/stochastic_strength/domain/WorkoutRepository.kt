@@ -382,24 +382,51 @@ class WorkoutRepository(
         db.savedWorkoutDao().deleteById(id)
     }
 
+    /** One exercise's logged sets, reduced to what a saved-workout row needs. */
+    private data class LoggedMember(
+        val exercise: Exercise,
+        val circuitId: Int?,
+        val reps: Int?,
+        val sets: Int,
+        val firstAt: Long,
+        val firstId: Long,
+        val lastAt: Long,
+        val lastId: Long,
+    )
+
     /**
      * Captures a completed session as a saved workout: exercises in order of first set, each with
-     * the first set's target reps, its logged set count, and its circuit. Each circuit member keeps the
-     * rounds it actually got, so a saved circuit can be uneven.
+     * the first set's target reps, its logged set count, and its circuit. Each circuit member keeps
+     * the rounds it actually got, so a saved circuit can be uneven.
+     *
+     * Blocks (circuits and solo rows) keep first-logged-set order. Within a circuit block, members
+     * order by their *last* logged set instead: rounds align from the end (the late-joiner rule —
+     * see [Block.roundsDone]), so the final round is the one every surviving member shares, and it
+     * runs in slot order. Ordering by first set instead would put a late joiner — who logs its
+     * first set only once the others are already a round in — ahead of members it actually follows.
      */
     suspend fun saveSessionAsWorkout(sessionId: Long, name: String): Long {
-        val setsByExercise = db.workoutSetDao().getSetsForSession(sessionId)
-            .sortedWith(compareBy({ it.completedAt ?: Long.MAX_VALUE }, { it.id }))
-            .groupBy { it.exerciseId } // first-appearance order
-        val byId = db.exerciseDao().getByIds(setsByExercise.keys.toList()).associateBy { it.id }
-        val entries = setsByExercise.mapNotNull { (exerciseId, rows) ->
-            byId[exerciseId]?.let {
-                SavedWorkoutEntry(
-                    exercise = it, reps = rows.first().targetReps,
-                    sets = rows.size.coerceIn(CircuitStructure.MIN_SETS, CircuitStructure.MAX_SETS),
-                    circuitId = rows.first().circuitId,
+        val byExercise = db.workoutSetDao().getSetsForSession(sessionId).groupBy { it.exerciseId }
+        val byId = db.exerciseDao().getByIds(byExercise.keys.toList()).associateBy { it.id }
+        val members = byExercise.mapNotNull { (exerciseId, rows) ->
+            byId[exerciseId]?.let { exercise ->
+                val sorted = rows.sortedWith(compareBy({ it.completedAt ?: Long.MAX_VALUE }, { it.id }))
+                LoggedMember(
+                    exercise = exercise, circuitId = sorted.first().circuitId,
+                    reps = sorted.first().targetReps,
+                    sets = sorted.size.coerceIn(CircuitStructure.MIN_SETS, CircuitStructure.MAX_SETS),
+                    firstAt = sorted.first().completedAt ?: Long.MAX_VALUE, firstId = sorted.first().id,
+                    lastAt = sorted.last().completedAt ?: Long.MAX_VALUE, lastId = sorted.last().id,
                 )
             }
+        }
+        val blocks = members.filter { it.circuitId != null }.groupBy { it.circuitId }.values
+            .map { it.sortedWith(compareBy({ m -> m.lastAt }, { m -> m.lastId })) } +
+            members.filter { it.circuitId == null }.map { listOf(it) }
+        val ordered = blocks.sortedWith(compareBy({ b -> b.minOf { it.firstAt } }, { b -> b.minOf { it.firstId } }))
+            .flatten()
+        val entries = ordered.map {
+            SavedWorkoutEntry(exercise = it.exercise, reps = it.reps, sets = it.sets, circuitId = it.circuitId)
         }
         // No equalizeRounds here, deliberately: each member keeps the rounds it actually got. A
         // mid-circuit swap leaves both the abandoned exercise and its replacement in the session,

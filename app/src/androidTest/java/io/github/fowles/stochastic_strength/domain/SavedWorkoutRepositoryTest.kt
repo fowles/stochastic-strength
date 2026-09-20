@@ -141,12 +141,53 @@ class SavedWorkoutRepositoryTest {
 
         val id = repo.saveSessionAsWorkout(sessionId, "From session")
         val entries = repo.getSavedWorkout(id)!!.entries
-        assertEquals(listOf(bench.id, squat.id, row.id), entries.map { it.exercise.id })
+        // Circuit members order by their *last* logged set: squat's one set (t=1001) precedes
+        // bench's second (t=1002), so squat — the one who stopped short — sorts first.
+        assertEquals(listOf(squat.id, bench.id, row.id), entries.map { it.exercise.id })
         assertEquals(
             "each member keeps the rounds it actually got — a member cut short (or swapped away) " +
                 "must not be saved at the block's full rounds",
-            listOf(2, 1, 4), entries.map { it.sets },
+            listOf(1, 2, 4), entries.map { it.sets },
         )
+        assertEquals(listOf(0, 0, null), entries.map { it.circuitId })
+    }
+
+    @Test
+    fun saveSessionAsWorkout_keepsUnevenCircuitMemberOrder() = runBlocking {
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1L))
+        var t = 1000L
+        suspend fun log(ex: Exercise, setNumber: Int, circuit: Int?) = db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = ex.id, setNumber = setNumber, targetWeight = 20f,
+            targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = t++, circuitId = circuit,
+        ))
+        // squat(2 sets) + bench(3 sets) in one circuit. WorkoutSequence.next always logs whoever
+        // has the most sets left, so squat — the shorter member — logs its first set only once
+        // bench is already a round ahead: bench, squat, bench, squat, bench.
+        log(bench, 1, 0); log(squat, 1, 0); log(bench, 2, 0); log(squat, 2, 0); log(bench, 3, 0)
+
+        val id = repo.saveSessionAsWorkout(sessionId, "Uneven circuit")
+        val entries = repo.getSavedWorkout(id)!!.entries
+        assertEquals(listOf(squat.id, bench.id), entries.map { it.exercise.id })
+        assertEquals(listOf(2, 3), entries.map { it.sets })
+        assertEquals(listOf(0, 0), entries.map { it.circuitId })
+    }
+
+    @Test
+    fun saveSessionAsWorkout_keepsEvenCircuitAndSoloRowOrder() = runBlocking {
+        val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1L))
+        var t = 1000L
+        suspend fun log(ex: Exercise, setNumber: Int, circuit: Int?) = db.workoutSetDao().insert(WorkoutSet(
+            sessionId = sessionId, exerciseId = ex.id, setNumber = setNumber, targetWeight = 20f,
+            targetReps = 5, actualReps = 5, feedback = SetFeedback.RIR_2_4, completedAt = t++, circuitId = circuit,
+        ))
+        // An even circuit (bench, squat — both 2 sets) followed by a solo row.
+        log(bench, 1, 0); log(squat, 1, 0); log(bench, 2, 0); log(squat, 2, 0)
+        log(row, 1, null); log(row, 2, null)
+
+        val id = repo.saveSessionAsWorkout(sessionId, "Circuit then solo")
+        val entries = repo.getSavedWorkout(id)!!.entries
+        assertEquals(listOf(bench.id, squat.id, row.id), entries.map { it.exercise.id })
+        assertEquals(listOf(2, 2, 2), entries.map { it.sets })
         assertEquals(listOf(0, 0, null), entries.map { it.circuitId })
     }
 }

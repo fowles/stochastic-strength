@@ -8,9 +8,6 @@ Only open work belongs here. Something decided, accepted or finished is not a to
 From the 2026-09-20 whole-project review. Each needs a decision or is bigger than a drive-by.
 
 ## Workout session
-- **`saveSessionAsWorkout` reorders uneven circuits.** It orders by first logged set, but
-  `WorkoutSequence.next` starts an uneven circuit with the member that has most sets left:
-  saved `[A(2), B(3)]` runs B first and saves back as `[B, A]`.
 - **Count slider can cut a circuit.** `adjustExerciseCount` trims with `take(targetCount)`, which
   can drop explicit/pinned rows and split a block (`normalize` then dissolves the remainder).
 - **Undoing a HURT set leaves `ExerciseHurtState` set** (display-only; policy reads the set log).
