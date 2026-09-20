@@ -50,8 +50,12 @@ class SavedWorkoutEditViewModel(
     constructor(application: Application, workoutId: Long, savedStateHandle: SavedStateHandle) :
         this(application, workoutId, (application as StochasticStrengthApp).workoutRepository, savedStateHandle)
 
-    /** Null until a new workout has been written once; then the row every later save updates. */
-    private var persistedId: Long? = workoutId.takeIf { it != NEW_WORKOUT_ID }
+    /**
+     * Null until a new workout has been written once; then the row every later save updates. It
+     * is part of the snapshot: a restore that forgot it would insert a second row on the next save.
+     */
+    private var persistedId: Long? =
+        savedStateHandle.get<Long>(KEY_PERSISTED_ID) ?: workoutId.takeIf { it != NEW_WORKOUT_ID }
 
     /** True when a prior instance of this editor already wrote a snapshot to restore from. */
     private val hasSnapshot: Boolean = savedStateHandle.contains(KEY_NAME)
@@ -151,13 +155,14 @@ class SavedWorkoutEditViewModel(
         persistSnapshot()
     }
 
-    /** Writes name/entries/dirty to [savedStateHandle]; a no-op unless the editor is usable. */
+    /** Writes name/entries/dirty/persisted id to [savedStateHandle]; a no-op unless the editor is usable. */
     private fun persistSnapshot() {
         val s = _state.value
         if (s.status != LoadStatus.LOADED) return
         savedStateHandle[KEY_NAME] = s.name
         savedStateHandle[KEY_ENTRIES] = encodeEntries(s.entries)
         savedStateHandle[KEY_DIRTY] = dirty
+        savedStateHandle[KEY_PERSISTED_ID] = persistedId
     }
 
     /** One line per entry, `|`-separated; an absent optional field is an empty segment. */
@@ -246,6 +251,7 @@ class SavedWorkoutEditViewModel(
         private const val KEY_NAME = "savedWorkoutEdit.name"
         private const val KEY_ENTRIES = "savedWorkoutEdit.entries"
         private const val KEY_DIRTY = "savedWorkoutEdit.dirty"
+        private const val KEY_PERSISTED_ID = "savedWorkoutEdit.persistedId"
 
         /** Route argument for the editor when there is no row yet. */
         const val NEW_WORKOUT_ID = 0L

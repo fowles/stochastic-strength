@@ -376,6 +376,24 @@ class SavedWorkoutsViewModelsTest {
     }
 
     @Test
+    fun aSecondViewModelOnTheSameHandle_updatesTheRowTheFirstSaveCreated() {
+        val handle = SavedStateHandle()
+        val first = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        runBlocking { first.allExercises.first { it.isNotEmpty() } }
+        onMain { first.addExercise(bench.id); first.save() }
+        await("saved") { savedCount() == 1 }
+
+        // The row the first save created is in the handle, so the rebuilt editor updates it.
+        val second = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID, handle)
+        await("restored") { second.state.value.status == LoadStatus.LOADED }
+        onMain { second.setName("Push day"); second.save() }
+        await("renamed") { runBlocking { db.savedWorkoutDao().getAll().any { it.name == "Push day" } } }
+        runBlocking { delay(200) } // let a second insert land, if one is coming
+
+        assertEquals("a save after process death must update, not insert", 1, savedCount())
+    }
+
+    @Test
     fun restoringASnapshot_dropsRowsForExercisesDeletedMeanwhile() = runBlocking {
         val squatId = db.exerciseDao().insert(
             Exercise(name = "Squat", primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL)

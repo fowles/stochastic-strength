@@ -149,7 +149,9 @@ Loading → PlanPreview → ActiveSet ⇄ Resting → Done
   name and shown under a derived one (`SavedWorkoutNaming`). The editor saves only on Done (back
   discards, with a confirm); a new workout (`NEW_WORKOUT_ID`) is inserted on its first non-empty
   save and the editor never deletes a row. Off-session suggestions come from
-  `WorkoutRepository.rowSuggester()`.
+  `WorkoutRepository.rowSuggester()`. Every edit snapshots name/entries/dirty **and the persisted
+  id** to a `SavedStateHandle`; after process death the editor restores from that snapshot instead
+  of the stored row, and saves back onto the id it already wrote (or it would insert a duplicate).
 - `workout_sets.circuitId` records a finished session's structure (summary, Strava description,
   save-as-workout); `setNumber` stays per-exercise and dense.
 - Location: `LocationService` resolves GPS to the nearest `KnownLocation`; `buildPlanner` filters
