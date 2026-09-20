@@ -48,7 +48,7 @@ class BackupJsonTest {
             baselineOverrides = emptyList(), exerciseHurtState = emptyList(),
             savedWorkouts = listOf(SavedWorkout(id = 3, name = "Push", createdAt = 9L)),
             savedWorkoutExercises = listOf(
-                SavedWorkoutExercise(id = 1, workoutId = 3, exerciseId = 7, position = 0, reps = 5),
+                SavedWorkoutExercise(id = 1, workoutId = 3, exerciseId = 7, position = 0, reps = 5, weight = 42.5f),
                 SavedWorkoutExercise(id = 2, workoutId = 3, exerciseId = 8, position = 1, reps = null),
             ),
         )
@@ -62,5 +62,20 @@ class BackupJsonTest {
         val parsed = BackupJsonParser.parse(legacy)
         assertTrue(parsed.savedWorkouts.isEmpty())
         assertTrue(parsed.savedWorkoutExercises.isEmpty())
+    }
+
+    @Test
+    fun `missing weight key defaults to null`() {
+        // A saved-workout-exercise JSON object with no "weight" key at all (older export).
+        val json = """
+            {"format":"stochastic-strength-backup","formatVersion":1,"dbVersion":20,"exportedAt":1,
+             "tables":{"exercises":[],"knownLocations":[],"locationExcludedExercises":[],
+               "workoutSessions":[],"userProfile":[],"baselineOverrides":[],"exerciseHurtState":[],
+               "workoutSets":[],
+               "savedWorkouts":[{"id":1,"name":"Push","createdAt":1}],
+               "savedWorkoutExercises":[{"id":1,"workoutId":1,"exerciseId":1,"position":0,"reps":null}]}}
+        """.trimIndent()
+        val backup = BackupJsonParser.parse(json)
+        assertEquals(null, backup.savedWorkoutExercises.single().weight)
     }
 }

@@ -40,6 +40,9 @@ class Migration20To21Test {
         v21.query("SELECT circuitId FROM workout_sets").use { c ->
             assertTrue(c.moveToFirst()); assertTrue(c.isNull(0))
         }
+        v21.query("SELECT weight FROM saved_workout_exercise").use { c ->
+            assertTrue(c.moveToFirst()); assertTrue(c.isNull(0))
+        }
         v21.close()
     }
 }

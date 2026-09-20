@@ -31,6 +31,7 @@ private fun obj(vararg pairs: Pair<String, Any?>): JSONObject {
 
 private fun JSONObject.longOrNull(key: String): Long? = if (isNull(key)) null else getLong(key)
 private fun JSONObject.intOrNull(key: String): Int? = if (isNull(key)) null else getInt(key)
+private fun JSONObject.floatOrNull(key: String): Float? = if (isNull(key)) null else getDouble(key).toFloat()
 private fun JSONObject.floatVal(key: String): Float = getDouble(key).toFloat()
 
 private fun <T> JSONArray.map(transform: (JSONObject) -> T): List<T> =
@@ -112,7 +113,7 @@ object BackupJsonBuilder {
     private fun savedWorkoutExerciseObj(r: SavedWorkoutExercise) = obj(
         "id" to r.id, "workoutId" to r.workoutId, "exerciseId" to r.exerciseId,
         "position" to r.position, "reps" to r.reps,
-        "sets" to r.sets, "circuitId" to r.circuitId,
+        "sets" to r.sets, "circuitId" to r.circuitId, "weight" to r.weight,
     )
 }
 
@@ -217,5 +218,6 @@ object BackupJsonParser {
         id = o.getLong("id"), workoutId = o.getLong("workoutId"), exerciseId = o.getLong("exerciseId"),
         position = o.getInt("position"), reps = o.intOrNull("reps"),
         sets = o.optInt("sets", 3), circuitId = o.intOrNull("circuitId"),
+        weight = o.floatOrNull("weight"),
     )
 }

@@ -318,7 +318,7 @@ class WorkoutRepository(
             // Normalized after the drop, so a circuit that lost a member is still a valid structure.
             entries = CircuitStructure.normalize(
                 rows.sortedBy { it.position }.mapNotNull { r ->
-                    byId[r.exerciseId]?.let { SavedWorkoutEntry(it, r.reps, r.sets, r.circuitId) }
+                    byId[r.exerciseId]?.let { SavedWorkoutEntry(it, r.reps, r.sets, r.circuitId, r.weight) }
                 }
             ),
         )
@@ -338,7 +338,7 @@ class WorkoutRepository(
             SavedWorkoutExercise(
                 workoutId = workoutId, exerciseId = e.exercise.id, position = i, reps = e.reps,
                 sets = e.sets.coerceIn(CircuitStructure.MIN_SETS, CircuitStructure.MAX_SETS),
-                circuitId = e.circuitId,
+                circuitId = e.circuitId, weight = e.weight?.takeIf { it > 0f },
             )
         })
         workoutId

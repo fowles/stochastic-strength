@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 21,
-    "identityHash": "9ef93e9497f19f853c446b652e4f9b5d",
+    "identityHash": "9776bbac31255133ebaeb37411485ebc",
     "entities": [
       {
         "tableName": "exercises",
@@ -403,7 +403,7 @@
       },
       {
         "tableName": "saved_workout_exercise",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `workoutId` INTEGER NOT NULL, `exerciseId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `reps` INTEGER, `sets` INTEGER NOT NULL DEFAULT 3, `circuitId` INTEGER)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `workoutId` INTEGER NOT NULL, `exerciseId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `reps` INTEGER, `sets` INTEGER NOT NULL DEFAULT 3, `circuitId` INTEGER, `weight` REAL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -445,6 +445,11 @@
             "fieldPath": "circuitId",
             "columnName": "circuitId",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "weight",
+            "columnName": "weight",
+            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -468,7 +473,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9ef93e9497f19f853c446b652e4f9b5d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9776bbac31255133ebaeb37411485ebc')"
     ]
   }
 }

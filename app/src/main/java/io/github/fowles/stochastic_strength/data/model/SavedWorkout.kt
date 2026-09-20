@@ -15,7 +15,8 @@ data class SavedWorkout(
 
 /**
  * One row of a [SavedWorkout]. `reps == null` means "use the session's rep pick". Adjacent rows
- * sharing a non-null [circuitId] form a circuit whose rounds are [sets].
+ * sharing a non-null [circuitId] form a circuit whose rounds are [sets]. `weight == null` means
+ * "use the suggested weight"; otherwise kg, literal.
  */
 @Entity(tableName = "saved_workout_exercise", indices = [Index("workoutId")])
 data class SavedWorkoutExercise(
@@ -26,6 +27,7 @@ data class SavedWorkoutExercise(
     val reps: Int?,
     @ColumnInfo(defaultValue = "3") override val sets: Int = 3,
     override val circuitId: Int? = null,
+    val weight: Float? = null,
 ) : CircuitRow<SavedWorkoutExercise> {
     override fun withStructure(sets: Int, circuitId: Int?) = copy(sets = sets, circuitId = circuitId)
 }

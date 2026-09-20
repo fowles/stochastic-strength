@@ -118,6 +118,16 @@ class SavedWorkoutRepositoryTest {
     }
 
     @Test
+    fun saveWorkout_roundTripsExplicitWeight_andNullStaysNull() = runBlocking {
+        val id = repo.saveWorkout(null, "W", listOf(
+            SavedWorkoutEntry(bench, reps = 5, weight = 42.5f),
+            SavedWorkoutEntry(squat, reps = null),
+        ))
+        val entries = repo.getSavedWorkout(id)!!.entries
+        assertEquals(listOf(42.5f, null), entries.map { it.weight })
+    }
+
+    @Test
     fun saveSessionAsWorkout_rebuildsSetCountsAndCircuits() = runBlocking {
         val sessionId = db.workoutSessionDao().insert(WorkoutSession(startTime = 1L))
         var t = 1000L

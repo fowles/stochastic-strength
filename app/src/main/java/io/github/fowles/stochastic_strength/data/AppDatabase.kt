@@ -391,6 +391,7 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `saved_workout_exercise` ADD COLUMN `sets` INTEGER NOT NULL DEFAULT 3")
                 db.execSQL("ALTER TABLE `saved_workout_exercise` ADD COLUMN `circuitId` INTEGER")
                 db.execSQL("ALTER TABLE `workout_sets` ADD COLUMN `circuitId` INTEGER")
+                db.execSQL("ALTER TABLE `saved_workout_exercise` ADD COLUMN `weight` REAL")
             }
         }
 
