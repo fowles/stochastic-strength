@@ -250,7 +250,7 @@ private fun EntryRow(
         val weightUnitOrNull = unit?.takeIf {
             suggester?.canCarryWeight(entry.exercise)
                 ?: (pinnedWeight != null && !entry.exercise.isTimed &&
-                    entry.exercise.equipment != Equipment.BODYWEIGHT)
+                    entry.exercise.equipment.canCarryWeight)
         }
         ExerciseRowScaffold(
             place = place,

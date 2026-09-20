@@ -933,6 +933,29 @@ class WorkoutPlannerTest {
     }
 
     @Test
+    fun `a pinned weight survives on a user-created exercise outside the coefficient table`() {
+        // A custom lift has no entry in ExerciseCoefficients, so loadedness falls back to its
+        // equipment: a barbell row carries a weight even with no coefficient to price it.
+        val custom = exercise(7, "Matt's Very Own Press", MuscleGroup.CHEST)
+        val p = planner(exercises = listOf(custom), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+        assertTrue(p.isLoadable(custom))
+        val planned = p.planExplicit(custom, null, WorkoutPlan(emptyList(), null, sessionReps = 8), weight = 60f)
+        assertTrue(planned.weightPinned)
+        assertEquals(60f, planned.sessionWeight)
+    }
+
+    @Test
+    fun `a user-created bodyweight or banded exercise stays unloadable`() {
+        val plan = WorkoutPlan(emptyList(), null, sessionReps = 8)
+        for (equipment in listOf(Equipment.BODYWEIGHT, Equipment.BAND)) {
+            val custom = exercise(8, "Custom $equipment Thing", MuscleGroup.CHEST, equipment = equipment)
+            val p = planner(exercises = listOf(custom), strengths = strengthsFor(MuscleGroup.CHEST to 100f))
+            assertFalse(p.isLoadable(custom))
+            assertFalse(p.planExplicit(custom, null, plan, weight = 60f).weightPinned)
+        }
+    }
+
+    @Test
     fun `planExplicit treats a non-positive stored weight as auto and floors a tiny one`() {
         val chest = exercise(1, "Barbell Bench Press", MuscleGroup.CHEST)
         val p = planner(exercises = listOf(chest), strengths = strengthsFor(MuscleGroup.CHEST to 100f))

@@ -116,11 +116,17 @@ class WorkoutPlanner(
     }
 
     /**
-     * Whether [exercise] can carry a weight at all — a positive coefficient. The one rule for
-     * "this row has a weight", so an editor's stepper and a session's pin agree.
+     * Whether [exercise] can carry a weight at all. The one rule for "this row has a weight", so
+     * an editor's stepper and a session's pin agree.
+     *
+     * A positive coefficient settles it for every shipped lift. A user-created exercise is not in
+     * the coefficient table at all, and an absent coefficient means "we can't price this", not
+     * "this has no weight" — so loadedness falls back to the equipment, which is the property the
+     * question is really about. Such a row has no suggestion (see [weightForExercise]); the point
+     * is that the user's own pinned weight survives on it.
      */
     fun isLoadable(exercise: Exercise): Boolean =
-        coefficientSource.get(exercise)?.let { it > 0f } ?: false
+        coefficientSource.get(exercise)?.let { it > 0f } ?: exercise.equipment.canCarryWeight
 
     private fun pickFrom(
         candidates: List<Exercise>,
