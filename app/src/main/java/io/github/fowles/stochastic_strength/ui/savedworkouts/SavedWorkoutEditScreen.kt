@@ -145,6 +145,8 @@ fun SavedWorkoutEditScreen(
                     val block = keyed.block
                     ReorderableItem(reorderState, key = keyed.key) { isDragging ->
                         val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
+                        // Remembered for the same reason as plan preview's: see PlanPreviewContent.
+                        val dragHandle = remember { Modifier.draggableHandle() }
                         Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
                             for (i in block.indices) {
                                 val entry = keyed.rows[i - block.start]
@@ -160,7 +162,7 @@ fun SavedWorkoutEditScreen(
                                             entry = entry,
                                             place = rowPlace(block, i),
                                             sets = block.rounds,
-                                            dragHandleModifier = Modifier.draggableHandle(),
+                                            dragHandleModifier = dragHandle,
                                             suggester = suggester,
                                             weightUnit = weightUnit,
                                             onRemove = { viewModel.removeExercise(entry.exercise.id) },

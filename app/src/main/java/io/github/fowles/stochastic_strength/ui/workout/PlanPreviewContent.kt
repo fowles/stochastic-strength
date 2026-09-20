@@ -213,6 +213,13 @@ internal fun PlanPreviewContent(
                 val block = keyed.block
                 ReorderableItem(reorderState, key = keyed.key) { isDragging ->
                     val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
+                    // draggableHandle() builds an unkeyed Modifier.composed { … }, which has no
+                    // equals — a fresh one per composition is a never-equal parameter that stops
+                    // ExercisePreviewRow ever skipping. The item scope it captures is itself
+                    // remember(state, key)-stable, and composed { … } re-materializes its own
+                    // state at each application site, so one remembered instance serves every row
+                    // in the block.
+                    val dragHandle = remember { Modifier.draggableHandle() }
                     Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
                         for (i in block.indices) {
                             val planned = keyed.rows[i - block.start]
@@ -231,7 +238,7 @@ internal fun PlanPreviewContent(
                                     weightUnit = weightUnit,
                                     place = rowPlace(block, i),
                                     sets = block.rounds,
-                                    dragHandleModifier = Modifier.draggableHandle(),
+                                    dragHandleModifier = dragHandle,
                                     // Only a pinned row can show a suggestion, so only a
                                     // pinned row pays for one on every recomposition.
                                     suggestedWeight =

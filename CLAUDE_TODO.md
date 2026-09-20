@@ -32,9 +32,9 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
   node tracking a row's live swipe offset and snapping back to 0 once the action row takes over,
   and (3) the action row's own layout now that the gutter is drawn only for circuit members (a solo
   row's action row keeps the full width; a circuit member's is inset by the 36dp gutter).
-- `ExercisePreviewRow` still recomposes on every pass, so the `remember(block, i) { linkAbove(...) }`
-  memoization added in the 2026-09-19 sweep buys subtree skipping (`LinkNodeHost`) rather than the
-  whole-row skipping it was aimed at. The remaining never-equal parameter is
-  `dragHandleModifier = Modifier.draggableHandle()` (reorderable 2.4.0), which is built with an
-  unkeyed `Modifier.composed { … }` and so has no `equals`. Fixing it means keying the composed
-  modifier or hoisting the handle out of the row's parameter list.
+- The drag-handle memoization (2026-09-20) that removed `ExercisePreviewRow`'s last never-equal
+  parameter is **not measured**: no recomposition-count harness exists, so "the row now skips" is
+  reasoning about parameter equality, not an observation. It is also **device-unverified** — drag
+  and drop on plan preview and in the saved-workout editor should be exercised on the emulator to
+  confirm the remembered `Modifier.draggableHandle()` still starts a drag from every row of a
+  circuit block.
