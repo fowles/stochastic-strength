@@ -318,8 +318,9 @@ class WorkoutSessionController(
             val entries = saved.entries.distinctBy { it.exercise.id }
             val loadedIds = entries.map { it.exercise.id }.toSet()
             val current = _state.value as? WorkoutState.PlanPreview ?: return@launch
-            val p = if (append) planner ?: return@launch
-            else repository.buildPlanner(sessionLocationId, weightUnit).also { planner = it }
+            // Both paths price against the planner the preview already holds: a load replaces the
+            // plan's rows, not anything the planner reads.
+            val p = planner ?: return@launch
             val basePlan = current.plan
             // A loaded row wins over an existing row for the same exercise.
             val kept = if (append) basePlan.exercises.filter { it.exercise.id !in loadedIds } else emptyList()
@@ -721,7 +722,8 @@ class WorkoutSessionController(
                 val locationId = swap.locationId ?: return
                 repository.excludeExercise(locationId, swap.exerciseId)
             }
-            ExerciseRemovalReason.SKIP_TODAY -> Unit
+            // Skipping for today changes nothing the planner reads, so it needs no rebuild.
+            ExerciseRemovalReason.SKIP_TODAY -> return
         }
         planner = repository.buildPlanner(sessionLocationId, weightUnit)
     }
