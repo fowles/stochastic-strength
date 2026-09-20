@@ -7,7 +7,6 @@ import io.github.fowles.stochastic_strength.data.model.WorkoutSet
 import io.github.fowles.stochastic_strength.domain.RepRangePicker
 import io.github.fowles.stochastic_strength.domain.TimedSet
 import io.github.fowles.stochastic_strength.domain.WorkoutRepository
-import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutViewModel
 import io.github.fowles.stochastic_strength.ui.workout.WorkoutSessionController
 import kotlin.random.Random
@@ -59,10 +58,10 @@ object DebugSeeder {
 
             var setTime = startMs
             for (planned in plan.exercises) {
-                for (setNumber in 1..PlannedExercise.DEFAULT_SETS) {
+                for (setNumber in 1..planned.sets) {
                     setTime += rng.nextLong(3 * 60_000L, 7 * 60_000L)
                     val feedback = feedbackDistribution.random(rng)
-                    val isLastSet = setNumber == PlannedExercise.DEFAULT_SETS
+                    val isLastSet = setNumber == planned.sets
                     val actualReps: Int? = when (feedback) {
                         SetFeedback.RIR_0_1, SetFeedback.RIR_2_4, SetFeedback.RIR_5_PLUS -> planned.sessionReps
                         SetFeedback.TOO_HARD ->
