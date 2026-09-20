@@ -1,5 +1,10 @@
 # Device verification script — 2026-09-20
 
+> **Run 2026-09-20 by the repo owner: all seven checks pass.** Nothing was reverted. Kept as a
+> regression checklist — the circuit rail, link nodes, block drag and the round labels have no
+> automated coverage, so re-run the relevant checks after any change to `CircuitChrome.kt`,
+> `PlanPreviewContent.kt`, `SavedWorkoutEditScreen.kt` or `RestingContent.kt`.
+
 Everything here needs a human with the app on screen. Nothing in this file can be checked from a
 unit or instrumented test; that is exactly why each item is still open.
 
