@@ -59,6 +59,8 @@ class ExercisePacingEstimator internal constructor(
                 val prev = sorted[i - 1]
                 val curr = sorted[i]
                 if (prev.feedback == SetFeedback.HURT || curr.feedback == SetFeedback.HURT) continue
+                // In a circuit the gap between two sets of one exercise also holds the other members' work.
+                if (prev.circuitId != null || curr.circuitId != null) continue
                 val prevAt = prev.completedAt ?: continue
                 val currAt = curr.completedAt ?: continue
                 val workTimeSec = (currAt - prevAt) / 1000.0 - DurationCalculator.REST_SECONDS

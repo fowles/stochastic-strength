@@ -248,4 +248,16 @@ class ExercisePacingEstimatorTest {
         // 10 newest: N = 11, 10, 9, 8, 7, 6, 5, 4, 3, 2. Mean = (2+11)*10/2/10 = 6.5.
         assertNear(6.5f, estimator.secondsPerRep(1L))
     }
+
+    @Test
+    fun circuitSets_areSkipped_becauseTheGapHoldsOtherExercisesWork() {
+        // Same numbers as singlePair_returnsExpectedSecondsPerRep, but inside a circuit.
+        val sessions = listOf(session(id = 10L, startTime = 0L))
+        val sets = mapOf(10L to listOf(
+            set(10L, exerciseId = 1L, setNumber = 1, completedAt = 60_000L, targetReps = 8).copy(circuitId = 0),
+            set(10L, exerciseId = 1L, setNumber = 2, completedAt = 240_000L, targetReps = 8).copy(circuitId = 0),
+        ))
+        val estimator = ExercisePacingEstimator.build(sessions, sets, mapOf(1L to exercise(1L)))
+        assertNull(estimator.secondsPerRep(1L))
+    }
 }

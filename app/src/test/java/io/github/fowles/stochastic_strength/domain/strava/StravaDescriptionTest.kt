@@ -84,4 +84,20 @@ class StravaDescriptionTest {
         assertTrue("starts with first exercise", desc.startsWith("Deadlift\n"))
         assertFalse("no leading blank line", desc.startsWith("\n"))
     }
+
+    @Test
+    fun circuitMembersListUnderOneCircuitHeading_withItsRounds() {
+        val circuitSets = listOf(
+            set(1L, 1).copy(circuitId = 0), set(2L, 1).copy(circuitId = 0),
+            set(1L, 2).copy(circuitId = 0), set(2L, 2).copy(circuitId = 0),
+            set(3L, 1),
+        )
+        val desc = StravaExporter.buildDescription("", circuitSets, exercises, 0L, WeightUnit.KG)
+        val circuit = desc.indexOf("Circuit ×2")
+        assertTrue("heading present", circuit >= 0)
+        assertEquals("one heading for the whole circuit", circuit, desc.lastIndexOf("Circuit ×"))
+        assertTrue(circuit < desc.indexOf("Bench Press"))
+        assertTrue(desc.indexOf("Bench Press") < desc.indexOf("Squat"))
+        assertTrue(desc.indexOf("Squat") < desc.indexOf("Deadlift"))
+    }
 }

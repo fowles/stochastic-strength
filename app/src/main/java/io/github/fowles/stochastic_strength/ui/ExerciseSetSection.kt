@@ -14,7 +14,7 @@ import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 
 @Composable
-fun ExerciseSetSection(name: String, sets: List<SummarySet>, weightUnit: WeightUnit) {
+fun ExerciseSetSection(name: String, sets: List<SummarySet>, weightUnit: WeightUnit, setWord: String = "Set") {
     Text(
         text = name,
         style = MaterialTheme.typography.labelMedium,
@@ -32,7 +32,7 @@ fun ExerciseSetSection(name: String, sets: List<SummarySet>, weightUnit: WeightU
             else
                 quantityLabel
             Text(
-                text = "Set ${set.setNumber}: $weightLabel",
+                text = "$setWord ${set.setNumber}: $weightLabel",
                 style = MaterialTheme.typography.bodyMedium,
             )
             set.summaryFeedbackLabel()?.let { label ->

@@ -49,17 +49,27 @@ fun WorkoutSummaryContent(
                 belowDuration()
             }
             Spacer(Modifier.height(24.dp))
-            summary.exercises.forEach { ex ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (onExerciseTap != null) Modifier.clickable { onExerciseTap(ex.exerciseId) }
-                            else Modifier
-                        ),
-                ) {
-                    ExerciseSetSection(ex.name, ex.sets, summary.weightUnit)
-                    Spacer(Modifier.height(4.dp))
+            summary.blocks.forEach { block ->
+                if (block.isCircuit) Text(
+                    "Circuit · ${block.rounds} rounds",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                block.exercises.forEach { ex ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (onExerciseTap != null) Modifier.clickable { onExerciseTap(ex.exerciseId) }
+                                else Modifier
+                            ),
+                    ) {
+                        ExerciseSetSection(
+                            ex.name, ex.sets, summary.weightUnit,
+                            setWord = if (block.isCircuit) "Round" else "Set",
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
                 }
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))

@@ -28,14 +28,37 @@ fun SummarySet.summaryFeedbackLabel(): String? {
     return fb.displayLabel(weighted = isWeighted, actualReps = actualReps.takeUnless { isTimed })
 }
 
-data class SummaryExercise(val name: String, val exerciseId: Long, val sets: List<SummarySet>)
+data class SummaryExercise(
+    val name: String,
+    val exerciseId: Long,
+    val sets: List<SummarySet>,
+    val circuitId: Int? = null,
+)
+
+/** Exercises shown together: one solo exercise, or the members of a circuit. */
+data class SummaryBlock(val exercises: List<SummaryExercise>) {
+    val isCircuit: Boolean get() = exercises.size > 1
+    val rounds: Int get() = exercises.maxOf { it.sets.size }
+}
+
+/** Groups consecutive exercises that share a non-null circuit id. */
+fun summaryBlocks(exercises: List<SummaryExercise>): List<SummaryBlock> {
+    val out = mutableListOf<MutableList<SummaryExercise>>()
+    for (ex in exercises) {
+        val open = out.lastOrNull()
+        if (ex.circuitId != null && open?.last()?.circuitId == ex.circuitId) open.add(ex) else out += mutableListOf(ex)
+    }
+    return out.map(::SummaryBlock)
+}
 
 data class WorkoutSummaryData(
     val startTime: Long,
     val durationSeconds: Long,
     val exercises: List<SummaryExercise>,
     val weightUnit: WeightUnit,
-)
+) {
+    val blocks: List<SummaryBlock> get() = summaryBlocks(exercises)
+}
 
 suspend fun loadWorkoutSummary(db: AppDatabase, sessionId: Long): WorkoutSummaryData {
     val weightUnit = db.userProfileDao().getProfile()?.weightUnit ?: WeightUnit.KG
@@ -56,6 +79,7 @@ suspend fun loadWorkoutSummary(db: AppDatabase, sessionId: Long): WorkoutSummary
                         isBodyweight = exercise?.equipment == Equipment.BODYWEIGHT,
                     )
                 },
+            circuitId = setsByExercise[id]?.firstOrNull()?.circuitId,
         )
     }
     val duration = if (session != null && session.endTime != null) {

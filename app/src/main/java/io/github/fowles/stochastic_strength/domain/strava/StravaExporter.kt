@@ -158,8 +158,9 @@ class StravaExporter(
 
         /**
          * Pure builder for the Strava activity description: an optional inspirational
-         * highlight at the top, then each exercise (in workout order — [sets] is grouped
-         * by first appearance), then duration and footer.
+         * highlight at the top, then each exercise (in workout order — [sets] is grouped by
+         * first appearance, circuit members under one "Circuit ×N" heading), then duration
+         * and footer.
          */
         internal fun buildDescription(
             highlight: String,
@@ -176,8 +177,15 @@ class StravaExporter(
                 sb.append(highlight).append("\n\n")
             }
 
+            var openCircuit: Int? = null
             for ((id, exerciseSets) in setsByExercise) {
                 val exercise = exerciseById[id] ?: continue
+                val circuit = exerciseSets.first().circuitId
+                if (circuit != null && circuit != openCircuit) {
+                    val rounds = setsByExercise.values.filter { it.first().circuitId == circuit }.maxOf { it.size }
+                    sb.append("Circuit ×$rounds\n")
+                }
+                openCircuit = circuit
                 sb.append(exercise.name).append('\n')
                 for (set in exerciseSets) {
                     val quantity = if (set.durationSeconds != null) "${set.durationSeconds}s"
