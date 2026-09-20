@@ -21,11 +21,14 @@ data class BeliefConfig(
     /** `semantic`: a deliberate user edit / detraining row is trusted a bit more, ±10%. */
     val overrideUncertaintySd: Float = 0.10f,
     /**
-     * `fitted` 2026-07-28 (re-fit on 34-session history): fractional fresh-capacity loss per prior
-     * set. Genuine bowl, min at 0.03 — curve 0.0→35.998 0.01→35.638 0.02→35.374 0.03→35.250
-     * 0.05→35.542 0.08→37.328 (held-out total, ln-units). Was 0.01 (fitted 2026-07-15).
+     * `fitted` 2026-09-20 (split-sample on the 55-session history): fractional fresh-capacity loss
+     * per prior set. Chosen on the first 35 sessions ALONE (flat bowl 0.04–0.065, min 0.05), then
+     * confirmed on the 20 sessions no fit had seen. Held-out per-set, first 35 | unseen 20:
+     * 0.0→0.08563|0.09138 0.03→0.08110|0.08233 0.04→0.08025|0.07991 0.05→0.08009|0.07702
+     * 0.065→0.08047|0.07365 0.08→0.08174|0.07125 0.10→0.08576|0.07238. The unseen slice alone
+     * prefers 0.08, but that is in-sample for it. Was 0.03 (fitted 2026-07-28), 0.01 (2026-07-15).
      */
-    val fatiguePerSetEstimate: Float = 0.03f,
+    val fatiguePerSetEstimate: Float = 0.05f,
     /** `fitted` 2026-07-15, curve in phase-2 plan appendix: uncertainty growth per idle day. */
     val confidenceDecayEstimate: Float = 3e-6f,
     /**
