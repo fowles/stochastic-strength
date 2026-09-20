@@ -1,6 +1,9 @@
 package io.github.fowles.stochastic_strength.ui.savedworkouts
 
 import android.app.Application
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -36,6 +39,8 @@ class SavedWorkoutsViewModelsTest {
     private lateinit var repo: WorkoutRepository
     private lateinit var app: Application
     private lateinit var bench: Exercise
+    private val store = ViewModelStore()
+    private var editorsCreated = 0
 
     @Before
     fun setUp() = runBlocking {
@@ -51,7 +56,13 @@ class SavedWorkoutsViewModelsTest {
     }
 
     @After
-    fun tearDown() = db.close()
+    fun tearDown() {
+        // Clearing cancels each editor's viewModelScope; the settle gives a read already inside
+        // Room a moment to unwind, so nothing queries the database after it closes.
+        onMain { store.clear() }
+        runBlocking { delay(50) }
+        db.close()
+    }
 
     private fun <T> onMain(block: () -> T): T {
         var result: T? = null
@@ -76,7 +87,20 @@ class SavedWorkoutsViewModelsTest {
         assertNotNull(SavedWorkoutsViewModel::class.java.getConstructor(Application::class.java))
     }
 
-    private fun newEditor() = onMain { SavedWorkoutEditViewModel(app, SavedWorkoutEditViewModel.NEW_WORKOUT_ID, repo) }
+    private fun newEditor() = editor(SavedWorkoutEditViewModel.NEW_WORKOUT_ID)
+
+    /**
+     * Every editor is held in one store so [tearDown] can clear them — an editor's init reads the
+     * planner on its own scope, and that read must not outlive the database it queries.
+     */
+    private fun editor(workoutId: Long): SavedWorkoutEditViewModel = onMain {
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                SavedWorkoutEditViewModel(app, workoutId, repo) as T
+        }
+        ViewModelProvider(store, factory)["editor-${editorsCreated++}", SavedWorkoutEditViewModel::class.java]
+    }
 
     @Test
     fun newWorkout_startsLoadedAndEmpty() {
@@ -105,7 +129,7 @@ class SavedWorkoutsViewModelsTest {
     @Test
     fun hasUnsavedChanges_falseForFreshlyLoadedExistingWorkout() = runBlocking {
         val id = repo.saveWorkout(null, "Push day", listOf(SavedWorkoutEntry(bench, 8)))
-        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        val vm = editor(id)
         await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         assertEquals(false, vm.hasUnsavedChanges())
@@ -143,7 +167,7 @@ class SavedWorkoutsViewModelsTest {
     @Test
     fun save_onExistingEmptyUnnamedWorkout_keepsIt() = runBlocking {
         val id = repo.saveWorkout(null, "", emptyList())
-        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        val vm = editor(id)
         await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         onMain { vm.save() }
@@ -157,7 +181,7 @@ class SavedWorkoutsViewModelsTest {
         val id = repo.saveWorkout(null, SavedWorkoutNaming.UNTITLED, emptyList())
         repo.deleteSavedWorkout(id)
 
-        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        val vm = editor(id)
 
         await("missing") { vm.state.value.status == LoadStatus.MISSING }
     }
@@ -166,7 +190,7 @@ class SavedWorkoutsViewModelsTest {
     fun save_onMissingWorkout_writesNothing() = runBlocking {
         val id = repo.saveWorkout(null, SavedWorkoutNaming.UNTITLED, emptyList())
         repo.deleteSavedWorkout(id)
-        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        val vm = editor(id)
         await("missing") { vm.state.value.status == LoadStatus.MISSING }
 
         onMain { vm.setName("Push day"); vm.save() }
@@ -179,7 +203,7 @@ class SavedWorkoutsViewModelsTest {
     @Test
     fun save_onNamedEmptyWorkout_keepsIt() = runBlocking {
         val id = repo.saveWorkout(null, SavedWorkoutNaming.UNTITLED, emptyList())
-        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        val vm = editor(id)
         await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         onMain { vm.setName("Push day"); vm.save() }
@@ -191,7 +215,7 @@ class SavedWorkoutsViewModelsTest {
     @Test
     fun save_onDefaultNamedWorkoutWithExercises_keepsItUnderADerivedName() = runBlocking {
         val id = repo.saveWorkout(null, SavedWorkoutNaming.UNTITLED, listOf(SavedWorkoutEntry(bench, 8)))
-        val vm = onMain { SavedWorkoutEditViewModel(app, id, repo) }
+        val vm = editor(id)
         await("loaded") { vm.state.value.status == LoadStatus.LOADED }
 
         onMain { vm.save() }
