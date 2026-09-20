@@ -73,7 +73,7 @@ class WorkoutPlanner(
         for (tier in tiers) {
             val filtered = when (tier) {
                 ReplacementTier.WEIGHTED_MUSCLE -> all.filter {
-                    it.primaryMuscle == removed.primaryMuscle && isLoaded(it) == isLoaded(removed)
+                    it.primaryMuscle == removed.primaryMuscle && isLoadable(it) == isLoadable(removed)
                 }
                 ReplacementTier.MUSCLE -> all.filter { it.primaryMuscle == removed.primaryMuscle }
                 ReplacementTier.ANY -> all
@@ -115,7 +115,11 @@ class WorkoutPlanner(
         )
     }
 
-    private fun isLoaded(exercise: Exercise): Boolean =
+    /**
+     * Whether [exercise] can carry a weight at all — a positive coefficient. The one rule for
+     * "this row has a weight", so an editor's stepper and a session's pin agree.
+     */
+    fun isLoadable(exercise: Exercise): Boolean =
         coefficientSource.get(exercise)?.let { it > 0f } ?: false
 
     private fun pickFrom(
@@ -274,7 +278,7 @@ class WorkoutPlanner(
         val suggested = weightForExercise(pe.exercise, reps)
         // A weight can only be pinned on a row that can carry one. Loadedness is the exercise's
         // own property — a missing estimate (disliked, never trained) must not drop the user's pin.
-        val pinned = pe.weightPinned && isLoaded(pe.exercise)
+        val pinned = pe.weightPinned && isLoadable(pe.exercise)
         val weight = if (pinned) pe.sessionWeight else suggested
         val warmups = computeWarmupSets(weight, pe.exercise)
         return pe.copy(

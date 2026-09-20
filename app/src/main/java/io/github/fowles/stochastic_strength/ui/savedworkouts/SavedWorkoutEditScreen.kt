@@ -230,13 +230,21 @@ private fun EntryRow(
         },
     ) {
         val suggested = suggester?.weight(entry.exercise, entry.reps)
+        // Stored rows arrive raw (a backup import writes what it was given): a non-positive weight
+        // is no pin at all, the same reading the planner takes.
+        val pinnedWeight = entry.weight?.takeIf { it > 0f }
         // A pinned weight is the user's own number: it shows (and steps) with nothing but a unit,
         // even while the suggester is still building or has no estimate for this lift. Until the
         // unit itself is known there is no grid to show it on, so the row waits.
         val unit = suggester?.weightUnit ?: weightUnit
-        val shownWeight = entry.weight ?: suggested ?: 0f
+        val shownWeight = pinnedWeight ?: suggested ?: 0f
+        // Whether the row carries a weight is the exercise's own property, never the stored value:
+        // a hand-edited weight on a bodyweight row must not conjure a stepper the session ignores.
+        // Until the suggester lands, only an existing pin on a plausibly loadable row shows one.
         val weightUnitOrNull = unit?.takeIf {
-            !entry.exercise.isTimed && (entry.weight != null || (suggested ?: 0f) > 0f)
+            suggester?.canCarryWeight(entry.exercise)
+                ?: (pinnedWeight != null && !entry.exercise.isTimed &&
+                    entry.exercise.equipment != Equipment.BODYWEIGHT)
         }
         ExerciseRowScaffold(
             place = place,
@@ -251,7 +259,7 @@ private fun EntryRow(
                 when {
                     weightUnitOrNull != null -> ValueStepper(
                         text = WeightFormatter.format(shownWeight, weightUnitOrNull),
-                        pinned = entry.weight != null,
+                        pinned = pinnedWeight != null,
                         unit = null,
                         onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, weightUnitOrNull)) },
                         onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, weightUnitOrNull)) },
@@ -299,7 +307,7 @@ private fun EntryRow(
                 )
             }
             if (suggested != null && unit != null) {
-                SuggestionNote(pinnedKg = entry.weight, suggestedKg = suggested, unit = unit)
+                SuggestionNote(pinnedKg = pinnedWeight, suggestedKg = suggested, unit = unit)
             }
         }
     }
