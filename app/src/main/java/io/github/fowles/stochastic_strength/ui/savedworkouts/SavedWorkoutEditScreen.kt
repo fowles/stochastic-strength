@@ -201,7 +201,7 @@ private fun EntryRow(
     sets: Int,
     dragHandleModifier: Modifier,
     suggester: RowSuggester?,
-    weightUnit: WeightUnit,
+    weightUnit: WeightUnit?,
     onRemove: () -> Unit,
     onRepsChange: (Int?) -> Unit,
     onWeightChange: (Float?) -> Unit,
@@ -231,10 +231,13 @@ private fun EntryRow(
     ) {
         val suggested = suggester?.weight(entry.exercise, entry.reps)
         // A pinned weight is the user's own number: it shows (and steps) with nothing but a unit,
-        // even while the suggester is still building or has no estimate for this lift.
+        // even while the suggester is still building or has no estimate for this lift. Until the
+        // unit itself is known there is no grid to show it on, so the row waits.
         val unit = suggester?.weightUnit ?: weightUnit
         val shownWeight = entry.weight ?: suggested ?: 0f
-        val hasWeight = !entry.exercise.isTimed && (entry.weight != null || (suggested ?: 0f) > 0f)
+        val weightUnitOrNull = unit?.takeIf {
+            !entry.exercise.isTimed && (entry.weight != null || (suggested ?: 0f) > 0f)
+        }
         ExerciseRowScaffold(
             place = place,
             sets = sets,
@@ -246,12 +249,12 @@ private fun EntryRow(
                 .padding(vertical = 8.dp),
             trailing = {
                 when {
-                    hasWeight -> ValueStepper(
-                        text = WeightFormatter.format(shownWeight, unit),
+                    weightUnitOrNull != null -> ValueStepper(
+                        text = WeightFormatter.format(shownWeight, weightUnitOrNull),
                         pinned = entry.weight != null,
                         unit = null,
-                        onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, unit)) },
-                        onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, unit)) },
+                        onDecrement = { onWeightChange(WeightFormatter.step(shownWeight, -1, weightUnitOrNull)) },
+                        onIncrement = { onWeightChange(WeightFormatter.step(shownWeight, +1, weightUnitOrNull)) },
                         onReset = { onWeightChange(null) },
                         fewerDescription = "Less weight",
                         moreDescription = "More weight",
@@ -295,7 +298,7 @@ private fun EntryRow(
                     moreDescription = "One rep more",
                 )
             }
-            if (suggested != null) {
+            if (suggested != null && unit != null) {
                 SuggestionNote(pinnedKg = entry.weight, suggestedKg = suggested, unit = unit)
             }
         }

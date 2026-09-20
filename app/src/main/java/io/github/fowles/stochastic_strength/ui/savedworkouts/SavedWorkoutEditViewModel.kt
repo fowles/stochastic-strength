@@ -65,9 +65,12 @@ class SavedWorkoutEditViewModel(
     private val _suggester = MutableStateFlow<RowSuggester?>(null)
     val suggester: StateFlow<RowSuggester?> = _suggester.asStateFlow()
 
-    /** Read on its own so a pinned weight can render before the (much slower) planner build lands. */
-    private val _weightUnit = MutableStateFlow(WeightUnit.KG)
-    val weightUnit: StateFlow<WeightUnit> = _weightUnit.asStateFlow()
+    /**
+     * Read on its own so a pinned weight can render before the (much slower) planner build lands.
+     * Null until that read lands: an lbs user must never see (or step) a weight on the kg grid.
+     */
+    private val _weightUnit = MutableStateFlow<WeightUnit?>(null)
+    val weightUnit: StateFlow<WeightUnit?> = _weightUnit.asStateFlow()
 
     init {
         viewModelScope.launch { _weightUnit.value = repository.weightUnit() }
