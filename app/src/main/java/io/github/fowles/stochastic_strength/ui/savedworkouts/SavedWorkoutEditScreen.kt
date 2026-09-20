@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.RowSuggester
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
@@ -61,6 +60,7 @@ import io.github.fowles.stochastic_strength.ui.components.LoadingBox
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
+import io.github.fowles.stochastic_strength.ui.components.keyedBlocks
 import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -130,7 +130,7 @@ fun SavedWorkoutEditScreen(
                 modifier = Modifier.padding(vertical = 8.dp),
             )
             HorizontalDivider()
-            val blocks = remember(state.entries) { CircuitStructure.blocks(state.entries) }
+            val blocks = remember(state.entries) { keyedBlocks(state.entries) { it.exercise.id } }
             val lazyListState = rememberLazyListState()
             val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
                 viewModel.move(from.index, to.index)
@@ -138,13 +138,13 @@ fun SavedWorkoutEditScreen(
             LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
                 // One item per block, so a drag carries a whole circuit. The smallest member id is a
                 // key that survives the drag.
-                items(blocks, key = { b -> b.indices.minOf { state.entries[it].exercise.id } }) { block ->
-                    val blockKey = block.indices.minOf { state.entries[it].exercise.id }
-                    ReorderableItem(reorderState, key = blockKey) { isDragging ->
+                items(blocks, key = { it.key }) { keyed ->
+                    val block = keyed.block
+                    ReorderableItem(reorderState, key = keyed.key) { isDragging ->
                         val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                         Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
                             for (i in block.indices) {
-                                val entry = state.entries[i]
+                                val entry = keyed.rows[i - block.start]
                                 key(entry.exercise.id) {
                                     LinkNodeHost(
                                         linkedAbove = if (i == 0) null else i != block.start,

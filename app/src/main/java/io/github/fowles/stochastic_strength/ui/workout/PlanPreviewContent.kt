@@ -53,7 +53,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.Equipment
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
-import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 import io.github.fowles.stochastic_strength.domain.WeightFormatter.formatQuantity
 import io.github.fowles.stochastic_strength.domain.model.PlannedExercise
@@ -62,6 +61,7 @@ import io.github.fowles.stochastic_strength.ui.components.LinkNodeHost
 import io.github.fowles.stochastic_strength.ui.components.RowPlace
 import io.github.fowles.stochastic_strength.ui.components.SuggestionNote
 import io.github.fowles.stochastic_strength.ui.components.ValueStepper
+import io.github.fowles.stochastic_strength.ui.components.keyedBlocks
 import io.github.fowles.stochastic_strength.ui.components.rowPlace
 import kotlin.math.roundToInt
 
@@ -203,15 +203,15 @@ internal fun PlanPreviewContent(
             onMove(from.index, to.index)
         }
 
-        val blocks = remember(plan.exercises) { CircuitStructure.blocks(plan.exercises) }
+        val blocks = remember(plan.exercises) { keyedBlocks(plan.exercises) { it.exercise.id } }
         LazyColumn(state = lazyListState, modifier = Modifier.weight(1f)) {
-            items(blocks, key = { b -> b.indices.minOf { plan.exercises[it].exercise.id } }) { block ->
-                val blockKey = block.indices.minOf { plan.exercises[it].exercise.id }
-                ReorderableItem(reorderState, key = blockKey) { isDragging ->
+            items(blocks, key = { it.key }) { keyed ->
+                val block = keyed.block
+                ReorderableItem(reorderState, key = keyed.key) { isDragging ->
                     val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "dragElevation")
                     Column(modifier = Modifier.animateItem().graphicsLayer { shadowElevation = elevation.toPx() }) {
                         for (i in block.indices) {
-                            val planned = plan.exercises[i]
+                            val planned = keyed.rows[i - block.start]
                             key(planned.exercise.id) {
                                 LinkNodeHost(
                                     linkedAbove = if (i == 0) null else i != block.start,

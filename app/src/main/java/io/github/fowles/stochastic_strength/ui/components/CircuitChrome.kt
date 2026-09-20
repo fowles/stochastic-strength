@@ -49,12 +49,30 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.fowles.stochastic_strength.data.model.WeightUnit
+import io.github.fowles.stochastic_strength.data.model.CircuitRow
 import io.github.fowles.stochastic_strength.domain.Block
 import io.github.fowles.stochastic_strength.domain.CircuitStructure
 import io.github.fowles.stochastic_strength.domain.WeightFormatter
 
 /** Material 3's disabled-content alpha, so a dimmed value matches the disabled "−" beside it. */
 private const val DISABLED_ALPHA = 0.38f
+
+/**
+ * A [Block] with the rows it spans and its list key, all resolved up front.
+ *
+ * LazyColumn calls its `key` lambda lazily — outside composition, and sometimes against the
+ * previous block list after the row list has already shrunk — and it keeps a removed item
+ * composed while `animateItem` plays it out. A key or an item body that indexes back into the
+ * live row list therefore reads past its end and crashes on a swipe-away. Resolving both here,
+ * while the block and its rows still agree, is what makes removal safe.
+ */
+data class KeyedBlock<T>(val block: Block, val rows: List<T>, val key: Long)
+
+/** [CircuitStructure.blocks], with each block's rows and its list key (its smallest member [id]). */
+fun <T : CircuitRow<T>> keyedBlocks(rows: List<T>, id: (T) -> Long): List<KeyedBlock<T>> =
+    CircuitStructure.blocks(rows).map { b ->
+        KeyedBlock(b, rows.slice(b.indices), b.indices.minOf { id(rows[it]) })
+    }
 
 /** Where a row sits in its block; drives the handle column of [ExerciseRowScaffold]. */
 enum class RowPlace { SOLO, FIRST, MIDDLE, LAST }
