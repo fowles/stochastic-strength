@@ -35,7 +35,7 @@
 **Interfaces:**
 - Produces: `SavedWorkoutExercise.weight: Float? = null` (last constructor parameter); `SavedWorkoutEntry(exercise, reps, sets = 3, circuitId = null, weight: Float? = null)` — `weight` is the **last** parameter so existing positional callers compile unchanged.
 
-- [ ] **Step 1: Extend the migration test.** In `Migration20To21Test`, inside the existing test after the `sets, circuitId` query, add:
+- [x] **Step 1: Extend the migration test.** In `Migration20To21Test`, inside the existing test after the `sets, circuitId` query, add:
 
 ```kotlin
         v21.query("SELECT weight FROM saved_workout_exercise").use { c ->
@@ -43,7 +43,7 @@
         }
 ```
 
-- [ ] **Step 2: Add a repository round-trip test** to `SavedWorkoutRepositoryTest` (reuse that class's existing db/repo/exercise fixtures; look at its first test for their names):
+- [x] **Step 2: Add a repository round-trip test** to `SavedWorkoutRepositoryTest` (reuse that class's existing db/repo/exercise fixtures; look at its first test for their names):
 
 ```kotlin
     @Test
@@ -58,11 +58,11 @@
     }
 ```
 
-- [ ] **Step 3: Add backup tests** to `BackupJsonTest`: (a) in the existing saved-workout round-trip test give one `SavedWorkoutExercise` `weight = 42.5f` and assert it survives `toJson` → `fromJson`; (b) a new test that parses a saved-workout-exercise JSON object with no `"weight"` key (copy the existing "missing sets defaults to 3" test and drop the key) and asserts `weight == null`.
+- [x] **Step 3: Add backup tests** to `BackupJsonTest`: (a) in the existing saved-workout round-trip test give one `SavedWorkoutExercise` `weight = 42.5f` and assert it survives `toJson` → `fromJson`; (b) a new test that parses a saved-workout-exercise JSON object with no `"weight"` key (copy the existing "missing sets defaults to 3" test and drop the key) and asserts `weight == null`.
 
-- [ ] **Step 4: Run the JVM test, confirm it fails to compile** (`weight` unknown): `./gradlew :app:testDebugUnitTest --tests "*BackupJsonTest"`.
+- [x] **Step 4: Run the JVM test, confirm it fails to compile** (`weight` unknown): `./gradlew :app:testDebugUnitTest --tests "*BackupJsonTest"`.
 
-- [ ] **Step 5: Implement.**
+- [x] **Step 5: Implement.**
   - `SavedWorkoutExercise`: add `val weight: Float? = null,` after `circuitId`; extend the KDoc: "`weight == null` means "use the suggested weight"; otherwise kg, literal."
   - `MIGRATION_20_21`: add a fourth statement `db.execSQL("ALTER TABLE `saved_workout_exercise` ADD COLUMN `weight` REAL")`.
   - `SavedWorkoutEntry`: add `val weight: Float? = null,` as the last parameter; update the KDoc ("`reps`/`weight == null` = session decides").
@@ -70,9 +70,9 @@
   - `BackupJson`: add `private fun JSONObject.floatOrNull(key: String): Float? = if (isNull(key)) null else getDouble(key).toFloat()` beside `intOrNull`; write `"weight" to r.weight`; read `weight = o.floatOrNull("weight")`. (`isNull` is true for a missing key.)
   - Build once (`./gradlew :app:assembleDebug`) so Room rewrites `21.json`; confirm `jj diff --stat` shows `21.json` changed and it contains a `weight` REAL column on `saved_workout_exercise`.
 
-- [ ] **Step 6: Run** `./gradlew :app:testDebugUnitTest --tests "*BackupJsonTest" --tests "*BackupManagerTest"` then the three instrumented classes `…data.Migration20To21Test`, `…data.MigrationTest`, `…domain.SavedWorkoutRepositoryTest`. Expected: all pass. (An emulator that already holds a v21 database from an earlier dev build is irrelevant here: these tests use fresh databases.)
+- [x] **Step 6: Run** `./gradlew :app:testDebugUnitTest --tests "*BackupJsonTest" --tests "*BackupManagerTest"` then the three instrumented classes `…data.Migration20To21Test`, `…data.MigrationTest`, `…domain.SavedWorkoutRepositoryTest`. Expected: all pass. (An emulator that already holds a v21 database from an earlier dev build is irrelevant here: these tests use fresh databases.)
 
-- [ ] **Step 7: Commit** `feat(saved-workouts): optional explicit weight per row, folded into the unreleased v21 migration`.
+- [x] **Step 7: Commit** `feat(saved-workouts): optional explicit weight per row, folded into the unreleased v21 migration`.
 
 ---
 
@@ -90,7 +90,7 @@
   - `WorkoutPlanner.reprice(pe: PlannedExercise, sessionReps: Int): PlannedExercise` — public face of `withWeight`
 - The e1rm override path is **kept** in this task (Task 3 deletes it) so the controller still compiles.
 
-- [ ] **Step 1: Write failing tests** in `WorkoutPlannerTest` (use the file's `exercise(...)`, `planner(...)`, `strengthsFor(...)` helpers):
+- [x] **Step 1: Write failing tests** in `WorkoutPlannerTest` (use the file's `exercise(...)`, `planner(...)`, `strengthsFor(...)` helpers):
 
 ```kotlin
     @Test
@@ -143,9 +143,9 @@
 
 If the file's `exercise(...)` helper has no `equipment` parameter, add one defaulting to what it uses today. Also change the existing `planExplicit_usesPinnedReps_elsePlanSessionReps` to additionally assert `repsPinned` is true for `reps = 5` and false for `reps = null`.
 
-- [ ] **Step 2: Run** `./gradlew :app:testDebugUnitTest --tests "*WorkoutPlannerTest"` — expect compile failure.
+- [x] **Step 2: Run** `./gradlew :app:testDebugUnitTest --tests "*WorkoutPlannerTest"` — expect compile failure.
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
   - `PlannedExercise`: add the two `Boolean = false` fields after `circuitId`, KDoc: "A pinned value is the user's own number: the rep slider skips pinned reps and nothing reprices a pinned weight."
   - `WorkoutPlanner.withWeight`:
 
@@ -187,9 +187,9 @@ If the file's `exercise(...)` helper has no `equipment` parameter, add one defau
 
   - Delete `weightForExerciseTest` only if nothing uses it (grep first); otherwise leave it.
 
-- [ ] **Step 4: Run** the class again — all pass. Then `./gradlew :app:testDebugUnitTest` (whole JVM suite; the backtest gate must pass).
+- [x] **Step 4: Run** the class again — all pass. Then `./gradlew :app:testDebugUnitTest` (whole JVM suite; the backtest gate must pass).
 
-- [ ] **Step 5: Commit** `feat(planner): per-row reps and weight pins; withWeight is the single pricing rule`.
+- [x] **Step 5: Commit** `feat(planner): per-row reps and weight pins; withWeight is the single pricing rule`.
 
 ---
 
@@ -208,7 +208,7 @@ If the file's `exercise(...)` helper has no `equipment` parameter, add one defau
   - `resetExerciseReps(exerciseId: Long)`, `resetExerciseWeight(exerciseId: Long)`
   - `WorkoutRepository.buildPlanner(locationId, weightUnit)` — two parameters
 
-- [ ] **Step 1: Write failing tests** in `WorkoutSessionControllerTest` (helpers `previewFixture`, `preview`, `awaitPreviewSize` exist). Replace `loadSavedWorkout_replacesRows_clearsOverrides_keepsTarget`'s two `exerciseOverrides` assertions with: before the load `assertTrue(preview(f.controller).plan.exercises[0].weightPinned)`; after it `assertTrue(p.plan.exercises.none { it.weightPinned })` and `assertTrue(p.plan.exercises.all { it.repsPinned })`. Delete the `exerciseOverrides.isEmpty()` assertion near line 934. Add:
+- [x] **Step 1: Write failing tests** in `WorkoutSessionControllerTest` (helpers `previewFixture`, `preview`, `awaitPreviewSize` exist). Replace `loadSavedWorkout_replacesRows_clearsOverrides_keepsTarget`'s two `exerciseOverrides` assertions with: before the load `assertTrue(preview(f.controller).plan.exercises[0].weightPinned)`; after it `assertTrue(p.plan.exercises.none { it.weightPinned })` and `assertTrue(p.plan.exercises.all { it.repsPinned })`. Delete the `exerciseOverrides.isEmpty()` assertion near line 934. Add:
 
 ```kotlin
     @Test
@@ -274,7 +274,7 @@ If the file's `exercise(...)` helper has no `equipment` parameter, add one defau
     }
 ```
 
-- [ ] **Step 2: Implement the controller.** Add one private helper and route all four row edits through it:
+- [x] **Step 2: Implement the controller.** Add one private helper and route all four row edits through it:
 
 ```kotlin
     /** Applies [edit] to one preview row and re-prices it through the planner, honouring its pins. */
@@ -305,10 +305,10 @@ If the file's `exercise(...)` helper has no `equipment` parameter, add one defau
 ```
 
   Then: delete `weightAdjustJob` and every use; in `applySavedWorkout` drop the override comment/`copy(exerciseOverrides = …)` (so `basePlan = current.plan`), keep rebuilding the planner on a non-append load, and pass `weight = it.weight` to `planExplicit`; `saveCurrentPlan` builds `SavedWorkoutEntry(it.exercise, it.sessionReps.takeIf { _ -> it.repsPinned }, it.sets, it.circuitId, it.sessionWeight.takeIf { _ -> it.weightPinned })` and fix its KDoc; `replaceExercise`, `persistSwap`, line ~728 and `onLocationRefreshed` call `buildPlanner(loc, weightUnit)` — in `onLocationRefreshed` the `while (true)` rebuild loop collapses to one `buildPlanner` call followed by re-reading `current` (delete the comment about overrides; the concurrent-edit caveat is already in `CLAUDE_TODO.md`).
-- [ ] **Step 3: Delete the override path.** `WorkoutPlan.exerciseOverrides` + `effectiveOverrides`; `WorkoutPlanner.exerciseE1rmOverrides` and the `manual` branch in `weightForExercise`; `e1rmFromSessionWeight`; `recomputeExercise`; `buildPlanner`'s `exerciseOverrides` parameter and its pass-through; the tests listed under **Delete** above. Grep `Overrides\b|recomputeExercise|e1rmFromSessionWeight` across `app/src` — only `BaselineOverride`-family hits may remain.
-- [ ] **Step 4: Delegate** the three new controller methods from `WorkoutViewModel` beside `adjustExerciseWeight`.
-- [ ] **Step 5: Run** `./gradlew :app:testDebugUnitTest`, then instrumented `…ui.workout.WorkoutSessionControllerTest`. All pass.
-- [ ] **Step 6: Commit** `feat(workout): row edits pin reps and weight; drop the one-rep-max override path`.
+- [x] **Step 3: Delete the override path.** `WorkoutPlan.exerciseOverrides` + `effectiveOverrides`; `WorkoutPlanner.exerciseE1rmOverrides` and the `manual` branch in `weightForExercise`; `e1rmFromSessionWeight`; `recomputeExercise`; `buildPlanner`'s `exerciseOverrides` parameter and its pass-through; the tests listed under **Delete** above. Grep `Overrides\b|recomputeExercise|e1rmFromSessionWeight` across `app/src` — only `BaselineOverride`-family hits may remain.
+- [x] **Step 4: Delegate** the three new controller methods from `WorkoutViewModel` beside `adjustExerciseWeight`.
+- [x] **Step 5: Run** `./gradlew :app:testDebugUnitTest`, then instrumented `…ui.workout.WorkoutSessionControllerTest`. All pass.
+- [x] **Step 6: Commit** `feat(workout): row edits pin reps and weight; drop the one-rep-max override path`.
 
 ---
 
@@ -351,18 +351,18 @@ data class LinkState(val linked: Boolean, val onToggle: () -> Unit)
 )
 ```
 
-- [ ] **Step 1: Implement `ExerciseRowScaffold` and `LinkNodeHost`.** The node is a separate host because it overflows the row's bottom edge and `SwipeToDismissBox` clips: callers put the swipe box *inside* `LinkNodeHost` and the scaffold inside the swipe box. Scaffold layout, left to right, `Row(verticalAlignment = CenterVertically)`:
+- [x] **Step 1: Implement `ExerciseRowScaffold` and `LinkNodeHost`.** The node is a separate host because it overflows the row's bottom edge and `SwipeToDismissBox` clips: callers put the swipe box *inside* `LinkNodeHost` and the scaffold inside the swipe box. Scaffold layout, left to right, `Row(verticalAlignment = CenterVertically)`:
   - **Handle column**, 36.dp wide, `fillMaxHeight` (give the Row `Modifier.height(IntrinsicSize.Min)`): SOLO/FIRST → `Icon(Icons.Filled.DragIndicator, "Drag to reorder", tint = onSurfaceVariant, modifier = dragHandleModifier.padding(start = 4.dp, end = 8.dp).size(24.dp))`, centred. FIRST additionally draws a 2.dp-wide `primary` line from below the icon to the bottom edge. MIDDLE → the 2.dp line full height. LAST → the line from the top to the vertical centre. The line's x is the handle icon's centre (16.dp from the row's start). Draw with `Modifier.drawBehind`.
   - **Sets chip**, 44.dp wide + 8.dp end padding: on SOLO/FIRST a `Surface(shape = MaterialTheme.shapes.small, color = secondaryContainer, contentColor = onSecondaryContainer, onClick = { open = true })` containing `Text("$sets ×", style = labelLarge, textAlign = Center, modifier = Modifier.width(44.dp).padding(vertical = 6.dp))`, with `semantics { contentDescription = if (place == RowPlace.SOLO) "Sets: $sets" else "Rounds: $sets" }`, and a `DropdownMenu(expanded = open, …)` of `DropdownMenuItem`s for `CircuitStructure.MIN_SETS..MAX_SETS` (the current value's text in `primary`); picking calls `onSetsChange(n)` and closes. On MIDDLE/LAST a `Spacer(Modifier.width(52.dp))`.
   - `Column(Modifier.weight(1f), content = body)` then `trailing()`.
   - **`LinkNodeHost`**: a `Box` holding `content()` and, when `link != null`, the node at `Modifier.align(Alignment.BottomStart).offset(x = (16 - 18).dp, y = 18.dp).size(36.dp).zIndex(1f)` — a 36.dp clickable area (`clickable(onClick = link.onToggle, role = Role.Button)`) centred on the content's bottom edge at the handle's x, containing a centred 20.dp `CircleShape` `Surface` (linked: `primaryContainer`, icon `Icons.Filled.Link` tinted `onPrimaryContainer`; not linked: `surface` with a 1.dp `outlineVariant` border, icon `Icons.Filled.LinkOff` tinted `onSurfaceVariant`), icon size 14.dp. Content description "Split the circuit here" / "Link into a circuit". The host must not clip, and the next row is drawn after it, so give the host `Modifier.zIndex(1f)` as well so the node paints over the row below.
 
-- [ ] **Step 2: Implement `ValueStepper`.** `Row(CenterVertically)`: `IconButton(onDecrement, Modifier.size(32.dp)) { Icon(Icons.Filled.Remove, fewerDescription, Modifier.size(16.dp)) }`; the value `Text(text, style = titleSmall, textAlign = Center, color = onSurface.copy(alpha = if (pinned) 1f else DISABLED_ALPHA), modifier = Modifier.widthIn(min = 28.dp).then(if (pinned) Modifier.clickable(onClickLabel = "Reset to suggested", onClick = onReset) else Modifier))`; the + `IconButton`; then `unit?.let { Text(it, style = labelSmall, color = onSurfaceVariant) }`.
+- [x] **Step 2: Implement `ValueStepper`.** `Row(CenterVertically)`: `IconButton(onDecrement, Modifier.size(32.dp)) { Icon(Icons.Filled.Remove, fewerDescription, Modifier.size(16.dp)) }`; the value `Text(text, style = titleSmall, textAlign = Center, color = onSurface.copy(alpha = if (pinned) 1f else DISABLED_ALPHA), modifier = Modifier.widthIn(min = 28.dp).then(if (pinned) Modifier.clickable(onClickLabel = "Reset to suggested", onClick = onReset) else Modifier))`; the + `IconButton`; then `unit?.let { Text(it, style = labelSmall, color = onSurfaceVariant) }`.
 
-- [ ] **Step 3: Add previews** (`@Preview(showBackground = true, widthDp = 360)`) at the bottom of the file: one Column with a SOLO row, FIRST/MIDDLE/LAST rows and another SOLO, each wrapped in `LinkNodeHost`, body = a name + a reps `ValueStepper`, trailing = a weight `ValueStepper` (one pinned, one not). This is the visual contract for Tasks 5–6.
+- [x] **Step 3: Add previews** (`@Preview(showBackground = true, widthDp = 360)`) at the bottom of the file: one Column with a SOLO row, FIRST/MIDDLE/LAST rows and another SOLO, each wrapped in `LinkNodeHost`, body = a name + a reps `ValueStepper`, trailing = a weight `ValueStepper` (one pinned, one not). This is the visual contract for Tasks 5–6.
 
-- [ ] **Step 4: Build** `./gradlew :app:assembleDebug` — compiles, no new warnings in this file.
-- [ ] **Step 5: Commit** `feat(ui): shared exercise row scaffold, link node host and value stepper`.
+- [x] **Step 4: Build** `./gradlew :app:assembleDebug` — compiles, no new warnings in this file.
+- [x] **Step 5: Commit** `feat(ui): shared exercise row scaffold, link node host and value stepper`.
 
 ---
 
@@ -375,7 +375,7 @@ data class LinkState(val linked: Boolean, val onToggle: () -> Unit)
 - Consumes: Task 4 composables; Task 3 view-model methods.
 - `PlanPreviewContent` gains `onSetReps: (exerciseId: Long, reps: Int) -> Unit`, `onResetReps: (Long) -> Unit`, `onResetWeight: (Long) -> Unit`; `WorkoutScreen` wires them to `viewModel::setExerciseReps`, `::resetExerciseReps`, `::resetExerciseWeight`.
 
-- [ ] **Step 1: Rebuild the block item.** Delete the `CircuitHeader` call and the `LinkToggle` call. For each row `i` of the block:
+- [x] **Step 1: Rebuild the block item.** Delete the `CircuitHeader` call and the `LinkToggle` call. For each row `i` of the block:
 
 ```kotlin
 val place = rowPlace(block, i)
@@ -389,13 +389,13 @@ LinkNodeHost(
 ```
 
   Keep `key(planned.exercise.id)`, the per-block `HorizontalDivider()` after the block, `animateItem`, and the drag elevation. `Modifier.draggableHandle()` is only valid inside `ReorderableItem`'s scope — obtain it there and pass it down, as the code does today.
-- [ ] **Step 2: Rebuild `ExercisePreviewRow`.** Signature: replace `dragHandleModifier: Modifier?` with `place: RowPlace, sets: Int, dragHandleModifier: Modifier`; replace `onWeightDecrement/onWeightIncrement` with `onAdjustWeight: (Float) -> Unit`; add `onRepsChange: (Int) -> Unit, onResetReps: () -> Unit, onResetWeight: () -> Unit`. Inside the unchanged `SwipeToDismissBox`, the content is `ExerciseRowScaffold(place, sets, onSetsChange, dragHandleModifier, modifier = Modifier.fillMaxWidth().background(surface).clickable(onClick = onTap).padding(vertical = 8.dp), trailing = { … }) { … }`:
+- [x] **Step 2: Rebuild `ExercisePreviewRow`.** Signature: replace `dragHandleModifier: Modifier?` with `place: RowPlace, sets: Int, dragHandleModifier: Modifier`; replace `onWeightDecrement/onWeightIncrement` with `onAdjustWeight: (Float) -> Unit`; add `onRepsChange: (Int) -> Unit, onResetReps: () -> Unit, onResetWeight: () -> Unit`. Inside the unchanged `SwipeToDismissBox`, the content is `ExerciseRowScaffold(place, sets, onSetsChange, dragHandleModifier, modifier = Modifier.fillMaxWidth().background(surface).clickable(onClick = onTap).padding(vertical = 8.dp), trailing = { … }) { … }`:
   - body: `Text(name, titleMedium, maxLines = 1, overflow = Ellipsis)`; then for a timed row `Text(formatQuantity(planned.sessionReps, true), bodyMedium, onSurfaceVariant)`, otherwise `ValueStepper(text = "${planned.sessionReps}", pinned = planned.repsPinned, unit = "reps", onDecrement = { onRepsChange(planned.sessionReps - 1) }, onIncrement = { onRepsChange(planned.sessionReps + 1) }, onReset = onResetReps, fewerDescription = "One rep fewer", moreDescription = "One rep more")`; then the existing `flag` text unchanged.
   - trailing: when `planned.sessionWeight > 0f` a `ValueStepper(text = WeightFormatter.format(planned.sessionWeight, weightUnit), pinned = planned.weightPinned, unit = null, onDecrement = { onAdjustWeight(-2.5f) }, onIncrement = { onAdjustWeight(+2.5f) }, onReset = onResetWeight, fewerDescription = "Less weight", moreDescription = "More weight")`; when the equipment is `BODYWEIGHT` `Text("Bodyweight", bodyMedium, onSurfaceVariant)`; else nothing.
   - Delete the old `weightLabel`/`detail` string building, the two 32.dp `OutlinedButton`s and the inline `CountStepper`.
-- [ ] **Step 3:** Helper text becomes `"Swipe left to reject · tap a dimmed number's − or + to set it yourself"`. The header's total-sets line is unchanged.
-- [ ] **Step 4: Build and run** `./gradlew :app:assembleDebug :app:lintDebug` — 0 errors. Remove now-unused imports.
-- [ ] **Step 5: Commit** `feat(workout): plan preview uses the shared row — sets chip, link nodes, reps and weight steppers`.
+- [x] **Step 3:** Helper text becomes `"Swipe left to reject · tap a dimmed number's − or + to set it yourself"`. The header's total-sets line is unchanged.
+- [x] **Step 4: Build and run** `./gradlew :app:assembleDebug :app:lintDebug` — 0 errors. Remove now-unused imports.
+- [x] **Step 5: Commit** `feat(workout): plan preview uses the shared row — sets chip, link nodes, reps and weight steppers`.
 
 ---
 
@@ -429,7 +429,7 @@ fun setWeight(exerciseId: Long, weight: Float?)  // null = auto
 
 `WorkoutViewModel.DEFAULT_REP_MIN/MAX` become aliases of (or are replaced by) the `RepRangePicker` constants — one definition only.
 
-- [ ] **Step 1: Tests.** `RepRangePickerTest`: `typical(5, 10) == 8` (candidates 5, 8, 10), `typical(3, 3) == 3`, `typical(1, 20)` equals the lower-middle of `candidates(1, 20)`. In `SavedWorkoutsViewModelsTest` (helpers `newEditor()`, `onMain`, `await`, fixture `bench`):
+- [x] **Step 1: Tests.** `RepRangePickerTest`: `typical(5, 10) == 8` (candidates 5, 8, 10), `typical(3, 3) == 3`, `typical(1, 20)` equals the lower-middle of `candidates(1, 20)`. In `SavedWorkoutsViewModelsTest` (helpers `newEditor()`, `onMain`, `await`, fixture `bench`):
 
 ```kotlin
     @Test
@@ -457,15 +457,15 @@ fun setWeight(exerciseId: Long, weight: Float?)  // null = auto
 ```
 
   (If `addExercise` needs `allExercises` to be collected first, follow what the class's existing add-exercise test does.)
-- [ ] **Step 2: Implement** the repository/picker/view-model pieces. `rowSuggester()` reads `db.userProfileDao().getProfile()`; rep range defaults to the `RepRangePicker` constants, unit to `WeightUnit.KG`. The view model loads it in `init` with `viewModelScope.launch { _suggester.value = repository.rowSuggester() }`. `setWeight` mirrors `setReps`. The suggester is **not** part of `SavedWorkoutEditState`, so it cannot affect `hasUnsavedChanges`.
-- [ ] **Step 3: Rebuild the screen's block item and `EntryRow`** exactly as Task 5 did for the preview (`LinkNodeHost` outside the `SwipeToDismissBox`, `ExerciseRowScaffold` inside it, no `CircuitHeader`/`LinkToggle`, `key(entry.exercise.id)` kept). `EntryRow(entry, place, sets, dragHandleModifier, suggester: RowSuggester?, onRemove, onRepsChange: (Int?) -> Unit, onWeightChange: (Float?) -> Unit, onSetsChange)`:
+- [x] **Step 2: Implement** the repository/picker/view-model pieces. `rowSuggester()` reads `db.userProfileDao().getProfile()`; rep range defaults to the `RepRangePicker` constants, unit to `WeightUnit.KG`. The view model loads it in `init` with `viewModelScope.launch { _suggester.value = repository.rowSuggester() }`. `setWeight` mirrors `setReps`. The suggester is **not** part of `SavedWorkoutEditState`, so it cannot affect `hasUnsavedChanges`.
+- [x] **Step 3: Rebuild the screen's block item and `EntryRow`** exactly as Task 5 did for the preview (`LinkNodeHost` outside the `SwipeToDismissBox`, `ExerciseRowScaffold` inside it, no `CircuitHeader`/`LinkToggle`, `key(entry.exercise.id)` kept). `EntryRow(entry, place, sets, dragHandleModifier, suggester: RowSuggester?, onRemove, onRepsChange: (Int?) -> Unit, onWeightChange: (Float?) -> Unit, onSetsChange)`:
   - reps stepper (not for timed rows — show `Text("60 s")` via `formatQuantity(60, true)`): `text = entry.reps?.toString() ?: suggester?.let { "${it.repMin}–${it.repMax}" } ?: "–"`, `pinned = entry.reps != null`; `−`/`+` call `onRepsChange(((entry.reps ?: suggester?.typicalReps ?: return) ∓ 1).coerceIn(1, 50))` — note the first tap lands on typical ∓ 1; `onReset = { onRepsChange(null) }`.
   - weight stepper in `trailing`, only when `suggester != null && suggester.weight(entry.exercise, entry.reps) > 0f`: `val suggested = suggester.weight(entry.exercise, entry.reps)`; `text = WeightFormatter.format(entry.weight ?: suggested, suggester.weightUnit)`; `pinned = entry.weight != null`; `−`/`+` → `onWeightChange(WeightFormatter.round(((entry.weight ?: suggested) ∓ 2.5f).coerceAtLeast(2.5f), suggester.weightUnit))`; reset → `onWeightChange(null)`. For a bodyweight exercise show `Text("Bodyweight")` as in Task 5.
   - Under the name line, when `entry.weight != null && entry.weight != suggested`, add `Text("suggests ${WeightFormatter.format(suggested, unit)}", labelSmall, onSurfaceVariant)`. Add the same line to Today's workout's row in `PlanPreviewContent` — it needs the suggestion, so add `suggestedWeight: Float` to `ExercisePreviewRow`, computed by the caller from a new `PlanPreviewContent` parameter `suggestWeight: (PlannedExercise) -> Float` that `WorkoutScreen` wires to a new `WorkoutViewModel.suggestedWeight(pe) = controller.suggestedWeight(pe)` → `planner?.suggestedWeight(pe.exercise, pe.sessionReps) ?: pe.sessionWeight`.
   - Helper text: `"Drag to reorder · swipe left to remove · dimmed numbers are suggestions"`. Delete `StepperLabel`, `MAX_REPS` (use 50 inline via a private const `MAX_PINNED_REPS` if used twice).
-- [ ] **Step 4: Delete** `CountStepper`, `LinkToggle`, `CircuitHeader` from `CircuitChrome.kt`; grep confirms no references. Remove unused imports in all touched files.
-- [ ] **Step 5: Run** `./gradlew :app:testDebugUnitTest :app:lintDebug`, then instrumented `…ui.savedworkouts.SavedWorkoutsViewModelsTest`.
-- [ ] **Step 6: Commit** `feat(saved-workouts): editor uses the shared row; explicit weight with live suggestions; remove old circuit chrome`.
+- [x] **Step 4: Delete** `CountStepper`, `LinkToggle`, `CircuitHeader` from `CircuitChrome.kt`; grep confirms no references. Remove unused imports in all touched files.
+- [x] **Step 5: Run** `./gradlew :app:testDebugUnitTest :app:lintDebug`, then instrumented `…ui.savedworkouts.SavedWorkoutsViewModelsTest`.
+- [x] **Step 6: Commit** `feat(saved-workouts): editor uses the shared row; explicit weight with live suggestions; remove old circuit chrome`.
 
 ---
 
@@ -473,8 +473,8 @@ fun setWeight(exerciseId: Long, weight: Float?)  // null = auto
 
 **Files:** Modify `CLAUDE.md`
 
-- [ ] **Step 1: Update `CLAUDE.md`** "Saved workouts and explicit control": saved rows carry optional `reps` **and `weight`** (kg, literal, never progresses; the UI shows the suggestion beside a differing pin); plan rows carry `repsPinned`/`weightPinned`; the rep slider reprices only unpinned reps and nothing reprices a pinned weight; a pinned weight bypasses `PrescriptionPolicy`; `WorkoutPlanner.reprice` is the single pricing rule; the shared row lives in `ui/components/CircuitChrome.kt` (`ExerciseRowScaffold`, `LinkNodeHost`, `ValueStepper`). Remove the sentence "the rep-range slider reprices every row". In "Database", note the `weight` column is part of v21.
-- [ ] **Step 2: Full run.** `./gradlew :app:testDebugUnitTest :app:lintDebug` then `./gradlew :app:connectedAndroidTest`. If the attached emulator's installed app has an old v21 database, instrumented tests are unaffected (in-memory/fresh DBs); do not uninstall anything.
-- [ ] **Step 3: Commit** `docs: CLAUDE.md covers pinned reps/weight and the shared row`.
+- [x] **Step 1: Update `CLAUDE.md`** "Saved workouts and explicit control": saved rows carry optional `reps` **and `weight`** (kg, literal, never progresses; the UI shows the suggestion beside a differing pin); plan rows carry `repsPinned`/`weightPinned`; the rep slider reprices only unpinned reps and nothing reprices a pinned weight; a pinned weight bypasses `PrescriptionPolicy`; `WorkoutPlanner.reprice` is the single pricing rule; the shared row lives in `ui/components/CircuitChrome.kt` (`ExerciseRowScaffold`, `LinkNodeHost`, `ValueStepper`). Remove the sentence "the rep-range slider reprices every row". In "Database", note the `weight` column is part of v21.
+- [x] **Step 2: Full run.** `./gradlew :app:testDebugUnitTest :app:lintDebug` then `./gradlew :app:connectedAndroidTest`. If the attached emulator's installed app has an old v21 database, instrumented tests are unaffected (in-memory/fresh DBs); do not uninstall anything.
+- [x] **Step 3: Commit** `docs: CLAUDE.md covers pinned reps/weight and the shared row`.
 
 The on-device visual pass (chip menu, link-node hit area beside the drag handle, rail drawing, 360dp width with long names, dynamic-colour contrast) is done by the controller session with the user, not by a subagent.
