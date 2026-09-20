@@ -23,8 +23,6 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - Shared row polish (`ui/components/CircuitChrome.kt`), deferred from the unified-row review:
   - While a circuit member on Today's workout shows its swipe `ExerciseActionRow`, its rail segment
     disappears and its link node stays floating; the node also does not move with a row mid-swipe.
-  - The link node sits ~2dp from the drag handle on a 64dp row; needs an on-device look for drag
-    feel. (The hollow node's contrast is fixed — it is `outline` now, verified on the emulator.)
   - TalkBack reads the node after its own row; the wording now says "the row above", but a
     `traversalIndex` so it reads between the two rows would be clearer. Not tested with TalkBack.
 - `EntryRow` (editor) and `ExercisePreviewRow` (Today's workout) duplicate the row body: name text,
