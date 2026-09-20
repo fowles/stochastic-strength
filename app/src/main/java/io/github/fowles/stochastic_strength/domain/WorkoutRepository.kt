@@ -422,11 +422,14 @@ class WorkoutRepository(
                 )
             }
         }
-        val blocks = members.filter { it.circuitId != null }.groupBy { it.circuitId }.values
-            .map { it.sortedWith(compareBy({ m -> m.lastAt }, { m -> m.lastId })) } +
-            members.filter { it.circuitId == null }.map { listOf(it) }
-        val ordered = blocks.sortedWith(compareBy({ b -> b.minOf { it.firstAt } }, { b -> b.minOf { it.firstId } }))
-            .flatten()
+        // A circuit runs to completion before the next block starts, so once members are in the
+        // order they were first logged the members of one circuit are contiguous — which is the
+        // adjacency rule CircuitStructure already knows. Within a block, the order the members
+        // last came around is their row order.
+        val byFirstSet = members.sortedWith(compareBy({ it.firstAt }, { it.firstId }))
+        val ordered = CircuitStructure.blocksBy(byFirstSet, { it.circuitId }).flatMap { block ->
+            byFirstSet.slice(block.indices).sortedWith(compareBy({ it.lastAt }, { it.lastId }))
+        }
         val entries = ordered.map {
             SavedWorkoutEntry(exercise = it.exercise, reps = it.reps, sets = it.sets, circuitId = it.circuitId)
         }

@@ -127,7 +127,9 @@ fun AppNavigation() {
         composable("workout") {
             WorkoutScreen(
                 onWorkoutDone = {
-                    navController.navigateIfResumed("home") {
+                    // Plain navigate: this arrives on a channel once the replay finishes, not from
+                    // a tap, so a backgrounded app must still leave the finished workout behind.
+                    navController.navigate("home") {
                         popUpTo("home") { inclusive = true }
                     }
                 },
