@@ -523,9 +523,6 @@ class WorkoutRepository(
         )
     }
 
-    suspend fun getCoefficientEvents(exerciseId: Long): List<CoefficientHistory> =
-        derivedState.snapshot().coefficientHistoryForExercise(exerciseId)
-
     private val progressionSeriesBuilder = ExerciseProgressionSeriesBuilder(config = beliefConfig)
 
     suspend fun getExerciseProgressionData(exerciseId: Long): ExerciseProgressionData =

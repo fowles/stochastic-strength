@@ -55,9 +55,6 @@ class DerivedStateStore {
         fun baselineHistoryForMuscle(muscle: MuscleGroup): List<BaselineHistory> =
             baselineHistory.filter { it.muscleGroup == muscle }.sortedBy { it.timestamp }
 
-        fun coefficientHistoryForExercise(exerciseId: Long): List<CoefficientHistory> =
-            coefficientHistory.filter { it.exerciseId == exerciseId }.sortedBy { it.computedAt }
-
         fun coefficientHistoryLatestPerExercise(): List<CoefficientHistory> =
             coefficientHistory
                 .groupBy { it.exerciseId }

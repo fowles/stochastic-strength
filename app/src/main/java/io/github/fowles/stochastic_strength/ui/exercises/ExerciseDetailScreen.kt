@@ -234,15 +234,22 @@ fun ExerciseDetailScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 state.selectedDay?.let { day ->
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    SelectedDayDetail(
-                        day = day,
-                        exercise = exercise,
-                        primarySets = state.primarySetsByDay[day] ?: emptyList(),
-                        shadowSets = state.shadowSetsByDay[day] ?: emptyList(),
-                        weightUnit = state.weightUnit,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
+                    val primarySets = state.primarySetsByDay[day] ?: emptyList()
+                    val shadowSets = state.shadowSetsByDay[day] ?: emptyList()
+                    // Some points have no sets behind them — the predicted-now point, or a day
+                    // whose only sibling sets were zero-coefficient. A panel holding just a date
+                    // header is noise, so those days get none.
+                    if (primarySets.isNotEmpty() || shadowSets.isNotEmpty()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        SelectedDayDetail(
+                            day = day,
+                            exercise = exercise,
+                            primarySets = primarySets,
+                            shadowSets = shadowSets,
+                            weightUnit = state.weightUnit,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                 }
             }
         }

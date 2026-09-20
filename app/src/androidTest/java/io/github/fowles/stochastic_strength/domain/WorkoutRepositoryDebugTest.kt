@@ -6,14 +6,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.fowles.stochastic_strength.data.AppDatabase
 import io.github.fowles.stochastic_strength.data.model.BaselineHistory
 import io.github.fowles.stochastic_strength.data.model.BaselineChangeReason
-import io.github.fowles.stochastic_strength.data.model.CoefficientHistory
-import io.github.fowles.stochastic_strength.data.model.Equipment
-import io.github.fowles.stochastic_strength.data.model.Exercise
 import io.github.fowles.stochastic_strength.data.model.MuscleGroup
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,35 +62,4 @@ class WorkoutRepositoryDebugTest {
         assertEquals(2, events.size)
         assertEquals(listOf(3000L, 5000L), events.map { it.timestamp })
     }
-
-    @Test
-    fun getCoefficientEvents_returns_events_for_exercise_ascending() = runBlocking {
-        db.exerciseDao().insertAll(listOf(
-            Exercise(name = "Barbell Bench Press", primaryMuscle = MuscleGroup.CHEST, equipment = Equipment.BARBELL),
-            Exercise(name = "Squat",                primaryMuscle = MuscleGroup.QUADS, equipment = Equipment.BARBELL),
-        ))
-        val exercises = db.exerciseDao().getAll()
-        val bench = exercises.first { it.name == "Barbell Bench Press" }
-        val squat = exercises.first { it.name == "Squat" }
-        repository.derivedState.rebuild { mut ->
-            mut.insertCoefficientHistory(CoefficientHistory(
-                exerciseId = bench.id, previousCoefficient = null, coefficient = 0.95f,
-                heuristicName = "h", heuristicMetadata = null, computedAt = 3000L,
-            ))
-            mut.insertCoefficientHistory(CoefficientHistory(
-                exerciseId = bench.id, previousCoefficient = 0.95f, coefficient = 0.92f,
-                heuristicName = "h", heuristicMetadata = null, computedAt = 1000L,
-            ))
-            mut.insertCoefficientHistory(CoefficientHistory(
-                exerciseId = squat.id, previousCoefficient = null, coefficient = 0.9f,
-                heuristicName = "h", heuristicMetadata = null, computedAt = 2000L,
-            ))
-        }
-
-        val events = repository.getCoefficientEvents(bench.id)
-
-        assertEquals(2, events.size)
-        assertEquals(listOf(1000L, 3000L), events.map { it.computedAt })
-    }
-
 }

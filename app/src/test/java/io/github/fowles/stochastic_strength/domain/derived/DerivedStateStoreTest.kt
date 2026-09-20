@@ -24,7 +24,6 @@ class DerivedStateStoreTest {
         assertTrue(snap.allBaselineHistory().isEmpty())
         assertNull(snap.muscleGroupStrength(MuscleGroup.CHEST))
         assertTrue(snap.baselineHistoryForMuscle(MuscleGroup.CHEST).isEmpty())
-        assertTrue(snap.coefficientHistoryForExercise(7L).isEmpty())
         assertTrue(snap.coefficientHistoryLatestPerExercise().isEmpty())
     }
 
@@ -38,7 +37,7 @@ class DerivedStateStoreTest {
         val snap = store.snapshot()
         assertEquals(100f, snap.muscleGroupStrength(MuscleGroup.CHEST)?.baselineWeight)
         assertEquals(1, snap.allBaselineHistory().size)
-        assertEquals(1, snap.coefficientHistoryForExercise(1L).size)
+        assertEquals(1, snap.allCoefficientHistory().size)
     }
 
     @Test fun rebuildAssignsAutoIncrementIdsStartingAtOne() = runTest {
