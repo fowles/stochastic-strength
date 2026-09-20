@@ -69,3 +69,13 @@ Bugs / cleanup ideas noticed out of scope. Triage and address when convenient.
 - `HistoryScreen`'s `onExerciseTap` parameter is dead — `AppNavigation` passes a real
   `exercise/{id}` navigation lambda, but nothing in the screen body ever calls it. Either wire the
   session rows' exercise names to it or drop the parameter and the call-site lambda.
+- `ExercisePreviewRow` still recomposes on every pass, so the `remember(block, i) { linkAbove(...) }`
+  memoization added in the 2026-09-19 sweep buys subtree skipping (`LinkNodeHost`) rather than the
+  whole-row skipping it was aimed at. The remaining never-equal parameter is
+  `dragHandleModifier = Modifier.draggableHandle()` (reorderable 2.4.0), which is built with an
+  unkeyed `Modifier.composed { … }` and so has no `equals`. Fixing it means keying the composed
+  modifier or hoisting the handle out of the row's parameter list.
+- `PlanPreviewContent.kt:311`'s comment ("A SOLO row draws no rail and has no node") is inaccurate:
+  a solo row at index > 0 does get an unlinked node from `LinkNodeHost`. The code is correct — the
+  node is positioned at a fixed offset from the host `Box`, independent of the gutter — so this is a
+  misleading rationale, not a defect. Reword it.
